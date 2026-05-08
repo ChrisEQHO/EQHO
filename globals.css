@@ -1,0 +1,262 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* EQHO Brand Colors */
+:root {
+  /* Brand Colors */
+  --eqho-pink: #FF4DA6;
+  --eqho-green: #00C896;
+  --eqho-blue: #3D8BFF;
+  --eqho-navy: #0D1117;
+  --eqho-slate: #1E232B;
+  --eqho-gray: #E6E9EF;
+  --eqho-white: #FFFFFF;
+
+  --background: #0D1117;
+  --foreground: #E6E9EF;
+  --card: #1E232B;
+  --card-foreground: #E6E9EF;
+  --popover: #1E232B;
+  --popover-foreground: #E6E9EF;
+  --primary: #3D8BFF;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E232B;
+  --secondary-foreground: #E6E9EF;
+  --muted: #1E232B;
+  --muted-foreground: #8B95A5;
+  --accent: #FF4DA6;
+  --accent-foreground: #FFFFFF;
+  --destructive: #FF4D4D;
+  --destructive-foreground: #FFFFFF;
+  --border: #2D3748;
+  --input: #2D3748;
+  --ring: #3D8BFF;
+  --chart-1: #FF4DA6;
+  --chart-2: #00C896;
+  --chart-3: #3D8BFF;
+  --chart-4: #E6E9EF;
+  --chart-5: #8B95A5;
+  --radius: 0.75rem;
+  --sidebar: #0D1117;
+  --sidebar-foreground: #E6E9EF;
+  --sidebar-primary: #3D8BFF;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E232B;
+  --sidebar-accent-foreground: #E6E9EF;
+  --sidebar-border: #2D3748;
+  --sidebar-ring: #3D8BFF;
+}
+
+.dark {
+  --background: #0D1117;
+  --foreground: #E6E9EF;
+  --card: #1E232B;
+  --card-foreground: #E6E9EF;
+  --popover: #1E232B;
+  --popover-foreground: #E6E9EF;
+  --primary: #3D8BFF;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E232B;
+  --secondary-foreground: #E6E9EF;
+  --muted: #1E232B;
+  --muted-foreground: #8B95A5;
+  --accent: #FF4DA6;
+  --accent-foreground: #FFFFFF;
+  --destructive: #FF4D4D;
+  --destructive-foreground: #FFFFFF;
+  --border: #2D3748;
+  --input: #2D3748;
+  --ring: #3D8BFF;
+  --chart-1: #FF4DA6;
+  --chart-2: #00C896;
+  --chart-3: #3D8BFF;
+  --chart-4: #E6E9EF;
+  --chart-5: #8B95A5;
+  --sidebar: #0D1117;
+  --sidebar-foreground: #E6E9EF;
+  --sidebar-primary: #3D8BFF;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E232B;
+  --sidebar-accent-foreground: #E6E9EF;
+  --sidebar-border: #2D3748;
+  --sidebar-ring: #3D8BFF;
+}
+
+@theme inline {
+  --font-sans: var(--font-poppins), 'Poppins', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* EQHO Brand Colors */
+  --color-eqho-pink: #FF4DA6;
+  --color-eqho-green: #00C896;
+  --color-eqho-blue: #3D8BFF;
+  --color-eqho-navy: #0D1117;
+  --color-eqho-slate: #1E232B;
+  --color-eqho-gray: #E6E9EF;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom utility classes for EQHO */
+@layer utilities {
+  .gradient-text {
+    background: linear-gradient(135deg, #FF4DA6 0%, #00C896 50%, #3D8BFF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .gradient-border {
+    background: linear-gradient(135deg, #FF4DA6, #00C896, #3D8BFF);
+  }
+  
+  .glass-panel {
+    background: rgba(30, 35, 43, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .glow-pink {
+    box-shadow: 0 0 20px rgba(255, 77, 166, 0.3);
+  }
+  
+  .glow-green {
+    box-shadow: 0 0 20px rgba(0, 200, 150, 0.3);
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(61, 139, 255, 0.3);
+  }
+
+  /* Hover lift animation */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Subtle scale on hover */
+  .hover-scale {
+    transition: transform 0.2s ease;
+  }
+  .hover-scale:hover {
+    transform: scale(1.02);
+  }
+
+  /* Premium card shine effect */
+  .card-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .card-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.03),
+      transparent
+    );
+    transition: left 0.5s ease;
+  }
+  .card-shine:hover::before {
+    left: 100%;
+  }
+}
+
+/* Waveform background pattern */
+.waveform-bg {
+  position: relative;
+}
+.waveform-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10 Q5 5 10 10 Q15 15 20 10 Q25 5 30 10 Q35 15 40 10 Q45 5 50 10 Q55 15 60 10 Q65 5 70 10 Q75 15 80 10 Q85 5 90 10 Q95 15 100 10' stroke='%23FF4DA6' stroke-width='0.5' fill='none' opacity='0.08'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* Animated waveform accent */
+@keyframes waveform-pulse {
+  0%, 100% { opacity: 0.05; }
+  50% { opacity: 0.12; }
+}
+
+.waveform-accent {
+  animation: waveform-pulse 4s ease-in-out infinite;
+}
+
+/* Smooth sidebar transition */
+.sidebar-transition {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom scrollbar for the dashboard */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(139, 149, 165, 0.3);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 149, 165, 0.5);
+}
