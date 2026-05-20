@@ -1319,15 +1319,21 @@ export default function Page() {
                       <p className="mt-2 text-sm text-white/35">Upload tracks and add them to your playlist</p>
                     </div>
                   ) : (
-                    playlist.map((track, index) => {
+                    (() => {
+                      // Reorder for display: current track first, upcoming next, then completed at bottom
+                      const upcoming = playlist.slice(currentIndex).map((track, i) => ({ track, originalIndex: currentIndex + i }));
+                      const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
+                      const reordered = [...upcoming, ...completed];
+
+                      return reordered.map(({ track, originalIndex }) => {
                         const colours = ["text-[#ff4fb3]", "text-blue-500", "text-purple-400", "text-[#ff8a1c]", "text-cyan-400", "text-green-400"];
-                        const colour = colours[index % colours.length];
+                        const colour = colours[originalIndex % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
                         const isFinished = finishedTracks.has(track.id);
-                        const isCompleted = !isFinished && index < currentIndex;
+                        const isCompleted = !isFinished && originalIndex < currentIndex;
                         const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
-                        const isDragging = draggedTrackIndex === index;
-                        const isDropTarget = dropTargetIndex === index;
+                        const isDragging = draggedTrackIndex === originalIndex;
+                        const isDropTarget = dropTargetIndex === originalIndex;
                       
                         return (
                           <div key={track.id} className="relative">
@@ -1338,9 +1344,9 @@ export default function Page() {
                             <div 
                               draggable
                               onDragStart={(e) => {
-                                setDraggedTrackIndex(index);
+                                setDraggedTrackIndex(originalIndex);
                                 e.dataTransfer.effectAllowed = "move";
-                                e.dataTransfer.setData("text/plain", index.toString());
+                                e.dataTransfer.setData("text/plain", originalIndex.toString());
                               }}
                               onDragEnd={() => {
                                 setDraggedTrackIndex(null);
@@ -1350,8 +1356,8 @@ export default function Page() {
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 e.dataTransfer.dropEffect = "move";
-                                if (draggedTrackIndex !== null && draggedTrackIndex !== index) {
-                                  setDropTargetIndex(index);
+                                if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
+                                  setDropTargetIndex(originalIndex);
                                   // Detect if cursor is in top or bottom half of the element
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const midpoint = rect.top + rect.height / 2;
@@ -1359,13 +1365,13 @@ export default function Page() {
                                 }
                               }}
                               onDragLeave={() => {
-                                if (dropTargetIndex === index) {
+                                if (dropTargetIndex === originalIndex) {
                                   setDropTargetIndex(null);
                                 }
                               }}
                               onDrop={(e) => {
                                 e.preventDefault();
-                                if (draggedTrackIndex === null || draggedTrackIndex === index) return;
+                                if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
                                 
                                 setPlaylist((prev) => {
                                   const newPlaylist = [...prev];
@@ -1375,10 +1381,10 @@ export default function Page() {
                                   let insertIndex: number;
                                   if (dropPosition === "above") {
                                     // Line is above target - insert before target
-                                    insertIndex = draggedTrackIndex < index ? index - 1 : index;
+                                    insertIndex = draggedTrackIndex < originalIndex ? originalIndex - 1 : originalIndex;
                                   } else {
                                     // Line is below target - insert after target
-                                    insertIndex = draggedTrackIndex < index ? index : index + 1;
+                                    insertIndex = draggedTrackIndex < originalIndex ? originalIndex : originalIndex + 1;
                                   }
                                   
                                   newPlaylist.splice(insertIndex, 0, draggedItem);
@@ -1399,7 +1405,7 @@ export default function Page() {
                                 setDropPosition("below");
                               }}
                               onClick={() => {
-                                setCurrentIndex(index);
+                                setCurrentIndex(originalIndex);
                                 togglePlayPause(track);
                               }}
                               className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_32px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
@@ -1415,7 +1421,7 @@ export default function Page() {
                               <div className="cursor-grab active:cursor-grabbing">
                                 <GripVertical size={15} className="text-white/75 hover:text-white" />
                               </div>
-                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{index + 1}</div>
+                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div>
                                 <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff4fb3]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className="text-xs text-white/85">
@@ -1431,15 +1437,15 @@ export default function Page() {
                                   e.stopPropagation();
                                   setPlaylist((prev) => {
                                     const newPlaylist = prev.filter((t) => t.id !== track.id);
-                                    if (index < currentIndex) {
+                                    if (originalIndex < currentIndex) {
                                       setCurrentIndex((idx) => Math.max(0, idx - 1));
-                                    } else if (index === currentIndex && newPlaylist.length > 0) {
+                                    } else if (originalIndex === currentIndex && newPlaylist.length > 0) {
                                       setCurrentIndex((idx) => Math.min(idx, newPlaylist.length - 1));
                                       if (isPlaying && audioRef.current) {
                                         audioRef.current.pause();
                                         setIsPlaying(false);
                                       }
-                                      setCurrentTrack(newPlaylist[Math.min(index, newPlaylist.length - 1)] || null);
+                                      setCurrentTrack(newPlaylist[Math.min(originalIndex, newPlaylist.length - 1)] || null);
                                     }
                                     return newPlaylist;
                                   });
@@ -1456,7 +1462,8 @@ export default function Page() {
                             )}
                           </div>
                         );
-                      })
+                      });
+                    })()
                   )}
                 </div>
               </Card>
