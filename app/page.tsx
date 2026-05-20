@@ -1320,15 +1320,20 @@ export default function Page() {
                     </div>
                   ) : (
                     (() => {
-                      // Reorder for display: current track first, upcoming next, then completed at bottom
-                      const upcoming = playlist.slice(currentIndex).map((track, i) => ({ track, originalIndex: currentIndex + i }));
-                      const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
+                      // Reorder for display: current/next track first, upcoming next, then completed at bottom
+                      // During gap pause, the just-finished track moves to bottom and next track shows at top
+                      const displayIndex = isGapPaused ? currentIndex + 1 : currentIndex;
+                      const safeDisplayIndex = displayIndex >= playlist.length ? 0 : displayIndex;
+                      
+                      const upcoming = playlist.slice(safeDisplayIndex).map((track, i) => ({ track, originalIndex: safeDisplayIndex + i }));
+                      const completed = playlist.slice(0, safeDisplayIndex).map((track, i) => ({ track, originalIndex: i }));
                       const reordered = [...upcoming, ...completed];
 
                       return reordered.map(({ track, originalIndex }) => {
                         const colours = ["text-[#ff4fb3]", "text-blue-500", "text-purple-400", "text-[#ff8a1c]", "text-cyan-400", "text-green-400"];
                         const colour = colours[originalIndex % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
+                        const isNextTrack = isGapPaused && originalIndex === (currentIndex + 1 < playlist.length ? currentIndex + 1 : 0);
                         const isFinished = finishedTracks.has(track.id);
                         const isCompleted = !isFinished && originalIndex < currentIndex;
                         const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
@@ -1411,11 +1416,13 @@ export default function Page() {
                               className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_32px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
                                 isDragging ? "opacity-40 bg-cyan-500/10" : ""
                               } ${
-                                isActiveTrack 
-                                  ? "border-[#ff4fb3]/40 bg-[#ff4fb3]/10" 
-                                  : isFinished
-                                    ? "border-white/5 opacity-30"
-                                    : "border-white/8"
+                                isNextTrack
+                                  ? "border-cyan-400/40 bg-cyan-400/10"
+                                  : isActiveTrack 
+                                    ? "border-[#ff4fb3]/40 bg-[#ff4fb3]/10" 
+                                    : isFinished
+                                      ? "border-white/5 opacity-30"
+                                      : "border-white/8"
                               }`}
                             >
                               <div className="cursor-grab active:cursor-grabbing">
@@ -1423,9 +1430,9 @@ export default function Page() {
                               </div>
                               <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div>
-                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff4fb3]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff4fb3]" : isNextTrack ? "text-cyan-400" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className="text-xs text-white/85">
-                                  {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapSeconds}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
+                                  {isNextTrack ? `Up Next (${gapCountdown}s)` : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? "Just Finished" : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
                               </div>
                               <div className="flex flex-col items-end pr-2">
