@@ -382,9 +382,9 @@ export default function Page() {
   const trackCountLabel =
     `${trackCount} ${trackCount === 1 ? "track" : "tracks"}`;
 
-  const routineTimeLabel = formatDuration(totalRoutineSeconds);
+  const routineTimeLabel = formatSessionTime(totalRoutineSeconds);
 
-  const estimatedSessionLabel = formatDuration(estimatedSessionSeconds);
+  const estimatedSessionLabel = formatSessionTime(estimatedSessionSeconds);
 
   const remainingTimeLabel = formatDuration(remainingSeconds);
 
