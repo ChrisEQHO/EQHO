@@ -422,6 +422,7 @@ export default function Page() {
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const [dropPosition, setDropPosition] = useState<"above" | "below">("below");
 
   // Save saved playlists to IndexedDB when they change (with full track data)
   useEffect(() => {
@@ -1331,7 +1332,7 @@ export default function Page() {
                         return (
                           <div key={track.id} className="relative">
                             {/* Drop indicator line above */}
-                            {isDropTarget && draggedTrackIndex !== null && draggedTrackIndex > index && (
+                            {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
                               <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
                             )}
                             <div 
@@ -1344,12 +1345,17 @@ export default function Page() {
                               onDragEnd={() => {
                                 setDraggedTrackIndex(null);
                                 setDropTargetIndex(null);
+                                setDropPosition("below");
                               }}
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 e.dataTransfer.dropEffect = "move";
                                 if (draggedTrackIndex !== null && draggedTrackIndex !== index) {
                                   setDropTargetIndex(index);
+                                  // Detect if cursor is in top or bottom half of the element
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const midpoint = rect.top + rect.height / 2;
+                                  setDropPosition(e.clientY < midpoint ? "above" : "below");
                                 }
                               }}
                               onDragLeave={() => {
@@ -1364,15 +1370,25 @@ export default function Page() {
                                 setPlaylist((prev) => {
                                   const newPlaylist = [...prev];
                                   const [draggedItem] = newPlaylist.splice(draggedTrackIndex, 1);
-                                  const adjustedTargetIndex = draggedTrackIndex < index ? index - 1 : index;
-                                  newPlaylist.splice(adjustedTargetIndex, 0, draggedItem);
+                                  
+                                  // Calculate insert index based on where the line is showing
+                                  let insertIndex: number;
+                                  if (dropPosition === "above") {
+                                    // Line is above target - insert before target
+                                    insertIndex = draggedTrackIndex < index ? index - 1 : index;
+                                  } else {
+                                    // Line is below target - insert after target
+                                    insertIndex = draggedTrackIndex < index ? index : index + 1;
+                                  }
+                                  
+                                  newPlaylist.splice(insertIndex, 0, draggedItem);
                                   
                                   // Adjust currentIndex if needed
                                   if (currentIndex === draggedTrackIndex) {
-                                    setCurrentIndex(adjustedTargetIndex);
-                                  } else if (draggedTrackIndex < currentIndex && adjustedTargetIndex >= currentIndex) {
+                                    setCurrentIndex(insertIndex);
+                                  } else if (draggedTrackIndex < currentIndex && insertIndex >= currentIndex) {
                                     setCurrentIndex((idx) => idx - 1);
-                                  } else if (draggedTrackIndex > currentIndex && adjustedTargetIndex <= currentIndex) {
+                                  } else if (draggedTrackIndex > currentIndex && insertIndex <= currentIndex) {
                                     setCurrentIndex((idx) => idx + 1);
                                   }
                                   
@@ -1380,6 +1396,7 @@ export default function Page() {
                                 });
                                 setDraggedTrackIndex(null);
                                 setDropTargetIndex(null);
+                                setDropPosition("below");
                               }}
                               onClick={() => {
                                 setCurrentIndex(index);
@@ -1434,7 +1451,7 @@ export default function Page() {
                               </button>
                             </div>
                             {/* Drop indicator line below */}
-                            {isDropTarget && draggedTrackIndex !== null && draggedTrackIndex < index && (
+                            {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
                               <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
                             )}
                           </div>
