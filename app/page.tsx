@@ -327,6 +327,16 @@ export default function Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
 
+  // Keep currentTrack synced with playlist[currentIndex]
+  useEffect(() => {
+    if (playlist.length > 0 && currentIndex >= 0 && currentIndex < playlist.length) {
+      const trackAtIndex = playlist[currentIndex];
+      if (trackAtIndex && trackAtIndex.id !== currentTrack?.id) {
+        setCurrentTrack(trackAtIndex);
+      }
+    }
+  }, [currentIndex, playlist, currentTrack?.id]);
+
   const trackProgress =
     trackDuration > 0 ? (currentTime / trackDuration) * 100 : 0;
 
