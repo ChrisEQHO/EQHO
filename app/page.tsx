@@ -338,6 +338,16 @@ export default function Page() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const formatSessionTime = (seconds = 0) => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours >= 1) {
+      return `${hours}h ${mins}min`;
+    }
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
   // Current Playlist computed values
   const trackCount = playlist.length;
 
@@ -2039,7 +2049,7 @@ export default function Page() {
               </div>
               <div>
                 <div className="text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
-                <div className="text-white text-2xl font-bold">{formatDuration(totalSessionSeconds)}</div>
+                <div className="text-white text-2xl font-bold">{formatSessionTime(totalSessionSeconds)}</div>
                 <div className="text-[10px] text-white/60">(including gaps)</div>
               </div>
             </div>
