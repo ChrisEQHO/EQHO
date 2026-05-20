@@ -1322,7 +1322,9 @@ export default function Page() {
                     (() => {
                       // Reorder for display: current track first, upcoming next, then completed at bottom
                       // During gap countdown, the just-finished track moves to completed section
-                      const displayStartIndex = isGapPaused ? currentIndex + 1 : currentIndex;
+                      const displayStartIndex = (isGapPaused && currentIndex + 1 < playlist.length) 
+                        ? currentIndex + 1 
+                        : currentIndex;
                       
                       const upcoming = playlist.slice(displayStartIndex).map((track, i) => ({ track, originalIndex: displayStartIndex + i }));
                       const completed = playlist.slice(0, displayStartIndex).map((track, i) => ({ track, originalIndex: i }));
