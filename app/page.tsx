@@ -515,7 +515,11 @@ export default function Page() {
   };
 
   const togglePlayPause = async (track: Track) => {
-    if (!audioRef.current || !track || !track.url) return;
+    console.log("[v0] togglePlayPause called", { trackId: track?.id, trackUrl: track?.url, currentTrackId: currentTrack?.id, isPlaying });
+    if (!audioRef.current || !track || !track.url) {
+      console.log("[v0] togglePlayPause early return", { hasAudioRef: !!audioRef.current, hasTrack: !!track, hasUrl: !!track?.url });
+      return;
+    }
 
     const sameTrack = currentTrack?.id === track.id;
 
@@ -528,6 +532,7 @@ export default function Page() {
 
       if (!sameTrack) {
         const trackIndex = playlist.findIndex((t) => t.id === track.id);
+        console.log("[v0] Setting new track", { trackIndex, trackUrl: track.url });
         audioRef.current.src = track.url;
         setCurrentTrack(track);
         if (trackIndex >= 0) setCurrentIndex(trackIndex);
@@ -1321,14 +1326,16 @@ export default function Page() {
                   ) : (
                     (() => {
                       // Reorder for display: current track first, upcoming next, then completed at bottom
-                      // During gap countdown, the just-finished track moves to completed section
-                      const displayStartIndex = (isGapPaused && currentIndex + 1 < playlist.length) 
+                      // During gap countdown, shift display so next track appears at top
+                      const displayStart = (isGapPaused && currentIndex + 1 < playlist.length) 
                         ? currentIndex + 1 
                         : currentIndex;
                       
-                      const upcoming = playlist.slice(displayStartIndex).map((track, i) => ({ track, originalIndex: displayStartIndex + i }));
-                      const completed = playlist.slice(0, displayStartIndex).map((track, i) => ({ track, originalIndex: i }));
+                      const upcoming = playlist.slice(displayStart).map((track, i) => ({ track, originalIndex: displayStart + i }));
+                      const completed = playlist.slice(0, displayStart).map((track, i) => ({ track, originalIndex: i }));
                       const reordered = [...upcoming, ...completed];
+                      
+                      console.log("[v0] Display reorder", { currentIndex, isGapPaused, displayStart, playlistLength: playlist.length, upcomingCount: upcoming.length, completedCount: completed.length });
 
                       return reordered.map(({ track, originalIndex }) => {
                         const colours = ["text-[#ff4fb3]", "text-blue-500", "text-purple-400", "text-[#ff8a1c]", "text-cyan-400", "text-green-400"];
@@ -1410,6 +1417,7 @@ export default function Page() {
                                 setDropPosition("below");
                               }}
                               onClick={() => {
+                                console.log("[v0] Track clicked", { originalIndex, trackId: track.id, trackUrl: track.url, currentIndex });
                                 setCurrentIndex(originalIndex);
                                 togglePlayPause(track);
                               }}
