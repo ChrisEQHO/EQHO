@@ -49,3 +49,4 @@ export const metadata = {
     icon: "/favicon.ico",
   },
 };
+app/favicon.ico
