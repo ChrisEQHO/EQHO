@@ -19,6 +19,15 @@ interface CachedPlaylistItem {
   uploadedAt: string;
 }
 
+interface CachedPlaylistWithFiles {
+  id: string;
+  title: string;
+  fileName: string;
+  durationSeconds: number;
+  uploadedAt: string;
+  file: File;
+}
+
 interface SavedPlaylist {
   id: string;
   name: string;
@@ -145,6 +154,34 @@ export const clearCachedPlaylist = async (): Promise<void> => {
 
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+};
+
+// Save current playlist with full track data including audio files
+export const saveCurrentPlaylistWithFiles = async (playlist: CachedPlaylistWithFiles[]): Promise<void> => {
+  const db = await openEqhoDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PLAYLIST_STORE, "readwrite");
+    const store = tx.objectStore(PLAYLIST_STORE);
+    
+    store.clear();
+    playlist.forEach((item) => store.put(item));
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+export const getCurrentPlaylistWithFiles = async (): Promise<CachedPlaylistWithFiles[]> => {
+  const db = await openEqhoDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PLAYLIST_STORE, "readonly");
+    const request = tx.objectStore(PLAYLIST_STORE).getAll();
+
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
   });
 };
 
