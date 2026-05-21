@@ -11,8 +11,7 @@ export const metadata: Metadata = {
   title: 'EQHO Player - Professional Music Player for Coaches',
   description: 'Premium DJ-style music player for gymnastics routines and training sessions',
   icons: {
-    icon: '/icon',
-    apple: '/apple-icon',
+    icon: '/favicon.ico',
   },
 }
 
@@ -23,10 +22,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-[#020817]">
-      <head>
-        <link rel="icon" href="/icon" type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/apple-icon" />
-      </head>
       <body className="font-sans antialiased bg-[#020817]">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
@@ -35,18 +30,3 @@ export default function RootLayout({
     </html>
   )
 }
-export const metadata = {
-  title: "EQHO Player",
-  description: "EQHO Player dashboard",
-  icons: {
-    icon: "/favicon.ico",
-  },
-};/public
-export const metadata = {
-  title: "EQHO Player",
-  description: "EQHO Player dashboard",
-  icons: {
-    icon: "/favicon.ico",
-  },
-};
-app/favicon.ico
