@@ -1176,6 +1176,19 @@ export default function Page() {
           })}
         </nav>
 
+        {/* Pro Coming Soon Badge */}
+        <div className={`mx-3 mt-4 flex items-center gap-3 rounded-2xl px-4 py-3 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 cursor-default`}>
+          <div className="shrink-0 h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+            <span className="text-[10px] font-bold text-white">PRO</span>
+          </div>
+          <div className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${
+            sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
+          }`}>
+            <div className="text-xs font-semibold text-purple-300">EQHO Player Pro</div>
+            <div className="text-[10px] text-white/50">Coming September</div>
+          </div>
+        </div>
+
         <div className={`mt-auto mb-6 mx-3 flex items-center gap-3 px-4 py-3 overflow-hidden`}>
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-blue-500 text-sm font-bold">
             AC
