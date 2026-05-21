@@ -1140,7 +1140,7 @@ export default function Page() {
       <aside
         onMouseEnter={() => setSidebarOpen(true)}
         onMouseLeave={() => setSidebarOpen(false)}
-        className={`fixed left-0 top-0 z-50 flex h-screen flex-col bg-[#071021] border-r border-white/10 transition-all duration-300 overflow-hidden ${
+        className={`fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col bg-[#071021] border-r border-white/10 transition-all duration-300 overflow-hidden ${
           sidebarOpen ? "w-[300px]" : "w-[76px]"
         }`}
       >
@@ -1202,18 +1202,48 @@ export default function Page() {
         </div>
       </aside>
 
+      {/* Mobile Navigation Bar */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#071021] border-b border-white/10">
+        <EqhoBrand className="h-[28px] w-[100px]" />
+        <div className="flex items-center gap-1">
+          {[
+            [Home, "player", "pink"],
+            [ListMusic, "playlists", "pink"],
+            [Settings, "settings", "cyan"],
+          ].map(([Icon, page, color]: any) => {
+            const activeColors: Record<string, string> = {
+              pink: "text-pink-400 bg-pink-500/15",
+              cyan: "text-cyan-300 bg-cyan-500/15",
+            };
+            return (
+              <button
+                key={page}
+                onClick={() => setActivePage(page)}
+                className={`p-2.5 rounded-xl transition ${
+                  activePage === page
+                    ? activeColors[color]
+                    : "text-white/60 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Icon size={20} />
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {/* Main Content Area */}
-      <main className="ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-4 pt-4 pb-[150px]">
-        <header className="mb-4 flex h-[58px] items-center justify-center border-b border-white/5">
-          <EqhoBrand className="h-[42px] w-[150px]" />
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-4 pb-[180px] md:pb-[150px]">
+        <header className="mb-3 md:mb-4 hidden md:flex h-[48px] md:h-[58px] items-center justify-center border-b border-white/5">
+          <EqhoBrand className="h-[36px] w-[130px] md:h-[42px] md:w-[150px]" />
         </header>
 
         {activePage === "player" && (
-          <div className="grid grid-cols-[360px_420px_minmax(0,1fr)] gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-4 md:gap-6">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="text-[#ff4fb3] uppercase tracking-[0.25em] text-sm font-black mb-4">
+            <div className="space-y-4 md:space-y-6">
+              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.035] p-4 md:p-6">
+                <h2 className="text-[#ff4fb3] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Tracks
                 </h2>
 
@@ -1222,7 +1252,7 @@ export default function Page() {
                   onDragOver={handleDragOverUpload}
                   onDragEnter={handleDragEnterUpload}
                   onDragLeave={handleDragLeaveUpload}
-                  className={`block cursor-pointer rounded-2xl border border-dashed p-8 text-center transition ${
+                  className={`block cursor-pointer rounded-xl md:rounded-2xl border border-dashed p-6 md:p-8 text-center transition ${
                     isDraggingUpload
                       ? "border-cyan-300 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.25)]"
                       : "border-[#ff4fb3]/50 bg-white/[0.03]"
@@ -1239,9 +1269,9 @@ export default function Page() {
                     className="hidden"
                   />
 
-                  <UploadCloud className="mx-auto mb-4 text-[#ff4fb3]" size={48} />
+                  <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#ff4fb3]" size={40} />
 
-                  <p className="text-white font-bold">
+                  <p className="text-white font-bold text-sm md:text-base">
                     Drag and drop your music files here
                   </p>
 
@@ -1255,8 +1285,8 @@ export default function Page() {
                 </label>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="text-[#ff4fb3] uppercase tracking-[0.25em] text-sm font-black mb-4">
+              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.035] p-4 md:p-6">
+                <h2 className="text-[#ff4fb3] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Recently Uploaded Tracks
                 </h2>
 
@@ -1370,21 +1400,21 @@ export default function Page() {
             </div>
 
             {/* MIDDLE: UP NEXT */}
-            <div className="flex flex-col gap-4">
-              <Card className="relative flex-1 overflow-hidden bg-[#061120] p-4">
+            <div className="flex flex-col gap-3 md:gap-4 order-first lg:order-none">
+              <Card className="relative flex-1 overflow-hidden bg-[#061120] p-3 md:p-4">
                 <div className="flex items-center justify-between">
-  <h2 className="text-xs font-bold tracking-widest text-[#ff4fb3]">UP NEXT (IN ORDER)</h2>
+  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff4fb3]">UP NEXT (IN ORDER)</h2>
   <button
     onClick={clearPlaylist}
     disabled={playlist.length === 0}
-    className="px-3 py-1.5 text-[10px] font-bold text-white bg-[#ff8a1c]/20 border border-[#ff8a1c]/50 rounded-md hover:bg-[#ff8a1c]/30 hover:border-[#ff8a1c]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
+    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a1c]/20 border border-[#ff8a1c]/50 rounded-md hover:bg-[#ff8a1c]/30 hover:border-[#ff8a1c]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
   >
     Clear Playlist
   </button>
 </div>
-                <p className="mt-1 border-b border-white/10 pb-2 text-xs text-white/80">Drag to re-order your playlist</p>
+                <p className="mt-1 border-b border-white/10 pb-2 text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
 
-                <div className="mt-1 pr-6 bg-transparent max-h-[400px] overflow-y-auto">
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
                   {playlist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
@@ -1542,28 +1572,28 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex min-w-0 flex-col gap-4">
-              <Card className="shrink-0 overflow-hidden px-8 py-7">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
+            <div className="flex min-w-0 flex-col gap-3 md:gap-4">
+              <Card className="shrink-0 overflow-hidden px-4 md:px-8 py-4 md:py-7">
+            <div className="mb-4 md:mb-6 flex items-center justify-between">
+              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
 
               {/* Volume Control */}
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
-                  className={`grid h-[46px] w-[46px] shrink-0 place-items-center rounded-lg border transition ${
+                  className={`grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
                   }`}
                 >
-                  {isMuted ? <VolumeX size={20} /> : <Volume2 size={18} />}
+                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[145px] h-[46px] rounded-lg border border-white/10 bg-[#07101f] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#07101f] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -1603,29 +1633,30 @@ export default function Page() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-5">
+            <div className="flex items-center justify-between gap-3 md:gap-5">
               {/* Left - Album Icon */}
-              <div className="grid h-[100px] w-[100px] shrink-0 place-items-center rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
-                <Music size={52} className="text-pink-400" />
+              <div className="grid h-[70px] w-[70px] md:h-[100px] md:w-[100px] shrink-0 place-items-center rounded-xl md:rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                <Music size={36} className="md:hidden text-pink-400" />
+                <Music size={52} className="hidden md:block text-pink-400" />
               </div>
 
               {/* Centre - Track Info & Progress */}
               <div className="flex-1 min-w-0">
-                <h3 className="truncate text-3xl font-bold leading-tight text-white">
+                <h3 className="truncate text-xl md:text-3xl font-bold leading-tight text-white">
                   {currentTrack?.title || "No Track Selected"}
                 </h3>
-                <p className="mt-1.5 truncate text-lg text-white/60">
+                <p className="mt-1 md:mt-1.5 truncate text-sm md:text-lg text-white/60">
                   {currentTrack ? "Playing" : "Upload tracks to begin"}
                 </p>
 
                 {/* Track Elapsed Timer */}
-                <div className="mt-5 text-center">
+                <div className="mt-3 md:mt-5 text-center">
                   {isGapPaused ? (
-                    <div className="text-5xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                    <div className="text-3xl md:text-5xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                       {gapCountdown}
                     </div>
                   ) : (
-                    <div className="text-4xl font-black tracking-wider text-white tabular-nums">
+                    <div className="text-2xl md:text-4xl font-black tracking-wider text-white tabular-nums">
                       {currentTime > 0 || isPlaying
                         ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                         : "00:00"}
@@ -1635,36 +1666,48 @@ export default function Page() {
               </div>
 
               {/* Right - Playback Controls */}
-              <div className="flex items-center justify-center gap-5 shrink-0">
+              <div className="flex items-center justify-center gap-2 md:gap-5 shrink-0">
                 <button 
                   onClick={goToPreviousTrack}
-                  className="grid h-[48px] w-[48px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[38px] w-[38px] md:h-[48px] md:w-[48px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepBack size={26} />
+                  <StepBack size={20} className="md:hidden" />
+                  <StepBack size={26} className="hidden md:block" />
                 </button>
 
                 <button
                   onClick={toggleSession}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+                  className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
                 >
                   {isGapPaused ? (
-                    <span className="text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
-                  ) : isPlaying ? <Pause size={34} /> : <Play size={34} />}
+                    <span className="text-xl md:text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                  ) : isPlaying ? (
+                    <>
+                      <Pause size={24} className="md:hidden" />
+                      <Pause size={34} className="hidden md:block" />
+                    </>
+                  ) : (
+                    <>
+                      <Play size={24} className="md:hidden" />
+                      <Play size={34} className="hidden md:block" />
+                    </>
+                  )}
                 </button>
 
                 <button 
                   onClick={goToNextTrack}
-                  className="grid h-[48px] w-[48px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[38px] w-[38px] md:h-[48px] md:w-[48px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepForward size={26} />
+                  <StepForward size={20} className="md:hidden" />
+                  <StepForward size={26} className="hidden md:block" />
                 </button>
               </div>
             </div>
 
             {/* Waveform Progress Bar */}
             <div
-              className="relative mt-6 flex h-14 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
+              className="relative mt-4 md:mt-6 flex h-12 md:h-14 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
               onClick={(e) => {
                 if (!audioRef.current || !trackDuration) return;
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -2079,43 +2122,47 @@ export default function Page() {
       </main>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-[76px] right-0 z-40 overflow-hidden bg-[#020817]">
+      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#020817]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full px-6 py-4">
-          <div className="grid grid-cols-[auto_auto_auto_auto_1fr] items-center gap-6 min-w-0">
+        <div className="w-full px-3 md:px-6 py-3 md:py-4">
+          <div className="flex flex-wrap md:flex-nowrap items-center justify-center md:justify-start gap-3 md:gap-6 min-w-0">
             {/* Gap Between Routines */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white text-white">
-                <Users size={20} />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-white text-white">
+                <Users size={18} className="md:hidden" />
+                <Users size={20} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
+                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
                 <div className="mt-1 flex items-center rounded border border-white/20 bg-white/5">
                   <button 
                     onClick={() => setGapSeconds((v) => Math.max(0, v - 5))}
-                    className="px-2.5 py-1.5 text-white/90 hover:text-white"
+                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-white/90 hover:text-white"
                   >
-                    <Minus size={14} />
+                    <Minus size={12} className="md:hidden" />
+                    <Minus size={14} className="hidden md:block" />
                   </button>
-                  <div className="border-x border-white/15 px-4 py-1.5 text-base font-semibold text-white">{gapSeconds} sec</div>
+                  <div className="border-x border-white/15 px-3 md:px-4 py-1 md:py-1.5 text-sm md:text-base font-semibold text-white">{gapSeconds} sec</div>
                   <button 
                     onClick={() => setGapSeconds((v) => Math.min(120, v + 5))}
-                    className="px-2.5 py-1.5 text-white/90 hover:text-white"
+                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-white/90 hover:text-white"
                   >
-                    <Plus size={14} />
+                    <Plus size={12} className="md:hidden" />
+                    <Plus size={14} className="hidden md:block" />
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Back To Back */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
-                <RefreshCw size={20} />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
+                <RefreshCw size={18} className="md:hidden" />
+                <RefreshCw size={20} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
+                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
                 <div className="mt-1 flex items-center gap-3">
                   <button 
                     onClick={() => setBackToBack((v) => !v)}
@@ -2139,39 +2186,43 @@ export default function Page() {
             </div>
 
             {/* Total Session Time */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
-                <Clock size={22} />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
+                <Clock size={20} className="md:hidden" />
+                <Clock size={22} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
-                <div className="text-white text-2xl font-bold">{formatSessionTime(totalSessionSeconds)}</div>
-                <div className="text-[10px] text-white/60">(including gaps)</div>
+                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
+                <div className="text-white text-xl md:text-2xl font-bold">{formatSessionTime(totalSessionSeconds)}</div>
+                <div className="text-[9px] md:text-[10px] text-white/60">(including gaps)</div>
               </div>
             </div>
 
             {/* Repeat Playlist */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                <Repeat size={20} />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                <Repeat size={18} className="md:hidden" />
+                <Repeat size={20} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
+                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
                 <div className="mt-1 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
                   <button
                     onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))}
-                    className="px-2.5 py-1.5 text-cyan-300 hover:text-cyan-100 transition"
+                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Minus size={14} />
+                    <Minus size={12} className="md:hidden" />
+                    <Minus size={14} className="hidden md:block" />
                   </button>
-                  <div className="border-x border-cyan-400/20 px-4 py-1.5 text-base font-semibold text-white">
+                  <div className="border-x border-cyan-400/20 px-3 md:px-4 py-1 md:py-1.5 text-sm md:text-base font-semibold text-white">
                     {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
                   </div>
                   <button
                     onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))}
-                    className="px-2.5 py-1.5 text-cyan-300 hover:text-cyan-100 transition"
+                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Plus size={14} />
+                    <Plus size={12} className="md:hidden" />
+                    <Plus size={14} className="hidden md:block" />
                   </button>
                 </div>
               </div>
@@ -2181,7 +2232,7 @@ export default function Page() {
             <button 
               onClick={toggleSession}
               disabled={!currentTrack && playlist.length === 0}
-              className={`h-[52px] min-w-[160px] rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`h-11 md:h-[52px] min-w-[140px] md:min-w-[160px] rounded-xl text-xs md:text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
                 isGapPaused
                   ? "bg-white/10 border border-white/30 text-white animate-pulse"
                   : isPlaying
