@@ -1847,14 +1847,7 @@ export default function Page() {
               </h2>
 
               {/* Volume Control & Fullscreen */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={toggleFullscreen}
-                  className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#ff8a1c]/40 bg-[#ff8a1c]/10 text-white hover:border-[#ff8a1c]/70 hover:bg-[#ff8a1c]/20 transition"
-                  title="Enter fullscreen mode"
-                >
-                  <Maximize2 size={16} />
-                </button>
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
                   className={`grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border transition ${
@@ -1904,6 +1897,14 @@ export default function Page() {
                     {isMuted ? "0" : volume}%
                   </span>
                 </div>
+
+                <button
+                  onClick={toggleFullscreen}
+                  className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#ff8a1c]/40 bg-[#ff8a1c]/10 text-white hover:border-[#ff8a1c]/70 hover:bg-[#ff8a1c]/20 transition"
+                  title="Enter fullscreen mode"
+                >
+                  <Maximize2 size={16} />
+                </button>
               </div>
             </div>
 
