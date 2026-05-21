@@ -35,3 +35,10 @@ export default function RootLayout({
     </html>
   )
 }
+export const metadata = {
+  title: "EQHO Player",
+  description: "EQHO Player dashboard",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};/public
