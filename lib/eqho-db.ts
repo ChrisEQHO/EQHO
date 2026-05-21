@@ -28,6 +28,16 @@ interface CachedPlaylistWithFiles {
   file: File;
 }
 
+interface StoredPlaylistItem {
+  id: string;
+  title: string;
+  fileName: string;
+  durationSeconds: number;
+  uploadedAt: string;
+  fileData: ArrayBuffer;
+  fileType: string;
+}
+
 interface SavedPlaylist {
   id: string;
   name: string;
@@ -161,12 +171,28 @@ export const clearCachedPlaylist = async (): Promise<void> => {
 export const saveCurrentPlaylistWithFiles = async (playlist: CachedPlaylistWithFiles[]): Promise<void> => {
   const db = await openEqhoDB();
 
+  // Convert File objects to ArrayBuffer for storage
+  const itemsToStore: StoredPlaylistItem[] = await Promise.all(
+    playlist.map(async (item) => {
+      const arrayBuffer = await item.file.arrayBuffer();
+      return {
+        id: item.id,
+        title: item.title,
+        fileName: item.fileName,
+        durationSeconds: item.durationSeconds,
+        uploadedAt: item.uploadedAt,
+        fileData: arrayBuffer,
+        fileType: item.file.type,
+      };
+    })
+  );
+
   return new Promise((resolve, reject) => {
     const tx = db.transaction(PLAYLIST_STORE, "readwrite");
     const store = tx.objectStore(PLAYLIST_STORE);
     
     store.clear();
-    playlist.forEach((item) => store.put(item));
+    itemsToStore.forEach((item) => store.put(item));
 
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -180,7 +206,22 @@ export const getCurrentPlaylistWithFiles = async (): Promise<CachedPlaylistWithF
     const tx = db.transaction(PLAYLIST_STORE, "readonly");
     const request = tx.objectStore(PLAYLIST_STORE).getAll();
 
-    request.onsuccess = () => resolve(request.result || []);
+    request.onsuccess = () => {
+      const storedItems: StoredPlaylistItem[] = request.result || [];
+      // Convert ArrayBuffer back to File objects
+      const restored = storedItems.map((item) => {
+        const file = new File([item.fileData], item.fileName, { type: item.fileType });
+        return {
+          id: item.id,
+          title: item.title,
+          fileName: item.fileName,
+          durationSeconds: item.durationSeconds,
+          uploadedAt: item.uploadedAt,
+          file,
+        };
+      });
+      resolve(restored);
+    };
     request.onerror = () => reject(request.error);
   });
 };

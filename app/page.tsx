@@ -341,9 +341,7 @@ export default function Page() {
   useEffect(() => {
     const loadCurrentPlaylist = async () => {
       try {
-        console.log("[v0] Loading playlist from cache...");
         const cached = await getCurrentPlaylistWithFiles();
-        console.log("[v0] Cached playlist:", cached.length, "tracks");
         if (cached.length > 0) {
           const restored = cached.map((t) => ({
             id: t.id,
@@ -370,7 +368,6 @@ export default function Page() {
   useEffect(() => {
     if (!playlistLoaded) return; // Don't save until initial load completes
     
-    console.log("[v0] Saving playlist to cache:", playlist.length, "tracks");
     if (playlist.length > 0) {
       saveCurrentPlaylistWithFiles(
         playlist.map((t) => ({
