@@ -1257,7 +1257,7 @@ export default function Page() {
               </div>
 
               {/* Playback Controls */}
-              <div className="flex items-center justify-center gap-8">
+              <div className="flex items-center justify-center gap-12">
                 <button 
                   onClick={goToPreviousTrack}
                   className="grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
