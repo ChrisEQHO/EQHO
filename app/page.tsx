@@ -334,29 +334,16 @@ export default function Page() {
     }
   }, [currentIndex, playlist]);
 
-  // Save current playlist to IndexedDB when it changes
-  useEffect(() => {
-    if (playlist.length > 0) {
-      saveCurrentPlaylistWithFiles(
-        playlist.map((t) => ({
-          id: t.id,
-          title: t.title,
-          fileName: t.fileName,
-          durationSeconds: t.durationSeconds,
-          uploadedAt: t.uploadedAt,
-          file: t.file!,
-        }))
-      );
-    } else {
-      clearCachedPlaylist();
-    }
-  }, [playlist]);
+  // Track if initial load has completed
+  const [playlistLoaded, setPlaylistLoaded] = useState(false);
 
-  // Load current playlist from IndexedDB on mount
+  // Load current playlist from IndexedDB on mount (before save effect runs)
   useEffect(() => {
     const loadCurrentPlaylist = async () => {
       try {
+        console.log("[v0] Loading playlist from cache...");
         const cached = await getCurrentPlaylistWithFiles();
+        console.log("[v0] Cached playlist:", cached.length, "tracks");
         if (cached.length > 0) {
           const restored = cached.map((t) => ({
             id: t.id,
@@ -371,11 +358,34 @@ export default function Page() {
         }
       } catch (error) {
         console.error("Failed to load current playlist:", error);
+      } finally {
+        setPlaylistLoaded(true);
       }
     };
 
     loadCurrentPlaylist();
   }, []);
+
+  // Save current playlist to IndexedDB when it changes (only after initial load)
+  useEffect(() => {
+    if (!playlistLoaded) return; // Don't save until initial load completes
+    
+    console.log("[v0] Saving playlist to cache:", playlist.length, "tracks");
+    if (playlist.length > 0) {
+      saveCurrentPlaylistWithFiles(
+        playlist.map((t) => ({
+          id: t.id,
+          title: t.title,
+          fileName: t.fileName,
+          durationSeconds: t.durationSeconds,
+          uploadedAt: t.uploadedAt,
+          file: t.file!,
+        }))
+      );
+    } else {
+      clearCachedPlaylist();
+    }
+  }, [playlist, playlistLoaded]);
 
   const trackProgress =
     trackDuration > 0 ? (currentTime / trackDuration) * 100 : 0;
