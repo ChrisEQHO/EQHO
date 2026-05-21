@@ -694,6 +694,7 @@ export default function Page() {
     if (nextIdx < playlist.length) {
       setCurrentIndex(nextIdx);
       const nextTrack = playlist[nextIdx];
+      setCurrentTrack(nextTrack);
       if (audioRef.current && nextTrack) {
         audioRef.current.src = nextTrack.url;
         audioRef.current.play();
@@ -710,6 +711,7 @@ export default function Page() {
     if (prevIdx >= 0) {
       setCurrentIndex(prevIdx);
       const prevTrack = playlist[prevIdx];
+      setCurrentTrack(prevTrack);
       if (audioRef.current && prevTrack) {
         audioRef.current.src = prevTrack.url;
         audioRef.current.play();
@@ -1331,11 +1333,9 @@ export default function Page() {
                   ) : (
                     (() => {
                       // Reorder for display: current track first, upcoming next, then completed at bottom
-                      console.log("[v0] Display reorder", { currentIndex, playlistLength: playlist.length, currentTrackId: currentTrack?.id });
                       const upcoming = playlist.slice(currentIndex).map((track, i) => ({ track, originalIndex: currentIndex + i }));
                       const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
                       const reordered = [...upcoming, ...completed];
-                      console.log("[v0] Reordered", { upcomingCount: upcoming.length, completedCount: completed.length, firstTrackId: reordered[0]?.track?.id });
 
                       return reordered.map(({ track, originalIndex }) => {
                         const colours = ["text-[#ff4fb3]", "text-blue-500", "text-purple-400", "text-[#ff8a1c]", "text-cyan-400", "text-green-400"];
