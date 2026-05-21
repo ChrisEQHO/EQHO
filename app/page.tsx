@@ -1941,41 +1941,41 @@ export default function Page() {
               </div>
 
               {/* Right - Playback Controls */}
-              <div className="flex items-center justify-center gap-2 md:gap-5 shrink-0">
+              <div className="flex items-center justify-center gap-4 md:gap-6 shrink-0">
                 <button 
                   onClick={goToPreviousTrack}
-                  className="grid h-[38px] w-[38px] md:h-[48px] md:w-[48px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepBack size={20} className="md:hidden" />
-                  <StepBack size={26} className="hidden md:block" />
+                  <StepBack size={22} className="md:hidden" />
+                  <StepBack size={28} className="hidden md:block" />
                 </button>
 
                 <button
                   onClick={toggleSession}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+                  className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
                 >
                   {isGapPaused ? (
                     <span className="text-xl md:text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                   ) : isPlaying ? (
                     <>
-                      <Pause size={24} className="md:hidden" />
-                      <Pause size={34} className="hidden md:block" />
+                      <Pause size={28} className="md:hidden" />
+                      <Pause size={40} className="hidden md:block" />
                     </>
                   ) : (
                     <>
-                      <Play size={24} className="md:hidden" />
-                      <Play size={34} className="hidden md:block" />
+                      <Play size={28} className="md:hidden" />
+                      <Play size={40} className="hidden md:block" />
                     </>
                   )}
                 </button>
 
                 <button 
                   onClick={goToNextTrack}
-                  className="grid h-[38px] w-[38px] md:h-[48px] md:w-[48px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepForward size={20} className="md:hidden" />
-                  <StepForward size={26} className="hidden md:block" />
+                  <StepForward size={22} className="md:hidden" />
+                  <StepForward size={28} className="hidden md:block" />
                 </button>
               </div>
             </div>
