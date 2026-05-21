@@ -1,8 +1,9 @@
 const DB_NAME = "eqho-player-db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const TRACK_STORE = "tracks";
 const PLAYLIST_STORE = "playlists";
 const SAVED_PLAYLISTS_STORE = "savedPlaylists";
+const CURRENT_QUEUE_STORE = "currentQueue";
 
 interface CachedTrack {
   id: string;
@@ -72,6 +73,9 @@ const openEqhoDB = (): Promise<IDBDatabase> =>
       }
       if (!db.objectStoreNames.contains(SAVED_PLAYLISTS_STORE)) {
         db.createObjectStore(SAVED_PLAYLISTS_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(CURRENT_QUEUE_STORE)) {
+        db.createObjectStore(CURRENT_QUEUE_STORE, { keyPath: "id" });
       }
     };
 
@@ -159,8 +163,8 @@ export const clearCachedPlaylist = async (): Promise<void> => {
   const db = await openEqhoDB();
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(PLAYLIST_STORE, "readwrite");
-    tx.objectStore(PLAYLIST_STORE).clear();
+    const tx = db.transaction(CURRENT_QUEUE_STORE, "readwrite");
+    tx.objectStore(CURRENT_QUEUE_STORE).clear();
 
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -188,8 +192,8 @@ export const saveCurrentPlaylistWithFiles = async (playlist: CachedPlaylistWithF
   );
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(PLAYLIST_STORE, "readwrite");
-    const store = tx.objectStore(PLAYLIST_STORE);
+    const tx = db.transaction(CURRENT_QUEUE_STORE, "readwrite");
+    const store = tx.objectStore(CURRENT_QUEUE_STORE);
     
     store.clear();
     itemsToStore.forEach((item) => store.put(item));
@@ -203,8 +207,8 @@ export const getCurrentPlaylistWithFiles = async (): Promise<CachedPlaylistWithF
   const db = await openEqhoDB();
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(PLAYLIST_STORE, "readonly");
-    const request = tx.objectStore(PLAYLIST_STORE).getAll();
+    const tx = db.transaction(CURRENT_QUEUE_STORE, "readonly");
+    const request = tx.objectStore(CURRENT_QUEUE_STORE).getAll();
 
     request.onsuccess = () => {
       const storedItems: StoredPlaylistItem[] = request.result || [];
