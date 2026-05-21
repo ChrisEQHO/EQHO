@@ -3,17 +3,17 @@ import { ImageResponse } from 'next/og'
 export const runtime = 'edge'
 
 export const size = {
-  width: 32,
-  height: 32,
+  width: 180,
+  height: 180,
 }
 export const contentType = 'image/png'
 
-export default function Icon() {
+export default function AppleIcon() {
   return new ImageResponse(
     (
       <div
         style={{
-          fontSize: 18,
+          fontSize: 100,
           fontWeight: 900,
           background: 'white',
           width: '100%',
@@ -21,7 +21,7 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: 6,
+          borderRadius: 32,
           fontFamily: 'Arial Black, sans-serif',
           backgroundImage: 'linear-gradient(135deg, #FF2D75 0%, #FF7A00 50%, #FFD21F 100%)',
           WebkitBackgroundClip: 'text',
