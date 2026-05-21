@@ -390,16 +390,29 @@ export default function Page() {
 
   // Fullscreen toggle function
   const toggleFullscreen = useCallback(async () => {
-    if (!document.fullscreenElement) {
-      if (fullscreenRef.current) {
-        await fullscreenRef.current.requestFullscreen();
-        setIsFullscreen(true);
+    if (!isFullscreen) {
+      // Enter fullscreen
+      setIsFullscreen(true);
+      // Try browser fullscreen API if available
+      if (fullscreenRef.current && document.fullscreenEnabled) {
+        try {
+          await fullscreenRef.current.requestFullscreen();
+        } catch {
+          // Browser fullscreen failed, but we still show our fullscreen view
+        }
       }
     } else {
-      await document.exitFullscreen();
+      // Exit fullscreen
       setIsFullscreen(false);
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch {
+          // Ignore exit errors
+        }
+      }
     }
-  }, []);
+  }, [isFullscreen]);
 
   // Listen for fullscreen changes (e.g., user presses Escape)
   useEffect(() => {
