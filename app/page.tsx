@@ -330,12 +330,9 @@ export default function Page() {
   // Keep currentTrack synced with playlist[currentIndex]
   useEffect(() => {
     if (playlist.length > 0 && currentIndex >= 0 && currentIndex < playlist.length) {
-      const trackAtIndex = playlist[currentIndex];
-      if (trackAtIndex && trackAtIndex.id !== currentTrack?.id) {
-        setCurrentTrack(trackAtIndex);
-      }
+      setCurrentTrack(playlist[currentIndex]);
     }
-  }, [currentIndex, playlist, currentTrack?.id]);
+  }, [currentIndex, playlist]);
 
   const trackProgress =
     trackDuration > 0 ? (currentTime / trackDuration) * 100 : 0;
