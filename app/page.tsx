@@ -332,6 +332,8 @@ export default function Page() {
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
   const [showMuteConfirm, setShowMuteConfirm] = useState(false);
+  const [showSkipBackConfirm, setShowSkipBackConfirm] = useState(false);
+  const [showSkipForwardConfirm, setShowSkipForwardConfirm] = useState(false);
 
   // Keep currentTrack synced with playlist[currentIndex]
   useEffect(() => {
@@ -1238,6 +1240,60 @@ export default function Page() {
           </div>
         )}
 
+        {showSkipBackConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#071021] border border-white/20 rounded-2xl p-8 max-w-md text-center">
+              <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
+              <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
+              <p className="text-white/60 mb-6">Are you sure you want to go back to the previous track?</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowSkipBackConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSkipBackConfirm(false);
+                    goToPreviousTrack();
+                  }}
+                  className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition"
+                >
+                  Yes, Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSkipForwardConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#071021] border border-white/20 rounded-2xl p-8 max-w-md text-center">
+              <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
+              <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
+              <p className="text-white/60 mb-6">Are you sure you want to skip to the next track?</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowSkipForwardConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSkipForwardConfirm(false);
+                    goToNextTrack();
+                  }}
+                  className="px-6 py-3 rounded-xl bg-pink-500 text-white font-bold hover:bg-pink-600 transition"
+                >
+                  Yes, Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex w-full h-full p-4 gap-4">
           {/* Now Playing - Main Section (larger) */}
           <div className="flex-[2] flex flex-col bg-[#071021] rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden">
@@ -1322,7 +1378,13 @@ export default function Page() {
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-10 mb-4">
                 <button 
-                  onClick={goToPreviousTrack}
+                  onClick={() => {
+                    if (isPlaying && !isGapPaused) {
+                      setShowSkipBackConfirm(true);
+                    } else {
+                      goToPreviousTrack();
+                    }
+                  }}
                   className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
                   <StepBack size={28} />
@@ -1345,7 +1407,13 @@ export default function Page() {
                 </button>
 
                 <button 
-                  onClick={goToNextTrack}
+                  onClick={() => {
+                    if (isPlaying && !isGapPaused) {
+                      setShowSkipForwardConfirm(true);
+                    } else {
+                      goToNextTrack();
+                    }
+                  }}
                   className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
                   <StepForward size={28} />
