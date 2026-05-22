@@ -330,6 +330,8 @@ export default function Page() {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenRef = useRef<HTMLDivElement>(null);
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const [showMuteConfirm, setShowMuteConfirm] = useState(false);
 
   // Keep currentTrack synced with playlist[currentIndex]
   useEffect(() => {
@@ -1181,28 +1183,89 @@ export default function Page() {
         ref={fullscreenRef}
         className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#020817] text-white`}
       >
-        <div className="flex w-full h-full p-6 gap-6">
+        {/* Safety Confirmation Dialogs */}
+        {showPauseConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#071021] border border-white/20 rounded-2xl p-8 max-w-md text-center">
+              <AlertTriangle size={48} className="mx-auto mb-4 text-orange-400" />
+              <h3 className="text-2xl font-bold text-white mb-2">Pause Playback?</h3>
+              <p className="text-white/60 mb-6">Are you sure you want to pause the current session?</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowPauseConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPauseConfirm(false);
+                    toggleSession();
+                  }}
+                  className="px-6 py-3 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition"
+                >
+                  Yes, Pause
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMuteConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#071021] border border-white/20 rounded-2xl p-8 max-w-md text-center">
+              <VolumeX size={48} className="mx-auto mb-4 text-red-400" />
+              <h3 className="text-2xl font-bold text-white mb-2">Mute Audio?</h3>
+              <p className="text-white/60 mb-6">Are you sure you want to mute the audio during the session?</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowMuteConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMuteConfirm(false);
+                    setIsMuted(true);
+                  }}
+                  className="px-6 py-3 rounded-xl bg-red-500 text-white font-bold hover:bg-red-600 transition"
+                >
+                  Yes, Mute
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex w-full h-full p-4 gap-4">
           {/* Now Playing - Main Section (larger) */}
-          <div className="flex-[2] flex flex-col bg-[#071021] rounded-3xl border border-white/10 p-8 min-w-0">
+          <div className="flex-[2] flex flex-col bg-[#071021] rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-lg font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {/* Volume Control */}
                 <button
-                  onClick={() => setIsMuted((m) => !m)}
-                  className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl border transition ${
+                  onClick={() => {
+                    if (isPlaying && !isMuted) {
+                      setShowMuteConfirm(true);
+                    } else {
+                      setIsMuted((m) => !m);
+                    }
+                  }}
+                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
                   }`}
                 >
-                  {isMuted ? <VolumeX size={22} /> : <Volume2 size={20} />}
+                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
                 <div
-                  className="relative flex items-center justify-center w-[160px] h-12 rounded-xl border border-white/10 bg-[#0a1628] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#0a1628] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -1216,39 +1279,39 @@ export default function Page() {
                     className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30"
                     style={{ width: `${isMuted ? 0 : volume}%` }}
                   />
-                  <span className="relative z-10 text-sm font-bold text-white">{isMuted ? "Muted" : `${volume}%`}</span>
+                  <span className="relative z-10 text-xs font-bold text-white">{isMuted ? "Muted" : `${volume}%`}</span>
                 </div>
                 {/* Exit Fullscreen */}
                 <button
                   onClick={toggleFullscreen}
-                  className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#ff8a1c]/40 bg-[#ff8a1c]/10 text-white hover:border-[#ff8a1c]/70 hover:bg-[#ff8a1c]/20 transition"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#ff8a1c]/40 bg-[#ff8a1c]/10 text-white hover:border-[#ff8a1c]/70 hover:bg-[#ff8a1c]/20 transition"
                   title="Exit fullscreen"
                 >
-                  <Minimize2 size={20} />
+                  <Minimize2 size={18} />
                 </button>
               </div>
             </div>
 
-            {/* Track Info */}
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="grid h-[180px] w-[180px] place-items-center rounded-3xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_60px_rgba(236,72,153,0.25)] mb-8">
-                <Music size={80} className="text-pink-400" />
+            {/* Track Info & Controls - Centered */}
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+              <div className="grid h-[120px] w-[120px] place-items-center rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_40px_rgba(236,72,153,0.25)] mb-4">
+                <Music size={56} className="text-pink-400" />
               </div>
-              <h3 className="text-4xl font-bold text-white text-center mb-3 max-w-full truncate">
+              <h3 className="text-3xl font-bold text-white text-center mb-1 max-w-full truncate px-4">
                 {currentTrack?.title || "No Track Selected"}
               </h3>
-              <p className="text-xl text-white/60 mb-8">
+              <p className="text-base text-white/60 mb-4">
                 {currentTrack ? "Playing" : "Upload tracks to begin"}
               </p>
 
               {/* Timer */}
-              <div className="mb-10">
+              <div className="mb-6">
                 {isGapPaused ? (
-                  <div className="text-8xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                  <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                     {gapCountdown}
                   </div>
                 ) : (
-                  <div className="text-7xl font-black tracking-wider text-white tabular-nums">
+                  <div className="text-5xl font-black tracking-wider text-white tabular-nums">
                     {currentTime > 0 || isPlaying
                       ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                       : "00:00"}
@@ -1257,37 +1320,43 @@ export default function Page() {
               </div>
 
               {/* Playback Controls */}
-              <div className="flex items-center justify-center gap-20">
+              <div className="flex items-center justify-center gap-10 mb-4">
                 <button 
                   onClick={goToPreviousTrack}
-                  className="grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepBack size={32} />
+                  <StepBack size={28} />
                 </button>
 
                 <button
-                  onClick={toggleSession}
+                  onClick={() => {
+                    if (isPlaying && !isGapPaused) {
+                      setShowPauseConfirm(true);
+                    } else {
+                      toggleSession();
+                    }
+                  }}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-28 h-28 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_50px_rgba(255,79,179,0.4)] hover:shadow-[0_0_70px_rgba(255,79,179,0.6)] transition"
+                  className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
                 >
                   {isGapPaused ? (
-                    <span className="text-4xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
-                  ) : isPlaying ? <Pause size={48} /> : <Play size={48} />}
+                    <span className="text-3xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                  ) : isPlaying ? <Pause size={36} /> : <Play size={36} />}
                 </button>
 
                 <button 
                   onClick={goToNextTrack}
-                  className="grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepForward size={32} />
+                  <StepForward size={28} />
                 </button>
               </div>
             </div>
 
             {/* Progress Bar */}
-            <div className="mt-8">
+            <div className="mt-auto pt-4">
               <div
-                className="relative flex h-16 w-full cursor-pointer items-end gap-[2px] rounded-2xl border border-white/5 bg-white/[0.02] px-3 pb-3 pt-3 select-none"
+                className="relative flex h-12 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
                 onClick={(e) => {
                   if (!audioRef.current || trackDuration === 0) return;
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -1324,18 +1393,18 @@ export default function Page() {
           </div>
 
           {/* Up Next - Side Section (smaller) */}
-          <div className="flex-1 flex flex-col bg-[#071021] rounded-3xl border border-white/10 p-6 min-w-[320px] max-w-[400px]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold tracking-widest text-[#ff4fb3]">UP NEXT (IN ORDER)</h2>
-              <span className="text-xs text-white/50">{playlist.length} tracks</span>
+          <div className="flex-1 flex flex-col bg-[#071021] rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-bold tracking-widest text-[#ff4fb3]">UP NEXT (IN ORDER)</h2>
+              <span className="text-[10px] text-white/50">{playlist.length} tracks</span>
             </div>
-            <p className="border-b border-white/10 pb-3 text-xs text-white/60 mb-3">Drag to re-order your playlist</p>
+            <p className="border-b border-white/10 pb-2 text-[10px] text-white/60 mb-2">Drag to re-order</p>
 
-            <div className="flex-1 overflow-y-auto pr-2">
+            <div className="flex-1 overflow-y-auto pr-1 min-h-0">
               {playlist.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <Music size={48} className="text-white/20 mb-4" />
-                  <p className="text-white/40 text-sm">No tracks queued</p>
+                  <Music size={36} className="text-white/20 mb-3" />
+                  <p className="text-white/40 text-xs">No tracks queued</p>
                 </div>
               ) : (
                 (() => {
@@ -1352,7 +1421,7 @@ export default function Page() {
                     return (
                       <div
                         key={track.id}
-                        className={`flex items-center gap-3 p-3 rounded-xl mb-2 transition cursor-pointer ${
+                        className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-pointer ${
                           isActiveTrack
                             ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
                             : isCompleted
@@ -1364,17 +1433,17 @@ export default function Page() {
                           togglePlayPause(track);
                         }}
                       >
-                        <span className={`text-lg font-black w-8 ${colour}`}>{originalIndex + 1}</span>
+                        <span className={`text-sm font-black w-6 ${colour}`}>{originalIndex + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className={`font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
+                          <p className={`text-sm font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
                             {track.title}
                           </p>
-                          <p className="text-xs text-white/50">{formatDuration(track.durationSeconds)}</p>
+                          <p className="text-[10px] text-white/50">{formatDuration(track.durationSeconds)}</p>
                         </div>
                         {isActiveTrack && isPlaying && (
                           <div className="flex gap-0.5">
                             {[1, 2, 3].map((i) => (
-                              <div key={i} className="w-1 bg-pink-500 rounded-full animate-pulse" style={{ height: `${12 + i * 4}px`, animationDelay: `${i * 0.1}s` }} />
+                              <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
                             ))}
                           </div>
                         )}
@@ -1387,15 +1456,15 @@ export default function Page() {
             </div>
 
             {/* Session Info */}
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <div className="grid grid-cols-2 gap-3 text-center">
+            <div className="mt-auto pt-3 border-t border-white/10">
+              <div className="grid grid-cols-2 gap-2 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-white">{playlist.length}</p>
-                  <p className="text-[10px] text-white/50 uppercase tracking-wide">Tracks</p>
+                  <p className="text-xl font-bold text-white">{playlist.length}</p>
+                  <p className="text-[9px] text-white/50 uppercase tracking-wide">Tracks</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{formatSessionTime(totalSessionSeconds)}</p>
-                  <p className="text-[10px] text-white/50 uppercase tracking-wide">Total Time</p>
+                  <p className="text-xl font-bold text-white">{formatSessionTime(totalSessionSeconds)}</p>
+                  <p className="text-[9px] text-white/50 uppercase tracking-wide">Total Time</p>
                 </div>
               </div>
             </div>
