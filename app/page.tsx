@@ -2086,7 +2086,50 @@ export default function Page() {
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
             <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-              <Card className="shrink-0 overflow-hidden px-4 md:px-8 py-4 md:py-7">
+              <Card className="shrink-0 overflow-hidden px-4 md:px-8 py-4 md:py-7 relative">
+                {/* Session Finished Overlay */}
+                {showSessionFinished && (
+                  <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
+                    {/* Animated gradient background */}
+                    <div className="absolute inset-0 overflow-hidden rounded-xl">
+                      <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#ff4fb3]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                      <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#ff8a1c]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="relative z-10 flex flex-col items-center text-center px-4">
+                      {/* Checkmark Icon */}
+                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] flex items-center justify-center mb-4 shadow-[0_0_40px_rgba(255,79,179,0.5)]">
+                        <svg className="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      
+                      {/* Title */}
+                      <h2 className="text-2xl md:text-3xl font-black tracking-tight mb-2 bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
+                        SESSION COMPLETE
+                      </h2>
+                      
+                      {/* Stats */}
+                      <p className="text-sm text-white/60 mb-4">
+                        {playlist.length} tracks completed
+                      </p>
+                      
+                      {/* Action */}
+                      <button
+                        onClick={() => {
+                          setShowSessionFinished(false);
+                          setFinishedTracks(new Set());
+                          setCurrentIndex(0);
+                        }}
+                        className="px-6 py-2 rounded-lg bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(255,79,179,0.5)] transition"
+                      >
+                        Start New Session
+                      </button>
+                    </div>
+                  </div>
+                )}
+
             <div className="mb-4 md:mb-6 flex items-center justify-between">
               <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
                 NOW PLAYING
