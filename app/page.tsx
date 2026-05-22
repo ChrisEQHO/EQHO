@@ -485,6 +485,9 @@ export default function Page() {
     : 0;
 
   const remainingSeconds = Math.max(0, fullSessionSeconds - elapsedSeconds);
+  
+  // Track completion count for display
+  const completedTracks = currentIndex;
 
   // Display labels
   const currentPlaylistDisplayName =
