@@ -1865,7 +1865,7 @@ export default function Page() {
                 >
                   <input
                     type="file"
-                    accept="audio/*"
+                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                     multiple
                     onChange={(event) => {
                       handleFiles(event.target.files);
@@ -2659,11 +2659,14 @@ export default function Page() {
               >
                 <input
                   type="file"
-                  accept="audio/*"
+                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                   multiple
                   onChange={(event) => {
                     const files = Array.from(event.target.files || []).filter((file) =>
-                      file.type.startsWith("audio/")
+                      file.type.startsWith("audio/") || 
+                      file.name.endsWith(".mp3") || 
+                      file.name.endsWith(".wav") || 
+                      file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
                       const playlistName = `Playlist ${savedPlaylists.length + 1}`;
