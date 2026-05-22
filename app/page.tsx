@@ -1361,10 +1361,10 @@ export default function Page() {
             {/* Track Info & Controls - Centered Vertical Layout */}
             <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-4">
               
-              {/* Session Countdown Timer */}
-              <div className="flex flex-col items-center mb-4">
-                <p className="text-xs text-white/40 uppercase tracking-widest mb-1">Session Remaining</p>
-                <div className="text-6xl font-black tracking-tight tabular-nums leading-none">
+              {/* Session Countdown Timer - Large */}
+              <div className="flex flex-col items-center mb-6">
+                <p className="text-sm text-white/40 uppercase tracking-widest mb-2">Session Remaining</p>
+                <div className="text-8xl font-black tracking-tight tabular-nums leading-none">
                   {isGapPaused ? (
                     <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>
                       {gapCountdown}
@@ -1375,30 +1375,25 @@ export default function Page() {
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-white/40 mt-1">
+                <p className="text-xs text-white/40 mt-2">
                   {isGapPaused ? "Next Track In" : `${playlist.length} tracks + ${gapSeconds}s gaps`}
                 </p>
               </div>
 
-              {/* Track Icon */}
-              <div className="grid h-[90px] w-[90px] place-items-center rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_40px_rgba(236,72,153,0.25)] mb-3">
-                <Music size={42} className="text-pink-400" />
-              </div>
-
               {/* Track Title */}
-              <h3 className="text-2xl font-bold text-white text-center mb-1 max-w-[400px] truncate">
+              <h3 className="text-3xl font-bold text-white text-center mb-2 max-w-[500px] truncate">
                 {currentTrack?.title || "No Track Selected"}
               </h3>
               
-              {/* Track Timer */}
-              <p className="text-lg text-white/70 tabular-nums mb-1">
+              {/* Track Timer - Larger */}
+              <p className="text-2xl text-white/70 tabular-nums mb-2">
                 {currentTime > 0 || isPlaying
                   ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                   : "00:00"}
                 {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
               </p>
               
-              <p className="text-sm text-white/50 mb-4">
+              <p className="text-base text-white/50 mb-6">
                 {currentTrack ? `Track ${currentIndex + 1} of ${playlist.length}` : "Upload tracks to begin"}
               </p>
 
