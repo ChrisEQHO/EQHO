@@ -335,6 +335,7 @@ export default function Page() {
   const [showSkipBackConfirm, setShowSkipBackConfirm] = useState(false);
   const [showSkipForwardConfirm, setShowSkipForwardConfirm] = useState(false);
   const [showSessionFinished, setShowSessionFinished] = useState(false);
+  const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
 
   // Keep currentTrack synced with playlist[currentIndex]
   useEffect(() => {
@@ -1325,6 +1326,65 @@ export default function Page() {
           </div>
         )}
 
+        {/* Queue Playlist Modal */}
+        {showFullscreenQueuePlaylist && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#071021] border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">Queue Playlist</h3>
+                <button
+                  onClick={() => setShowFullscreenQueuePlaylist(false)}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/20 text-white/60 hover:bg-white/10 transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-1 min-h-0">
+                {savedPlaylists.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                    <ListMusic size={48} className="text-white/20 mb-4" />
+                    <p className="text-white/40 text-sm">No saved playlists</p>
+                    <p className="text-white/30 text-xs mt-1">Upload tracks to create playlists</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {savedPlaylists.map((pl) => (
+                      <button
+                        key={pl.id}
+                        onClick={() => {
+                          // Add all tracks from this playlist to current queue
+                          setPlaylist((prev) => [...prev, ...pl.tracks]);
+                          setShowFullscreenQueuePlaylist(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-pink-500/30 transition text-left"
+                      >
+                        <div className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-pink-500/20 to-orange-500/10 border border-pink-500/30">
+                          <ListMusic size={20} className="text-pink-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-white truncate">{pl.name}</p>
+                          <p className="text-xs text-white/50">{pl.tracks.length} tracks</p>
+                        </div>
+                        <Plus size={18} className="text-white/40" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <button
+                  onClick={() => setShowFullscreenQueuePlaylist(false)}
+                  className="w-full py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Session Finished Takeover */}
         {showSessionFinished && (
           <div className="absolute inset-0 z-[250] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020]">
@@ -1596,7 +1656,16 @@ export default function Page() {
           <div className="flex-1 flex flex-col bg-[#071021] rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff4fb3]">UP NEXT (IN ORDER)</h2>
-              <span className="text-[10px] text-white/50">{playlist.length} tracks</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowFullscreenQueuePlaylist(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-pink-500/10 border border-pink-500/30 text-pink-400 text-[10px] font-bold hover:bg-pink-500/20 transition"
+                >
+                  <Plus size={12} />
+                  Queue
+                </button>
+                <span className="text-[10px] text-white/50">{playlist.length} tracks</span>
+              </div>
             </div>
             <p className="border-b border-white/10 pb-2 text-[10px] text-white/60 mb-2">Drag to re-order</p>
 
