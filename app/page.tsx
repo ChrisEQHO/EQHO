@@ -1513,6 +1513,21 @@ export default function Page() {
                   <StepForward size={24} />
                 </button>
               </div>
+
+              {/* Start Session Button - Shows when not playing and has tracks */}
+              {!isPlaying && !sessionRunning && playlist.length > 0 && (
+                <button
+                  onClick={() => {
+                    setShowSessionFinished(false);
+                    setFinishedTracks(new Set());
+                    setCurrentIndex(0);
+                    toggleSession();
+                  }}
+                  className="mt-6 px-10 py-4 rounded-xl bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] text-white font-bold text-lg hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition-all transform hover:scale-105"
+                >
+                  Start Session
+                </button>
+              )}
             </div>
 
             {/* Progress Bar */}
