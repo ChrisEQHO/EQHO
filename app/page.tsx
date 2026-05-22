@@ -461,20 +461,30 @@ export default function Page() {
 
   const estimatedSessionSeconds = totalRoutineSeconds + totalGapSeconds;
 
-  const completedTracks = currentIndex;
+  // Calculate full session time including repeats and back-to-back
+  const totalTracksWithRepeats = trackCount * playlistRepeats * (backToBack ? 2 : 1);
+  const fullSessionSeconds = 
+    totalRoutineSeconds * playlistRepeats * (backToBack ? 2 : 1) +
+    Math.max(0, totalTracksWithRepeats - 1) * gapSeconds;
+
+  // Calculate completed tracks across all rounds
+  const currentRoundIndex = playlistRound - 1;
+  const tracksCompletedInPreviousRounds = currentRoundIndex * trackCount * (backToBack ? 2 : 1);
+  const totalTracksCompleted = tracksCompletedInPreviousRounds + currentIndex;
 
   // Real-time progress: sum of completed tracks' durations + current track elapsed time
   const completedSeconds = playlist
     .slice(0, currentIndex)
     .reduce((sum, t) => sum + t.durationSeconds, 0);
-  const completedGapSeconds = currentIndex > 0 ? currentIndex * gapSeconds : 0;
-  const elapsedSeconds = completedSeconds + completedGapSeconds + currentTime;
+  const previousRoundsSeconds = currentRoundIndex * totalRoutineSeconds * (backToBack ? 2 : 1);
+  const completedGapSeconds = totalTracksCompleted > 0 ? totalTracksCompleted * gapSeconds : 0;
+  const elapsedSeconds = previousRoundsSeconds + completedSeconds + completedGapSeconds + currentTime;
 
-  const progressPercent = estimatedSessionSeconds > 0
-    ? Math.min(100, Math.round((elapsedSeconds / estimatedSessionSeconds) * 100))
+  const progressPercent = fullSessionSeconds > 0
+    ? Math.min(100, Math.round((elapsedSeconds / fullSessionSeconds) * 100))
     : 0;
 
-  const remainingSeconds = Math.max(0, estimatedSessionSeconds - elapsedSeconds);
+  const remainingSeconds = Math.max(0, fullSessionSeconds - elapsedSeconds);
 
   // Display labels
   const currentPlaylistDisplayName =
