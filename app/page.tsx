@@ -680,7 +680,9 @@ export default function Page() {
     const allTracksFinished = finishedTracks.size === playlist.length && playlist.length > 0;
     
     // If paused with a current track loaded AND not all finished, resume
-    if (currentTrack && audioRef.current.src && !allTracksFinished) {
+    if (currentTrack && currentTrack.url && !allTracksFinished) {
+      // Re-set the source to ensure it's valid
+      audioRef.current.src = currentTrack.url;
       try {
         await audioRef.current.play();
         setIsPlaying(true);
