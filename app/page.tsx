@@ -1524,12 +1524,12 @@ export default function Page() {
                     toggleSession();
                   }}
                   className={`mt-6 rounded-xl text-white font-bold transition-all transform hover:scale-105 ${
-                    showSessionFinished 
+                    (showSessionFinished || finishedTracks.size === playlist.length)
                       ? "px-14 py-5 text-xl bg-gradient-to-r from-[#ff6b35] to-[#ff4fb3] hover:shadow-[0_0_50px_rgba(255,107,53,0.6)]" 
                       : "px-10 py-4 text-lg bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
                   }`}
                 >
-                  {showSessionFinished ? "Session Finished - Start Again" : "Start Session"}
+                  {(showSessionFinished || finishedTracks.size === playlist.length) ? "Session Completed" : "Start Session"}
                 </button>
               )}
             </div>
