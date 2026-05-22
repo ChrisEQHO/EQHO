@@ -1200,9 +1200,14 @@ export default function Page() {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowPauseConfirm(false);
-                    toggleSession();
+                    // Directly pause without triggering another confirmation
+                    if (audioRef.current) {
+                      audioRef.current.pause();
+                      setIsPlaying(false);
+                    }
                   }}
                   className="px-6 py-3 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition"
                 >
@@ -1227,6 +1232,7 @@ export default function Page() {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowMuteConfirm(false);
                     setIsMuted(true);
@@ -1254,9 +1260,11 @@ export default function Page() {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowSkipBackConfirm(false);
-                    goToPreviousTrack();
+                    // Small delay to ensure state update completes
+                    setTimeout(() => goToPreviousTrack(), 50);
                   }}
                   className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition"
                 >
@@ -1281,9 +1289,11 @@ export default function Page() {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowSkipForwardConfirm(false);
-                    goToNextTrack();
+                    // Small delay to ensure state update completes
+                    setTimeout(() => goToNextTrack(), 50);
                   }}
                   className="px-6 py-3 rounded-xl bg-pink-500 text-white font-bold hover:bg-pink-600 transition"
                 >
