@@ -334,6 +334,7 @@ export default function Page() {
   const [showMuteConfirm, setShowMuteConfirm] = useState(false);
   const [showSkipBackConfirm, setShowSkipBackConfirm] = useState(false);
   const [showSkipForwardConfirm, setShowSkipForwardConfirm] = useState(false);
+  const [showSessionFinished, setShowSessionFinished] = useState(false);
 
   // Keep currentTrack synced with playlist[currentIndex]
   useEffect(() => {
@@ -918,6 +919,7 @@ export default function Page() {
           setIsPlaying(false);
           setSessionRunning(false);
           setPlaylistRound(1);
+          setShowSessionFinished(true);
         }
       }
     };
@@ -1305,6 +1307,76 @@ export default function Page() {
         )}
 
         <div className="flex w-full h-full p-4 gap-4">
+          {/* Session Finished Takeover */}
+          {showSessionFinished && (
+            <div className="absolute inset-0 z-[250] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020]">
+              {/* Animated gradient background */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#ff4fb3]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#ff8a1c]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+              </div>
+              
+              {/* Content */}
+              <div className="relative z-10 flex flex-col items-center text-center px-8">
+                {/* Checkmark Icon */}
+                <div className="w-32 h-32 rounded-full bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] flex items-center justify-center mb-8 shadow-[0_0_80px_rgba(255,79,179,0.5)]">
+                  <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                
+                {/* Title */}
+                <h1 className="text-6xl font-black tracking-tight mb-4 bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
+                  SESSION COMPLETE
+                </h1>
+                
+                {/* Subtitle */}
+                <p className="text-2xl text-white/70 mb-8">
+                  All {playlist.length} tracks finished successfully
+                </p>
+                
+                {/* Stats */}
+                <div className="flex gap-12 mb-12">
+                  <div className="text-center">
+                    <p className="text-4xl font-bold text-white">{playlist.length}</p>
+                    <p className="text-sm text-white/50 uppercase tracking-wide">Tracks Played</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-4xl font-bold text-white">{playlistRepeats}</p>
+                    <p className="text-sm text-white/50 uppercase tracking-wide">Rounds</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-4xl font-bold text-white">{formatSessionTime(totalSessionSeconds)}</p>
+                    <p className="text-sm text-white/50 uppercase tracking-wide">Total Time</p>
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setShowSessionFinished(false);
+                      setFinishedTracks(new Set());
+                      setCurrentIndex(0);
+                    }}
+                    className="px-8 py-4 rounded-xl bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] text-white font-bold text-lg hover:shadow-[0_0_30px_rgba(255,79,179,0.5)] transition"
+                  >
+                    Start New Session
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSessionFinished(false);
+                      toggleFullscreen();
+                    }}
+                    className="px-8 py-4 rounded-xl border border-white/20 text-white font-bold text-lg hover:bg-white/10 transition"
+                  >
+                    Exit Fullscreen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Now Playing - Main Section (larger) */}
           <div className="flex-[2] flex flex-col bg-[#071021] rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden">
             {/* Header */}
