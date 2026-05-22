@@ -1358,76 +1358,85 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Track Info & Controls - Centered */}
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-              <div className="grid h-[120px] w-[120px] place-items-center rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_40px_rgba(236,72,153,0.25)] mb-4">
-                <Music size={56} className="text-pink-400" />
-              </div>
-              <h3 className="text-3xl font-bold text-white text-center mb-1 max-w-full truncate px-4">
-                {currentTrack?.title || "No Track Selected"}
-              </h3>
-              <p className="text-base text-white/60 mb-4">
-                {currentTrack ? "Playing" : "Upload tracks to begin"}
-              </p>
-
-              {/* Timer */}
-              <div className="mb-6">
-                {isGapPaused ? (
-                  <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
-                    {gapCountdown}
-                  </div>
-                ) : (
-                  <div className="text-5xl font-black tracking-wider text-white tabular-nums">
-                    {currentTime > 0 || isPlaying
-                      ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
-                      : "00:00"}
-                  </div>
-                )}
-              </div>
-
-              {/* Playback Controls */}
-              <div className="flex items-center justify-center gap-10 mb-4">
-                <button 
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused) {
-                      setShowSkipBackConfirm(true);
-                    } else {
-                      goToPreviousTrack();
-                    }
-                  }}
-                  className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
-                >
-                  <StepBack size={28} />
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused) {
-                      setShowPauseConfirm(true);
-                    } else {
-                      toggleSession();
-                    }
-                  }}
-                  disabled={!currentTrack && playlist.length === 0}
-                  className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
-                >
+            {/* Track Info & Controls - Horizontal Layout */}
+            <div className="flex-1 flex items-center justify-center gap-12 min-h-0 px-4">
+              
+              {/* LEFT: Large Countdown Timer */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="text-[10rem] font-black tracking-tight text-white tabular-nums leading-none">
                   {isGapPaused ? (
-                    <span className="text-3xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
-                  ) : isPlaying ? <Pause size={36} /> : <Play size={36} />}
-                </button>
+                    <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>
+                      {gapCountdown}
+                    </span>
+                  ) : (
+                    <span>
+                      {currentTime > 0 || isPlaying
+                        ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
+                        : "00:00"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-white/50 uppercase tracking-widest mt-2">
+                  {isGapPaused ? "Next Track In" : trackDuration > 0 ? `of ${formatDuration(trackDuration)}` : "Elapsed Time"}
+                </p>
+              </div>
 
-                <button 
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused) {
-                      setShowSkipForwardConfirm(true);
-                    } else {
-                      goToNextTrack();
-                    }
-                  }}
-                  className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
-                >
-                  <StepForward size={28} />
-                </button>
+              {/* RIGHT: Track Info & Controls */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="grid h-[100px] w-[100px] place-items-center rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_40px_rgba(236,72,153,0.25)] mb-3">
+                  <Music size={48} className="text-pink-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-white text-center mb-1 max-w-[300px] truncate">
+                  {currentTrack?.title || "No Track Selected"}
+                </h3>
+                <p className="text-sm text-white/60 mb-6">
+                  {currentTrack ? "Playing" : "Upload tracks to begin"}
+                </p>
+
+                {/* Playback Controls */}
+                <div className="flex items-center justify-center gap-8">
+                  <button 
+                    onClick={() => {
+                      if (isPlaying && !isGapPaused) {
+                        setShowSkipBackConfirm(true);
+                      } else {
+                        goToPreviousTrack();
+                      }
+                    }}
+                    className="grid h-12 w-12 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  >
+                    <StepBack size={24} />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (isPlaying && !isGapPaused) {
+                        setShowPauseConfirm(true);
+                      } else {
+                        toggleSession();
+                      }
+                    }}
+                    disabled={!currentTrack && playlist.length === 0}
+                    className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
+                  >
+                    {isGapPaused ? (
+                      <span className="text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                    ) : isPlaying ? <Pause size={28} /> : <Play size={28} />}
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      if (isPlaying && !isGapPaused) {
+                        setShowSkipForwardConfirm(true);
+                      } else {
+                        goToNextTrack();
+                      }
+                    }}
+                    className="grid h-12 w-12 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  >
+                    <StepForward size={24} />
+                  </button>
+                </div>
               </div>
             </div>
 
