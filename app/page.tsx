@@ -676,8 +676,11 @@ export default function Page() {
       return;
     }
 
-    // If paused with a current track loaded, resume
-    if (currentTrack && audioRef.current.src) {
+    // Check if all tracks are finished - need to restart fresh
+    const allTracksFinished = finishedTracks.size === playlist.length && playlist.length > 0;
+    
+    // If paused with a current track loaded AND not all finished, resume
+    if (currentTrack && audioRef.current.src && !allTracksFinished) {
       try {
         await audioRef.current.play();
         setIsPlaying(true);
@@ -688,7 +691,7 @@ export default function Page() {
       return;
     }
 
-    // No track loaded yet - start from first track in playlist
+    // No track loaded yet OR all tracks finished - start from first track in playlist
     if (playlist.length > 0) {
       const firstTrack = playlist[0];
       if (!firstTrack.url) return;
@@ -698,6 +701,7 @@ export default function Page() {
       setFinishedTracks(new Set());
       setIsGapPaused(false);
       setGapCountdown(0);
+      setShowSessionFinished(false);
       audioRef.current.src = firstTrack.url;
       setCurrentTrack(firstTrack);
       setCurrentIndex(0);
