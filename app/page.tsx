@@ -1890,49 +1890,6 @@ export default function Page() {
                 </label>
               </div>
 
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.035] p-4 md:p-6">
-                <h2 className="text-[#ff4fb3] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
-                  Recently Uploaded Tracks
-                </h2>
-
-                {uploadedTracks.length === 0 ? (
-                  <p className="text-white/40 text-center py-8">
-                    No tracks uploaded yet. Drag tracks to a playlist below.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {uploadedTracks.map((track) => (
-                      <div
-                        key={track.id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("trackId", track.id);
-                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        className="grid grid-cols-[24px_1fr_82px] items-center gap-3 cursor-grab active:cursor-grabbing"
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
-                          }}
-                          className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 transition hover:border-red-500/60 hover:bg-red-500/15 hover:text-red-400"
-                        >
-                          <X size={14} />
-                        </button>
-
-                        <p className="truncate text-white font-semibold">
-                          {track.title}
-                        </p>
-
-                        <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-white uppercase tracking-[0.25em] text-sm font-black">
@@ -1997,6 +1954,49 @@ export default function Page() {
                         >
                           Send to Session
                         </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.035] p-4 md:p-6">
+                <h2 className="text-[#ff4fb3] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
+                  Recently Uploaded Tracks
+                </h2>
+
+                {uploadedTracks.length === 0 ? (
+                  <p className="text-white/40 text-center py-8">
+                    No tracks uploaded yet. Drag tracks to a playlist below.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {uploadedTracks.map((track) => (
+                      <div
+                        key={track.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("trackId", track.id);
+                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        className="grid grid-cols-[24px_1fr_82px] items-center gap-3 cursor-grab active:cursor-grabbing"
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
+                          }}
+                          className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 transition hover:border-red-500/60 hover:bg-red-500/15 hover:text-red-400"
+                        >
+                          <X size={14} />
+                        </button>
+
+                        <p className="truncate text-white font-semibold">
+                          {track.title}
+                        </p>
+
+                        <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
                       </div>
                     ))}
                   </div>
