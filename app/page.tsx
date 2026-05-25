@@ -2002,8 +2002,8 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-4 pb-[180px] md:pb-[150px]">
-        <header className="mb-2 hidden md:flex py-3 items-center justify-center border-b border-white/5">
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-2 pb-[180px] md:pb-[150px]">
+        <header className="mb-3 hidden md:flex py-2 items-center justify-center">
           <EqhoBrand className="h-[140px] w-[500px]" />
         </header>
 
