@@ -36,16 +36,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080f18] flex items-center justify-center p-4">
-      {/* Background gradient effects - Sunset colorway */}
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #050816 0%, #07111f 45%, #0b1020 100%)' }}>
+      {/* Background gradient effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#FF2D75]/15 to-transparent rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#FF7A00]/15 to-transparent rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/3 h-1/3 bg-gradient-to-r from-[#FFD21F]/10 to-[#8B60F6]/10 rounded-full blur-3xl" />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo - Sunset colorway */}
+        {/* Logo */}
         <div className="flex flex-col items-center mb-4">
           <div className="relative w-[400px] h-[220px]">
             <Image
@@ -56,11 +55,11 @@ export default function LoginPage() {
               className="object-contain mix-blend-lighten"
             />
           </div>
-          <p className="text-white/50 text-sm -mt-2">Welcome back to your session</p>
+          <p className="text-[#a7b0c0] text-sm -mt-2">Welcome back to your session</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+        <div className="bg-[#0b1220]/92 border border-white/10 rounded-3xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-bold text-white mb-4">Login</h2>
 
           {error && (
@@ -71,40 +70,40 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-1.5">
+              <label className="block text-sm font-medium text-[#a7b0c0] mb-1.5">
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6b7280]" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
-                  className="w-full pl-11 pr-4 py-2.5 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
+                  className="w-full pl-11 pr-4 py-2.5 bg-[#111827] border border-white/10 rounded-xl text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-1.5">
+              <label className="block text-sm font-medium text-[#a7b0c0] mb-1.5">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6b7280]" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  className="w-full pl-11 pr-11 py-2.5 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
+                  className="w-full pl-11 pr-11 py-2.5 bg-[#111827] border border-white/10 rounded-xl text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-[#a7b0c0] transition"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -114,16 +113,16 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 mt-1 rounded-xl bg-gradient-to-r from-[#FF2D75] via-[#FF7A00] to-[#FFD21F] text-white font-bold hover:shadow-[0_0_30px_rgba(255,122,0,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2.5 mt-1 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
           <div className="mt-4 text-center">
-            <p className="text-white/50">
+            <p className="text-[#6b7280]">
               Don&apos;t have an account?{' '}
-              <Link href="/signup" className="text-[#FF7A00] hover:text-[#FFD21F] font-medium transition">
+              <Link href="/signup" className="text-[#ff4fa3] hover:text-[#ff8a00] font-medium transition">
                 Sign up
               </Link>
             </p>
@@ -131,7 +130,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-white/30 text-xs mt-4">
+        <p className="text-center text-[#6b7280] text-xs mt-4">
           EQHO Player - Professional Music Session Management
         </p>
       </div>
