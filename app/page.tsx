@@ -14,6 +14,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles } from "@/lib/eqho-db";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import {
   Home,
   ListMusic,
@@ -47,6 +50,7 @@ import {
   Repeat,
   Maximize2,
   Minimize2,
+  LogOut,
 } from "lucide-react";
 
 const uploads = [
@@ -327,6 +331,9 @@ export default function Page() {
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenRef = useRef<HTMLDivElement>(null);
@@ -336,6 +343,27 @@ export default function Page() {
   const [showSkipForwardConfirm, setShowSkipForwardConfirm] = useState(false);
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
+
+  // Fetch user on mount
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase.auth]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  };
 
   // Keep currentTrack synced with playlist[currentIndex]
   useEffect(() => {
@@ -1794,16 +1822,29 @@ export default function Page() {
           </div>
         </div>
 
-        <div className={`mt-auto mb-6 mx-3 flex items-center gap-3 px-4 py-3 overflow-hidden`}>
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-blue-500 text-sm font-bold">
-            AC
+        <div className={`mt-auto mb-6 mx-3 flex flex-col gap-2 overflow-hidden`}>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-blue-500 text-sm font-bold uppercase">
+              {user?.email?.charAt(0) || 'U'}
+            </div>
+            <div className={`whitespace-nowrap transition-all duration-300 min-w-0 ${
+              sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
+            }`}>
+              <div className="text-sm text-white truncate max-w-[180px]">{user?.user_metadata?.full_name || 'User'}</div>
+              <div className="text-xs text-white/65 truncate max-w-[180px]">{user?.email || ''}</div>
+            </div>
           </div>
-          <div className={`whitespace-nowrap transition-all duration-300 ${
-            sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
-          }`}>
-            <div className="text-sm text-white">Coach</div>
-            <div className="text-xs text-white/65">All Clubs</div>
-          </div>
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-3 mx-1 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition ${
+              sidebarOpen ? "" : "justify-center"
+            }`}
+          >
+            <LogOut size={18} className="shrink-0" />
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm ${
+              sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
+            }`}>Logout</span>
+          </button>
         </div>
       </aside>
 
@@ -1834,6 +1875,12 @@ export default function Page() {
               </button>
             );
           })}
+          <button
+            onClick={handleLogout}
+            className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
       </nav>
 
