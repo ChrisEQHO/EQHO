@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
 
@@ -55,24 +56,31 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030711] flex items-center justify-center p-4">
-      {/* Background gradient effects */}
+    <div className="min-h-screen bg-[#0D1117] flex items-center justify-center p-4">
+      {/* Background gradient effects - Sunset colorway */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fb3]/10 to-transparent rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a1c]/10 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#FF2D75]/15 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#FF7A00]/15 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/3 h-1/3 bg-gradient-to-r from-[#FFD21F]/10 to-[#8B60F6]/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-black tracking-tight bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] bg-clip-text text-transparent">
-            EQHO
-          </h1>
-          <p className="text-white/50 mt-2">Create your account</p>
+        {/* Logo - Sunset colorway */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="relative w-[180px] h-[120px] mb-4">
+            <Image
+              src="/eqho-player-logo-sunset.png"
+              alt="EQHO Player"
+              fill
+              priority
+              className="object-contain"
+            />
+          </div>
+          <p className="text-white/50 text-sm">Create your account</p>
         </div>
 
         {/* Signup Card */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8">
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
           <h2 className="text-2xl font-bold text-white mb-6">Sign Up</h2>
 
           {error && (
@@ -94,7 +102,7 @@ export default function SignupPage() {
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Enter your full name"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#ff4fb3]/50 focus:ring-1 focus:ring-[#ff4fb3]/50 transition"
+                  className="w-full pl-11 pr-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
                 />
               </div>
             </div>
@@ -111,7 +119,7 @@ export default function SignupPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#ff4fb3]/50 focus:ring-1 focus:ring-[#ff4fb3]/50 transition"
+                  className="w-full pl-11 pr-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
                 />
               </div>
             </div>
@@ -128,7 +136,7 @@ export default function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Create a password"
                   required
-                  className="w-full pl-11 pr-11 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#ff4fb3]/50 focus:ring-1 focus:ring-[#ff4fb3]/50 transition"
+                  className="w-full pl-11 pr-11 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
                 />
                 <button
                   type="button"
@@ -152,7 +160,7 @@ export default function SignupPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your password"
                   required
-                  className="w-full pl-11 pr-11 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#ff4fb3]/50 focus:ring-1 focus:ring-[#ff4fb3]/50 transition"
+                  className="w-full pl-11 pr-11 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
                 />
                 <button
                   type="button"
@@ -167,7 +175,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-[#ff4fb3] to-[#ff8a1c] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,179,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-[#FF2D75] via-[#FF7A00] to-[#FFD21F] text-white font-bold hover:shadow-[0_0_30px_rgba(255,122,0,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
@@ -176,12 +184,17 @@ export default function SignupPage() {
           <div className="mt-6 text-center">
             <p className="text-white/50">
               Already have an account?{' '}
-              <Link href="/login" className="text-[#ff4fb3] hover:text-[#ff8a1c] font-medium transition">
+              <Link href="/login" className="text-[#FF7A00] hover:text-[#FFD21F] font-medium transition">
                 Login
               </Link>
             </p>
           </div>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-white/30 text-xs mt-6">
+          EQHO Player - Professional Music Session Management
+        </p>
       </div>
     </div>
   )
