@@ -2107,24 +2107,44 @@ export default function Page() {
                       >
                         <ListMusic size={18} className="text-[#FF2D75] shrink-0" />
                         <span className="flex-1 truncate text-white">{pl.name}</span>
-                        <button
-                          onClick={() => {
-                            if (pl.tracks.length > 0) {
-                              if (sessionRunning || isPlaying) {
-                                setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
-                              } else {
-                                setPlaylist(pl.tracks);
-                                setCurrentPlaylistName(pl.name);
-                                setCurrentIndex(0);
-                                setCurrentTrack(pl.tracks[0]);
+                        <div className="flex gap-1.5 shrink-0">
+                          <button
+                            onClick={() => {
+                              if (pl.tracks.length > 0) {
+                                // Add to existing playlist (queue)
+                                setPlaylist((prev) => [...prev, ...pl.tracks]);
+                                if (!currentTrack && pl.tracks.length > 0) {
+                                  setCurrentTrack(pl.tracks[0]);
+                                  setCurrentIndex(0);
+                                }
                               }
-                            }
-                          }}
-                          disabled={pl.tracks.length === 0}
-                          className="shrink-0 rounded-lg border border-pink-500/50 bg-pink-500/10 px-2.5 py-1 text-xs font-semibold text-pink-400 transition hover:bg-pink-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          Send to Session
-                        </button>
+                            }}
+                            disabled={pl.tracks.length === 0}
+                            className="rounded-lg border border-[#FF7A00]/50 bg-[#FF7A00]/10 px-2 py-1 text-xs font-semibold text-[#FF7A00] transition hover:bg-[#FF7A00]/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Add tracks to current queue"
+                          >
+                            + Queue
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (pl.tracks.length > 0) {
+                                if (sessionRunning || isPlaying) {
+                                  setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
+                                } else {
+                                  setPlaylist(pl.tracks);
+                                  setCurrentPlaylistName(pl.name);
+                                  setCurrentIndex(0);
+                                  setCurrentTrack(pl.tracks[0]);
+                                }
+                              }
+                            }}
+                            disabled={pl.tracks.length === 0}
+                            className="rounded-lg border border-pink-500/50 bg-pink-500/10 px-2 py-1 text-xs font-semibold text-pink-400 transition hover:bg-pink-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Replace current queue with this playlist"
+                          >
+                            Replace
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
