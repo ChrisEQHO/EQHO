@@ -1,34 +1,18 @@
 import type { Metadata } from 'next'
-import { Poppins } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 
-const poppins = Poppins({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-poppins',
-})
+const _geist = Geist({ subsets: ["latin"] });
+const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'EQHO - Competition Music. Perfected.',
-  description: 'AI-assisted competition music workflow platform for gymnastics, cheerleading, dance and acro.',
-  generator: 'v0.app',
+  title: 'EQHO Player - Professional Music Player for Coaches',
+  description: 'Premium DJ-style music player for gymnastics routines and training sessions',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/icon',
+    apple: '/apple-icon',
   },
 }
 
@@ -38,10 +22,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark bg-background">
-      <body className={`${poppins.variable} font-sans antialiased`}>
+    <html lang="en" className="bg-[#020817]">
+      <head>
+        <link rel="icon" href="/icon" type="image/png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/apple-icon" />
+      </head>
+      <body className="font-sans antialiased bg-[#020817]">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.NODE_ENV === 'production' && <SpeedInsights />}
       </body>
     </html>
   )
