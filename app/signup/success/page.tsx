@@ -4,7 +4,7 @@ import { Mail } from 'lucide-react'
 
 export default function SignupSuccessPage() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
       {/* Background gradient effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
@@ -26,14 +26,14 @@ export default function SignupSuccessPage() {
         </div>
 
         {/* Success Card */}
-        <div className="bg-[#0b1220]/92 border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
+        <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
             <Mail className="w-8 h-8 text-white" />
           </div>
 
           <h2 className="text-2xl font-bold text-white mb-4">Check your email</h2>
           
-          <p className="text-[#a7b0c0] mb-6">
+          <p className="text-[#cbd5e1] mb-6">
             We&apos;ve sent you a confirmation link. Please check your email to verify your account and complete the signup process.
           </p>
 
@@ -46,7 +46,7 @@ export default function SignupSuccessPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[#6b7280] text-xs mt-6">
+        <p className="text-center text-[#7c8596] text-xs mt-6">
           EQHO Player - Professional Music Session Management
         </p>
       </div>

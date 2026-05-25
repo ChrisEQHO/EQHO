@@ -111,7 +111,7 @@ function EqhoBrand({ className = "" }: { className?: string }) {
 
 function SettingsSection({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-[#0b1220]/92 p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
+    <div className="rounded-3xl border border-white/10 bg-[rgba(9,15,28,0.96)] p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
       <div className="flex items-center gap-3 mb-5">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
           {icon}
@@ -252,7 +252,7 @@ const buildSessionQueue = ({
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-white/10 bg-[#0b1220]/85 shadow-[0_0_35px_rgba(0,180,255,0.05)] ${className}`}>
+    <div className={`rounded-xl border border-white/10 bg-[#090f1c]/85 shadow-[0_0_35px_rgba(0,180,255,0.05)] ${className}`}>
       {children}
     </div>
   );
@@ -1231,11 +1231,11 @@ export default function Page() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden bg-black text-white">
+    <div className="relative h-screen overflow-hidden bg-[#020617] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
       <audio
@@ -1245,12 +1245,12 @@ export default function Page() {
       {/* Fullscreen Mode View */}
       <div
         ref={fullscreenRef}
-        className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#0b1220] text-white`}
+        className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
         {/* Safety Confirmation Dialogs */}
         {showPauseConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <AlertTriangle size={48} className="mx-auto mb-4 text-orange-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Pause Playback?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to pause the current session?</p>
@@ -1282,7 +1282,7 @@ export default function Page() {
 
         {showMuteConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <VolumeX size={48} className="mx-auto mb-4 text-red-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Mute Audio?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to mute the audio during the session?</p>
@@ -1310,7 +1310,7 @@ export default function Page() {
 
         {showSkipBackConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to go back to the previous track?</p>
@@ -1339,7 +1339,7 @@ export default function Page() {
 
         {showSkipForwardConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to skip to the next track?</p>
@@ -1369,7 +1369,7 @@ export default function Page() {
         {/* Queue Playlist Modal */}
         {showFullscreenQueuePlaylist && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-white">Queue Playlist</h3>
                 <button
@@ -1428,7 +1428,7 @@ export default function Page() {
         {/* Clear Playlist Confirmation */}
         {showClearPlaylistConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Clear Playlist?</h3>
               <p className="text-white/60 mb-6">This will remove all tracks from your current session. The session will stop playing.</p>
@@ -1456,7 +1456,7 @@ export default function Page() {
         {/* Send to Session Confirmation */}
         {showSendToSessionConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <ListMusic size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Replace Current Playlist?</h3>
               <p className="text-white/60 mb-6">Loading &quot;{showSendToSessionConfirm.name}&quot; will replace your current session playlist. The current session will stop.</p>
@@ -1494,7 +1494,7 @@ export default function Page() {
         {/* Remove Track Confirmation */}
         {showRemoveTrackConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <X size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Remove Track?</h3>
               <p className="text-white/60 mb-2">Remove &quot;{showRemoveTrackConfirm.track.title}&quot; from the playlist?</p>
@@ -1606,7 +1606,7 @@ export default function Page() {
 
         <div className="flex w-full h-full p-4 gap-4">
           {/* Now Playing - Main Section (larger) */}
-          <div className="flex-[2] flex flex-col bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+          <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
@@ -1631,7 +1631,7 @@ export default function Page() {
                   {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
                 <div
-                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#0b1220] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -1802,7 +1802,7 @@ export default function Page() {
           </div>
 
           {/* Up Next - Side Section (smaller) */}
-          <div className="flex-1 flex flex-col bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+          <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-2">
@@ -1894,7 +1894,7 @@ export default function Page() {
       <aside
         onMouseEnter={() => setSidebarOpen(true)}
         onMouseLeave={() => setSidebarOpen(false)}
-        className={`fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col bg-[#07111f] border-r border-white/10 transition-all duration-300 overflow-hidden ${
+        className={`fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col bg-[#050816] border-r border-white/10 transition-all duration-300 overflow-hidden ${
           sidebarOpen ? "w-[300px]" : "w-[76px]"
         }`}
       >
@@ -1915,7 +1915,7 @@ export default function Page() {
                 className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 transition-all duration-200 ${
                   activePage === page
                     ? activeStyles[color]
-                    : "text-[#a7b0c0] hover:text-white hover:bg-white/[0.03] border border-transparent"
+                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03] border border-transparent"
                 }`}
               >
                 <Icon size={22} className="shrink-0" />
@@ -1936,7 +1936,7 @@ export default function Page() {
             sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
           }`}>
             <div className="text-xs font-semibold text-[#ff4fa3]">EQHO Player Pro</div>
-            <div className="text-[10px] text-[#6b7280]">Coming September</div>
+            <div className="text-[10px] text-[#7c8596]">Coming September</div>
           </div>
         </div>
 
@@ -1967,7 +1967,7 @@ export default function Page() {
       </aside>
 
       {/* Mobile Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#07111f] border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#050816] border-b border-white/10">
         <EqhoBrand className="h-[28px] w-[100px]" />
         <div className="flex items-center gap-1">
           {[
@@ -1985,7 +1985,7 @@ export default function Page() {
                 className={`p-2.5 rounded-xl transition-all duration-200 ${
                   activePage === page
                     ? activeColors[color]
-                    : "text-[#a7b0c0] hover:text-white hover:bg-white/[0.03]"
+                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03]"
                 }`}
               >
                 <Icon size={20} />
@@ -2191,7 +2191,7 @@ export default function Page() {
 
             {/* MIDDLE: UP NEXT */}
             <div className="flex flex-col gap-3 md:gap-4 order-first lg:order-none">
-              <Card className="relative flex-1 overflow-hidden bg-[#0b1220] p-3 md:p-4">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4">
                 <div className="flex items-center justify-between">
   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
   <button
@@ -2436,7 +2436,7 @@ export default function Page() {
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#0b1220] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -2982,7 +2982,7 @@ export default function Page() {
       </main>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#060914]">
+      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#050816]">
         <div className="session-bottom-divider" />
 
         <div className="w-full px-3 md:px-6 py-3 md:py-4">
@@ -3120,7 +3120,7 @@ export default function Page() {
       {/* Stop/Pause Session Confirmation Modal */}
       {showStopConfirm && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-orange-500/30 bg-[#0b1220] p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl border border-orange-500/30 bg-[#090f1c] p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
                 <AlertTriangle size={24} className="text-orange-400" />
@@ -3151,7 +3151,7 @@ export default function Page() {
       {/* Create Playlist Modal */}
       {showPlaylistModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#0b1220] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#090f1c] p-6 shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-4">Create New Playlist</h3>
             <input
               type="text"
