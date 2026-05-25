@@ -2002,10 +2002,7 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-0 pb-[180px] md:pb-[150px]">
-        <header className="mb-1 hidden md:flex py-1 items-center justify-center">
-          <EqhoBrand className="h-[140px] w-[500px]" />
-        </header>
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-3 pb-[180px] md:pb-[150px]">
 
         {activePage === "player" && (
           <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-3 md:gap-4">
@@ -3092,23 +3089,26 @@ export default function Page() {
             </div>
 
             {/* Start Session */}
-            <button 
-              onClick={toggleSession}
-              disabled={!currentTrack && playlist.length === 0}
-              className={`h-11 md:h-[52px] min-w-[140px] md:min-w-[160px] rounded-xl text-xs md:text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                isGapPaused
-                  ? "bg-white/10 border border-white/30 text-white animate-pulse"
-                  : isPlaying
-                    ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
-                    : sessionRunning && !isPlaying
-                      ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
-                      : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90 shadow-[0_0_20px_rgba(255,79,179,0.25)]"
-              }`}
-            >
-              {isGapPaused ? (
-                <span className="text-sm font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
-              ) : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
-            </button>
+            <div className="flex items-center gap-4">
+              <EqhoBrand className="h-[52px] w-[180px] hidden md:block" />
+              <button 
+                onClick={toggleSession}
+                disabled={!currentTrack && playlist.length === 0}
+                className={`h-11 md:h-[52px] min-w-[140px] md:min-w-[160px] rounded-xl text-xs md:text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isGapPaused
+                    ? "bg-white/10 border border-white/30 text-white animate-pulse"
+                    : isPlaying
+                      ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
+                      : sessionRunning && !isPlaying
+                        ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
+                        : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90 shadow-[0_0_20px_rgba(255,79,179,0.25)]"
+                }`}
+              >
+                {isGapPaused ? (
+                  <span className="text-sm font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                ) : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
