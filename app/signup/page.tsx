@@ -66,17 +66,17 @@ export default function SignupPage() {
 
       <div className="relative w-full max-w-md">
         {/* Logo - Sunset colorway */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative w-[180px] h-[120px] mb-4">
+        <div className="flex flex-col items-center mb-6">
+          <div className="relative w-[300px] h-[180px]">
             <Image
-              src="/eqho-player-logo-sunset.png"
+              src="/images/eqho-logo-sunset-full.png"
               alt="EQHO Player"
               fill
               priority
-              className="object-contain"
+              className="object-contain mix-blend-lighten"
             />
           </div>
-          <p className="text-white/50 text-sm">Create your account</p>
+          <p className="text-white/50 text-sm -mt-2">Create your account</p>
         </div>
 
         {/* Signup Card */}
