@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
@@ -44,26 +45,17 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo - Sunset colorway SVG */}
+        {/* Logo - Sunset colorway */}
         <div className="flex flex-col items-center mb-8">
-          <svg viewBox="0 0 200 100" className="w-[200px] h-[100px] mb-2">
-            <defs>
-              <linearGradient id="sunsetGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FF2D75" />
-                <stop offset="50%" stopColor="#FF7A00" />
-                <stop offset="100%" stopColor="#FFD21F" />
-              </linearGradient>
-            </defs>
-            {/* E */}
-            <path d="M10 15 L10 55 L45 55 L45 47 L20 47 L20 39 L40 39 L40 31 L20 31 L20 23 L45 23 L45 15 Z" fill="url(#sunsetGradient)" />
-            {/* Q */}
-            <circle cx="75" cy="35" r="20" fill="none" stroke="url(#sunsetGradient)" strokeWidth="8" />
-            <path d="M85 45 L100 60" stroke="url(#sunsetGradient)" strokeWidth="8" strokeLinecap="round" />
-            {/* EQHO Text */}
-            <text x="100" y="75" fill="white" fontSize="24" fontWeight="800" letterSpacing="0.15em" fontFamily="system-ui, -apple-system, sans-serif">EQHO</text>
-            {/* PLAYER Text */}
-            <text x="100" y="92" fill="url(#sunsetGradient)" fontSize="12" fontWeight="600" letterSpacing="0.25em" fontFamily="system-ui, -apple-system, sans-serif">PLAYER</text>
-          </svg>
+          <div className="relative w-[220px] h-[140px] mb-2">
+            <Image
+              src="/images/eqho-logo-sunset-full.png"
+              alt="EQHO Player"
+              fill
+              priority
+              className="object-contain mix-blend-lighten"
+            />
+          </div>
           <p className="text-white/50 text-sm">Welcome back to your session</p>
         </div>
 
