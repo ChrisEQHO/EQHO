@@ -46,8 +46,8 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-md">
         {/* Logo - Sunset colorway */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative w-[400px] h-[260px] mb-2">
+        <div className="flex flex-col items-center mb-4">
+          <div className="relative w-[400px] h-[220px]">
             <Image
               src="/images/eqho-logo-sunset-full.png"
               alt="EQHO Player"
@@ -56,22 +56,22 @@ export default function LoginPage() {
               className="object-contain mix-blend-lighten"
             />
           </div>
-          <p className="text-white/50 text-sm">Welcome back to your session</p>
+          <p className="text-white/50 text-sm -mt-2">Welcome back to your session</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
-          <h2 className="text-2xl font-bold text-white mb-6">Login</h2>
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+          <h2 className="text-2xl font-bold text-white mb-4">Login</h2>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
+              <label className="block text-sm font-medium text-white/70 mb-1.5">
                 Email
               </label>
               <div className="relative">
@@ -82,13 +82,13 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
+                  className="w-full pl-11 pr-4 py-2.5 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
+              <label className="block text-sm font-medium text-white/70 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -99,7 +99,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  className="w-full pl-11 pr-11 py-3 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
+                  className="w-full pl-11 pr-11 py-2.5 bg-white/[0.05] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7A00]/50 focus:ring-1 focus:ring-[#FF7A00]/50 transition"
                 />
                 <button
                   type="button"
@@ -114,13 +114,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-[#FF2D75] via-[#FF7A00] to-[#FFD21F] text-white font-bold hover:shadow-[0_0_30px_rgba(255,122,0,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2.5 mt-1 rounded-xl bg-gradient-to-r from-[#FF2D75] via-[#FF7A00] to-[#FFD21F] text-white font-bold hover:shadow-[0_0_30px_rgba(255,122,0,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-4 text-center">
             <p className="text-white/50">
               Don&apos;t have an account?{' '}
               <Link href="/signup" className="text-[#FF7A00] hover:text-[#FFD21F] font-medium transition">
@@ -131,7 +131,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-white/30 text-xs mt-6">
+        <p className="text-center text-white/30 text-xs mt-4">
           EQHO Player - Professional Music Session Management
         </p>
       </div>
