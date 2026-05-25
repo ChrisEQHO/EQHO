@@ -343,6 +343,9 @@ export default function Page() {
   const [showSkipForwardConfirm, setShowSkipForwardConfirm] = useState(false);
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
+  const [showClearPlaylistConfirm, setShowClearPlaylistConfirm] = useState(false);
+  const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
+  const [showRemoveTrackConfirm, setShowRemoveTrackConfirm] = useState<{ track: Track; originalIndex: number } | null>(null);
 
   // Fetch user on mount
   useEffect(() => {
@@ -1419,6 +1422,115 @@ export default function Page() {
           </div>
         )}
 
+        {/* Clear Playlist Confirmation */}
+        {showClearPlaylistConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#0D1117]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <AlertTriangle size={48} className="mx-auto mb-4 text-[#FF7A00]" />
+              <h3 className="text-2xl font-bold text-white mb-2">Clear Playlist?</h3>
+              <p className="text-white/60 mb-6">This will remove all tracks from your current session. The session will stop playing.</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowClearPlaylistConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowClearPlaylistConfirm(false);
+                    clearPlaylist();
+                  }}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                >
+                  Yes, Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Send to Session Confirmation */}
+        {showSendToSessionConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#0D1117]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <ListMusic size={48} className="mx-auto mb-4 text-[#FF7A00]" />
+              <h3 className="text-2xl font-bold text-white mb-2">Replace Current Playlist?</h3>
+              <p className="text-white/60 mb-6">Loading &quot;{showSendToSessionConfirm.name}&quot; will replace your current session playlist. The current session will stop.</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowSendToSessionConfirm(null)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const { name, tracks } = showSendToSessionConfirm;
+                    setShowSendToSessionConfirm(null);
+                    if (isPlaying && audioRef.current) {
+                      audioRef.current.pause();
+                      setIsPlaying(false);
+                    }
+                    setPlaylist(tracks);
+                    setCurrentPlaylistName(name);
+                    setCurrentIndex(0);
+                    setCurrentTrack(tracks[0]);
+                    setSessionRunning(false);
+                    setFinishedTracks(new Set());
+                  }}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                >
+                  Yes, Replace
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Remove Track Confirmation */}
+        {showRemoveTrackConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#0D1117]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <X size={48} className="mx-auto mb-4 text-[#FF7A00]" />
+              <h3 className="text-2xl font-bold text-white mb-2">Remove Track?</h3>
+              <p className="text-white/60 mb-2">Remove &quot;{showRemoveTrackConfirm.track.title}&quot; from the playlist?</p>
+              <p className="text-white/40 text-sm mb-6">This may affect the currently playing session.</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowRemoveTrackConfirm(null)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const { track, originalIndex } = showRemoveTrackConfirm;
+                    setShowRemoveTrackConfirm(null);
+                    setPlaylist((prev) => {
+                      const newPlaylist = prev.filter((t) => t.id !== track.id);
+                      if (originalIndex < currentIndex) {
+                        setCurrentIndex((idx) => Math.max(0, idx - 1));
+                      } else if (originalIndex === currentIndex && newPlaylist.length > 0) {
+                        setCurrentIndex((idx) => Math.min(idx, newPlaylist.length - 1));
+                        if (isPlaying && audioRef.current) {
+                          audioRef.current.pause();
+                          setIsPlaying(false);
+                        }
+                        setCurrentTrack(newPlaylist[Math.min(originalIndex, newPlaylist.length - 1)] || null);
+                      }
+                      return newPlaylist;
+                    });
+                  }}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                >
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Session Finished Takeover */}
         {showSessionFinished && (
           <div className="absolute inset-0 z-[250] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020]">
@@ -1998,10 +2110,14 @@ export default function Page() {
                         <button
                           onClick={() => {
                             if (pl.tracks.length > 0) {
-                              setPlaylist(pl.tracks);
-                              setCurrentPlaylistName(pl.name);
-                              setCurrentIndex(0);
-                              setCurrentTrack(pl.tracks[0]);
+                              if (sessionRunning || isPlaying) {
+                                setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
+                              } else {
+                                setPlaylist(pl.tracks);
+                                setCurrentPlaylistName(pl.name);
+                                setCurrentIndex(0);
+                                setCurrentTrack(pl.tracks[0]);
+                              }
                             }
                           }}
                           disabled={pl.tracks.length === 0}
@@ -2065,7 +2181,13 @@ export default function Page() {
                 <div className="flex items-center justify-between">
   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#FF7A00]">UP NEXT (IN ORDER)</h2>
   <button
-    onClick={clearPlaylist}
+    onClick={() => {
+      if (sessionRunning || isPlaying) {
+        setShowClearPlaylistConfirm(true);
+      } else {
+        clearPlaylist();
+      }
+    }}
     disabled={playlist.length === 0}
     className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#FF7A00]/20 border border-[#FF7A00]/50 rounded-md hover:bg-[#FF7A00]/30 hover:border-[#FF7A00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
   >
@@ -2197,20 +2319,24 @@ export default function Page() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setPlaylist((prev) => {
-                                    const newPlaylist = prev.filter((t) => t.id !== track.id);
-                                    if (originalIndex < currentIndex) {
-                                      setCurrentIndex((idx) => Math.max(0, idx - 1));
-                                    } else if (originalIndex === currentIndex && newPlaylist.length > 0) {
-                                      setCurrentIndex((idx) => Math.min(idx, newPlaylist.length - 1));
-                                      if (isPlaying && audioRef.current) {
-                                        audioRef.current.pause();
-                                        setIsPlaying(false);
+                                  if (sessionRunning || isPlaying) {
+                                    setShowRemoveTrackConfirm({ track, originalIndex });
+                                  } else {
+                                    setPlaylist((prev) => {
+                                      const newPlaylist = prev.filter((t) => t.id !== track.id);
+                                      if (originalIndex < currentIndex) {
+                                        setCurrentIndex((idx) => Math.max(0, idx - 1));
+                                      } else if (originalIndex === currentIndex && newPlaylist.length > 0) {
+                                        setCurrentIndex((idx) => Math.min(idx, newPlaylist.length - 1));
+                                        if (isPlaying && audioRef.current) {
+                                          audioRef.current.pause();
+                                          setIsPlaying(false);
+                                        }
+                                        setCurrentTrack(newPlaylist[Math.min(originalIndex, newPlaylist.length - 1)] || null);
                                       }
-                                      setCurrentTrack(newPlaylist[Math.min(originalIndex, newPlaylist.length - 1)] || null);
-                                    }
-                                    return newPlaylist;
-                                  });
+                                      return newPlaylist;
+                                    });
+                                  }
                                 }}
                                 className="ml-2 p-1.5 rounded-md text-white/30 hover:text-red-400 hover:bg-red-500/10 transition"
                                 title="Remove from queue (does not delete track)"
@@ -2503,7 +2629,13 @@ export default function Page() {
               </div>
               <div className="mt-2 flex gap-3">
                 <button className="rounded border border-white/20 px-4 py-1.5 text-xs">Edit Playlist</button>
-                <button onClick={clearPlaylist} className="rounded border border-pink-500 px-4 py-1.5 text-xs text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
+                <button onClick={() => {
+      if (sessionRunning || isPlaying) {
+        setShowClearPlaylistConfirm(true);
+      } else {
+        clearPlaylist();
+      }
+    }} className="rounded border border-pink-500 px-4 py-1.5 text-xs text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
               </div>
             </div>
 
