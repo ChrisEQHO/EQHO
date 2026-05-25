@@ -349,6 +349,8 @@ export default function Page() {
 
   // Fetch user on mount
   useEffect(() => {
+    if (!supabase) return;
+    
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
@@ -360,9 +362,10 @@ export default function Page() {
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const handleLogout = async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();

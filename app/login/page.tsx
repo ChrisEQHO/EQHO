@@ -14,20 +14,27 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const supabase = createClient()
+    
+    if (!supabase) {
+      setError('Authentication service is not configured. Please contact support.')
+      setLoading(false)
+      return
+    }
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (error) {
-      setError(error.message)
+    if (authError) {
+      setError(authError.message)
       setLoading(false)
     } else {
       router.push('/')
