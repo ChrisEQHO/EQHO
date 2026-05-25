@@ -4,7 +4,7 @@ import { Mail } from 'lucide-react'
 
 export default function SignupSuccessPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #050816 0%, #07111f 45%, #0b1020 100%)' }}>
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
       {/* Background gradient effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />

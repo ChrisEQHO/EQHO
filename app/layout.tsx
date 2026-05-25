@@ -22,12 +22,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-[#050816]">
+    <html lang="en" className="bg-black">
       <head>
         <link rel="icon" href="/icon" type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href="/apple-icon" />
       </head>
-      <body className="font-sans antialiased bg-[#050816]">
+      <body className="font-sans antialiased bg-black">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
         {process.env.NODE_ENV === 'production' && <SpeedInsights />}

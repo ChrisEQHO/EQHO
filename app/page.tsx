@@ -1228,7 +1228,7 @@ export default function Page() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #050816 0%, #07111f 45%, #0b1020 100%)' }}>
+    <div className="relative h-screen overflow-hidden bg-black text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
