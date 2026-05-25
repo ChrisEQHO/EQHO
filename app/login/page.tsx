@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1e30] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#080f18] flex items-center justify-center p-4">
       {/* Background gradient effects - Sunset colorway */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#FF2D75]/15 to-transparent rounded-full blur-3xl" />
@@ -49,7 +49,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-4">
           <div className="relative w-[400px] h-[220px]">
             <Image
-              src="/images/eqho-logo-sunset-full.png"
+              src="/eqho-player-logo.png"
               alt="EQHO Player"
               fill
               priority

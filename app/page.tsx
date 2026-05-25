@@ -92,18 +92,18 @@ const queue = [
 /* 
  * EQHO Brand Logo - Colourway 3 SUNSET
  * Uses the uploaded logo image exactly as provided
- * Logo image: /public/eqho-player-logo-sunset.png
+ * Logo image: /public/eqho-player-logo.png
  */
 
 function EqhoBrand({ className = "" }: { className?: string }) {
   return (
     <div className={`relative shrink-0 ${className}`}>
       <Image
-        src="/eqho-player-logo-sunset.png"
+        src="/eqho-player-logo.png"
         alt="EQHO Player"
         fill
         priority
-        className="object-contain"
+        className="object-contain mix-blend-lighten"
       />
     </div>
   );
@@ -1228,7 +1228,7 @@ export default function Page() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden bg-[#0c1e30] text-white">
+    <div className="relative h-screen overflow-hidden bg-[#080f18] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#FF2D75]/10 to-transparent rounded-full blur-3xl" />
