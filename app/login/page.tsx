@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1929] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0c1e30] flex items-center justify-center p-4">
       {/* Background gradient effects - Sunset colorway */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#FF2D75]/15 to-transparent rounded-full blur-3xl" />
