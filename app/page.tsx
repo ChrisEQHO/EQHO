@@ -2002,13 +2002,13 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-2 pb-[180px] md:pb-[150px]">
-        <header className="mb-3 hidden md:flex py-2 items-center justify-center">
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-0 pb-[180px] md:pb-[150px]">
+        <header className="mb-1 hidden md:flex py-1 items-center justify-center">
           <EqhoBrand className="h-[140px] w-[500px]" />
         </header>
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-3 md:gap-4">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="space-y-4 md:space-y-6">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
