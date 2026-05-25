@@ -47,7 +47,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Logo - Sunset colorway */}
         <div className="flex flex-col items-center mb-8">
-          <div className="relative w-[300px] h-[200px] mb-2">
+          <div className="relative w-[400px] h-[260px] mb-2">
             <Image
               src="/images/eqho-logo-sunset-full.png"
               alt="EQHO Player"
