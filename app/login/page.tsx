@@ -43,13 +43,8 @@ export default function LoginPage() {
 
     const supabase = createClient()
     
-    // Debug in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[v0] Login attempt - Supabase client created:', !!supabase)
-    }
-    
     if (!supabase) {
-      setError('Authentication service is not configured. Please check that NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.')
+      setError('Authentication service is not configured. Please contact support.')
       setLoading(false)
       return
     }
