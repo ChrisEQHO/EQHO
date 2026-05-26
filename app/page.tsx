@@ -640,13 +640,184 @@ export default function Page() {
     };
   }, []);
 
-  const handleDropUpload = (event: React.DragEvent) => {
+  const handleDropUpload = async (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDraggingUpload(false);
-    if (event.dataTransfer?.files?.length) {
-      handleFiles(event.dataTransfer.files);
+    
+    const items = event.dataTransfer?.items;
+    if (!items || items.length === 0) return;
+
+    // Check if any item is a directory (folder/playlist)
+    const entries: FileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.();
+      if (entry) {
+        entries.push(entry);
+      }
     }
+
+    // Process entries - separate folders from individual files
+    const individualFiles: File[] = [];
+    const folderEntries: { name: string; entry: FileSystemDirectoryEntry }[] = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        folderEntries.push({ name: entry.name, entry: entry as FileSystemDirectoryEntry });
+      } else if (entry.isFile) {
+        const fileEntry = entry as FileSystemFileEntry;
+        const file = await new Promise<File>((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+        if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
+          individualFiles.push(file);
+        }
+      }
+    }
+
+    // Process individual files - add to uploadedTracks
+    if (individualFiles.length > 0) {
+      processFilesToUploadedTracks(individualFiles);
+    }
+
+    // Process folders as playlists - add to savedPlaylists
+    for (const folder of folderEntries) {
+      const audioFiles = await getAudioFilesFromDirectory(folder.entry);
+      if (audioFiles.length > 0) {
+        await createPlaylistFromFiles(folder.name, audioFiles);
+      }
+    }
+  };
+
+  // Helper function to get all audio files from a directory recursively
+  const getAudioFilesFromDirectory = async (dirEntry: FileSystemDirectoryEntry): Promise<File[]> => {
+    const audioFiles: File[] = [];
+    
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+      return new Promise((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+    };
+
+    const processEntry = async (entry: FileSystemEntry): Promise<void> => {
+      if (entry.isFile) {
+        const fileEntry = entry as FileSystemFileEntry;
+        const file = await new Promise<File>((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+        if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
+          audioFiles.push(file);
+        }
+      } else if (entry.isDirectory) {
+        const subDirEntry = entry as FileSystemDirectoryEntry;
+        const reader = subDirEntry.createReader();
+        let subEntries = await readEntries(reader);
+        while (subEntries.length > 0) {
+          for (const subEntry of subEntries) {
+            await processEntry(subEntry);
+          }
+          subEntries = await readEntries(reader);
+        }
+      }
+    };
+
+    const reader = dirEntry.createReader();
+    let entryList = await readEntries(reader);
+    while (entryList.length > 0) {
+      for (const entry of entryList) {
+        await processEntry(entry);
+      }
+      entryList = await readEntries(reader);
+    }
+
+    return audioFiles;
+  };
+
+  // Helper function to process files into uploadedTracks
+  const processFilesToUploadedTracks = (files: File[]) => {
+    files.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      const audio = new Audio(url);
+
+      audio.onloadedmetadata = () => {
+        const newTrack: Track = {
+          id: crypto.randomUUID(),
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          sub: "Uploaded Track",
+          duration: formatDuration(Math.round(audio.duration)),
+          fileName: file.name,
+          url,
+          durationSeconds: Math.round(audio.duration),
+          uploadedAt: new Date().toISOString(),
+          file,
+        };
+
+        setUploadedTracks((current) => [...current, newTrack]);
+      };
+    });
+  };
+
+  // Helper function to create a playlist from files
+  const createPlaylistFromFiles = async (playlistName: string, files: File[]): Promise<void> => {
+    const tracks: Track[] = [];
+    let processed = 0;
+
+    return new Promise((resolve) => {
+      if (files.length === 0) {
+        resolve();
+        return;
+      }
+
+      files.forEach((file) => {
+        const url = URL.createObjectURL(file);
+        const audio = new Audio(url);
+
+        audio.onloadedmetadata = () => {
+          const newTrack: Track = {
+            id: crypto.randomUUID(),
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            sub: playlistName,
+            duration: formatDuration(Math.round(audio.duration)),
+            fileName: file.name,
+            url,
+            durationSeconds: Math.round(audio.duration),
+            uploadedAt: new Date().toISOString(),
+            file,
+          };
+          tracks.push(newTrack);
+          processed++;
+
+          if (processed === files.length) {
+            // Sort tracks by filename for consistent ordering
+            tracks.sort((a, b) => a.fileName.localeCompare(b.fileName));
+            
+            const newPlaylist = {
+              id: crypto.randomUUID(),
+              name: playlistName,
+              tracks,
+            };
+            setSavedPlaylists((prev) => [...prev, newPlaylist]);
+            resolve();
+          }
+        };
+
+        audio.onerror = () => {
+          processed++;
+          if (processed === files.length) {
+            if (tracks.length > 0) {
+              tracks.sort((a, b) => a.fileName.localeCompare(b.fileName));
+              const newPlaylist = {
+                id: crypto.randomUUID(),
+                name: playlistName,
+                tracks,
+              };
+              setSavedPlaylists((prev) => [...prev, newPlaylist]);
+            }
+            resolve();
+          }
+        };
+      });
+    });
   };
 
   const handleDragEnterUpload = (event: React.DragEvent) => {
@@ -2013,7 +2184,7 @@ export default function Page() {
             <div className="space-y-4 md:space-y-6">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
-                  Upload Tracks
+                  Upload Files & Playlists
                 </h2>
 
                 <label
@@ -2041,15 +2212,15 @@ export default function Page() {
                   <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#ff8a00]" size={40} />
 
                   <p className="text-white font-bold text-sm md:text-base">
-                    Drag and drop your music files here
+                    Drag and drop files or folders here
                   </p>
 
                   <p className="text-white/60 mt-2">
-                    or <span className="text-[#ff8a00]">click</span> to browse
+                    or <span className="text-[#ff8a00]">click</span> to browse files
                   </p>
 
                   <p className="text-white/40 text-sm mt-4">
-                    Supports MP3, WAV, M4A
+                    Supports MP3, WAV, M4A - Drop folders to create playlists
                   </p>
                 </label>
               </div>
