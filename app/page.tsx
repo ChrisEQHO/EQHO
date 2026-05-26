@@ -202,9 +202,15 @@ function TextSetting({ label, value }: { label: string; value: string }) {
 }
 
 interface Track {
+  id: string;
   title: string;
   sub: string;
   duration: string;
+  fileName: string;
+  url: string;
+  durationSeconds: number;
+  uploadedAt: string;
+  file?: File;
 }
 
 interface GapItem {
@@ -380,6 +386,8 @@ export default function Page() {
           const restored = cached.map((t) => ({
             id: t.id,
             title: t.title,
+            sub: t.sub || "Uploaded Track",
+            duration: t.duration || formatDuration(t.durationSeconds),
             fileName: t.fileName,
             url: URL.createObjectURL(t.file),
             durationSeconds: t.durationSeconds,
@@ -540,6 +548,8 @@ export default function Page() {
         const newTrack: Track = {
           id: crypto.randomUUID(),
           title: file.name.replace(/\.[^/.]+$/, ""),
+          sub: "Uploaded Track",
+          duration: formatDuration(Math.round(audio.duration)),
           fileName: file.name,
           url,
           durationSeconds: Math.round(audio.duration),
@@ -595,6 +605,8 @@ export default function Page() {
             tracks: pl.tracks.map((t) => ({
               id: t.id,
               title: t.title,
+              sub: t.sub || "Uploaded Track",
+              duration: t.duration || formatDuration(t.durationSeconds),
               fileName: t.fileName,
               url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
@@ -2806,6 +2818,8 @@ export default function Page() {
                             const newTrack: Track = {
                               id: crypto.randomUUID(),
                               title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
                               fileName: file.name,
                               url,
                               durationSeconds: Math.round(audio.duration),
@@ -2866,18 +2880,20 @@ export default function Page() {
                       
                       let processed = 0;
                       files.forEach((file) => {
-                        const url = URL.createObjectURL(file);
-                        const audio = new Audio(url);
-                        audio.onloadedmetadata = async () => {
-                          const newTrack: Track = {
-                            id: crypto.randomUUID(),
-                            title: file.name.replace(/\.[^/.]+$/, ""),
-                            fileName: file.name,
-                            url,
-                            durationSeconds: Math.round(audio.duration),
-                            uploadedAt: new Date().toISOString(),
-                            file,
-                          };
+                          const url = URL.createObjectURL(file);
+                          const audio = new Audio(url);
+                          audio.onloadedmetadata = async () => {
+                            const newTrack: Track = {
+                              id: crypto.randomUUID(),
+                              title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
+                              fileName: file.name,
+                              url,
+                              durationSeconds: Math.round(audio.duration),
+                              uploadedAt: new Date().toISOString(),
+                              file,
+                            };
                             newTracks.push(newTrack);
                             
                             processed++;
