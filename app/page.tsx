@@ -386,8 +386,8 @@ export default function Page() {
           const restored = cached.map((t) => ({
             id: t.id,
             title: t.title,
-            sub: "Uploaded Track",
-            duration: formatDuration(t.durationSeconds),
+            sub: t.sub || "Uploaded Track",
+            duration: t.duration || formatDuration(t.durationSeconds),
             fileName: t.fileName,
             url: URL.createObjectURL(t.file),
             durationSeconds: t.durationSeconds,
@@ -605,8 +605,8 @@ export default function Page() {
             tracks: pl.tracks.map((t) => ({
               id: t.id,
               title: t.title,
-              sub: "Uploaded Track",
-              duration: formatDuration(t.durationSeconds),
+              sub: t.sub || "Uploaded Track",
+              duration: t.duration || formatDuration(t.durationSeconds),
               fileName: t.fileName,
               url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
@@ -639,184 +639,13 @@ export default function Page() {
     };
   }, []);
 
-  const handleDropUpload = async (event: React.DragEvent) => {
+  const handleDropUpload = (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDraggingUpload(false);
-    
-    const items = event.dataTransfer?.items;
-    if (!items || items.length === 0) return;
-
-    // Check if any item is a directory (folder/playlist)
-    const entries: FileSystemEntry[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const entry = items[i].webkitGetAsEntry?.();
-      if (entry) {
-        entries.push(entry);
-      }
+    if (event.dataTransfer?.files?.length) {
+      handleFiles(event.dataTransfer.files);
     }
-
-    // Process entries - separate folders from individual files
-    const individualFiles: File[] = [];
-    const folderEntries: { name: string; entry: FileSystemDirectoryEntry }[] = [];
-
-    for (const entry of entries) {
-      if (entry.isDirectory) {
-        folderEntries.push({ name: entry.name, entry: entry as FileSystemDirectoryEntry });
-      } else if (entry.isFile) {
-        const fileEntry = entry as FileSystemFileEntry;
-        const file = await new Promise<File>((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
-        if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
-          individualFiles.push(file);
-        }
-      }
-    }
-
-    // Process individual files - add to uploadedTracks
-    if (individualFiles.length > 0) {
-      processFilesToUploadedTracks(individualFiles);
-    }
-
-    // Process folders as playlists - add to savedPlaylists
-    for (const folder of folderEntries) {
-      const audioFiles = await getAudioFilesFromDirectory(folder.entry);
-      if (audioFiles.length > 0) {
-        await createPlaylistFromFiles(folder.name, audioFiles);
-      }
-    }
-  };
-
-  // Helper function to get all audio files from a directory recursively
-  const getAudioFilesFromDirectory = async (dirEntry: FileSystemDirectoryEntry): Promise<File[]> => {
-    const audioFiles: File[] = [];
-    
-    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
-      return new Promise((resolve, reject) => {
-        reader.readEntries(resolve, reject);
-      });
-    };
-
-    const processEntry = async (entry: FileSystemEntry): Promise<void> => {
-      if (entry.isFile) {
-        const fileEntry = entry as FileSystemFileEntry;
-        const file = await new Promise<File>((resolve, reject) => {
-          fileEntry.file(resolve, reject);
-        });
-        if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
-          audioFiles.push(file);
-        }
-      } else if (entry.isDirectory) {
-        const subDirEntry = entry as FileSystemDirectoryEntry;
-        const reader = subDirEntry.createReader();
-        let entries = await readEntries(reader);
-        while (entries.length > 0) {
-          for (const subEntry of entries) {
-            await processEntry(subEntry);
-          }
-          entries = await readEntries(reader);
-        }
-      }
-    };
-
-    const reader = dirEntry.createReader();
-    let entries = await readEntries(reader);
-    while (entries.length > 0) {
-      for (const entry of entries) {
-        await processEntry(entry);
-      }
-      entries = await readEntries(reader);
-    }
-
-    return audioFiles;
-  };
-
-  // Helper function to process files into uploadedTracks
-  const processFilesToUploadedTracks = (files: File[]) => {
-    files.forEach((file) => {
-      const url = URL.createObjectURL(file);
-      const audio = new Audio(url);
-
-      audio.onloadedmetadata = async () => {
-        const newTrack: Track = {
-          id: crypto.randomUUID(),
-          title: file.name.replace(/\.[^/.]+$/, ""),
-          sub: "Uploaded Track",
-          duration: formatDuration(Math.round(audio.duration)),
-          fileName: file.name,
-          url,
-          durationSeconds: Math.round(audio.duration),
-          uploadedAt: new Date().toISOString(),
-          file,
-        };
-
-        setUploadedTracks((current) => [...current, newTrack]);
-      };
-    });
-  };
-
-  // Helper function to create a playlist from files
-  const createPlaylistFromFiles = async (playlistName: string, files: File[]): Promise<void> => {
-    const tracks: Track[] = [];
-    let processed = 0;
-
-    return new Promise((resolve) => {
-      if (files.length === 0) {
-        resolve();
-        return;
-      }
-
-      files.forEach((file) => {
-        const url = URL.createObjectURL(file);
-        const audio = new Audio(url);
-
-        audio.onloadedmetadata = () => {
-          const newTrack: Track = {
-            id: crypto.randomUUID(),
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            sub: playlistName,
-            duration: formatDuration(Math.round(audio.duration)),
-            fileName: file.name,
-            url,
-            durationSeconds: Math.round(audio.duration),
-            uploadedAt: new Date().toISOString(),
-            file,
-          };
-          tracks.push(newTrack);
-          processed++;
-
-          if (processed === files.length) {
-            // Sort tracks by filename for consistent ordering
-            tracks.sort((a, b) => a.fileName.localeCompare(b.fileName));
-            
-            const newPlaylist = {
-              id: crypto.randomUUID(),
-              name: playlistName,
-              tracks,
-            };
-            setSavedPlaylists((prev) => [...prev, newPlaylist]);
-            resolve();
-          }
-        };
-
-        audio.onerror = () => {
-          processed++;
-          if (processed === files.length) {
-            if (tracks.length > 0) {
-              tracks.sort((a, b) => a.fileName.localeCompare(b.fileName));
-              const newPlaylist = {
-                id: crypto.randomUUID(),
-                name: playlistName,
-                tracks,
-              };
-              setSavedPlaylists((prev) => [...prev, newPlaylist]);
-            }
-            resolve();
-          }
-        };
-      });
-    });
   };
 
   const handleDragEnterUpload = (event: React.DragEvent) => {
@@ -1355,8 +1184,13 @@ export default function Page() {
   };
 
   const startSession = () => {
+    const queueTracks = playlist.map((track) => ({
+      title: track.title,
+      duration: formatDuration(track.durationSeconds),
+    }));
+
     const queue = buildSessionQueue({
-      playlist,
+      playlist: queueTracks,
       playlistRepeats,
       backToBack,
       gapSeconds,
@@ -1572,9 +1406,7 @@ export default function Page() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-white truncate">{pl.name}</p>
-                          <p className="text-xs text-white/50">
-                            {pl.tracks.length} tracks{pl.tracks.length > 0 && ` · ${formatDuration(pl.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0))}`}
-                          </p>
+                          <p className="text-xs text-white/50">{pl.tracks.length} tracks</p>
                         </div>
                         <Plus size={18} className="text-white/40" />
                       </button>
@@ -2180,7 +2012,7 @@ export default function Page() {
             <div className="space-y-4 md:space-y-6">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
-                  Upload Files & Playlists
+                  Upload Tracks
                 </h2>
 
                 <label
@@ -2208,15 +2040,15 @@ export default function Page() {
                   <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#ff8a00]" size={40} />
 
                   <p className="text-white font-bold text-sm md:text-base">
-                    Drag and drop files or folders here
+                    Drag and drop your music files here
                   </p>
 
                   <p className="text-white/60 mt-2">
-                    or <span className="text-[#ff8a00]">click</span> to browse files
+                    or <span className="text-[#ff8a00]">click</span> to browse
                   </p>
 
                   <p className="text-white/40 text-sm mt-4">
-                    Supports MP3, WAV, M4A - Drop folders to create playlists
+                    Supports MP3, WAV, M4A
                   </p>
                 </label>
               </div>
@@ -2251,49 +2083,21 @@ export default function Page() {
                         onDrop={(e) => {
                           e.preventDefault();
                           e.currentTarget.classList.remove("drag-over");
+                          const trackJson = e.dataTransfer.getData("trackJson");
                           const trackId = e.dataTransfer.getData("trackId");
-                          const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
-                          
-                          if (trackId) {
-                            // Track from uploaded tracks - find original to preserve file
-                            const originalTrack = uploadedTracks.find(t => t.id === trackId);
-                            if (originalTrack) {
-                              setSavedPlaylists((prev) =>
-                                prev.map((p) =>
-                                  p.id === pl.id
-                                    ? { ...p, tracks: [...p.tracks, originalTrack] }
-                                    : p
-                                )
-                              );
-                              setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                            }
-                          } else if (upNextTrackId) {
-                            // Track from Up Next playlist - find original to preserve file
-                            const originalTrack = playlist.find(t => t.id === upNextTrackId);
-                            if (originalTrack) {
-                              const newTrack = { ...originalTrack, id: crypto.randomUUID() };
-                              setSavedPlaylists((prev) =>
-                                prev.map((p) =>
-                                  p.id === pl.id
-                                    ? { ...p, tracks: [...p.tracks, newTrack] }
-                                    : p
-                                )
-                              );
-                            }
+                          if (trackJson && trackId) {
+                            const track: Track = JSON.parse(trackJson);
+                            setSavedPlaylists((prev) =>
+                              prev.map((p) =>
+                                p.id === pl.id
+                                  ? { ...p, tracks: [...p.tracks, track] }
+                                  : p
+                              )
+                            );
+                            setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
                           }
                         }}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10 cursor-grab active:cursor-grabbing"
-                        draggable
-                        onDragStart={(e) => {
-                          // Exclude file from each track as File objects can't be serialized
-                          const playlistData = {
-                            ...pl,
-                            tracks: pl.tracks.map(({ file, ...t }) => t)
-                          };
-                          e.dataTransfer.setData("savedPlaylistJson", JSON.stringify(playlistData));
-                          e.dataTransfer.setData("savedPlaylistId", pl.id);
-                          e.dataTransfer.effectAllowed = "copy";
-                        }}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10"
                         onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
                         onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
                       >
@@ -2343,45 +2147,7 @@ export default function Page() {
                 )}
               </div>
 
-              <div 
-                className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                }}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.add("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
-                }}
-                onDragLeave={(e) => {
-                  e.currentTarget.classList.remove("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.remove("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
-                  const playlistTrackId = e.dataTransfer.getData("playlistTrackId");
-                  const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
-                  
-                  if (playlistTrackId) {
-                    // Track from a saved playlist - find original to preserve file
-                    for (const pl of savedPlaylists) {
-                      const originalTrack = pl.tracks.find(t => t.id === playlistTrackId);
-                      if (originalTrack) {
-                        const newTrack = { ...originalTrack, id: crypto.randomUUID() };
-                        setUploadedTracks((prev) => [...prev, newTrack]);
-                        break;
-                      }
-                    }
-                  } else if (upNextTrackId) {
-                    // Track from Up Next - find original to preserve file and move back
-                    const originalTrack = playlist.find(t => t.id === upNextTrackId);
-                    if (originalTrack) {
-                      setUploadedTracks((prev) => [...prev, originalTrack]);
-                      setPlaylist((prev) => prev.filter((t) => t.id !== upNextTrackId));
-                    }
-                  }
-                }}
-              >
+              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Recently Uploaded Tracks
                 </h2>
@@ -2398,9 +2164,7 @@ export default function Page() {
                         draggable
                         onDragStart={(e) => {
                           e.dataTransfer.setData("trackId", track.id);
-                          // Exclude file from JSON as File objects can't be serialized
-                          const { file, ...trackData } = track;
-                          e.dataTransfer.setData("trackJson", JSON.stringify(trackData));
+                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
                           e.dataTransfer.effectAllowed = "move";
                         }}
                         className="grid grid-cols-[24px_1fr_82px] items-center gap-3 cursor-grab active:cursor-grabbing"
@@ -2448,59 +2212,7 @@ export default function Page() {
 </div>
                 <p className="mt-1 border-b border-white/10 pb-2 text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "copy";
-                  }}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.add("ring-2", "ring-cyan-400/50", "bg-cyan-400/5");
-                  }}
-                  onDragLeave={(e) => {
-                    e.currentTarget.classList.remove("ring-2", "ring-cyan-400/50", "bg-cyan-400/5");
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.remove("ring-2", "ring-cyan-400/50", "bg-cyan-400/5");
-                    const trackJson = e.dataTransfer.getData("trackJson");
-                    const trackId = e.dataTransfer.getData("trackId");
-                    const playlistTrackJson = e.dataTransfer.getData("playlistTrackJson");
-                    const savedPlaylistJson = e.dataTransfer.getData("savedPlaylistJson");
-                    
-                    if (trackJson && trackId) {
-                      // Track from uploaded tracks - find the original to preserve file reference
-                      const originalTrack = uploadedTracks.find(t => t.id === trackId);
-                      if (originalTrack) {
-                        setPlaylist((prev) => [...prev, originalTrack]);
-                        setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                      }
-                    } else if (playlistTrackJson) {
-                      // Track from a saved playlist
-                      const trackData = JSON.parse(playlistTrackJson);
-                      // Find original track in saved playlists to preserve file reference
-                      for (const pl of savedPlaylists) {
-                        const originalTrack = pl.tracks.find(t => t.id === trackData.id);
-                        if (originalTrack) {
-                          setPlaylist((prev) => [...prev, { ...originalTrack }]);
-                          break;
-                        }
-                      }
-                    } else if (savedPlaylistJson) {
-                      // Entire saved playlist dropped - find originals to preserve file references
-                      const savedPl = JSON.parse(savedPlaylistJson);
-                      const originalPlaylist = savedPlaylists.find(p => p.id === savedPl.id);
-                      if (originalPlaylist && originalPlaylist.tracks.length > 0) {
-                        setPlaylist((prev) => [...prev, ...originalPlaylist.tracks]);
-                        setCurrentPlaylistName(originalPlaylist.name);
-                        if (!currentTrack) {
-                          setCurrentTrack(originalPlaylist.tracks[0]);
-                          setCurrentIndex(0);
-                        }
-                      }
-                    }
-                  }}
-                >
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
                   {playlist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
@@ -2508,20 +2220,16 @@ export default function Page() {
                     </div>
                   ) : (
                     (() => {
-                      // Reorder for display: current track first, upcoming next, then completed at bottom
-                      const upcoming = playlist.slice(currentIndex).map((track, i) => ({ track, originalIndex: currentIndex + i }));
-                      const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
-                      const reordered = [...upcoming, ...completed];
-
-                      return reordered.map(({ track, originalIndex }, displayIndex) => {
+                      // Display in original playlist order (no reordering)
+                      return playlist.map((track, index) => {
                         const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                        const colour = colours[originalIndex % colours.length];
+                        const colour = colours[index % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
                         const isFinished = finishedTracks.has(track.id);
-                        const isCompleted = !isFinished && originalIndex < currentIndex;
+                        const isCompleted = !isFinished && index < currentIndex;
                         const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
-                        const isDragging = draggedTrackIndex === originalIndex;
-                        const isDropTarget = dropTargetIndex === originalIndex;
+                        const isDragging = draggedTrackIndex === index;
+                        const isDropTarget = dropTargetIndex === index;
                       
                         return (
                           <div key={track.id} className="relative">
@@ -2532,13 +2240,9 @@ export default function Page() {
                             <div 
                               draggable
                               onDragStart={(e) => {
-                                setDraggedTrackIndex(originalIndex);
+                                setDraggedTrackIndex(index);
                                 e.dataTransfer.effectAllowed = "move";
-                                e.dataTransfer.setData("text/plain", originalIndex.toString());
-                                // Exclude file from JSON as File objects can't be serialized
-                                const { file, ...trackData } = track;
-                                e.dataTransfer.setData("upNextTrackJson", JSON.stringify(trackData));
-                                e.dataTransfer.setData("upNextTrackId", track.id);
+                                e.dataTransfer.setData("text/plain", index.toString());
                               }}
                               onDragEnd={() => {
                                 setDraggedTrackIndex(null);
@@ -2548,8 +2252,8 @@ export default function Page() {
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 e.dataTransfer.dropEffect = "move";
-                                if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
-                                  setDropTargetIndex(originalIndex);
+                                if (draggedTrackIndex !== null && draggedTrackIndex !== index) {
+                                  setDropTargetIndex(index);
                                   // Detect if cursor is in top or bottom half of the element
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const midpoint = rect.top + rect.height / 2;
@@ -2557,57 +2261,50 @@ export default function Page() {
                                 }
                               }}
                               onDragLeave={() => {
-                                if (dropTargetIndex === originalIndex) {
+                                if (dropTargetIndex === index) {
                                   setDropTargetIndex(null);
                                 }
                               }}
                               onDrop={(e) => {
                                 e.preventDefault();
-                                if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
+                                if (draggedTrackIndex === null || draggedTrackIndex === index) return;
                                 
                                 const fromIndex = draggedTrackIndex;
-                                const toIndex = originalIndex;
+                                const toIndex = index;
                                 
                                 setPlaylist((prev) => {
                                   const newPlaylist = [...prev];
                                   const [draggedItem] = newPlaylist.splice(fromIndex, 1);
                                   
-                                  // Calculate final insert position
+                                  // Calculate where to insert based on drop position
                                   let insertAt: number;
                                   if (dropPosition === "above") {
-                                    // Insert before the target
+                                    // Insert before target position (adjusted for splice)
                                     insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
                                   } else {
-                                    // Insert after the target
+                                    // Insert after target position (adjusted for splice)
                                     insertAt = fromIndex < toIndex ? toIndex : toIndex + 1;
                                   }
                                   
-                                  // Clamp to valid range
-                                  insertAt = Math.max(0, Math.min(insertAt, newPlaylist.length));
-                                  
                                   newPlaylist.splice(insertAt, 0, draggedItem);
                                   
-                                  // Update currentIndex to follow the currently playing track
+                                  // Adjust currentIndex to follow the currently playing track
                                   if (fromIndex === currentIndex) {
-                                    // We moved the currently playing track
                                     setCurrentIndex(insertAt);
                                   } else if (fromIndex < currentIndex && insertAt >= currentIndex) {
-                                    // Moved from before current to after/at current
                                     setCurrentIndex((idx) => idx - 1);
                                   } else if (fromIndex > currentIndex && insertAt <= currentIndex) {
-                                    // Moved from after current to before/at current
                                     setCurrentIndex((idx) => idx + 1);
                                   }
                                   
                                   return newPlaylist;
                                 });
-                                
                                 setDraggedTrackIndex(null);
                                 setDropTargetIndex(null);
                                 setDropPosition("below");
                               }}
                               onClick={() => {
-                                setCurrentIndex(originalIndex);
+                                setCurrentIndex(index);
                                 togglePlayPause(track);
                               }}
                               className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_32px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
@@ -2623,7 +2320,7 @@ export default function Page() {
                               <div className="cursor-grab active:cursor-grabbing">
                                 <GripVertical size={15} className="text-white/75 hover:text-white" />
                               </div>
-                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
+                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{index + 1}</div>
                               <div>
                                 <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className="text-xs text-white/85">
@@ -2638,19 +2335,19 @@ export default function Page() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (sessionRunning || isPlaying) {
-                                    setShowRemoveTrackConfirm({ track, originalIndex });
+                                    setShowRemoveTrackConfirm({ track, originalIndex: index });
                                   } else {
                                     setPlaylist((prev) => {
                                       const newPlaylist = prev.filter((t) => t.id !== track.id);
-                                      if (originalIndex < currentIndex) {
+                                      if (index < currentIndex) {
                                         setCurrentIndex((idx) => Math.max(0, idx - 1));
-                                      } else if (originalIndex === currentIndex && newPlaylist.length > 0) {
+                                      } else if (index === currentIndex && newPlaylist.length > 0) {
                                         setCurrentIndex((idx) => Math.min(idx, newPlaylist.length - 1));
                                         if (isPlaying && audioRef.current) {
                                           audioRef.current.pause();
                                           setIsPlaying(false);
                                         }
-                                        setCurrentTrack(newPlaylist[Math.min(originalIndex, newPlaylist.length - 1)] || null);
+                                        setCurrentTrack(newPlaylist[Math.min(index, newPlaylist.length - 1)] || null);
                                       }
                                       return newPlaylist;
                                     });
@@ -3077,8 +2774,6 @@ export default function Page() {
                             const newTrack: Track = {
                               id: crypto.randomUUID(),
                               title: file.name.replace(/\.[^/.]+$/, ""),
-                              sub: "Uploaded Track",
-                              duration: formatDuration(Math.round(audio.duration)),
                               fileName: file.name,
                               url,
                               durationSeconds: Math.round(audio.duration),
@@ -3230,65 +2925,9 @@ export default function Page() {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-6">
-                {savedPlaylists.map((pl) => (
+                {savedPlaylists.map((playlist) => (
                   <div
-                    key={pl.id}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "copy";
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.add("ring-2", "ring-pink-500/50", "bg-pink-500/15");
-                    }}
-                    onDragLeave={(e) => {
-                      e.currentTarget.classList.remove("ring-2", "ring-pink-500/50", "bg-pink-500/15");
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove("ring-2", "ring-pink-500/50", "bg-pink-500/15");
-                      const trackId = e.dataTransfer.getData("trackId");
-                      const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
-                      const playlistTrackId = e.dataTransfer.getData("playlistTrackId");
-                      
-                      if (trackId) {
-                        // Track from uploaded tracks - find original to preserve file
-                        const originalTrack = uploadedTracks.find(t => t.id === trackId);
-                        if (originalTrack) {
-                          setSavedPlaylists((prev) =>
-                            prev.map((p) =>
-                              p.id === pl.id ? { ...p, tracks: [...p.tracks, originalTrack] } : p
-                            )
-                          );
-                          setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                        }
-                      } else if (upNextTrackId) {
-                        // Track from Up Next - find original to preserve file
-                        const originalTrack = playlist.find(t => t.id === upNextTrackId);
-                        if (originalTrack) {
-                          const newTrack = { ...originalTrack, id: crypto.randomUUID() };
-                          setSavedPlaylists((prev) =>
-                            prev.map((p) =>
-                              p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
-                            )
-                          );
-                        }
-                      } else if (playlistTrackId) {
-                        // Track from another saved playlist - find original to preserve file
-                        for (const savedPl of savedPlaylists) {
-                          const originalTrack = savedPl.tracks.find(t => t.id === playlistTrackId);
-                          if (originalTrack) {
-                            const newTrack = { ...originalTrack, id: crypto.randomUUID() };
-                            setSavedPlaylists((prev) =>
-                              prev.map((p) =>
-                                p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
-                              )
-                            );
-                            break;
-                          }
-                        }
-                      }
-                    }}
+                    key={playlist.id}
                     className="rounded-3xl border border-white/10 bg-white/[0.04] p-6
                                hover:border-pink-500/60 hover:bg-pink-500/10
                                transition cursor-pointer"
@@ -3297,10 +2936,8 @@ export default function Page() {
                       <Folder size={28} />
                     </div>
 
-                    <h3 className="text-xl font-bold">{pl.name}</h3>
-                    <p className="text-white/45 mt-1">
-                      {pl.tracks.length} tracks{pl.tracks.length > 0 && ` · ${formatDuration(pl.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0))} min`}
-                    </p>
+                    <h3 className="text-xl font-bold">{playlist.name}</h3>
+                    <p className="text-white/45 mt-1">{playlist.tracks.length} tracks</p>
                   </div>
                 ))}
               </div>
