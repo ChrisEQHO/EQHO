@@ -2513,7 +2513,7 @@ export default function Page() {
                       const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
                       const reordered = [...upcoming, ...completed];
 
-                      return reordered.map(({ track, originalIndex }) => {
+                      return reordered.map(({ track, originalIndex }, displayIndex) => {
                         const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
                         const colour = colours[originalIndex % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
@@ -2565,39 +2565,43 @@ export default function Page() {
                                 e.preventDefault();
                                 if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
                                 
+                                const fromIndex = draggedTrackIndex;
+                                const toIndex = originalIndex;
+                                
                                 setPlaylist((prev) => {
                                   const newPlaylist = [...prev];
-                                  const [draggedItem] = newPlaylist.splice(draggedTrackIndex, 1);
+                                  const [draggedItem] = newPlaylist.splice(fromIndex, 1);
                                   
-                                  // Calculate insert index based on where the line is showing
-                                  // After splice, indices shift if we removed an item before the target
-                                  let targetIdx = originalIndex;
-                                  if (draggedTrackIndex < originalIndex) {
-                                    targetIdx = originalIndex - 1; // Account for removed item
-                                  }
-                                  
-                                  let insertIndex: number;
+                                  // Calculate final insert position
+                                  let insertAt: number;
                                   if (dropPosition === "above") {
-                                    // Line is above target - insert at target position
-                                    insertIndex = targetIdx;
+                                    // Insert before the target
+                                    insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
                                   } else {
-                                    // Line is below target - insert after target
-                                    insertIndex = targetIdx + 1;
+                                    // Insert after the target
+                                    insertAt = fromIndex < toIndex ? toIndex : toIndex + 1;
                                   }
                                   
-                                  newPlaylist.splice(insertIndex, 0, draggedItem);
+                                  // Clamp to valid range
+                                  insertAt = Math.max(0, Math.min(insertAt, newPlaylist.length));
                                   
-                                  // Adjust currentIndex if needed
-                                  if (currentIndex === draggedTrackIndex) {
-                                    setCurrentIndex(insertIndex);
-                                  } else if (draggedTrackIndex < currentIndex && insertIndex >= currentIndex) {
+                                  newPlaylist.splice(insertAt, 0, draggedItem);
+                                  
+                                  // Update currentIndex to follow the currently playing track
+                                  if (fromIndex === currentIndex) {
+                                    // We moved the currently playing track
+                                    setCurrentIndex(insertAt);
+                                  } else if (fromIndex < currentIndex && insertAt >= currentIndex) {
+                                    // Moved from before current to after/at current
                                     setCurrentIndex((idx) => idx - 1);
-                                  } else if (draggedTrackIndex > currentIndex && insertIndex <= currentIndex) {
+                                  } else if (fromIndex > currentIndex && insertAt <= currentIndex) {
+                                    // Moved from after current to before/at current
                                     setCurrentIndex((idx) => idx + 1);
                                   }
                                   
                                   return newPlaylist;
                                 });
+                                
                                 setDraggedTrackIndex(null);
                                 setDropTargetIndex(null);
                                 setDropPosition("below");
