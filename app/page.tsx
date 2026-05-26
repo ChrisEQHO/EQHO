@@ -2083,39 +2083,46 @@ export default function Page() {
                         onDrop={(e) => {
                           e.preventDefault();
                           e.currentTarget.classList.remove("drag-over");
-                          const trackJson = e.dataTransfer.getData("trackJson");
                           const trackId = e.dataTransfer.getData("trackId");
-                          const upNextTrackJson = e.dataTransfer.getData("upNextTrackJson");
                           const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
                           
-                          if (trackJson && trackId) {
-                            // Track from uploaded tracks
-                            const track: Track = JSON.parse(trackJson);
-                            setSavedPlaylists((prev) =>
-                              prev.map((p) =>
-                                p.id === pl.id
-                                  ? { ...p, tracks: [...p.tracks, track] }
-                                  : p
-                              )
-                            );
-                            setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                          } else if (upNextTrackJson && upNextTrackId) {
-                            // Track from Up Next playlist
-                            const track: Track = JSON.parse(upNextTrackJson);
-                            const newTrack = { ...track, id: crypto.randomUUID() };
-                            setSavedPlaylists((prev) =>
-                              prev.map((p) =>
-                                p.id === pl.id
-                                  ? { ...p, tracks: [...p.tracks, newTrack] }
-                                  : p
-                              )
-                            );
+                          if (trackId) {
+                            // Track from uploaded tracks - find original to preserve file
+                            const originalTrack = uploadedTracks.find(t => t.id === trackId);
+                            if (originalTrack) {
+                              setSavedPlaylists((prev) =>
+                                prev.map((p) =>
+                                  p.id === pl.id
+                                    ? { ...p, tracks: [...p.tracks, originalTrack] }
+                                    : p
+                                )
+                              );
+                              setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                            }
+                          } else if (upNextTrackId) {
+                            // Track from Up Next playlist - find original to preserve file
+                            const originalTrack = playlist.find(t => t.id === upNextTrackId);
+                            if (originalTrack) {
+                              const newTrack = { ...originalTrack, id: crypto.randomUUID() };
+                              setSavedPlaylists((prev) =>
+                                prev.map((p) =>
+                                  p.id === pl.id
+                                    ? { ...p, tracks: [...p.tracks, newTrack] }
+                                    : p
+                                )
+                              );
+                            }
                           }
                         }}
                         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10 cursor-grab active:cursor-grabbing"
                         draggable
                         onDragStart={(e) => {
-                          e.dataTransfer.setData("savedPlaylistJson", JSON.stringify(pl));
+                          // Exclude file from each track as File objects can't be serialized
+                          const playlistData = {
+                            ...pl,
+                            tracks: pl.tracks.map(({ file, ...t }) => t)
+                          };
+                          e.dataTransfer.setData("savedPlaylistJson", JSON.stringify(playlistData));
                           e.dataTransfer.setData("savedPlaylistId", pl.id);
                           e.dataTransfer.effectAllowed = "copy";
                         }}
@@ -2184,20 +2191,26 @@ export default function Page() {
                 onDrop={(e) => {
                   e.preventDefault();
                   e.currentTarget.classList.remove("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
-                  const playlistTrackJson = e.dataTransfer.getData("playlistTrackJson");
-                  const upNextTrackJson = e.dataTransfer.getData("upNextTrackJson");
+                  const playlistTrackId = e.dataTransfer.getData("playlistTrackId");
                   const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
                   
-                  if (playlistTrackJson) {
-                    // Track from a saved playlist - add to uploaded tracks
-                    const track: Track = JSON.parse(playlistTrackJson);
-                    const newTrack = { ...track, id: crypto.randomUUID() };
-                    setUploadedTracks((prev) => [...prev, newTrack]);
-                  } else if (upNextTrackJson && upNextTrackId) {
-                    // Track from Up Next - move back to uploaded tracks
-                    const track: Track = JSON.parse(upNextTrackJson);
-                    setUploadedTracks((prev) => [...prev, track]);
-                    setPlaylist((prev) => prev.filter((t) => t.id !== upNextTrackId));
+                  if (playlistTrackId) {
+                    // Track from a saved playlist - find original to preserve file
+                    for (const pl of savedPlaylists) {
+                      const originalTrack = pl.tracks.find(t => t.id === playlistTrackId);
+                      if (originalTrack) {
+                        const newTrack = { ...originalTrack, id: crypto.randomUUID() };
+                        setUploadedTracks((prev) => [...prev, newTrack]);
+                        break;
+                      }
+                    }
+                  } else if (upNextTrackId) {
+                    // Track from Up Next - find original to preserve file and move back
+                    const originalTrack = playlist.find(t => t.id === upNextTrackId);
+                    if (originalTrack) {
+                      setUploadedTracks((prev) => [...prev, originalTrack]);
+                      setPlaylist((prev) => prev.filter((t) => t.id !== upNextTrackId));
+                    }
                   }
                 }}
               >
@@ -2217,7 +2230,9 @@ export default function Page() {
                         draggable
                         onDragStart={(e) => {
                           e.dataTransfer.setData("trackId", track.id);
-                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
+                          // Exclude file from JSON as File objects can't be serialized
+                          const { file, ...trackData } = track;
+                          e.dataTransfer.setData("trackJson", JSON.stringify(trackData));
                           e.dataTransfer.effectAllowed = "move";
                         }}
                         className="grid grid-cols-[24px_1fr_82px] items-center gap-3 cursor-grab active:cursor-grabbing"
@@ -2286,22 +2301,32 @@ export default function Page() {
                     const savedPlaylistJson = e.dataTransfer.getData("savedPlaylistJson");
                     
                     if (trackJson && trackId) {
-                      // Track from uploaded tracks
-                      const track: Track = JSON.parse(trackJson);
-                      setPlaylist((prev) => [...prev, track]);
-                      setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                      // Track from uploaded tracks - find the original to preserve file reference
+                      const originalTrack = uploadedTracks.find(t => t.id === trackId);
+                      if (originalTrack) {
+                        setPlaylist((prev) => [...prev, originalTrack]);
+                        setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                      }
                     } else if (playlistTrackJson) {
                       // Track from a saved playlist
-                      const track: Track = JSON.parse(playlistTrackJson);
-                      setPlaylist((prev) => [...prev, track]);
+                      const trackData = JSON.parse(playlistTrackJson);
+                      // Find original track in saved playlists to preserve file reference
+                      for (const pl of savedPlaylists) {
+                        const originalTrack = pl.tracks.find(t => t.id === trackData.id);
+                        if (originalTrack) {
+                          setPlaylist((prev) => [...prev, { ...originalTrack }]);
+                          break;
+                        }
+                      }
                     } else if (savedPlaylistJson) {
-                      // Entire saved playlist dropped
+                      // Entire saved playlist dropped - find originals to preserve file references
                       const savedPl = JSON.parse(savedPlaylistJson);
-                      if (savedPl.tracks && savedPl.tracks.length > 0) {
-                        setPlaylist((prev) => [...prev, ...savedPl.tracks]);
-                        setCurrentPlaylistName(savedPl.name);
+                      const originalPlaylist = savedPlaylists.find(p => p.id === savedPl.id);
+                      if (originalPlaylist && originalPlaylist.tracks.length > 0) {
+                        setPlaylist((prev) => [...prev, ...originalPlaylist.tracks]);
+                        setCurrentPlaylistName(originalPlaylist.name);
                         if (!currentTrack) {
-                          setCurrentTrack(savedPl.tracks[0]);
+                          setCurrentTrack(originalPlaylist.tracks[0]);
                           setCurrentIndex(0);
                         }
                       }
@@ -2342,7 +2367,9 @@ export default function Page() {
                                 setDraggedTrackIndex(originalIndex);
                                 e.dataTransfer.effectAllowed = "move";
                                 e.dataTransfer.setData("text/plain", originalIndex.toString());
-                                e.dataTransfer.setData("upNextTrackJson", JSON.stringify(track));
+                                // Exclude file from JSON as File objects can't be serialized
+                                const { file, ...trackData } = track;
+                                e.dataTransfer.setData("upNextTrackJson", JSON.stringify(trackData));
                                 e.dataTransfer.setData("upNextTrackId", track.id);
                               }}
                               onDragEnd={() => {
@@ -3042,35 +3069,46 @@ export default function Page() {
                     onDrop={(e) => {
                       e.preventDefault();
                       e.currentTarget.classList.remove("ring-2", "ring-pink-500/50", "bg-pink-500/15");
-                      const trackJson = e.dataTransfer.getData("trackJson");
                       const trackId = e.dataTransfer.getData("trackId");
-                      const upNextTrackJson = e.dataTransfer.getData("upNextTrackJson");
-                      const playlistTrackJson = e.dataTransfer.getData("playlistTrackJson");
+                      const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
+                      const playlistTrackId = e.dataTransfer.getData("playlistTrackId");
                       
-                      if (trackJson && trackId) {
-                        const track: Track = JSON.parse(trackJson);
-                        setSavedPlaylists((prev) =>
-                          prev.map((p) =>
-                            p.id === pl.id ? { ...p, tracks: [...p.tracks, track] } : p
-                          )
-                        );
-                        setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                      } else if (upNextTrackJson) {
-                        const track: Track = JSON.parse(upNextTrackJson);
-                        const newTrack = { ...track, id: crypto.randomUUID() };
-                        setSavedPlaylists((prev) =>
-                          prev.map((p) =>
-                            p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
-                          )
-                        );
-                      } else if (playlistTrackJson) {
-                        const track: Track = JSON.parse(playlistTrackJson);
-                        const newTrack = { ...track, id: crypto.randomUUID() };
-                        setSavedPlaylists((prev) =>
-                          prev.map((p) =>
-                            p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
-                          )
-                        );
+                      if (trackId) {
+                        // Track from uploaded tracks - find original to preserve file
+                        const originalTrack = uploadedTracks.find(t => t.id === trackId);
+                        if (originalTrack) {
+                          setSavedPlaylists((prev) =>
+                            prev.map((p) =>
+                              p.id === pl.id ? { ...p, tracks: [...p.tracks, originalTrack] } : p
+                            )
+                          );
+                          setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                        }
+                      } else if (upNextTrackId) {
+                        // Track from Up Next - find original to preserve file
+                        const originalTrack = playlist.find(t => t.id === upNextTrackId);
+                        if (originalTrack) {
+                          const newTrack = { ...originalTrack, id: crypto.randomUUID() };
+                          setSavedPlaylists((prev) =>
+                            prev.map((p) =>
+                              p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
+                            )
+                          );
+                        }
+                      } else if (playlistTrackId) {
+                        // Track from another saved playlist - find original to preserve file
+                        for (const savedPl of savedPlaylists) {
+                          const originalTrack = savedPl.tracks.find(t => t.id === playlistTrackId);
+                          if (originalTrack) {
+                            const newTrack = { ...originalTrack, id: crypto.randomUUID() };
+                            setSavedPlaylists((prev) =>
+                              prev.map((p) =>
+                                p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
+                              )
+                            );
+                            break;
+                          }
+                        }
                       }
                     }}
                     className="rounded-3xl border border-white/10 bg-white/[0.04] p-6
