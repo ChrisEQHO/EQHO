@@ -1573,7 +1573,7 @@ export default function Page() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-white truncate">{pl.name}</p>
                           <p className="text-xs text-white/50">
-                            {pl.tracks.length} tracks {pl.tracks.length > 0 && `• ${formatDuration(pl.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0))}`}
+                            {pl.tracks.length} tracks{pl.tracks.length > 0 && ` · ${formatDuration(pl.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0))}`}
                           </p>
                         </div>
                         <Plus size={18} className="text-white/40" />
@@ -3289,7 +3289,7 @@ export default function Page() {
 
                     <h3 className="text-xl font-bold">{pl.name}</h3>
                     <p className="text-white/45 mt-1">
-                      {pl.tracks.length} tracks {pl.tracks.length > 0 && `• ${formatDuration(pl.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0))} min`}
+                      {pl.tracks.length} tracks{pl.tracks.length > 0 && ` · ${formatDuration(pl.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0))} min`}
                     </p>
                   </div>
                 ))}
