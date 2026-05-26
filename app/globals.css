@@ -3,7 +3,37 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* EQHO Player Global Color System */
 :root {
+  /* Backgrounds */
+  --eqho-bg-app: #020617;
+  --eqho-bg-sidebar: #050816;
+  --eqho-bg-card: rgba(9, 15, 28, 0.96);
+  --eqho-bg-card-secondary: rgba(13, 20, 36, 0.92);
+  --eqho-bg-input: #0a1020;
+  --eqho-bg-bottom-bar: #050816;
+  --eqho-bg-hover: #111827;
+  
+  /* Borders */
+  --eqho-border: rgba(255, 255, 255, 0.10);
+  --eqho-border-soft: rgba(255, 255, 255, 0.06);
+  
+  /* Text */
+  --eqho-text-primary: #ffffff;
+  --eqho-text-secondary: #cbd5e1;
+  --eqho-text-muted: #7c8596;
+  
+  /* Accents */
+  --eqho-pink: #ff4fa3;
+  --eqho-orange: #ff8a00;
+  --eqho-warm-orange: #ff6b2c;
+  --eqho-cyan: #00d9ff;
+  --eqho-purple: #b86cff;
+  
+  /* Shadows */
+  --eqho-card-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --eqho-btn-shadow: 0 0 24px rgba(255, 79, 163, 0.25);
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -135,11 +165,12 @@
   scrollbar-width: none;
 }
 
+/* EQHO Bottom bar divider */
 .session-bottom-divider {
   width: 100%;
   height: 4px;
-  background: linear-gradient(90deg, #FF2D75 0%, #FF7A00 50%, #FFD21F 100%);
-  box-shadow: 0 0 18px rgba(255, 122, 0, 0.35);
+  background: linear-gradient(90deg, #ff4fa3 0%, #ff8a00 100%);
+  box-shadow: 0 0 18px rgba(255, 79, 163, 0.35);
 }
 
 @keyframes countdown-pulse {

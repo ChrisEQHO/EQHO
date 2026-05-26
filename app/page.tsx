@@ -92,18 +92,18 @@ const queue = [
 /* 
  * EQHO Brand Logo - Colourway 3 SUNSET
  * Uses the uploaded logo image exactly as provided
- * Logo image: /public/eqho-player-logo-sunset.png
+ * Logo image: /public/eqho-player-logo.png
  */
 
 function EqhoBrand({ className = "" }: { className?: string }) {
   return (
     <div className={`relative shrink-0 ${className}`}>
       <Image
-        src="/eqho-player-logo-sunset.png"
+        src="/eqho-player-logo.png"
         alt="EQHO Player"
         fill
         priority
-        className="object-contain"
+        className="object-contain mix-blend-lighten"
       />
     </div>
   );
@@ -111,9 +111,9 @@ function EqhoBrand({ className = "" }: { className?: string }) {
 
 function SettingsSection({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+    <div className="rounded-3xl border border-white/10 bg-[rgba(9,15,28,0.96)] p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
       <div className="flex items-center gap-3 mb-5">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF2D75] to-[#FF7A00] flex items-center justify-center shadow-[0_0_20px_rgba(255,122,0,0.3)]">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
           {icon}
         </div>
         <h2 className="text-xl font-black">{title}</h2>
@@ -146,7 +146,7 @@ function NumberSetting({
       <div className="flex items-center gap-3">
         <button
           onClick={() => onChange(Math.max(min, value - step))}
-          className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center hover:bg-white/10 hover:border-[#FF7A00]/30 transition-all"
+          className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center hover:bg-white/10 hover:border-[#ff8a00]/30 transition-all"
         >
           −
         </button>
@@ -202,9 +202,15 @@ function TextSetting({ label, value }: { label: string; value: string }) {
 }
 
 interface Track {
+  id: string;
   title: string;
   sub: string;
   duration: string;
+  fileName: string;
+  url: string;
+  durationSeconds: number;
+  uploadedAt: string;
+  file?: File;
 }
 
 interface GapItem {
@@ -252,7 +258,7 @@ const buildSessionQueue = ({
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-white/10 bg-[#0a1929]/85 shadow-[0_0_35px_rgba(0,180,255,0.05)] ${className}`}>
+    <div className={`rounded-xl border border-white/10 bg-[#090f1c]/85 shadow-[0_0_35px_rgba(0,180,255,0.05)] ${className}`}>
       {children}
     </div>
   );
@@ -289,16 +295,6 @@ function DraggableTrackRow({
     </div>
   );
 }
-
-type Track = {
-  id: string;
-  title: string;
-  fileName: string;
-  url: string;
-  durationSeconds: number;
-  uploadedAt: string;
-  file?: File;
-};
 
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -349,6 +345,8 @@ export default function Page() {
 
   // Fetch user on mount
   useEffect(() => {
+    if (!supabase) return;
+    
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
@@ -360,9 +358,10 @@ export default function Page() {
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const handleLogout = async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
@@ -387,6 +386,8 @@ export default function Page() {
           const restored = cached.map((t) => ({
             id: t.id,
             title: t.title,
+            sub: t.sub || "Uploaded Track",
+            duration: t.duration || formatDuration(t.durationSeconds),
             fileName: t.fileName,
             url: URL.createObjectURL(t.file),
             durationSeconds: t.durationSeconds,
@@ -547,6 +548,8 @@ export default function Page() {
         const newTrack: Track = {
           id: crypto.randomUUID(),
           title: file.name.replace(/\.[^/.]+$/, ""),
+          sub: "Uploaded Track",
+          duration: formatDuration(Math.round(audio.duration)),
           fileName: file.name,
           url,
           durationSeconds: Math.round(audio.duration),
@@ -602,6 +605,8 @@ export default function Page() {
             tracks: pl.tracks.map((t) => ({
               id: t.id,
               title: t.title,
+              sub: t.sub || "Uploaded Track",
+              duration: t.duration || formatDuration(t.durationSeconds),
               fileName: t.fileName,
               url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
@@ -1228,11 +1233,11 @@ export default function Page() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden bg-[#0a1929] text-white">
+    <div className="relative h-screen overflow-hidden bg-[#020617] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#FF2D75]/10 to-transparent rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#FF7A00]/10 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
       <audio
@@ -1242,12 +1247,12 @@ export default function Page() {
       {/* Fullscreen Mode View */}
       <div
         ref={fullscreenRef}
-        className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#0a1929] text-white`}
+        className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
         {/* Safety Confirmation Dialogs */}
         {showPauseConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <AlertTriangle size={48} className="mx-auto mb-4 text-orange-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Pause Playback?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to pause the current session?</p>
@@ -1279,7 +1284,7 @@ export default function Page() {
 
         {showMuteConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <VolumeX size={48} className="mx-auto mb-4 text-red-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Mute Audio?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to mute the audio during the session?</p>
@@ -1307,7 +1312,7 @@ export default function Page() {
 
         {showSkipBackConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to go back to the previous track?</p>
@@ -1336,7 +1341,7 @@ export default function Page() {
 
         {showSkipForwardConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
               <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
               <p className="text-white/60 mb-6">Are you sure you want to skip to the next track?</p>
@@ -1354,7 +1359,7 @@ export default function Page() {
                     // Small delay to ensure state update completes
                     setTimeout(() => goToNextTrack(), 50);
                   }}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Skip
                 </button>
@@ -1366,7 +1371,7 @@ export default function Page() {
         {/* Queue Playlist Modal */}
         {showFullscreenQueuePlaylist && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-white">Queue Playlist</h3>
                 <button
@@ -1425,8 +1430,8 @@ export default function Page() {
         {/* Clear Playlist Confirmation */}
         {showClearPlaylistConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <AlertTriangle size={48} className="mx-auto mb-4 text-[#FF7A00]" />
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Clear Playlist?</h3>
               <p className="text-white/60 mb-6">This will remove all tracks from your current session. The session will stop playing.</p>
               <div className="flex gap-4 justify-center">
@@ -1441,7 +1446,7 @@ export default function Page() {
                     setShowClearPlaylistConfirm(false);
                     clearPlaylist();
                   }}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Clear
                 </button>
@@ -1453,8 +1458,8 @@ export default function Page() {
         {/* Send to Session Confirmation */}
         {showSendToSessionConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <ListMusic size={48} className="mx-auto mb-4 text-[#FF7A00]" />
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <ListMusic size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Replace Current Playlist?</h3>
               <p className="text-white/60 mb-6">Loading &quot;{showSendToSessionConfirm.name}&quot; will replace your current session playlist. The current session will stop.</p>
               <div className="flex gap-4 justify-center">
@@ -1479,7 +1484,7 @@ export default function Page() {
                     setSessionRunning(false);
                     setFinishedTracks(new Set());
                   }}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Replace
                 </button>
@@ -1491,8 +1496,8 @@ export default function Page() {
         {/* Remove Track Confirmation */}
         {showRemoveTrackConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#0a1929]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <X size={48} className="mx-auto mb-4 text-[#FF7A00]" />
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <X size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Remove Track?</h3>
               <p className="text-white/60 mb-2">Remove &quot;{showRemoveTrackConfirm.track.title}&quot; from the playlist?</p>
               <p className="text-white/40 text-sm mb-6">This may affect the currently playing session.</p>
@@ -1522,7 +1527,7 @@ export default function Page() {
                       return newPlaylist;
                     });
                   }}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Remove
                 </button>
@@ -1536,21 +1541,21 @@ export default function Page() {
           <div className="absolute inset-0 z-[250] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020]">
             {/* Animated gradient background */}
             <div className="absolute inset-0 overflow-hidden">
-              <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#FF2D75]/20 to-transparent rounded-full blur-3xl animate-pulse" />
-              <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#FF7A00]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+              <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#ff4fa3]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+              <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#ff8a00]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
             </div>
             
             {/* Content */}
             <div className="relative z-10 flex flex-col items-center text-center px-8">
               {/* Checkmark Icon */}
-              <div className="w-32 h-32 rounded-full bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] flex items-center justify-center mb-8 shadow-[0_0_80px_rgba(255,79,179,0.5)]">
+              <div className="w-32 h-32 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center mb-8 shadow-[0_0_80px_rgba(255,79,179,0.5)]">
                 <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               
               {/* Title */}
-              <h1 className="text-6xl font-black tracking-tight mb-4 bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] bg-clip-text text-transparent">
+              <h1 className="text-6xl font-black tracking-tight mb-4 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 SESSION COMPLETE
               </h1>
               
@@ -1583,7 +1588,7 @@ export default function Page() {
                     setFinishedTracks(new Set());
                     setCurrentIndex(0);
                   }}
-                  className="px-8 py-4 rounded-xl bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold text-lg hover:shadow-[0_0_30px_rgba(255,79,179,0.5)] transition"
+                  className="px-8 py-4 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold text-lg hover:shadow-[0_0_30px_rgba(255,79,179,0.5)] transition"
                 >
                   Start New Session
                 </button>
@@ -1603,10 +1608,10 @@ export default function Page() {
 
         <div className="flex w-full h-full p-4 gap-4">
           {/* Now Playing - Main Section (larger) */}
-          <div className="flex-[2] flex flex-col bg-[#0a1929]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+          <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] bg-clip-text text-transparent">
+              <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
               <div className="flex items-center gap-2">
@@ -1628,7 +1633,7 @@ export default function Page() {
                   {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
                 <div
-                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#0a1929] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -1647,7 +1652,7 @@ export default function Page() {
                 {/* Exit Fullscreen */}
                 <button
                   onClick={toggleFullscreen}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#FF7A00]/40 bg-[#FF7A00]/10 text-white hover:border-[#FF7A00]/70 hover:bg-[#FF7A00]/20 transition"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
                   title="Exit fullscreen"
                 >
                   <Minimize2 size={18} />
@@ -1750,8 +1755,8 @@ export default function Page() {
                   }}
                   className={`mt-6 rounded-xl text-white font-bold transition-all transform hover:scale-105 ${
                     (showSessionFinished || finishedTracks.size === playlist.length)
-                      ? "px-14 py-5 text-xl bg-gradient-to-r from-[#FF5733] to-[#FF2D75] hover:shadow-[0_0_50px_rgba(255,107,53,0.6)]" 
-                      : "px-10 py-4 text-lg bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
+                      ? "px-14 py-5 text-xl bg-gradient-to-r from-[#FF5733] to-[#ff4fa3] hover:shadow-[0_0_50px_rgba(255,107,53,0.6)]" 
+                      : "px-10 py-4 text-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
                   }`}
                 >
                   {(showSessionFinished || finishedTracks.size === playlist.length) ? "Session Completed" : "Start Session"}
@@ -1799,9 +1804,9 @@ export default function Page() {
           </div>
 
           {/* Up Next - Side Section (smaller) */}
-          <div className="flex-1 flex flex-col bg-[#0a1929]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+          <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-bold tracking-widest text-[#FF7A00]">UP NEXT (IN ORDER)</h2>
+              <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowFullscreenQueuePlaylist(true)}
@@ -1828,7 +1833,7 @@ export default function Page() {
                   const reordered = [...upcoming, ...completed];
 
                   return reordered.map(({ track, originalIndex }) => {
-                    const colours = ["text-[#FF7A00]", "text-blue-500", "text-purple-400", "text-[#FF2D75]", "text-cyan-400", "text-green-400"];
+                    const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
                     const colour = colours[originalIndex % colours.length];
                     const isActiveTrack = currentTrack?.id === track.id;
                     const isCompleted = originalIndex < currentIndex;
@@ -1891,23 +1896,19 @@ export default function Page() {
       <aside
         onMouseEnter={() => setSidebarOpen(true)}
         onMouseLeave={() => setSidebarOpen(false)}
-        className={`fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col bg-[#0a1929]/95 backdrop-blur-xl border-r border-white/10 transition-all duration-300 overflow-hidden ${
+        className={`fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col bg-[#050816] border-r border-white/10 transition-all duration-300 overflow-hidden ${
           sidebarOpen ? "w-[300px]" : "w-[76px]"
         }`}
       >
         <nav className="flex flex-col gap-2 px-3 pt-6">
           {[
-            [Home, "Home", "player", "sunset"],
-            [ListMusic, "Playlists", "playlists", "sunset"],
-            [Settings, "Settings", "settings", "sunset"],
+            [Home, "Home", "player", "pink"],
+            [ListMusic, "Playlists", "playlists", "pink"],
+            [Settings, "Settings", "settings", "pink"],
           ].map(([Icon, label, page, color]: any) => {
             const activeStyles: Record<string, string> = {
-              sunset: "bg-gradient-to-r from-[#FF2D75]/15 to-[#FF7A00]/15 text-[#FF7A00] border border-[#FF7A00]/40 shadow-[0_0_15px_rgba(255,122,0,0.2)]",
-              pink: "bg-pink-500/15 text-pink-400 border border-pink-500/40",
-              cyan: "bg-cyan-500/15 text-cyan-300 border border-cyan-400/40",
-              purple: "bg-purple-500/15 text-purple-400 border border-purple-500/40",
-              orange: "bg-orange-500/15 text-orange-400 border border-orange-500/40",
-              white: "bg-white/10 text-white border border-white/30",
+              pink: "bg-gradient-to-r from-[#ff4fa3]/18 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/45 shadow-[0_0_15px_rgba(255,79,163,0.15)]",
+              sunset: "bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 text-[#ff8a00] border border-[#ff8a00]/40 shadow-[0_0_15px_rgba(255,138,0,0.2)]",
             };
             return (
               <button
@@ -1916,7 +1917,7 @@ export default function Page() {
                 className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 transition-all duration-200 ${
                   activePage === page
                     ? activeStyles[color]
-                    : "text-white/60 hover:text-white hover:bg-white/[0.03] border border-transparent"
+                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03] border border-transparent"
                 }`}
               >
                 <Icon size={22} className="shrink-0" />
@@ -1929,21 +1930,21 @@ export default function Page() {
         </nav>
 
         {/* Pro Coming Soon Badge */}
-        <div className={`mx-3 mt-4 flex items-center gap-3 rounded-2xl px-4 py-3 bg-gradient-to-r from-[#FF7A00]/10 to-[#FF2D75]/10 border border-[#FF7A00]/30 cursor-default shadow-[0_0_20px_rgba(255,122,0,0.1)]`}>
-          <div className="shrink-0 h-6 w-6 rounded-full bg-gradient-to-br from-[#FF7A00] to-[#FF2D75] flex items-center justify-center">
+        <div className={`mx-3 mt-4 flex items-center gap-3 rounded-2xl px-4 py-3 bg-gradient-to-r from-[#ff4fa3]/12 to-[#ff8a00]/8 border border-[#ff4fa3]/25 cursor-default`}>
+          <div className="shrink-0 h-6 w-6 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
             <span className="text-[10px] font-bold text-white">PRO</span>
           </div>
           <div className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${
             sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
           }`}>
-            <div className="text-xs font-semibold text-[#FF7A00]">EQHO Player Pro</div>
-            <div className="text-[10px] text-white/50">Coming September</div>
+            <div className="text-xs font-semibold text-[#ff4fa3]">EQHO Player Pro</div>
+            <div className="text-[10px] text-[#7c8596]">Coming September</div>
           </div>
         </div>
 
         <div className={`mt-auto mb-6 mx-3 flex flex-col gap-2 overflow-hidden`}>
           <div className="flex items-center gap-3 px-4 py-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#FF2D75] to-[#FF7A00] text-sm font-bold uppercase shadow-[0_0_15px_rgba(255,45,117,0.3)]">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-sm font-bold uppercase">
               {user?.email?.charAt(0) || 'U'}
             </div>
             <div className={`whitespace-nowrap transition-all duration-300 min-w-0 ${
@@ -1968,18 +1969,16 @@ export default function Page() {
       </aside>
 
       {/* Mobile Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#0a1929]/95 backdrop-blur-xl border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#050816] border-b border-white/10">
         <EqhoBrand className="h-[28px] w-[100px]" />
         <div className="flex items-center gap-1">
           {[
-            [Home, "player", "sunset"],
-            [ListMusic, "playlists", "sunset"],
-            [Settings, "settings", "sunset"],
+            [Home, "player", "pink"],
+            [ListMusic, "playlists", "pink"],
+            [Settings, "settings", "pink"],
           ].map(([Icon, page, color]: any) => {
             const activeColors: Record<string, string> = {
-              sunset: "text-[#FF7A00] bg-gradient-to-r from-[#FF2D75]/15 to-[#FF7A00]/15 shadow-[0_0_10px_rgba(255,122,0,0.2)]",
-              pink: "text-pink-400 bg-pink-500/15",
-              cyan: "text-cyan-300 bg-cyan-500/15",
+              pink: "text-[#ff4fa3] bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10",
             };
             return (
               <button
@@ -1988,7 +1987,7 @@ export default function Page() {
                 className={`p-2.5 rounded-xl transition-all duration-200 ${
                   activePage === page
                     ? activeColors[color]
-                    : "text-white/60 hover:text-white hover:bg-white/[0.03]"
+                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03]"
                 }`}
               >
                 <Icon size={20} />
@@ -2005,17 +2004,14 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-4 pb-[180px] md:pb-[150px]">
-        <header className="mb-3 md:mb-4 hidden md:flex h-[48px] md:h-[58px] items-center justify-center border-b border-white/5">
-          <EqhoBrand className="h-[36px] w-[130px] md:h-[42px] md:w-[150px]" />
-        </header>
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-3 pb-[180px] md:pb-[150px]">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-3 md:gap-4">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="space-y-4 md:space-y-6">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#FF7A00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
+                <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Tracks
                 </h2>
 
@@ -2027,7 +2023,7 @@ export default function Page() {
                   className={`block cursor-pointer rounded-xl md:rounded-2xl border border-dashed p-6 md:p-8 text-center transition ${
                     isDraggingUpload
                       ? "border-cyan-300 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.25)]"
-                      : "border-[#FF2D75]/50 bg-white/[0.03]"
+                      : "border-[#ff4fa3]/50 bg-white/[0.03]"
                   }`}
                 >
                   <input
@@ -2041,14 +2037,14 @@ export default function Page() {
                     className="hidden"
                   />
 
-                  <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#FF7A00]" size={40} />
+                  <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#ff8a00]" size={40} />
 
                   <p className="text-white font-bold text-sm md:text-base">
                     Drag and drop your music files here
                   </p>
 
                   <p className="text-white/60 mt-2">
-                    or <span className="text-[#FF7A00]">click</span> to browse
+                    or <span className="text-[#ff8a00]">click</span> to browse
                   </p>
 
                   <p className="text-white/40 text-sm mt-4">
@@ -2065,7 +2061,7 @@ export default function Page() {
 
                   <button 
                     onClick={() => setShowPlaylistModal(true)}
-                    className="text-[#FF2D75] font-bold"
+                    className="text-[#ff4fa3] font-bold"
                   >
                     + New
                   </button>
@@ -2105,7 +2101,7 @@ export default function Page() {
                         onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
                         onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
                       >
-                        <ListMusic size={18} className="text-[#FF2D75] shrink-0" />
+                        <ListMusic size={18} className="text-[#ff4fa3] shrink-0" />
                         <span className="flex-1 truncate text-white">{pl.name}</span>
                         <div className="flex gap-1.5 shrink-0">
                           <button
@@ -2120,7 +2116,7 @@ export default function Page() {
                               }
                             }}
                             disabled={pl.tracks.length === 0}
-                            className="rounded-lg border border-[#FF7A00]/50 bg-[#FF7A00]/10 px-2 py-1 text-xs font-semibold text-[#FF7A00] transition hover:bg-[#FF7A00]/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="rounded-lg border border-[#ff8a00]/50 bg-[#ff8a00]/10 px-2 py-1 text-xs font-semibold text-[#ff8a00] transition hover:bg-[#ff8a00]/20 disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Add tracks to current queue"
                           >
                             + Queue
@@ -2152,7 +2148,7 @@ export default function Page() {
               </div>
 
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#FF7A00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
+                <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Recently Uploaded Tracks
                 </h2>
 
@@ -2197,9 +2193,9 @@ export default function Page() {
 
             {/* MIDDLE: UP NEXT */}
             <div className="flex flex-col gap-3 md:gap-4 order-first lg:order-none">
-              <Card className="relative flex-1 overflow-hidden bg-[#0a1929] p-3 md:p-4">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4">
                 <div className="flex items-center justify-between">
-  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#FF7A00]">UP NEXT (IN ORDER)</h2>
+  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
   <button
     onClick={() => {
       if (sessionRunning || isPlaying) {
@@ -2209,7 +2205,7 @@ export default function Page() {
       }
     }}
     disabled={playlist.length === 0}
-    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#FF7A00]/20 border border-[#FF7A00]/50 rounded-md hover:bg-[#FF7A00]/30 hover:border-[#FF7A00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
+    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
   >
     Clear Playlist
   </button>
@@ -2230,7 +2226,7 @@ export default function Page() {
                       const reordered = [...upcoming, ...completed];
 
                       return reordered.map(({ track, originalIndex }) => {
-                        const colours = ["text-[#FF7A00]", "text-blue-500", "text-purple-400", "text-[#FF2D75]", "text-cyan-400", "text-green-400"];
+                        const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
                         const colour = colours[originalIndex % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
                         const isFinished = finishedTracks.has(track.id);
@@ -2316,7 +2312,7 @@ export default function Page() {
                                 isDragging ? "opacity-40 bg-cyan-500/10" : ""
                               } ${
                                 isActiveTrack 
-                                  ? "border-[#FF2D75]/40 bg-[#FF2D75]/10" 
+                                  ? "border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
                                   : isFinished
                                     ? "border-white/5 opacity-30"
                                     : "border-white/8"
@@ -2327,7 +2323,7 @@ export default function Page() {
                               </div>
                               <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div>
-                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#FF7A00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className="text-xs text-white/85">
                                   {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
@@ -2385,21 +2381,21 @@ export default function Page() {
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
                     {/* Animated gradient background */}
                     <div className="absolute inset-0 overflow-hidden rounded-xl">
-                      <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#FF2D75]/20 to-transparent rounded-full blur-3xl animate-pulse" />
-                      <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#FF7A00]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                      <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#ff4fa3]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                      <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#ff8a00]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
                     </div>
                     
                     {/* Content */}
                     <div className="relative z-10 flex flex-col items-center text-center px-4">
                       {/* Checkmark Icon */}
-                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] flex items-center justify-center mb-4 shadow-[0_0_40px_rgba(255,79,179,0.5)]">
+                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center mb-4 shadow-[0_0_40px_rgba(255,79,179,0.5)]">
                         <svg className="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       
                       {/* Title */}
-                      <h2 className="text-2xl md:text-3xl font-black tracking-tight mb-2 bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] bg-clip-text text-transparent">
+                      <h2 className="text-2xl md:text-3xl font-black tracking-tight mb-2 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                         SESSION COMPLETE
                       </h2>
                       
@@ -2415,7 +2411,7 @@ export default function Page() {
                           setFinishedTracks(new Set());
                           setCurrentIndex(0);
                         }}
-                        className="px-6 py-2 rounded-lg bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(255,79,179,0.5)] transition"
+                        className="px-6 py-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(255,79,179,0.5)] transition"
                       >
                         Start New Session
                       </button>
@@ -2424,7 +2420,7 @@ export default function Page() {
                 )}
 
             <div className="mb-4 md:mb-6 flex items-center justify-between">
-              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#FF2D75] to-[#FF7A00] bg-clip-text text-transparent">
+              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
 
@@ -2442,7 +2438,7 @@ export default function Page() {
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#0a1929] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -2471,7 +2467,7 @@ export default function Page() {
                 >
                   <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
                     <div
-                      className="h-full bg-gradient-to-r from-[#FF2D75]/25 to-[#FF7A00]/25 transition-all duration-150"
+                      className="h-full bg-gradient-to-r from-[#ff4fa3]/25 to-[#ff8a00]/25 transition-all duration-150"
                       style={{ width: `${isMuted ? 0 : volume}%` }}
                     />
                   </div>
@@ -2482,7 +2478,7 @@ export default function Page() {
 
                 <button
                   onClick={toggleFullscreen}
-                  className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#FF7A00]/40 bg-[#FF7A00]/10 text-white hover:border-[#FF7A00]/70 hover:bg-[#FF7A00]/20 transition"
+                  className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
                   title="Enter fullscreen mode"
                 >
                   <Maximize2 size={16} />
@@ -2607,7 +2603,7 @@ export default function Page() {
                     style={{
                       height: `${height}%`,
                       background: isPlayed
-                        ? "linear-gradient(to top, #FF2D75, #FF7A00)"
+                        ? "linear-gradient(to top, #ff4fa3, #ff8a00)"
                         : currentTrack
                           ? "rgba(255,255,255,0.12)"
                           : "rgba(255,255,255,0.06)",
@@ -2822,6 +2818,8 @@ export default function Page() {
                             const newTrack: Track = {
                               id: crypto.randomUUID(),
                               title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
                               fileName: file.name,
                               url,
                               durationSeconds: Math.round(audio.duration),
@@ -2882,18 +2880,20 @@ export default function Page() {
                       
                       let processed = 0;
                       files.forEach((file) => {
-                        const url = URL.createObjectURL(file);
-                        const audio = new Audio(url);
-                        audio.onloadedmetadata = async () => {
-                          const newTrack: Track = {
-                            id: crypto.randomUUID(),
-                            title: file.name.replace(/\.[^/.]+$/, ""),
-                            fileName: file.name,
-                            url,
-                            durationSeconds: Math.round(audio.duration),
-                            uploadedAt: new Date().toISOString(),
-                            file,
-                          };
+                          const url = URL.createObjectURL(file);
+                          const audio = new Audio(url);
+                          audio.onloadedmetadata = async () => {
+                            const newTrack: Track = {
+                              id: crypto.randomUUID(),
+                              title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
+                              fileName: file.name,
+                              url,
+                              durationSeconds: Math.round(audio.duration),
+                              uploadedAt: new Date().toISOString(),
+                              file,
+                            };
                             newTracks.push(newTrack);
                             
                             processed++;
@@ -2988,7 +2988,7 @@ export default function Page() {
       </main>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#0a1929]">
+      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#050816]">
         <div className="session-bottom-divider" />
 
         <div className="w-full px-3 md:px-6 py-3 md:py-4">
@@ -3102,7 +3102,7 @@ export default function Page() {
                 isGapPaused
                   ? "bg-white/10 border border-white/30 text-white animate-pulse"
                   : isPlaying
-                    ? "bg-[#FF7A00]/15 border border-[#FF7A00]/50 text-[#FF2D75] hover:bg-[#FF7A00]/25"
+                    ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
                     : sessionRunning && !isPlaying
                       ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
                       : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90 shadow-[0_0_20px_rgba(255,79,179,0.25)]"
@@ -3126,7 +3126,7 @@ export default function Page() {
       {/* Stop/Pause Session Confirmation Modal */}
       {showStopConfirm && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-orange-500/30 bg-[#0a1929] p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl border border-orange-500/30 bg-[#090f1c] p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
                 <AlertTriangle size={24} className="text-orange-400" />
@@ -3157,7 +3157,7 @@ export default function Page() {
       {/* Create Playlist Modal */}
       {showPlaylistModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#0a1929] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#090f1c] p-6 shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-4">Create New Playlist</h3>
             <input
               type="text"
