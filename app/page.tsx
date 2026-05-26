@@ -386,8 +386,8 @@ export default function Page() {
           const restored = cached.map((t) => ({
             id: t.id,
             title: t.title,
-            sub: t.sub || "Uploaded Track",
-            duration: t.duration || formatDuration(t.durationSeconds),
+            sub: "Uploaded Track",
+            duration: formatDuration(t.durationSeconds),
             fileName: t.fileName,
             url: URL.createObjectURL(t.file),
             durationSeconds: t.durationSeconds,
@@ -605,8 +605,8 @@ export default function Page() {
             tracks: pl.tracks.map((t) => ({
               id: t.id,
               title: t.title,
-              sub: t.sub || "Uploaded Track",
-              duration: t.duration || formatDuration(t.durationSeconds),
+              sub: "Uploaded Track",
+              duration: formatDuration(t.durationSeconds),
               fileName: t.fileName,
               url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
@@ -1355,13 +1355,8 @@ export default function Page() {
   };
 
   const startSession = () => {
-    const queueTracks = playlist.map((track) => ({
-      title: track.title,
-      duration: formatDuration(track.durationSeconds),
-    }));
-
     const queue = buildSessionQueue({
-      playlist: queueTracks,
+      playlist,
       playlistRepeats,
       backToBack,
       gapSeconds,
