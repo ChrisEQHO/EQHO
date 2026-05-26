@@ -308,6 +308,8 @@ export default function PlayerClient() {
   const [isGapPaused, setIsGapPaused] = useState(false);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
+  const gapTargetTimeRef = useRef<number>(0); // Timestamp when gap should end
+  const gapIntervalRef = useRef<number | null>(null); // Interval ID for cleanup
   const [currentPlaylistName, setCurrentPlaylistName] = useState("Untitled Playlist");
   const [dropMessage, setDropMessage] = useState("");
   const [uploadedTracks, setUploadedTracks] = useState<Track[]>([]);
@@ -1085,6 +1087,8 @@ export default function PlayerClient() {
           setIsPlaying(false);
           setIsGapPaused(true);
           setGapCountdown(_gapSeconds);
+          // Set the exact target time when gap should end (timestamp-based)
+          gapTargetTimeRef.current = Date.now() + (_gapSeconds * 1000);
           gapCallbackRef.current = playFn;
         } else {
           playFn();
@@ -1193,29 +1197,62 @@ export default function PlayerClient() {
     }
   }, []);
 
-  // Gap countdown ticker - ticks every second and auto-plays when reaching 0
+  // Gap countdown ticker - uses timestamp-based timing to prevent drift
   useEffect(() => {
-    if (!isGapPaused || gapCountdown <= 0) {
-      if (isGapPaused && gapCountdown <= 0 && gapCallbackRef.current) {
-        const cb = gapCallbackRef.current;
-        gapCallbackRef.current = null;
-        setIsGapPaused(false);
-        cb();
-      }
+    // Clear any existing interval
+    if (gapIntervalRef.current !== null) {
+      clearInterval(gapIntervalRef.current);
+      gapIntervalRef.current = null;
+    }
+
+    if (!isGapPaused) {
       return;
     }
+
+    // Track last second for beep sounds
+    let lastBeepSecond = -1;
+
+    // Use a fast interval (100ms) for smooth display, but calculate remaining time from timestamp
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, gapTargetTimeRef.current - now);
+      const remainingSeconds = Math.ceil(remaining / 1000);
+      
+      // Update display countdown
+      setGapCountdown(remainingSeconds);
+      
+      // Play beep on final 3 seconds (only once per second)
+      if (remainingSeconds <= 3 && remainingSeconds > 0 && remainingSeconds !== lastBeepSecond) {
+        lastBeepSecond = remainingSeconds;
+        const freq = remainingSeconds === 3 ? 660 : remainingSeconds === 2 ? 880 : 1100;
+        playBeep(freq, 150);
+      }
+      
+      // When time is up, trigger callback immediately
+      if (remaining <= 0) {
+        clearInterval(intervalId);
+        gapIntervalRef.current = null;
+        
+        if (gapCallbackRef.current) {
+          const cb = gapCallbackRef.current;
+          gapCallbackRef.current = null;
+          gapTargetTimeRef.current = 0;
+          setIsGapPaused(false);
+          setGapCountdown(0);
+          cb();
+        }
+      }
+    }, 100);
     
-    // Play beep on final 3 seconds
-    if (gapCountdown <= 3 && gapCountdown > 0) {
-      const freq = gapCountdown === 3 ? 660 : gapCountdown === 2 ? 880 : 1100;
-      playBeep(freq, 150);
-    }
-    
-    const timer = setTimeout(() => {
-      setGapCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [isGapPaused, gapCountdown, playBeep]);
+    gapIntervalRef.current = intervalId;
+
+    return () => {
+      if (gapIntervalRef.current !== null) {
+        clearInterval(gapIntervalRef.current);
+        gapIntervalRef.current = null;
+      }
+    };
+  }, [isGapPaused, playBeep]);
 
   const [toastMessage, setToastMessage] = useState("");
 
