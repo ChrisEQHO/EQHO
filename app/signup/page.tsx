@@ -36,8 +36,13 @@ export default function SignupPage() {
 
     const supabase = createClient()
     
+    // Debug in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[v0] Signup attempt - Supabase client created:', !!supabase)
+    }
+    
     if (!supabase) {
-      setError('Authentication service is not configured. Please contact support.')
+      setError('Authentication service is not configured. Please check that NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.')
       setLoading(false)
       return
     }
