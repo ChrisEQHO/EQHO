@@ -2570,13 +2570,19 @@ export default function Page() {
                                   const [draggedItem] = newPlaylist.splice(draggedTrackIndex, 1);
                                   
                                   // Calculate insert index based on where the line is showing
+                                  // After splice, indices shift if we removed an item before the target
+                                  let targetIdx = originalIndex;
+                                  if (draggedTrackIndex < originalIndex) {
+                                    targetIdx = originalIndex - 1; // Account for removed item
+                                  }
+                                  
                                   let insertIndex: number;
                                   if (dropPosition === "above") {
-                                    // Line is above target - insert before target
-                                    insertIndex = draggedTrackIndex < originalIndex ? originalIndex - 1 : originalIndex;
+                                    // Line is above target - insert at target position
+                                    insertIndex = targetIdx;
                                   } else {
                                     // Line is below target - insert after target
-                                    insertIndex = draggedTrackIndex < originalIndex ? originalIndex : originalIndex + 1;
+                                    insertIndex = targetIdx + 1;
                                   }
                                   
                                   newPlaylist.splice(insertIndex, 0, draggedItem);
