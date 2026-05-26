@@ -572,6 +572,7 @@ export default function Page() {
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("below");
+  const dropPositionRef = useRef<"above" | "below">("below");
 
   // Save saved playlists to IndexedDB when they change (with full track data)
   useEffect(() => {
@@ -2248,6 +2249,7 @@ export default function Page() {
                                 setDraggedTrackIndex(null);
                                 setDropTargetIndex(null);
                                 setDropPosition("below");
+                                dropPositionRef.current = "below";
                               }}
                               onDragOver={(e) => {
                                 e.preventDefault();
@@ -2257,7 +2259,9 @@ export default function Page() {
                                   // Detect if cursor is in top or bottom half of the element
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const midpoint = rect.top + rect.height / 2;
-                                  setDropPosition(e.clientY < midpoint ? "above" : "below");
+                                  const position = e.clientY < midpoint ? "above" : "below";
+                                  setDropPosition(position);
+                                  dropPositionRef.current = position;
                                 }
                               }}
                               onDragLeave={() => {
@@ -2271,29 +2275,42 @@ export default function Page() {
                                 
                                 const fromIndex = draggedTrackIndex;
                                 const toIndex = index;
+                                const position = dropPositionRef.current;
                                 
                                 setPlaylist((prev) => {
                                   const newPlaylist = [...prev];
                                   const [draggedItem] = newPlaylist.splice(fromIndex, 1);
                                   
-                                  // Calculate where to insert based on drop position
-                                  let insertAt: number;
-                                  if (dropPosition === "above") {
-                                    // Insert before target position (adjusted for splice)
-                                    insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+                                  // Calculate the final position where the item should go
+                                  // If line is above target: insert at target's position
+                                  // If line is below target: insert after target's position
+                                  // But we need to account for the fact that we already removed the dragged item
+                                  let finalPosition: number;
+                                  
+                                  if (position === "above") {
+                                    // Line is above target - we want to insert BEFORE target
+                                    // If dragged from before target, target index shifted down by 1
+                                    finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
                                   } else {
-                                    // Insert after target position (adjusted for splice)
-                                    insertAt = fromIndex < toIndex ? toIndex : toIndex + 1;
+                                    // Line is below target - we want to insert AFTER target
+                                    // If dragged from before target, target index shifted down by 1
+                                    // So we insert at (shifted target) + 1 = toIndex
+                                    // If dragged from after target, target index unchanged
+                                    // So we insert at toIndex + 1
+                                    finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
                                   }
                                   
-                                  newPlaylist.splice(insertAt, 0, draggedItem);
+                                  // Clamp to valid range
+                                  finalPosition = Math.max(0, Math.min(finalPosition, newPlaylist.length));
+                                  
+                                  newPlaylist.splice(finalPosition, 0, draggedItem);
                                   
                                   // Adjust currentIndex to follow the currently playing track
                                   if (fromIndex === currentIndex) {
-                                    setCurrentIndex(insertAt);
-                                  } else if (fromIndex < currentIndex && insertAt >= currentIndex) {
+                                    setCurrentIndex(finalPosition);
+                                  } else if (fromIndex < currentIndex && finalPosition >= currentIndex) {
                                     setCurrentIndex((idx) => idx - 1);
-                                  } else if (fromIndex > currentIndex && insertAt <= currentIndex) {
+                                  } else if (fromIndex > currentIndex && finalPosition <= currentIndex) {
                                     setCurrentIndex((idx) => idx + 1);
                                   }
                                   
@@ -2302,6 +2319,7 @@ export default function Page() {
                                 setDraggedTrackIndex(null);
                                 setDropTargetIndex(null);
                                 setDropPosition("below");
+                                dropPositionRef.current = "below";
                               }}
                               onClick={() => {
                                 setCurrentIndex(index);
