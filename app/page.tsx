@@ -2085,7 +2085,11 @@ export default function Page() {
                           e.currentTarget.classList.remove("drag-over");
                           const trackJson = e.dataTransfer.getData("trackJson");
                           const trackId = e.dataTransfer.getData("trackId");
+                          const upNextTrackJson = e.dataTransfer.getData("upNextTrackJson");
+                          const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
+                          
                           if (trackJson && trackId) {
+                            // Track from uploaded tracks
                             const track: Track = JSON.parse(trackJson);
                             setSavedPlaylists((prev) =>
                               prev.map((p) =>
@@ -2095,9 +2099,26 @@ export default function Page() {
                               )
                             );
                             setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                          } else if (upNextTrackJson && upNextTrackId) {
+                            // Track from Up Next playlist
+                            const track: Track = JSON.parse(upNextTrackJson);
+                            const newTrack = { ...track, id: crypto.randomUUID() };
+                            setSavedPlaylists((prev) =>
+                              prev.map((p) =>
+                                p.id === pl.id
+                                  ? { ...p, tracks: [...p.tracks, newTrack] }
+                                  : p
+                              )
+                            );
                           }
                         }}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10 cursor-grab active:cursor-grabbing"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("savedPlaylistJson", JSON.stringify(pl));
+                          e.dataTransfer.setData("savedPlaylistId", pl.id);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
                         onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
                         onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
                       >
@@ -2147,7 +2168,39 @@ export default function Page() {
                 )}
               </div>
 
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
+              <div 
+                className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.classList.remove("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("ring-2", "ring-[#ff8a00]/50", "bg-[#ff8a00]/5");
+                  const playlistTrackJson = e.dataTransfer.getData("playlistTrackJson");
+                  const upNextTrackJson = e.dataTransfer.getData("upNextTrackJson");
+                  const upNextTrackId = e.dataTransfer.getData("upNextTrackId");
+                  
+                  if (playlistTrackJson) {
+                    // Track from a saved playlist - add to uploaded tracks
+                    const track: Track = JSON.parse(playlistTrackJson);
+                    const newTrack = { ...track, id: crypto.randomUUID() };
+                    setUploadedTracks((prev) => [...prev, newTrack]);
+                  } else if (upNextTrackJson && upNextTrackId) {
+                    // Track from Up Next - move back to uploaded tracks
+                    const track: Track = JSON.parse(upNextTrackJson);
+                    setUploadedTracks((prev) => [...prev, track]);
+                    setPlaylist((prev) => prev.filter((t) => t.id !== upNextTrackId));
+                  }
+                }}
+              >
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Recently Uploaded Tracks
                 </h2>
@@ -2212,7 +2265,49 @@ export default function Page() {
 </div>
                 <p className="mt-1 border-b border-white/10 pb-2 text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.add("ring-2", "ring-cyan-400/50", "bg-cyan-400/5");
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.classList.remove("ring-2", "ring-cyan-400/50", "bg-cyan-400/5");
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("ring-2", "ring-cyan-400/50", "bg-cyan-400/5");
+                    const trackJson = e.dataTransfer.getData("trackJson");
+                    const trackId = e.dataTransfer.getData("trackId");
+                    const playlistTrackJson = e.dataTransfer.getData("playlistTrackJson");
+                    const savedPlaylistJson = e.dataTransfer.getData("savedPlaylistJson");
+                    
+                    if (trackJson && trackId) {
+                      // Track from uploaded tracks
+                      const track: Track = JSON.parse(trackJson);
+                      setPlaylist((prev) => [...prev, track]);
+                      setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                    } else if (playlistTrackJson) {
+                      // Track from a saved playlist
+                      const track: Track = JSON.parse(playlistTrackJson);
+                      setPlaylist((prev) => [...prev, track]);
+                    } else if (savedPlaylistJson) {
+                      // Entire saved playlist dropped
+                      const savedPl = JSON.parse(savedPlaylistJson);
+                      if (savedPl.tracks && savedPl.tracks.length > 0) {
+                        setPlaylist((prev) => [...prev, ...savedPl.tracks]);
+                        setCurrentPlaylistName(savedPl.name);
+                        if (!currentTrack) {
+                          setCurrentTrack(savedPl.tracks[0]);
+                          setCurrentIndex(0);
+                        }
+                      }
+                    }
+                  }}
+                >
                   {playlist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
@@ -2247,6 +2342,8 @@ export default function Page() {
                                 setDraggedTrackIndex(originalIndex);
                                 e.dataTransfer.effectAllowed = "move";
                                 e.dataTransfer.setData("text/plain", originalIndex.toString());
+                                e.dataTransfer.setData("upNextTrackJson", JSON.stringify(track));
+                                e.dataTransfer.setData("upNextTrackId", track.id);
                               }}
                               onDragEnd={() => {
                                 setDraggedTrackIndex(null);
@@ -2775,6 +2872,8 @@ export default function Page() {
                             const newTrack: Track = {
                               id: crypto.randomUUID(),
                               title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
                               fileName: file.name,
                               url,
                               durationSeconds: Math.round(audio.duration),
@@ -2926,9 +3025,54 @@ export default function Page() {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-6">
-                {savedPlaylists.map((playlist) => (
+                {savedPlaylists.map((pl) => (
                   <div
-                    key={playlist.id}
+                    key={pl.id}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "copy";
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add("ring-2", "ring-pink-500/50", "bg-pink-500/15");
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove("ring-2", "ring-pink-500/50", "bg-pink-500/15");
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove("ring-2", "ring-pink-500/50", "bg-pink-500/15");
+                      const trackJson = e.dataTransfer.getData("trackJson");
+                      const trackId = e.dataTransfer.getData("trackId");
+                      const upNextTrackJson = e.dataTransfer.getData("upNextTrackJson");
+                      const playlistTrackJson = e.dataTransfer.getData("playlistTrackJson");
+                      
+                      if (trackJson && trackId) {
+                        const track: Track = JSON.parse(trackJson);
+                        setSavedPlaylists((prev) =>
+                          prev.map((p) =>
+                            p.id === pl.id ? { ...p, tracks: [...p.tracks, track] } : p
+                          )
+                        );
+                        setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                      } else if (upNextTrackJson) {
+                        const track: Track = JSON.parse(upNextTrackJson);
+                        const newTrack = { ...track, id: crypto.randomUUID() };
+                        setSavedPlaylists((prev) =>
+                          prev.map((p) =>
+                            p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
+                          )
+                        );
+                      } else if (playlistTrackJson) {
+                        const track: Track = JSON.parse(playlistTrackJson);
+                        const newTrack = { ...track, id: crypto.randomUUID() };
+                        setSavedPlaylists((prev) =>
+                          prev.map((p) =>
+                            p.id === pl.id ? { ...p, tracks: [...p.tracks, newTrack] } : p
+                          )
+                        );
+                      }
+                    }}
                     className="rounded-3xl border border-white/10 bg-white/[0.04] p-6
                                hover:border-pink-500/60 hover:bg-pink-500/10
                                transition cursor-pointer"
@@ -2937,8 +3081,8 @@ export default function Page() {
                       <Folder size={28} />
                     </div>
 
-                    <h3 className="text-xl font-bold">{playlist.name}</h3>
-                    <p className="text-white/45 mt-1">{playlist.tracks.length} tracks</p>
+                    <h3 className="text-xl font-bold">{pl.name}</h3>
+                    <p className="text-white/45 mt-1">{pl.tracks.length} tracks</p>
                   </div>
                 ))}
               </div>
