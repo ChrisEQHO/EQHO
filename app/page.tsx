@@ -290,16 +290,6 @@ function DraggableTrackRow({
   );
 }
 
-type Track = {
-  id: string;
-  title: string;
-  fileName: string;
-  url: string;
-  durationSeconds: number;
-  uploadedAt: string;
-  file?: File;
-};
-
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
