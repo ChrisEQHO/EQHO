@@ -1869,13 +1869,19 @@ export default function PlayerClient() {
               </div>
             </div>
 
-            {/* Track Info & Controls - Centered Vertical Layout */}
+            {/* Track Info & Controls - Centered Vertical Layout - SCALED UP FOR DISTANCE VIEWING */}
             <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-4">
               
-              {/* Session Countdown Timer - Large */}
-              <div className="flex flex-col items-center mb-6">
-                <p className="text-sm text-white/40 uppercase tracking-widest mb-2">Session Remaining</p>
-                <div className="text-8xl font-black tracking-tight tabular-nums leading-none">
+              {/* MAIN DISPLAY SCALE UPGRADE FOR DISTANCE VIEWING */}
+              <div className="flex flex-col items-center justify-center text-center scale-[1.25] md:scale-[1.4] lg:scale-[1.6]">
+              
+                {/* Session Remaining Label */}
+                <p className="text-[22px] md:text-[28px] tracking-[0.3em] uppercase text-zinc-400 mb-6">
+                  {isGapPaused ? "Next Track In" : "Session Remaining"}
+                </p>
+
+                {/* Main Timer */}
+                <h1 className="font-black leading-none tracking-tight text-[140px] md:text-[180px] lg:text-[240px] xl:text-[300px]">
                   {isGapPaused ? (
                     <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>
                       {gapCountdown}
@@ -1885,31 +1891,35 @@ export default function PlayerClient() {
                       {formatSessionTime(remainingSeconds)}
                     </span>
                   )}
-                </div>
-                <p className="text-xs text-white/40 mt-2">
-                  {isGapPaused ? "Next Track In" : `${playlist.length} tracks + ${gapSeconds}s gaps`}
+                </h1>
+
+                {/* Track Count */}
+                <p className="mt-4 text-[20px] md:text-[26px] text-zinc-400">
+                  {playlist.length} tracks + {gapSeconds}s gaps
                 </p>
+
+                {/* Track Name */}
+                <h2 className="mt-10 font-bold text-[48px] md:text-[64px] lg:text-[82px] text-white max-w-[800px] truncate">
+                  {currentTrack?.title || "No Track Selected"}
+                </h2>
+
+                {/* Track Duration */}
+                <p className="mt-3 text-[36px] md:text-[48px] text-zinc-300 tabular-nums">
+                  {currentTime > 0 || isPlaying
+                    ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
+                    : "00:00"}
+                  {trackDuration > 0 && <span className="text-zinc-500"> / {formatDuration(trackDuration)}</span>}
+                </p>
+
+                {/* Helper Text */}
+                <p className="mt-6 text-[24px] md:text-[32px] text-zinc-500">
+                  {currentTrack ? `Track ${currentIndex + 1} of ${playlist.length}` : "Upload tracks to begin"}
+                </p>
+
               </div>
 
-              {/* Track Title */}
-              <h3 className="text-3xl font-bold text-white text-center mb-2 max-w-[500px] truncate">
-                {currentTrack?.title || "No Track Selected"}
-              </h3>
-              
-              {/* Track Timer - Larger */}
-              <p className="text-2xl text-white/70 tabular-nums mb-2">
-                {currentTime > 0 || isPlaying
-                  ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
-                  : "00:00"}
-                {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
-              </p>
-              
-              <p className="text-base text-white/50 mb-6">
-                {currentTrack ? `Track ${currentIndex + 1} of ${playlist.length}` : "Upload tracks to begin"}
-              </p>
-
               {/* Playback Controls */}
-              <div className="flex items-center justify-center gap-8">
+              <div className="flex items-center justify-center gap-8 mt-8">
                 <button 
                   onClick={() => {
                     if (isPlaying && !isGapPaused) {
