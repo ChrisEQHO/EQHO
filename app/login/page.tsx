@@ -58,8 +58,9 @@ export default function LoginPage() {
       setError(authError.message)
       setLoading(false)
     } else {
-      router.push('/')
-      router.refresh()
+      // Use replace instead of push to avoid back-button issues in Capacitor
+      // Do not use router.refresh() as it causes page reload in Capacitor apps
+      router.replace('/')
     }
   }
 
