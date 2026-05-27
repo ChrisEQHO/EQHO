@@ -2177,12 +2177,12 @@ export default function PlayerClient() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-3 pb-[180px] md:pb-[150px]">
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-3 pb-[200px] md:pb-[150px]">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[360px_420px_minmax(0,1fr)] gap-3 md:gap-4">
+          <div className="grid grid-cols-1 landscape:grid-cols-[1fr_minmax(280px,35%)] xl:grid-cols-[320px_1fr_minmax(280px,35%)] gap-3 md:gap-4">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="space-y-4 md:space-y-6">
+            <div className="hidden xl:block space-y-4 md:space-y-6">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Files & Playlists
@@ -2365,8 +2365,8 @@ export default function PlayerClient() {
             </div>
 
             {/* MIDDLE: UP NEXT */}
-            <div className="flex flex-col gap-3 md:gap-4 order-first lg:order-none">
-              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4">
+            <div className="flex flex-col gap-3 md:gap-4 order-first xl:order-none">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[50vh] landscape:max-h-[60vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
   <button
@@ -2385,7 +2385,7 @@ export default function PlayerClient() {
 </div>
                 <p className="mt-1 border-b border-white/10 pb-2 text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[200px] landscape:max-h-[calc(60vh-120px)] md:max-h-[400px] xl:max-h-[400px] overflow-y-auto">
                   {playlist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
@@ -2563,8 +2563,8 @@ export default function PlayerClient() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-              <Card className="shrink-0 overflow-hidden px-4 md:px-8 py-4 md:py-7 relative">
+            <div className="flex min-w-0 flex-col gap-3 md:gap-4 landscape:col-span-1 xl:col-span-1">
+              <Card className="shrink-0 overflow-hidden px-3 md:px-6 lg:px-8 py-3 md:py-5 lg:py-7 relative">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
@@ -2675,30 +2675,31 @@ export default function PlayerClient() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 md:gap-5">
+            <div className="flex items-center justify-between gap-2 md:gap-5">
               {/* Left - Album Icon */}
-              <div className="grid h-[70px] w-[70px] md:h-[100px] md:w-[100px] shrink-0 place-items-center rounded-xl md:rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
-                <Music size={36} className="md:hidden text-pink-400" />
-                <Music size={52} className="hidden md:block text-pink-400" />
+              <div className="grid h-[50px] w-[50px] md:h-[80px] md:w-[80px] lg:h-[100px] lg:w-[100px] shrink-0 place-items-center rounded-xl md:rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                <Music size={24} className="md:hidden text-pink-400" />
+                <Music size={40} className="hidden md:block lg:hidden text-pink-400" />
+                <Music size={52} className="hidden lg:block text-pink-400" />
               </div>
 
               {/* Centre - Track Info & Progress */}
               <div className="flex-1 min-w-0">
-                <h3 className="truncate text-xl md:text-3xl font-bold leading-tight text-white">
+                <h3 className="truncate text-base md:text-2xl lg:text-3xl font-bold leading-tight text-white">
                   {currentTrack?.title || "No Track Selected"}
                 </h3>
-                <p className="mt-1 md:mt-1.5 truncate text-sm md:text-lg text-white/60">
+                <p className="mt-0.5 md:mt-1.5 truncate text-xs md:text-base lg:text-lg text-white/60">
                   {currentTrack ? "Playing" : "Upload tracks to begin"}
                 </p>
 
                 {/* Track Elapsed Timer */}
-                <div className="mt-3 md:mt-5 text-center">
+                <div className="mt-2 md:mt-5 text-center">
                   {isGapPaused ? (
-                    <div className="text-3xl md:text-5xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                    <div className="text-2xl md:text-4xl lg:text-5xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                       {gapCountdown}
                     </div>
                   ) : (
-                    <div className="text-2xl md:text-4xl font-black tracking-wider text-white tabular-nums">
+                    <div className="text-xl md:text-3xl lg:text-4xl font-black tracking-wider text-white tabular-nums">
                       {currentTime > 0 || isPlaying
                         ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                         : "00:00"}
@@ -2708,48 +2709,52 @@ export default function PlayerClient() {
               </div>
 
               {/* Right - Playback Controls */}
-              <div className="flex items-center justify-center gap-4 md:gap-6 shrink-0">
+              <div className="flex items-center justify-center gap-2 md:gap-4 lg:gap-6 shrink-0">
                 <button 
                   onClick={goToPreviousTrack}
-                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[36px] w-[36px] md:h-[44px] md:w-[44px] lg:h-[52px] lg:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepBack size={22} className="md:hidden" />
-                  <StepBack size={28} className="hidden md:block" />
+                  <StepBack size={18} className="md:hidden" />
+                  <StepBack size={22} className="hidden md:block lg:hidden" />
+                  <StepBack size={28} className="hidden lg:block" />
                 </button>
 
                 <button
                   onClick={toggleSession}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+                  className="w-12 h-12 md:w-16 md:h-16 lg:w-24 lg:h-24 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
                 >
                   {isGapPaused ? (
-                    <span className="text-xl md:text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                    <span className="text-base md:text-xl lg:text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                   ) : isPlaying ? (
                     <>
-                      <Pause size={28} className="md:hidden" />
-                      <Pause size={40} className="hidden md:block" />
+                      <Pause size={20} className="md:hidden" />
+                      <Pause size={28} className="hidden md:block lg:hidden" />
+                      <Pause size={40} className="hidden lg:block" />
                     </>
                   ) : (
                     <>
-                      <Play size={28} className="md:hidden" />
-                      <Play size={40} className="hidden md:block" />
+                      <Play size={20} className="md:hidden" />
+                      <Play size={28} className="hidden md:block lg:hidden" />
+                      <Play size={40} className="hidden lg:block" />
                     </>
                   )}
                 </button>
 
                 <button 
                   onClick={goToNextTrack}
-                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[36px] w-[36px] md:h-[44px] md:w-[44px] lg:h-[52px] lg:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepForward size={22} className="md:hidden" />
-                  <StepForward size={28} className="hidden md:block" />
+                  <StepForward size={18} className="md:hidden" />
+                  <StepForward size={22} className="hidden md:block lg:hidden" />
+                  <StepForward size={28} className="hidden lg:block" />
                 </button>
               </div>
             </div>
 
             {/* Waveform Progress Bar */}
             <div
-              className="relative mt-4 md:mt-6 flex h-12 md:h-14 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
+              className="relative mt-3 md:mt-6 flex h-10 md:h-12 lg:h-14 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
               onClick={(e) => {
                 if (!audioRef.current || !trackDuration) return;
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -2824,7 +2829,7 @@ export default function PlayerClient() {
             </div>
           </Card>
 
-<Card className="relative flex flex-1 min-h-[560px] flex-col overflow-hidden">
+<Card className="relative hidden md:flex flex-1 min-h-[400px] lg:min-h-[560px] flex-col overflow-hidden">
 
             <div className="p-5">
             <div className="flex items-start justify-between border-b border-white/10 pb-2">
@@ -2846,7 +2851,7 @@ export default function PlayerClient() {
 
             <div>
               <h3 className="mt-2 text-[10px] font-bold uppercase">Session Overview</h3>
-              <div className="mt-2 grid grid-cols-4 divide-x divide-white/10">
+              <div className="mt-2 grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-0 lg:divide-x divide-white/10">
                 {[
                   [Music, trackCount, "ROUTINES", "in playlist", "text-purple-400"],
                   [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
@@ -3177,11 +3182,11 @@ export default function PlayerClient() {
       </main>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#050816]">
+      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full px-3 md:px-6 py-3 md:py-4">
-          <div className="flex flex-wrap md:flex-nowrap items-center justify-center md:justify-start gap-3 md:gap-6 min-w-0">
+        <div className="w-full px-3 md:px-6 py-2 md:py-4">
+          <div className="flex flex-wrap md:flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-6 min-w-0">
             {/* Gap Between Routines */}
             <div className="flex items-center gap-2 md:gap-3">
               <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-white text-white">
