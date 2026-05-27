@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:mobile": "NEXT_PUBLIC_BUILD_TARGET=mobile next build",
+    "build:mobile": "node scripts/build-mobile.js",
     "start": "next start",
     "lint": "eslint .",
     "cap:sync": "npm run build:mobile && npx cap sync",

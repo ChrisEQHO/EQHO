@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -7,8 +9,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // Static export for Capacitor mobile builds
-  // Set NEXT_PUBLIC_BUILD_TARGET=mobile to enable static export
-  ...(process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile' && {
+  ...(isMobileBuild && {
     output: 'export',
     distDir: 'out',
   }),
