@@ -363,8 +363,9 @@ export default function PlayerClient() {
   const handleLogout = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    // Use replace instead of push to avoid back-button issues in Capacitor
+    // Do not use router.refresh() as it causes page reload in Capacitor apps
+    router.replace('/login');
   };
 
   // Keep currentTrack synced with playlist[currentIndex]
