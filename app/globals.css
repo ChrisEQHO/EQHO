@@ -183,3 +183,17 @@
 .countdown-flash {
   animation: countdown-pulse 0.9s ease-in-out infinite;
 }
+
+/* Safe area support for iOS devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Landscape mode adjustments */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape\:compact-player .text-4xl {
+    font-size: 1.5rem;
+  }
+}

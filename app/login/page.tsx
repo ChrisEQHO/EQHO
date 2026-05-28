@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -13,28 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [checkingAuth, setCheckingAuth] = useState(true)
   const router = useRouter()
-
-  // Check if user is already logged in
-  useEffect(() => {
-    const checkUser = async () => {
-      const supabase = createClient()
-      if (!supabase) {
-        setCheckingAuth(false)
-        return
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        // User is already logged in, redirect to home
-        router.replace('/')
-      } else {
-        setCheckingAuth(false)
-      }
-    }
-    checkUser()
-  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,18 +37,8 @@ export default function LoginPage() {
       setError(authError.message)
       setLoading(false)
     } else {
-      router.push('/')
-      router.refresh()
+      router.replace('/')
     }
-  }
-
-  // Show loading while checking auth
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <div className="text-white/60">Loading...</div>
-      </div>
-    )
   }
 
   return (
