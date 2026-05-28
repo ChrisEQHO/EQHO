@@ -5,16 +5,24 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PlayerClient from './player-client'
 
+const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+
 export default function Page() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(
+    isMobileBuild ? true : null
+  )
   const router = useRouter()
 
   useEffect(() => {
+    // Skip auth check for mobile builds
+    if (isMobileBuild) {
+      return
+    }
+
     const checkAuth = async () => {
       const supabase = createClient()
       
       if (!supabase) {
-        // Supabase not configured, redirect to login
         router.replace('/login')
         return
       }
@@ -22,10 +30,8 @@ export default function Page() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        // No authenticated user, redirect to login
         router.replace('/login')
       } else {
-        // User is authenticated
         setIsAuthenticated(true)
       }
     }
@@ -33,7 +39,7 @@ export default function Page() {
     checkAuth()
   }, [router])
 
-  // Show loading while checking auth
+  // Show loading while checking auth (web only)
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
@@ -42,6 +48,5 @@ export default function Page() {
     )
   }
 
-  // User is authenticated, render the player
   return <PlayerClient />
 }

@@ -7,17 +7,24 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
+const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [checkingAuth, setCheckingAuth] = useState(!isMobileBuild)
   const router = useRouter()
 
-  // Check if user is already logged in
+  // For mobile builds, redirect immediately to player
   useEffect(() => {
+    if (isMobileBuild) {
+      router.replace('/')
+      return
+    }
+
     const checkUser = async () => {
       const supabase = createClient()
       if (!supabase) {
@@ -27,7 +34,6 @@ export default function LoginPage() {
       
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // User is already logged in, redirect to home
         router.replace('/')
       } else {
         setCheckingAuth(false)
