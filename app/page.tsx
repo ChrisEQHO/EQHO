@@ -2537,10 +2537,10 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-3 pb-[200px] md:pb-[150px] w-full max-w-[100vw] md:max-w-[calc(100vw-76px)]">
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-3 pb-[200px] md:pb-[150px] w-full box-border">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(200px,280px)] lg:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] xl:grid-cols-[minmax(200px,280px)_minmax(0,1fr)_minmax(240px,320px)] gap-3 md:gap-4 w-full min-w-0">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_minmax(0,280px)] lg:grid-cols-[1fr_minmax(0,320px)] xl:grid-cols-[260px_1fr_minmax(0,320px)] gap-2 md:gap-3 w-full box-border">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="hidden xl:block space-y-4 md:space-y-6 min-w-0 max-w-full overflow-hidden">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
@@ -2919,8 +2919,8 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex min-w-0 flex-col gap-3 md:gap-4 max-w-full overflow-hidden">
-              <Card className="shrink-0 overflow-hidden px-3 md:px-5 lg:px-8 py-3 md:py-5 lg:py-7 relative max-w-full">
+            <div className="flex min-w-0 flex-col gap-2 md:gap-3 w-full overflow-hidden">
+              <Card className="shrink-0 overflow-hidden px-2 md:px-4 lg:px-6 py-2 md:py-4 lg:py-6 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
@@ -2964,13 +2964,13 @@ export default function Page() {
                   </div>
                 )}
 
-            <div className="mb-4 md:mb-6 flex items-center justify-between">
-              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+            <div className="mb-3 md:mb-5 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent shrink-0">
                 NOW PLAYING
               </h2>
 
               {/* Volume Control & Fullscreen */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
                   className={`grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border transition ${
@@ -2983,7 +2983,7 @@ export default function Page() {
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[80px] md:w-[110px] lg:w-[130px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden shrink-0"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -3207,21 +3207,21 @@ export default function Page() {
               </div>
             </div>
 
-            <div>
+            <div className="overflow-hidden">
               <h3 className="mt-2 text-[10px] font-bold uppercase">Session Overview</h3>
-              <div className="mt-2 grid grid-cols-4 divide-x divide-white/10">
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-0 md:divide-x md:divide-white/10">
                 {[
                   [Music, trackCount, "ROUTINES", "in playlist", "text-purple-400"],
                   [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
                   [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
                   [Timer, estimatedSessionLabel, "EST. SESSION", "(including gaps)", "text-purple-400"],
                 ].map(([Icon, value, a, b, colour]: any, idx) => (
-                  <div key={idx} className="flex items-start gap-2 px-2 first:pl-0">
-                    <Icon className={colour} size={24} />
-                    <div>
-                      <div className="text-lg">{value}</div>
-                      <div className="text-[9px] text-white/70">{a}</div>
-                      <div className="text-[9px] text-white/70">{b}</div>
+                  <div key={idx} className="flex items-start gap-1.5 px-1.5 md:px-2 md:first:pl-0">
+                    <Icon className={`${colour} shrink-0`} size={20} />
+                    <div className="min-w-0">
+                      <div className="text-base md:text-lg truncate">{value}</div>
+                      <div className="text-[8px] md:text-[9px] text-white/70 truncate">{a}</div>
+                      <div className="text-[8px] md:text-[9px] text-white/70 truncate">{b}</div>
                     </div>
                   </div>
                 ))}
