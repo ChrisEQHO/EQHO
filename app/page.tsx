@@ -1602,7 +1602,7 @@ export default function Page() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden bg-[#020617] text-white">
+    <div className="relative h-screen overflow-x-hidden overflow-y-hidden bg-[#020617] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -2139,9 +2139,9 @@ export default function Page() {
           </div>
         )}
 
-        <div className="flex w-full h-full p-4 gap-4">
-          {/* Now Playing - Main Section (larger) */}
-          <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+          <div className="flex w-full h-full p-3 md:p-4 gap-3 md:gap-4 max-w-full overflow-hidden">
+            {/* Now Playing - Main Section (larger) */}
+            <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 md:p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
@@ -2336,8 +2336,8 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Up Next - Side Section (smaller) */}
-          <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+        {/* Up Next - Side Section (smaller) */}
+        <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[240px] max-w-[320px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-2">
@@ -2537,12 +2537,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-3 pb-[200px] md:pb-[150px]">
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-3 pb-[200px] md:pb-[150px] max-w-full">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] xl:grid-cols-[320px_minmax(0,1fr)_minmax(280px,360px)] gap-3 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(240px,300px)] lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] xl:grid-cols-[280px_minmax(0,1fr)_minmax(280px,340px)] gap-3 md:gap-4 max-w-full">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden xl:block space-y-4 md:space-y-6">
+            <div className="hidden xl:block space-y-4 md:space-y-6 min-w-0">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Files & Playlists
@@ -2725,7 +2725,7 @@ export default function Page() {
             </div>
 
             {/* MIDDLE: UP NEXT */}
-            <div className="flex flex-col gap-3 md:gap-4 order-first xl:order-none">
+            <div className="flex flex-col gap-3 md:gap-4 order-first xl:order-none min-w-0">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
@@ -2919,8 +2919,8 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-              <Card className="shrink-0 overflow-hidden px-3 md:px-6 lg:px-8 py-3 md:py-5 lg:py-7 relative">
+            <div className="flex min-w-0 flex-col gap-3 md:gap-4 max-w-full overflow-hidden">
+              <Card className="shrink-0 overflow-hidden px-3 md:px-5 lg:px-8 py-3 md:py-5 lg:py-7 relative max-w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
@@ -3710,8 +3710,8 @@ export default function Page() {
       <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full px-3 md:px-6 py-3 md:py-4">
-          <div className="flex flex-wrap md:flex-nowrap items-center justify-center md:justify-start gap-3 md:gap-6 min-w-0">
+        <div className="w-full px-3 md:px-6 py-3 md:py-4 max-w-full overflow-x-hidden">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 md:gap-4 lg:gap-6 min-w-0">
             {/* Gap Between Routines */}
             <div className="flex items-center gap-2 md:gap-3">
               <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-white text-white">

@@ -38,7 +38,7 @@ export default function RootLayout({
         <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href={isMobileBuild ? '/apple-icon.png' : '/apple-icon'} />
       </head>
-      <body className="font-sans antialiased bg-[#020617]">
+      <body className="font-sans antialiased bg-[#020617] overflow-x-hidden">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
         {process.env.NODE_ENV === 'production' && <SpeedInsights />}
