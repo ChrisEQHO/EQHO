@@ -15,6 +15,15 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
+import { 
+  fetchCloudPlaylists, 
+  fetchPlaylistWithFiles, 
+  syncPlaylistToCloud, 
+  deleteCloudPlaylist,
+  isCloudSyncAvailable,
+  type CloudPlaylist,
+  type SyncStatus 
+} from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -51,6 +60,12 @@ import {
   Maximize2,
   Minimize2,
   LogOut,
+  Cloud,
+  CloudOff,
+  Trash2,
+  Download,
+  Check,
+  Loader2,
 } from "lucide-react";
 
 const uploads = [
@@ -343,6 +358,15 @@ export default function Page() {
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
   const [showRemoveTrackConfirm, setShowRemoveTrackConfirm] = useState<{ track: Track; originalIndex: number } | null>(null);
 
+  // Cloud sync state
+  const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile';
+  const [cloudPlaylists, setCloudPlaylists] = useState<CloudPlaylist[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [syncingPlaylistId, setSyncingPlaylistId] = useState<string | null>(null);
+  const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [downloadingPlaylistId, setDownloadingPlaylistId] = useState<string | null>(null);
+  const [showFullscreenMobilePlayer, setShowFullscreenMobilePlayer] = useState(false);
+
   // Fetch user on mount
   useEffect(() => {
     if (!supabase) return;
@@ -624,6 +648,116 @@ export default function Page() {
 
     loadSavedPlaylistsData();
   }, []);
+
+  // Cloud sync: Fetch cloud playlists on mount (for logged-in users)
+  useEffect(() => {
+    const loadCloudPlaylists = async () => {
+      if (!user || !isCloudSyncAvailable()) return;
+      
+      try {
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } catch (error) {
+        console.error("Failed to load cloud playlists:", error);
+      }
+    };
+
+    loadCloudPlaylists();
+  }, [user]);
+
+  // Cloud sync handlers
+  const handleSyncPlaylistToCloud = async (playlistId: string) => {
+    if (isMobileBuild) return; // Read-only on mobile
+    
+    const localPlaylist = savedPlaylists.find(p => p.id === playlistId);
+    if (!localPlaylist) return;
+
+    setSyncingPlaylistId(playlistId);
+    setSyncStatus('syncing');
+
+    try {
+      const result = await syncPlaylistToCloud({
+        id: localPlaylist.id,
+        name: localPlaylist.name,
+        tracks: localPlaylist.tracks.map(t => ({
+          id: t.id,
+          title: t.title,
+          fileName: t.fileName,
+          durationSeconds: t.durationSeconds,
+          uploadedAt: t.uploadedAt,
+          file: t.file!,
+        })),
+      });
+
+      if (result.success) {
+        setSyncStatus('success');
+        // Refresh cloud playlists
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } else {
+        setSyncStatus('error');
+      }
+    } catch (error) {
+      console.error("Sync failed:", error);
+      setSyncStatus('error');
+    } finally {
+      setTimeout(() => {
+        setSyncingPlaylistId(null);
+        setSyncStatus('idle');
+      }, 2000);
+    }
+  };
+
+  const handleDeleteCloudPlaylist = async (playlistId: string) => {
+    if (isMobileBuild) return; // Read-only on mobile
+
+    const success = await deleteCloudPlaylist(playlistId);
+    if (success) {
+      setCloudPlaylists(prev => prev.filter(p => p.id !== playlistId));
+      // Also remove from local if exists
+      setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
+    }
+    setShowDeletePlaylistConfirm(null);
+  };
+
+  const handleDownloadCloudPlaylist = async (playlistId: string) => {
+    setDownloadingPlaylistId(playlistId);
+
+    try {
+      const localPlaylist = await fetchPlaylistWithFiles(playlistId);
+      if (localPlaylist) {
+        // Convert to the format expected by savedPlaylists
+        const newPlaylist = {
+          id: localPlaylist.id,
+          name: localPlaylist.name,
+          tracks: localPlaylist.tracks.map(t => ({
+            id: t.id,
+            title: t.title,
+            sub: "Cloud Track",
+            duration: formatDuration(t.durationSeconds),
+            fileName: t.fileName,
+            url: URL.createObjectURL(t.file),
+            durationSeconds: t.durationSeconds,
+            uploadedAt: t.uploadedAt,
+            file: t.file,
+          })),
+        };
+
+        // Add to savedPlaylists (or update if exists)
+        setSavedPlaylists(prev => {
+          const exists = prev.find(p => p.id === playlistId);
+          if (exists) {
+            return prev.map(p => p.id === playlistId ? newPlaylist : p);
+          }
+          return [...prev, newPlaylist];
+        });
+      }
+    } catch (error) {
+      console.error("Download failed:", error);
+    } finally {
+      setDownloadingPlaylistId(null);
+    }
+  };
 
   useEffect(() => {
     const preventBrowserFileOpen = (event: DragEvent) => {
@@ -1665,6 +1799,43 @@ export default function Page() {
           </div>
         )}
 
+        {/* Delete Playlist Confirmation */}
+        {showDeletePlaylistConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+              <h3 className="text-2xl font-bold text-white mb-2">Delete Playlist?</h3>
+              <p className="text-white/60 mb-6">
+                Delete &quot;{showDeletePlaylistConfirm.name}&quot;? This will remove the playlist and all its tracks permanently.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowDeletePlaylistConfirm(null)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const playlistId = showDeletePlaylistConfirm.id;
+                    // Delete from local
+                    setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
+                    // Delete from cloud if exists
+                    if (cloudPlaylists.some(cp => cp.id === playlistId)) {
+                      handleDeleteCloudPlaylist(playlistId);
+                    } else {
+                      setShowDeletePlaylistConfirm(null);
+                    }
+                  }}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Remove Track Confirmation */}
         {showRemoveTrackConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -1703,6 +1874,132 @@ export default function Page() {
                 >
                   Yes, Remove
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fullscreen Mobile Player */}
+        {showFullscreenMobilePlayer && (
+          <div className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 pt-[env(safe-area-inset-top)]">
+              <button
+                onClick={() => setShowFullscreenMobilePlayer(false)}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
+              >
+                <X size={20} className="text-white" />
+              </button>
+              <h2 className="text-white/80 font-medium">Now Playing</h2>
+              <div className="w-10" /> {/* Spacer for centering */}
+            </div>
+
+            {/* Album Art / Track Visual */}
+            <div className="flex-1 flex flex-col items-center justify-center px-8">
+              <div className="w-[min(70vw,280px)] h-[min(70vw,280px)] rounded-3xl bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-cyan-400/30 border border-white/10 flex items-center justify-center shadow-[0_0_60px_rgba(236,72,153,0.3)]">
+                <Music size={80} className="text-pink-400/60" />
+              </div>
+
+              {/* Track Info */}
+              <div className="mt-8 text-center w-full">
+                <h1 className="text-2xl font-bold text-white truncate px-4">
+                  {currentTrack?.title || "No Track Selected"}
+                </h1>
+                <p className="text-white/50 mt-1">
+                  {currentTrack ? `Track ${currentIndex + 1} of ${playlist.length}` : "Upload tracks to begin"}
+                </p>
+              </div>
+
+              {/* Timer */}
+              <div className="mt-6">
+                {isGapPaused ? (
+                  <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                    {gapCountdown}
+                  </div>
+                ) : (
+                  <div className="text-5xl font-black tracking-wider text-white tabular-nums">
+                    {currentTime > 0 || isPlaying
+                      ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
+                      : "00:00"}
+                  </div>
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full mt-8 px-4">
+                <div 
+                  className="h-2 bg-white/10 rounded-full overflow-hidden cursor-pointer"
+                  onClick={(e) => {
+                    if (!audioRef.current || !trackDuration) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    audioRef.current.currentTime = percent * trackDuration;
+                  }}
+                >
+                  <div 
+                    className="h-full bg-gradient-to-r from-pink-500 to-orange-500 transition-all"
+                    style={{ width: `${trackDuration ? (currentTime / trackDuration) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-white/40 mt-2">
+                  <span>{formatDuration(Math.floor(currentTime))}</span>
+                  <span>{formatDuration(Math.floor(trackDuration))}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="px-8 pb-8 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+              <div className="flex items-center justify-center gap-8">
+                {/* Previous */}
+                <button 
+                  onClick={goToPreviousTrack}
+                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"
+                >
+                  <StepBack size={28} className="text-white" />
+                </button>
+
+                {/* Play/Pause */}
+                <button
+                  onClick={toggleSession}
+                  disabled={!currentTrack && playlist.length === 0}
+                  className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)]"
+                >
+                  {isGapPaused ? (
+                    <span className="text-2xl font-black tabular-nums countdown-flash">{gapCountdown}</span>
+                  ) : isPlaying ? (
+                    <Pause size={36} />
+                  ) : (
+                    <Play size={36} className="ml-1" />
+                  )}
+                </button>
+
+                {/* Next */}
+                <button 
+                  onClick={goToNextTrack}
+                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"
+                >
+                  <StepForward size={28} className="text-white" />
+                </button>
+              </div>
+
+              {/* Volume */}
+              <div className="flex items-center gap-3 mt-8 justify-center">
+                <button onClick={() => setIsMuted(!isMuted)}>
+                  {isMuted ? (
+                    <VolumeX size={20} className="text-white/50" />
+                  ) : (
+                    <Volume2 size={20} className="text-white/50" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                />
               </div>
             </div>
           </div>
@@ -2665,7 +2962,14 @@ export default function Page() {
                 </div>
 
                 <button
-                  onClick={toggleFullscreen}
+                  onClick={() => {
+                    // On mobile, use custom fullscreen player
+                    if (isMobileBuild || window.innerWidth < 768) {
+                      setShowFullscreenMobilePlayer(true);
+                    } else {
+                      toggleFullscreen();
+                    }
+                  }}
                   className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
                   title="Enter fullscreen mode"
                 >
@@ -2888,14 +3192,36 @@ export default function Page() {
 
         {activePage === "playlists" && (
           <div className="p-4">
-            <div className="mb-8">
-              <p className="text-pink-400 uppercase tracking-[0.25em] text-sm font-bold">
-                EQHO Library
-              </p>
-              <h1 className="text-4xl font-black mt-2">Playlists</h1>
-              <p className="text-white/50 mt-2">
-                Organise routine music into folders for fast session setup.
-              </p>
+            <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              <div>
+                <p className="text-pink-400 uppercase tracking-[0.25em] text-sm font-bold">
+                  EQHO Library
+                </p>
+                <h1 className="text-4xl font-black mt-2">Playlists</h1>
+                <p className="text-white/50 mt-2">
+                  Organise routine music into folders for fast session setup.
+                </p>
+              </div>
+              
+              {/* Cloud Sync Status & Refresh */}
+              {user && isCloudSyncAvailable() && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-sm text-white/60">
+                    <Cloud size={16} className="text-cyan-400" />
+                    <span>{cloudPlaylists.length} cloud playlist{cloudPlaylists.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const playlists = await fetchCloudPlaylists();
+                      setCloudPlaylists(playlists);
+                    }}
+                    className="px-4 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
+                  >
+                    <RefreshCw size={14} />
+                    Refresh
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Drag and Drop Upload Area */}
@@ -3106,30 +3432,175 @@ export default function Page() {
               </label>
             </div>
 
-            {savedPlaylists.length === 0 ? (
+            {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
               <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-16 text-center">
                 <Folder size={64} className="mx-auto mb-4 text-white/20" />
                 <h3 className="text-xl font-bold text-white/60">No playlists yet</h3>
                 <p className="text-white/40 mt-2">Drag and drop audio files above to create your first playlist</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-6">
-                {savedPlaylists.map((playlist) => (
-                  <div
-                    key={playlist.id}
-                    className="rounded-3xl border border-white/10 bg-white/[0.04] p-6
-                               hover:border-pink-500/60 hover:bg-pink-500/10
-                               transition cursor-pointer"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center mb-5 shadow-lg shadow-pink-500/20">
-                      <Folder size={28} />
-                    </div>
+              <>
+                {/* Local Playlists */}
+                {savedPlaylists.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-lg font-bold text-white/70 mb-4 flex items-center gap-2">
+                      <Folder size={20} />
+                      Local Playlists
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                      {savedPlaylists.map((localPlaylist) => {
+                        const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
+                        const isSyncing = syncingPlaylistId === localPlaylist.id;
+                        
+                        return (
+                          <div
+                            key={localPlaylist.id}
+                            className="rounded-3xl border border-white/10 bg-white/[0.04] p-6
+                                       hover:border-pink-500/60 hover:bg-pink-500/10
+                                       transition group relative"
+                          >
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20">
+                                <Folder size={28} />
+                              </div>
+                              
+                              {/* Action buttons - web only */}
+                              {!isMobileBuild && (
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                  {/* Sync to cloud */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSyncPlaylistToCloud(localPlaylist.id);
+                                    }}
+                                    disabled={isSyncing}
+                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
+                                    title={isInCloud ? "Re-sync to cloud" : "Upload to cloud"}
+                                  >
+                                    {isSyncing ? (
+                                      <Loader2 size={16} className="animate-spin text-cyan-400" />
+                                    ) : syncStatus === 'success' && syncingPlaylistId === localPlaylist.id ? (
+                                      <Check size={16} className="text-green-400" />
+                                    ) : (
+                                      <Cloud size={16} className={isInCloud ? "text-cyan-400" : "text-white/60"} />
+                                    )}
+                                  </button>
+                                  
+                                  {/* Delete */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name });
+                                    }}
+                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
+                                    title="Delete playlist"
+                                  >
+                                    <Trash2 size={16} className="text-white/60" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
 
-                    <h3 className="text-xl font-bold">{playlist.name}</h3>
-                    <p className="text-white/45 mt-1">{playlist.tracks.length} tracks</p>
+                            <h3 className="text-xl font-bold">{localPlaylist.name}</h3>
+                            <p className="text-white/45 mt-1">{localPlaylist.tracks.length} tracks</p>
+                            
+                            {isInCloud && (
+                              <div className="mt-3 flex items-center gap-1 text-xs text-cyan-400">
+                                <Cloud size={12} />
+                                Synced to cloud
+                              </div>
+                            )}
+                            
+                            {/* Send to session button */}
+                            <button
+                              onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
+                              className="mt-4 w-full py-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-orange-500/20 
+                                         border border-pink-500/30 text-pink-400 font-medium
+                                         hover:from-pink-500/30 hover:to-orange-500/30 transition"
+                            >
+                              Send to Session
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+
+                {/* Cloud Playlists (not downloaded locally) */}
+                {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-bold text-white/70 mb-4 flex items-center gap-2">
+                      <Cloud size={20} className="text-cyan-400" />
+                      Cloud Playlists
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                      {cloudPlaylists
+                        .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
+                        .map((cloudPlaylist) => {
+                          const isDownloading = downloadingPlaylistId === cloudPlaylist.id;
+                          
+                          return (
+                            <div
+                              key={cloudPlaylist.id}
+                              className="rounded-3xl border border-cyan-500/30 bg-cyan-500/5 p-6
+                                         hover:border-cyan-400/60 hover:bg-cyan-500/10
+                                         transition group relative"
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-400 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                                  <Cloud size={28} />
+                                </div>
+                                
+                                {/* Action buttons */}
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                  {/* Download */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadCloudPlaylist(cloudPlaylist.id);
+                                    }}
+                                    disabled={isDownloading}
+                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
+                                    title="Download to device"
+                                  >
+                                    {isDownloading ? (
+                                      <Loader2 size={16} className="animate-spin text-cyan-400" />
+                                    ) : (
+                                      <Download size={16} className="text-cyan-400" />
+                                    )}
+                                  </button>
+                                  
+                                  {/* Delete - web only */}
+                                  {!isMobileBuild && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeletePlaylistConfirm({ id: cloudPlaylist.id, name: cloudPlaylist.name });
+                                      }}
+                                      className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
+                                      title="Delete from cloud"
+                                    >
+                                      <Trash2 size={16} className="text-white/60" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <h3 className="text-xl font-bold">{cloudPlaylist.name}</h3>
+                              <p className="text-white/45 mt-1">
+                                {cloudPlaylist.track_order?.length || 0} tracks
+                              </p>
+                              <p className="text-cyan-400/60 text-xs mt-1">
+                                Tap download to use offline
+                              </p>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
