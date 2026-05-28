@@ -367,6 +367,15 @@ export default function Page() {
   const [downloadingPlaylistId, setDownloadingPlaylistId] = useState<string | null>(null);
   const [showFullscreenMobilePlayer, setShowFullscreenMobilePlayer] = useState(false);
 
+  // Session-only hidden tracks (does not affect saved playlists or cloud)
+  const [hiddenTrackIds, setHiddenTrackIds] = useState<Set<string>>(new Set());
+  
+  // Computed: visible tracks in current session (filters out hidden)
+  const visiblePlaylist = playlist.filter(track => !hiddenTrackIds.has(track.id));
+  
+  // Get the visible index for a track (for display numbering)
+  const getVisibleIndex = (trackId: string) => visiblePlaylist.findIndex(t => t.id === trackId);
+
   // Fetch user on mount
   useEffect(() => {
     if (!supabase) return;
@@ -506,13 +515,22 @@ export default function Page() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Current Playlist computed values
+  // Current Playlist computed values (full playlist - unchanged for saved playlist display)
   const trackCount = playlist.length;
 
   const totalRoutineSeconds = playlist.reduce(
     (total, track) => total + (track.durationSeconds),
     0
   );
+
+  // Session-only computed values (visible tracks only - excludes hidden)
+  const visibleTrackCount = visiblePlaylist.length;
+  const visibleRoutineSeconds = visiblePlaylist.reduce(
+    (total, track) => total + track.durationSeconds,
+    0
+  );
+  const visibleGapSeconds = visibleTrackCount > 1 ? (visibleTrackCount - 1) * gapSeconds : 0;
+  const visibleSessionSeconds = visibleRoutineSeconds + visibleGapSeconds;
 
   const totalGapSeconds = trackCount > 1 ? (trackCount - 1) * gapSeconds : 0;
 
@@ -1139,6 +1157,47 @@ export default function Page() {
     });
   };
 
+  // Hide track from current session only (does not affect saved playlist or cloud)
+  const hideTrackFromSession = (trackId: string) => {
+    const track = playlist.find(t => t.id === trackId);
+    if (!track) return;
+    
+    // If this track is currently playing, stop and move to next visible track
+    if (currentTrack?.id === trackId) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+      
+      // Find next visible track after current index
+      const currentIdx = playlist.findIndex(t => t.id === trackId);
+      let nextVisibleIdx = -1;
+      for (let i = currentIdx + 1; i < playlist.length; i++) {
+        if (!hiddenTrackIds.has(playlist[i].id) && playlist[i].id !== trackId) {
+          nextVisibleIdx = i;
+          break;
+        }
+      }
+      
+      if (nextVisibleIdx >= 0) {
+        setCurrentIndex(nextVisibleIdx);
+        setCurrentTrack(playlist[nextVisibleIdx]);
+      } else {
+        // No more visible tracks, stop session
+        setCurrentTrack(null);
+        setSessionRunning(false);
+      }
+    }
+    
+    // Add to hidden set
+    setHiddenTrackIds(prev => new Set([...prev, trackId]));
+  };
+  
+  // Restore all hidden tracks for current session
+  const restoreHiddenTracks = () => {
+    setHiddenTrackIds(new Set());
+  };
+
   const goToNextTrack = () => {
     if (playlist.length === 0) return;
     
@@ -1430,15 +1489,19 @@ export default function Page() {
 
   // Calculate uploaded track total in seconds
   const uploadedTrackTotalSeconds = playlist.reduce((total, track) => {
+  return total + track.durationSeconds;
+  }, 0);
+  
+  // Calculate total session time based on VISIBLE tracks only (excludes hidden)
+  const visibleTrackTotalSeconds = visiblePlaylist.reduce((total, track) => {
     return total + track.durationSeconds;
   }, 0);
-
-  // Calculate total session time (updates automatically when gapSeconds, playlistRepeats, or backToBack changes)
+  
   const totalSessionSeconds =
-    uploadedTrackTotalSeconds * playlistRepeats * (backToBack ? 2 : 1) +
-    Math.max(0, playlist.length * playlistRepeats * (backToBack ? 2 : 1) - 1) *
-      gapSeconds;
-
+  visibleTrackTotalSeconds * playlistRepeats * (backToBack ? 2 : 1) +
+  Math.max(0, visiblePlaylist.length * playlistRepeats * (backToBack ? 2 : 1) - 1) *
+  gapSeconds;
+  
   const decreaseRepeats = () => {
     setPlaylistRepeats((prev) => Math.max(1, prev - 1));
   };
@@ -1780,11 +1843,12 @@ export default function Page() {
                     const { name, tracks } = showSendToSessionConfirm;
                     setShowSendToSessionConfirm(null);
                     if (isPlaying && audioRef.current) {
-                      audioRef.current.pause();
-                      setIsPlaying(false);
-                    }
-                    setPlaylist(tracks);
-                    setCurrentPlaylistName(name);
+  audioRef.current.pause();
+  setIsPlaying(false);
+  }
+  setPlaylist(tracks);
+  setHiddenTrackIds(new Set()); // Clear hidden tracks when loading new playlist
+  setCurrentPlaylistName(name);
                     setCurrentIndex(0);
                     setCurrentTrack(tracks[0]);
                     setSessionRunning(false);
@@ -1904,11 +1968,11 @@ export default function Page() {
               <div className="mt-8 text-center w-full">
                 <h1 className="text-2xl font-bold text-white truncate px-4">
                   {currentTrack?.title || "No Track Selected"}
-                </h1>
-                <p className="text-white/50 mt-1">
-                  {currentTrack ? `Track ${currentIndex + 1} of ${playlist.length}` : "Upload tracks to begin"}
-                </p>
-              </div>
+  </h1>
+  <p className="text-white/50 mt-1">
+  {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
+  </p>
+  </div>
 
               {/* Timer */}
               <div className="mt-6">
@@ -2144,11 +2208,11 @@ export default function Page() {
                     <span className="text-white">
                       {formatSessionTime(remainingSeconds)}
                     </span>
-                  )}
-                </div>
-                <p className="text-xs text-white/40 mt-2">
-                  {isGapPaused ? "Next Track In" : `${playlist.length} tracks + ${gapSeconds}s gaps`}
-                </p>
+  )}
+  </div>
+  <p className="text-xs text-white/40 mt-2">
+  {isGapPaused ? "Next Track In" : `${visiblePlaylist.length} tracks + ${gapSeconds}s gaps`}
+  </p>
               </div>
 
               {/* Track Title */}
@@ -2162,11 +2226,11 @@ export default function Page() {
                   ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                   : "00:00"}
                 {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
-              </p>
-              
-              <p className="text-base text-white/50 mb-6">
-                {currentTrack ? `Track ${currentIndex + 1} of ${playlist.length}` : "Upload tracks to begin"}
-              </p>
+  </p>
+  
+  <p className="text-base text-white/50 mb-6">
+  {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
+  </p>
 
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-8">
@@ -2281,10 +2345,10 @@ export default function Page() {
                   onClick={() => setShowFullscreenQueuePlaylist(true)}
                   className="flex items-center gap-1 px-2 py-1 rounded-lg bg-pink-500/10 border border-pink-500/30 text-pink-400 text-[10px] font-bold hover:bg-pink-500/20 transition"
                 >
-                  <Plus size={12} />
-                  Queue
-                </button>
-                <span className="text-[10px] text-white/50">{playlist.length} tracks</span>
+  <Plus size={12} />
+  Queue
+  </button>
+  <span className="text-[10px] text-white/50">{visiblePlaylist.length} tracks{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</span>
               </div>
             </div>
             <p className="border-b border-white/10 pb-2 text-[10px] text-white/60 mb-2">Drag to re-order</p>
@@ -2679,26 +2743,38 @@ export default function Page() {
     Clear Playlist
   </button>
 </div>
-                <p className="mt-1 border-b border-white/10 pb-2 text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
+                <div className="mt-1 border-b border-white/10 pb-2 flex items-center justify-between">
+                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
+                  {hiddenTrackIds.size > 0 && (
+                    <button
+                      onClick={restoreHiddenTracks}
+                      className="px-2 py-1 text-[9px] md:text-[10px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-md hover:bg-cyan-500/20 transition"
+                    >
+                      Restore {hiddenTrackIds.size} hidden
+                    </button>
+                  )}
+                </div>
 
                 <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
-                  {playlist.length === 0 ? (
+                  {visiblePlaylist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
                       <p className="mt-2 text-sm text-white/35">Upload tracks and add them to your playlist</p>
                     </div>
                   ) : (
                     (() => {
-                      // Display in original playlist order (no reordering)
-                      return playlist.map((track, index) => {
+                      // Display visible tracks only (hidden tracks filtered out)
+                      return visiblePlaylist.map((track, visibleIndex) => {
+                        // Get the original playlist index for this track (needed for drag/drop and currentIndex)
+                        const originalIndex = playlist.findIndex(t => t.id === track.id);
                         const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                        const colour = colours[index % colours.length];
+                        const colour = colours[visibleIndex % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
                         const isFinished = finishedTracks.has(track.id);
-                        const isCompleted = !isFinished && index < currentIndex;
+                        const isCompleted = !isFinished && originalIndex < currentIndex;
                         const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
-                        const isDragging = draggedTrackIndex === index;
-                        const isDropTarget = dropTargetIndex === index;
+                        const isDragging = draggedTrackIndex === originalIndex;
+                        const isDropTarget = dropTargetIndex === originalIndex;
                       
                         return (
                           <div key={track.id} className="relative">
@@ -2709,9 +2785,9 @@ export default function Page() {
                             <div 
                               draggable
                               onDragStart={(e) => {
-                                setDraggedTrackIndex(index);
+                                setDraggedTrackIndex(originalIndex);
                                 e.dataTransfer.effectAllowed = "move";
-                                e.dataTransfer.setData("text/plain", index.toString());
+                                e.dataTransfer.setData("text/plain", originalIndex.toString());
                               }}
                               onDragEnd={() => {
                                 setDraggedTrackIndex(null);
@@ -2722,8 +2798,8 @@ export default function Page() {
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 e.dataTransfer.dropEffect = "move";
-                                if (draggedTrackIndex !== null && draggedTrackIndex !== index) {
-                                  setDropTargetIndex(index);
+                                if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
+                                  setDropTargetIndex(originalIndex);
                                   // Detect if cursor is in top or bottom half of the element
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const midpoint = rect.top + rect.height / 2;
@@ -2733,13 +2809,13 @@ export default function Page() {
                                 }
                               }}
                               onDragLeave={() => {
-                                if (dropTargetIndex === index) {
+                                if (dropTargetIndex === originalIndex) {
                                   setDropTargetIndex(null);
                                 }
                               }}
                               onDrop={(e) => {
                                 e.preventDefault();
-                                if (draggedTrackIndex === null || draggedTrackIndex === index) return;
+                                if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
                                 
                                 const fromIndex = draggedTrackIndex;
                                 const toIndex = index;
@@ -2790,10 +2866,10 @@ export default function Page() {
                                 dropPositionRef.current = "below";
                               }}
                               onClick={() => {
-                                setCurrentIndex(index);
+                                setCurrentIndex(originalIndex);
                                 togglePlayPause(track);
                               }}
-                              className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_32px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
+                              className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_44px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
                                 isDragging ? "opacity-40 bg-cyan-500/10" : ""
                               } ${
                                 isActiveTrack 
@@ -2806,7 +2882,7 @@ export default function Page() {
                               <div className="cursor-grab active:cursor-grabbing">
                                 <GripVertical size={15} className="text-white/75 hover:text-white" />
                               </div>
-                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{index + 1}</div>
+                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{visibleIndex + 1}</div>
                               <div>
                                 <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className="text-xs text-white/85">
@@ -2820,29 +2896,13 @@ export default function Page() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (sessionRunning || isPlaying) {
-                                    setShowRemoveTrackConfirm({ track, originalIndex: index });
-                                  } else {
-                                    setPlaylist((prev) => {
-                                      const newPlaylist = prev.filter((t) => t.id !== track.id);
-                                      if (index < currentIndex) {
-                                        setCurrentIndex((idx) => Math.max(0, idx - 1));
-                                      } else if (index === currentIndex && newPlaylist.length > 0) {
-                                        setCurrentIndex((idx) => Math.min(idx, newPlaylist.length - 1));
-                                        if (isPlaying && audioRef.current) {
-                                          audioRef.current.pause();
-                                          setIsPlaying(false);
-                                        }
-                                        setCurrentTrack(newPlaylist[Math.min(index, newPlaylist.length - 1)] || null);
-                                      }
-                                      return newPlaylist;
-                                    });
-                                  }
+                                  // Hide from session only - does not affect saved playlist or cloud
+                                  hideTrackFromSession(track.id);
                                 }}
-                                className="ml-2 p-1.5 rounded-md text-white/30 hover:text-red-400 hover:bg-red-500/10 transition"
-                                title="Remove from queue (does not delete track)"
+                                className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
+                                title="Hide from this session (does not delete from playlist)"
                               >
-                                <X size={16} />
+                                <X size={18} className="md:w-4 md:h-4" />
                               </button>
                             </div>
                             {/* Drop indicator line below */}
