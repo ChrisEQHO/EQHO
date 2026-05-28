@@ -7,12 +7,15 @@ import './globals.css'
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
+const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+
 export const metadata: Metadata = {
   title: 'EQHO Player - Professional Music Player for Coaches',
   description: 'Premium DJ-style music player for gymnastics routines and training sessions',
   icons: {
-    icon: '/icon',
-    apple: '/apple-icon',
+    // Use static PNGs for mobile builds, dynamic routes for web
+    icon: isMobileBuild ? '/icon.png' : '/icon',
+    apple: isMobileBuild ? '/apple-icon.png' : '/apple-icon',
   },
 }
 
@@ -32,8 +35,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-[#020617]">
       <head>
-        <link rel="icon" href="/icon" type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/apple-icon" />
+        <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
+        <link rel="apple-touch-icon" href={isMobileBuild ? '/apple-icon.png' : '/apple-icon'} />
       </head>
       <body className="font-sans antialiased bg-[#020617]">
         {children}
