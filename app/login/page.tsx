@@ -22,9 +22,10 @@ export default function LoginPage() {
 
     const supabase = createClient()
     
+    // If Supabase is not configured, allow local-only mode
     if (!supabase) {
-      setError('Authentication service is not configured. Please contact support.')
-      setLoading(false)
+      // Skip auth and go directly to player in local-only mode
+      router.replace('/')
       return
     }
 
@@ -37,8 +38,7 @@ export default function LoginPage() {
       setError(authError.message)
       setLoading(false)
     } else {
-      router.push('/')
-      router.refresh()
+      router.replace('/')
     }
   }
 
