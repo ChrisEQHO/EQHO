@@ -36,10 +36,9 @@ export default function SignupPage() {
 
     const supabase = createClient()
     
-    // If Supabase is not configured, allow local-only mode
     if (!supabase) {
-      // Skip auth and go directly to player in local-only mode
-      router.replace('/')
+      setError('Authentication service is not configured. Please contact support.')
+      setLoading(false)
       return
     }
 
