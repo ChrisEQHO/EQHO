@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
-
-const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,32 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [checkingAuth, setCheckingAuth] = useState(!isMobileBuild)
   const router = useRouter()
-
-  // For mobile builds, redirect immediately to player
-  useEffect(() => {
-    if (isMobileBuild) {
-      router.replace('/')
-      return
-    }
-
-    const checkUser = async () => {
-      const supabase = createClient()
-      if (!supabase) {
-        setCheckingAuth(false)
-        return
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        router.replace('/')
-      } else {
-        setCheckingAuth(false)
-      }
-    }
-    checkUser()
-  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,19 +37,9 @@ export default function LoginPage() {
       setError(authError.message)
       setLoading(false)
     } else {
-      // Use replace instead of push to avoid back-button issues in Capacitor
-      // Do not use router.refresh() as it causes page reload in Capacitor apps
-      router.replace('/')
+      router.push('/')
+      router.refresh()
     }
-  }
-
-  // Show loading while checking auth
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <div className="text-white/60">Loading...</div>
-      </div>
-    )
   }
 
   return (
