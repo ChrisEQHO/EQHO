@@ -4197,7 +4197,7 @@ export default function Page() {
                     </div>
 
                     {/* Coach Display */}
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <SlidersHorizontal size={14} className="text-[#ff8a00]" />
                         <span className="text-[10px] font-bold text-white">Coach Display</span>
@@ -4219,6 +4219,122 @@ export default function Page() {
                             <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Audio Settings */}
+                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Volume2 size={14} className="text-cyan-400" />
+                        <span className="text-[10px] font-bold text-white">Audio</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Fade Between Tracks</span>
+                          <button onClick={() => updateSetting("fadeEnabled", !(settings.fadeEnabled ?? false))} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.fadeEnabled ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.fadeEnabled ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Fade Duration</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("fadeDuration", Math.max(0, (settings.fadeDuration ?? 2) - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.fadeDuration ?? 2}s</span>
+                            <button onClick={() => updateSetting("fadeDuration", Math.min(10, (settings.fadeDuration ?? 2) + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Uploads */}
+                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Upload size={14} className="text-green-400" />
+                        <span className="text-[10px] font-bold text-white">Uploads</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Auto-add to Playlist</span>
+                          <button onClick={() => updateSetting("autoAddToPlaylist", !(settings.autoAddToPlaylist ?? true))} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.autoAddToPlaylist ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.autoAddToPlaylist ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Keep Originals</span>
+                          <button onClick={() => updateSetting("keepOriginals", !(settings.keepOriginals ?? true))} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.keepOriginals ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.keepOriginals ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notifications */}
+                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bell size={14} className="text-purple-400" />
+                        <span className="text-[10px] font-bold text-white">Notifications</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Sound Alerts</span>
+                          <button onClick={() => updateSetting("soundAlerts", !(settings.soundAlerts ?? true))} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.soundAlerts ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.soundAlerts ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Session Complete Alert</span>
+                          <button onClick={() => updateSetting("sessionCompleteAlert", !(settings.sessionCompleteAlert ?? true))} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.sessionCompleteAlert ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.sessionCompleteAlert ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Danger Zone */}
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircle size={14} className="text-red-400" />
+                        <span className="text-[10px] font-bold text-red-400">Danger Zone</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button 
+                          onClick={() => {
+                            if (confirm("Clear all saved playlists?")) {
+                              setSavedPlaylists([]);
+                            }
+                          }}
+                          className="px-2 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-400 text-[9px] font-medium"
+                        >
+                          Clear Playlists
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (confirm("Reset all settings to default?")) {
+                              setSettings({
+                                defaultVolume: 80,
+                                autoplayNext: true,
+                                gapSeconds: 10,
+                                playlistRepeats: 1,
+                                backToBack: false,
+                                showCountdown: true,
+                                countdownSeconds: 5,
+                              });
+                            }
+                          }}
+                          className="px-2 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-400 text-[9px] font-medium"
+                        >
+                          Reset Settings
+                        </button>
                       </div>
                     </div>
                   </div>
