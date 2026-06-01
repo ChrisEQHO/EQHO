@@ -592,7 +592,11 @@ export default function Page() {
 
   // Display labels - use visible playlist for accurate session data
   const currentPlaylistDisplayName =
-    playlist.length > 0 ? currentPlaylistName : "No playlist selected";
+    playlist.length > 0 
+      ? (currentPlaylistName !== "Untitled Playlist" 
+          ? currentPlaylistName 
+          : (playlist[0]?.title ? `${playlist[0].title}${playlist.length > 1 ? ` +${playlist.length - 1} more` : ''}` : "Custom Playlist"))
+      : "No playlist selected";
 
   const trackCountLabel =
     `${visibleTrackCount} ${visibleTrackCount === 1 ? "track" : "tracks"}`;
