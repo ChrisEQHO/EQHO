@@ -3889,27 +3889,151 @@ export default function Page() {
               )}
 
               {mobileTab === "upload" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                    onDragLeave={() => setIsDragging(false)}
-                    onDrop={handleFileDrop}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
-                      isDragging ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/20 hover:border-white/40"
-                    }`}
-                  >
-                    <Upload size={32} className="mx-auto mb-3 text-[#7c8596]" />
-                    <p className="text-sm text-[#7c8596] mb-2">Drop audio files here</p>
-                    <label className="inline-block px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-medium cursor-pointer">
-                      Browse Files
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 overflow-y-auto">
+                  {/* Upload Area */}
+                  <div className="mb-4">
+                    <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
+                      Upload Files & Playlists
+                    </h2>
+                    <label
+                      onDrop={handleDropUpload}
+                      onDragOver={handleDragOverUpload}
+                      onDragEnter={handleDragEnterUpload}
+                      onDragLeave={handleDragLeaveUpload}
+                      className={`block cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
+                        isDraggingUpload
+                          ? "border-cyan-300 bg-cyan-400/10"
+                          : "border-[#ff4fa3]/50 bg-white/[0.03]"
+                      }`}
+                    >
                       <input
                         type="file"
-                        accept="audio/*"
+                        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                         multiple
-                        onChange={handleFileSelect}
+                        onChange={(event) => {
+                          handleFiles(event.target.files);
+                          event.target.value = "";
+                        }}
                         className="hidden"
                       />
+                      <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
+                      <p className="text-white font-bold text-xs">Drop files or folders</p>
+                      <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
+                      <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
                     </label>
+                  </div>
+
+                  {/* Playlists Section */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
+                      <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
+                    </div>
+                    {savedPlaylists.length === 0 ? (
+                      <p className="text-white/40 text-center py-4 text-xs">No playlists yet</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                        {savedPlaylists.map((pl) => (
+                          <div
+                            key={pl.id}
+                            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs bg-white/[0.03] border border-white/10"
+                          >
+                            <ListMusic size={14} className="text-[#ff4fa3] shrink-0" />
+                            <span className="flex-1 truncate text-white text-[11px]">{pl.name}</span>
+                            <span className="text-white/40 text-[9px]">{pl.tracks.length} tracks</span>
+                            <button
+                              onClick={() => {
+                                if (pl.tracks.length > 0) {
+                                  if (sessionRunning || isPlaying) {
+                                    setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
+                                  } else {
+                                    setPlaylist(pl.tracks);
+                                    setCurrentPlaylistName(pl.name);
+                                    setCurrentIndex(0);
+                                    setCurrentTrack(pl.tracks[0]);
+                                  }
+                                }
+                              }}
+                              disabled={pl.tracks.length === 0}
+                              className="rounded border border-pink-500/50 bg-pink-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-pink-400 hover:bg-pink-500/20 disabled:opacity-30"
+                            >
+                              Load
+                            </button>
+                            <button
+                              onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
+                              className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Uploaded Tracks Section */}
+                  <div>
+                    <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
+                    {uploadedTracks.length === 0 ? (
+                      <p className="text-white/40 text-center py-4 text-xs">No tracks uploaded</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                        {uploadedTracks.map((track) => (
+                          <div
+                            key={track.id}
+                            className="flex items-center gap-2 bg-white/[0.03] rounded-lg px-2 py-1.5"
+                          >
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
+                              }}
+                              className="grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 hover:border-red-500/60 hover:text-red-400"
+                            >
+                              <X size={10} />
+                            </button>
+                            <p className="truncate text-white text-[11px] flex-1">{track.title}</p>
+                            <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
+                            <button
+                              onClick={() => {
+                                if (sessionRunning || isPlaying) {
+                                  setShowSendToSessionConfirm({ name: track.title, tracks: [track] });
+                                } else {
+                                  setPlaylist((prev) => [...prev, track]);
+                                  setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
+                                  if (!currentTrack) {
+                                    setCurrentTrack(track);
+                                    setCurrentIndex(0);
+                                  }
+                                }
+                              }}
+                              className="rounded border border-cyan-500/50 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-400 hover:bg-cyan-500/20"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        ))}
+                        {uploadedTracks.length > 0 && (
+                          <button
+                            onClick={() => {
+                              if (sessionRunning || isPlaying) {
+                                setShowSendToSessionConfirm({ name: "Uploaded Tracks", tracks: uploadedTracks });
+                              } else {
+                                setPlaylist((prev) => [...prev, ...uploadedTracks]);
+                                if (!currentTrack && uploadedTracks.length > 0) {
+                                  setCurrentTrack(uploadedTracks[0]);
+                                  setCurrentIndex(0);
+                                }
+                                setUploadedTracks([]);
+                              }
+                            }}
+                            className="w-full mt-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-3 py-2 text-xs font-bold text-white"
+                          >
+                            Add All to Session ({uploadedTracks.length})
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </Card>
               )}
