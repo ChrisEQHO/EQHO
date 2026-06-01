@@ -2005,7 +2005,37 @@ export default function Page() {
 
               {/* Timer */}
               <div className="mt-6">
-                {isGapPaused ? (
+                {isGapPaused && gapCountdown <= 3 ? (
+                  /* Large animated countdown overlay for final 3 seconds */
+                  <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                    <div 
+                      key={gapCountdown}
+                      className="text-[75vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent animate-countdown-pulse drop-shadow-[0_0_100px_rgba(255,79,163,0.8)]"
+                      style={{
+                        animation: 'countdownPulse 1s ease-out',
+                        textShadow: '0 0 120px rgba(255,79,163,0.6), 0 0 240px rgba(255,138,0,0.4)'
+                      }}
+                    >
+                      {gapCountdown}
+                    </div>
+                    <style jsx>{`
+                      @keyframes countdownPulse {
+                        0% {
+                          transform: scale(0.5);
+                          opacity: 0;
+                        }
+                        30% {
+                          transform: scale(1.1);
+                          opacity: 1;
+                        }
+                        100% {
+                          transform: scale(1);
+                          opacity: 1;
+                        }
+                      }
+                    `}</style>
+                  </div>
+                ) : isGapPaused ? (
                   <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                     {gapCountdown}
                   </div>
