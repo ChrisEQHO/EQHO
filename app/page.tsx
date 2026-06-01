@@ -2370,6 +2370,19 @@ export default function Page() {
   <Plus size={12} />
   Queue
   </button>
+                <button
+                  onClick={() => {
+                    if (sessionRunning || isPlaying) {
+                      setShowClearPlaylistConfirm(true);
+                    } else {
+                      clearPlaylist();
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[10px] font-bold hover:bg-orange-500/20 transition"
+                >
+                  <X size={12} />
+                  Clear
+                </button>
   <span className="text-[10px] text-white/50">{visiblePlaylist.length} tracks{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</span>
               </div>
             </div>
