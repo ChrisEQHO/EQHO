@@ -1609,7 +1609,7 @@ export default function Page() {
   };
 
   return (
-    <div className="h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#020617] text-white">
+    <div className="h-screen w-full max-w-[100vw] min-w-0 overflow-x-hidden bg-[#020617] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
