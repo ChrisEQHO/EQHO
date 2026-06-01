@@ -3744,25 +3744,25 @@ export default function Page() {
         )}
 
         {activePage === "settings" && (
-          <div className="p-8">
-            <div className="flex items-center justify-between mb-8">
-              <div>
+          <div className="p-8 h-full overflow-y-auto">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+              <div className="flex-1">
                 <p className="text-cyan-300 uppercase tracking-[0.25em] text-sm font-bold">
                   EQHO System Settings
                 </p>
                 <h1 className="text-4xl font-black mt-2">Settings</h1>
-                <p className="text-white/50 mt-2">
+                <p className="text-white/50 mt-2 max-w-md">
                   Control playback, sessions, uploads, display and coach workflow.
                 </p>
               </div>
 
-              <button className="px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20">
+              <button className="px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 self-start">
                 <Save size={20} className="inline mr-2" />
                 Save Settings
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               <SettingsSection icon={<Headphones size={22} />} title="Playback">
                 <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
                 <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
