@@ -311,7 +311,7 @@ export default function Page() {
   };
 
   // Mobile tab state
-  const [mobileTab, setMobileTab] = useState<"queue" | "nowplaying" | "upload" | "playlists">("queue");
+  const [mobileTab, setMobileTab] = useState<"nowplaying" | "playlists" | "settings">("nowplaying");
 
   const [playlistRepeats, setPlaylistRepeats] = useState(1);
   const [gapSeconds, setGapSeconds] = useState(10);
@@ -3908,16 +3908,6 @@ export default function Page() {
             {/* Mobile Tab Switcher */}
             <div className="flex gap-1 shrink-0">
               <button
-                onClick={() => setMobileTab("queue")}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
-                  mobileTab === "queue"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
-                }`}
-              >
-                Queue
-              </button>
-              <button
                 onClick={() => setMobileTab("nowplaying")}
                 className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   mobileTab === "nowplaying"
@@ -3938,49 +3928,19 @@ export default function Page() {
                 Playlists
               </button>
               <button
-                onClick={() => setMobileTab("upload")}
+                onClick={() => setMobileTab("settings")}
                 className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
-                  mobileTab === "upload"
+                  mobileTab === "settings"
                     ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
                     : "text-[#7c8596] hover:text-white hover:bg-white/5"
                 }`}
               >
-                Upload
+                Settings
               </button>
             </div>
 
             {/* Mobile Content Area */}
             <div className="flex-1 min-h-0 overflow-y-auto">
-              {mobileTab === "queue" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white">Up Next</h3>
-                    <span className="text-xs text-[#7c8596]">{visiblePlaylist.length} tracks</span>
-                  </div>
-                  <div className="space-y-2 overflow-y-auto max-h-[calc(100%-40px)]">
-                    {visiblePlaylist.map((track, index) => (
-                      <div
-                        key={track.id}
-                        onClick={() => handleTrackSelect(track)}
-                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
-                          currentTrack?.id === track.id
-                            ? "bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10 border border-[#ff4fa3]/30"
-                            : "hover:bg-white/5"
-                        }`}
-                      >
-                        <span className="text-xs text-[#7c8596] w-5">{index + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{track.name}</p>
-                        </div>
-                        {currentTrack?.id === track.id && isPlaying && (
-                          <div className="w-3 h-3 rounded-full bg-[#ff4fa3] animate-pulse" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-
               {mobileTab === "nowplaying" && (
                 <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
                   <div className="flex flex-col items-center gap-4">
@@ -4203,7 +4163,7 @@ export default function Page() {
                 </div>
               )}
 
-              {mobileTab === "upload" && (
+              {mobileTab === "settings" && (
                 <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 flex flex-col">
                   {/* Upload Area - Compact */}
                   <div className="mb-2 shrink-0">
@@ -4238,56 +4198,8 @@ export default function Page() {
 
                   {/* Scrollable Content - Uses all remaining space */}
                   <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-                    {/* Playlists Section */}
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
-                        <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
-                      </div>
-                      {savedPlaylists.length === 0 ? (
-                        <p className="text-white/40 text-center py-2 text-xs">No playlists yet</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {savedPlaylists.map((pl) => (
-                            <div
-                              key={pl.id}
-                              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs bg-white/[0.03] border border-white/10"
-                            >
-                              <ListMusic size={14} className="text-[#ff4fa3] shrink-0" />
-                              <span className="flex-1 truncate text-white text-[11px]">{pl.name}</span>
-                              <span className="text-white/40 text-[9px]">{pl.tracks.length} tracks</span>
-                              <button
-                                onClick={() => {
-                                  if (pl.tracks.length > 0) {
-                                    if (sessionRunning || isPlaying) {
-                                      setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
-                                    } else {
-                                      setPlaylist(pl.tracks);
-                                      setCurrentPlaylistName(pl.name);
-                                      setCurrentIndex(0);
-                                      setCurrentTrack(pl.tracks[0]);
-                                    }
-                                  }
-                                }}
-                                disabled={pl.tracks.length === 0}
-                                className="rounded border border-pink-500/50 bg-pink-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-pink-400 hover:bg-pink-500/20 disabled:opacity-30"
-                              >
-                                Load
-                              </button>
-                              <button
-                                onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
-                                className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
-                              >
-                                Clear
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
                     {/* Uploaded Tracks Section */}
-                    <div>
+                    <div className="mb-3">
                       <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
                       {uploadedTracks.length === 0 ? (
                         <p className="text-white/40 text-center py-2 text-xs">No tracks uploaded</p>
@@ -4326,33 +4238,33 @@ export default function Page() {
                               >
                                 Add
                               </button>
-                          </div>
-                        ))}
-                        {uploadedTracks.length > 0 && (
-                          <button
-                            onClick={() => {
-                              if (sessionRunning || isPlaying) {
-                                setShowSendToSessionConfirm({ name: "Uploaded Tracks", tracks: uploadedTracks });
-                              } else {
-                                setPlaylist((prev) => [...prev, ...uploadedTracks]);
-                                if (!currentTrack && uploadedTracks.length > 0) {
-                                  setCurrentTrack(uploadedTracks[0]);
-                                  setCurrentIndex(0);
+                            </div>
+                          ))}
+                          {uploadedTracks.length > 0 && (
+                            <button
+                              onClick={() => {
+                                if (sessionRunning || isPlaying) {
+                                  setShowSendToSessionConfirm({ name: "Uploaded Tracks", tracks: uploadedTracks });
+                                } else {
+                                  setPlaylist((prev) => [...prev, ...uploadedTracks]);
+                                  if (!currentTrack && uploadedTracks.length > 0) {
+                                    setCurrentTrack(uploadedTracks[0]);
+                                    setCurrentIndex(0);
+                                  }
+                                  setUploadedTracks([]);
                                 }
-                                setUploadedTracks([]);
-                              }
-                            }}
-                            className="w-full mt-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-3 py-2 text-xs font-bold text-white"
-                          >
-                            Add All to Session ({uploadedTracks.length})
-                          </button>
-                        )}
+                              }}
+                              className="w-full mt-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-3 py-2 text-xs font-bold text-white"
+                            >
+                              Add All to Session ({uploadedTracks.length})
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
 
                     {/* Settings Section */}
-                    <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="border-t border-white/10 pt-3">
                       <h2 className="text-cyan-300 uppercase tracking-[0.15em] text-[10px] font-black mb-3">Settings</h2>
                     
                     {/* Playback Settings */}
