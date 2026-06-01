@@ -3926,13 +3926,131 @@ export default function Page() {
                     <h2 className="text-base font-black">Playlists</h2>
                   </div>
 
-                  {/* Upload Area - Compact */}
+                  {/* Upload Area - Creates playlists like desktop */}
                   <div className="mb-2 shrink-0">
                     <label
-                      onDrop={handleDropUpload}
-                      onDragOver={handleDragOverUpload}
-                      onDragEnter={handleDragEnterUpload}
-                      onDragLeave={handleDragLeaveUpload}
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingUpload(false);
+                        
+                        const items = e.dataTransfer?.items;
+                        if (!items) return;
+                        
+                        const readDirectory = (entry: FileSystemDirectoryEntry): Promise<File[]> => {
+                          return new Promise((resolve) => {
+                            const reader = entry.createReader();
+                            const files: File[] = [];
+                            
+                            const readEntries = () => {
+                              reader.readEntries(async (entries) => {
+                                if (entries.length === 0) {
+                                  resolve(files);
+                                  return;
+                                }
+                                
+                                for (const ent of entries) {
+                                  if (ent.isFile) {
+                                    const fileEntry = ent as FileSystemFileEntry;
+                                    const file = await new Promise<File>((res) => fileEntry.file(res));
+                                    if (file.type.startsWith("audio/")) {
+                                      files.push(file);
+                                    }
+                                  } else if (ent.isDirectory) {
+                                    const subFiles = await readDirectory(ent as FileSystemDirectoryEntry);
+                                    files.push(...subFiles);
+                                  }
+                                }
+                                readEntries();
+                              });
+                            };
+                            readEntries();
+                          });
+                        };
+                        
+                        for (let i = 0; i < items.length; i++) {
+                          const item = items[i];
+                          const entry = item.webkitGetAsEntry?.();
+                          
+                          if (entry?.isDirectory) {
+                            const folderName = entry.name;
+                            const audioFiles = await readDirectory(entry as FileSystemDirectoryEntry);
+                            
+                            if (audioFiles.length > 0) {
+                              const newPlaylistId = crypto.randomUUID();
+                              const newTracks: Track[] = [];
+                              
+                              let processed = 0;
+                              audioFiles.forEach((file) => {
+                                const url = URL.createObjectURL(file);
+                                const audio = new Audio(url);
+                                audio.onloadedmetadata = async () => {
+                                  const newTrack: Track = {
+                                    id: crypto.randomUUID(),
+                                    title: file.name.replace(/\.[^/.]+$/, ""),
+                                    fileName: file.name,
+                                    url,
+                                    durationSeconds: Math.round(audio.duration),
+                                    uploadedAt: new Date().toISOString(),
+                                    file,
+                                  };
+                                  newTracks.push(newTrack);
+                                  
+                                  processed++;
+                                  if (processed === audioFiles.length) {
+                                    setSavedPlaylists((prev) => [
+                                      ...prev,
+                                      { id: newPlaylistId, name: folderName, tracks: newTracks },
+                                    ]);
+                                  }
+                                };
+                              });
+                            }
+                          } else if (entry?.isFile) {
+                            const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
+                              file.type.startsWith("audio/")
+                            );
+                            
+                            if (files.length > 0) {
+                              const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                              const newPlaylistId = crypto.randomUUID();
+                              const newTracks: Track[] = [];
+                              
+                              let processed = 0;
+                              files.forEach((file) => {
+                                const url = URL.createObjectURL(file);
+                                const audio = new Audio(url);
+                                audio.onloadedmetadata = async () => {
+                                  const newTrack: Track = {
+                                    id: crypto.randomUUID(),
+                                    title: file.name.replace(/\.[^/.]+$/, ""),
+                                    sub: "Uploaded Track",
+                                    duration: formatDuration(Math.round(audio.duration)),
+                                    fileName: file.name,
+                                    url,
+                                    durationSeconds: Math.round(audio.duration),
+                                    uploadedAt: new Date().toISOString(),
+                                    file,
+                                  };
+                                  newTracks.push(newTrack);
+                                  
+                                  processed++;
+                                  if (processed === files.length) {
+                                    setSavedPlaylists((prev) => [
+                                      ...prev,
+                                      { id: newPlaylistId, name: playlistName, tracks: newTracks },
+                                    ]);
+                                  }
+                                };
+                              });
+                            }
+                            break;
+                          }
+                        }
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(true); }}
+                      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(false); }}
                       className={`block cursor-pointer rounded-xl border border-dashed p-2 text-center transition ${
                         isDraggingUpload
                           ? "border-cyan-300 bg-cyan-400/10"
@@ -3944,79 +4062,55 @@ export default function Page() {
                         accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                         multiple
                         onChange={(event) => {
-                          handleFiles(event.target.files);
+                          const files = Array.from(event.target.files || []).filter((file) =>
+                            file.type.startsWith("audio/") || 
+                            file.name.endsWith(".mp3") || 
+                            file.name.endsWith(".wav") || 
+                            file.name.endsWith(".m4a")
+                          );
+                          if (files.length > 0) {
+                            const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                            const newPlaylistId = crypto.randomUUID();
+                            const newTracks: Track[] = [];
+                            
+                            let processed = 0;
+                            files.forEach((file) => {
+                              const url = URL.createObjectURL(file);
+                              const audio = new Audio(url);
+                              audio.onloadedmetadata = async () => {
+                                const newTrack: Track = {
+                                  id: crypto.randomUUID(),
+                                  title: file.name.replace(/\.[^/.]+$/, ""),
+                                  sub: "Uploaded Track",
+                                  duration: formatDuration(Math.round(audio.duration)),
+                                  fileName: file.name,
+                                  url,
+                                  durationSeconds: Math.round(audio.duration),
+                                  uploadedAt: new Date().toISOString(),
+                                  file,
+                                };
+                                newTracks.push(newTrack);
+                                
+                                processed++;
+                                if (processed === files.length) {
+                                  setSavedPlaylists((prev) => [
+                                    ...prev,
+                                    { id: newPlaylistId, name: playlistName, tracks: newTracks },
+                                  ]);
+                                }
+                              };
+                            });
+                          }
                           event.target.value = "";
                         }}
                         className="hidden"
                       />
                       <div className="flex items-center justify-center gap-2">
                         <UploadCloud className="text-[#ff8a00]" size={18} />
-                        <span className="text-white font-bold text-xs">Drop files or folders</span>
-                        <span className="text-white/40 text-[9px]">MP3, WAV, M4A</span>
+                        <span className="text-white font-bold text-xs">Drop folder to create playlist</span>
                       </div>
                     </label>
                   </div>
-
-                  {/* Uploaded Tracks Section */}
-                  {uploadedTracks.length > 0 && (
-                    <div className="mb-2 shrink-0">
-                      <h3 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h3>
-                      <div className="space-y-2 max-h-[120px] overflow-y-auto">
-                        {uploadedTracks.map((track) => (
-                          <div
-                            key={track.id}
-                            className="flex items-center gap-2 bg-white/[0.03] rounded-lg px-2 py-1.5"
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
-                              }}
-                              className="grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 hover:border-red-500/60 hover:text-red-400"
-                            >
-                              <X size={10} />
-                            </button>
-                            <p className="truncate text-white text-[11px] flex-1">{track.title}</p>
-                            <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
-                            <button
-                              onClick={() => {
-                                if (sessionRunning || isPlaying) {
-                                  setShowSendToSessionConfirm({ name: track.title, tracks: [track] });
-                                } else {
-                                  setPlaylist((prev) => [...prev, track]);
-                                  setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
-                                  if (!currentTrack) {
-                                    setCurrentTrack(track);
-                                    setCurrentIndex(0);
-                                  }
-                                }
-                              }}
-                              className="rounded border border-cyan-500/50 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-400 hover:bg-cyan-500/20"
-                            >
-                              Add
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (sessionRunning || isPlaying) {
-                            setShowSendToSessionConfirm({ name: "Uploaded Tracks", tracks: uploadedTracks });
-                          } else {
-                            setPlaylist((prev) => [...prev, ...uploadedTracks]);
-                            if (!currentTrack && uploadedTracks.length > 0) {
-                              setCurrentTrack(uploadedTracks[0]);
-                              setCurrentIndex(0);
-                            }
-                            setUploadedTracks([]);
-                          }
-                        }}
-                        className="w-full mt-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-3 py-2 text-xs font-bold text-white"
-                      >
-                        Add All to Session ({uploadedTracks.length})
-                      </button>
-                    </div>
-                  )}
 
                   {/* Cloud Sync Status */}
                   {user && isCloudSyncAvailable() && (
