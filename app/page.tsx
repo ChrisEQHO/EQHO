@@ -15,6 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
+import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -378,11 +379,22 @@ export default function Page() {
 
   // Fetch user on mount
   useEffect(() => {
+    // V0 Preview: use mock user when Supabase is not configured
+    if (isV0Preview && !supabase) {
+      setUser(mockUser as unknown as User);
+      return;
+    }
+    
     if (!supabase) return;
     
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      // In preview mode, fall back to mock user if not authenticated
+      if (isV0Preview && !user) {
+        setUser(mockUser as unknown as User);
+      } else {
+        setUser(user);
+      }
     };
     getUser();
 
