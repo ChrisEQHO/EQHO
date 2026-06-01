@@ -2544,10 +2544,10 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden pl-3 pr-4 pt-14 md:pt-3 w-full min-w-0">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-3 w-full min-w-0">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[260px_minmax(0,1fr)_340px] gap-3 w-full min-w-0">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[240px_minmax(0,1fr)_320px] gap-3 w-full min-w-0">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="hidden xl:block space-y-4 min-w-0 overflow-hidden">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
@@ -2927,7 +2927,7 @@ export default function Page() {
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
             <div className="flex flex-col gap-3 w-full min-w-0 overflow-hidden">
-              <Card className="shrink-0 overflow-hidden px-4 py-4 relative w-full">
+              <Card className="shrink-0 overflow-hidden px-3 py-3 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
@@ -2990,7 +2990,7 @@ export default function Page() {
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[80px] md:w-[110px] lg:w-[130px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden shrink-0"
+                  className="relative flex items-center justify-center w-[70px] md:w-[90px] h-[34px] md:h-[40px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden shrink-0"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
