@@ -2549,7 +2549,7 @@ export default function Page() {
         {activePage === "player" && (
           <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_420px] gap-4 w-full max-w-full min-w-0 overflow-hidden">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden lg:flex flex-col gap-3 w-[300px] shrink-0 overflow-hidden">
+            <div className="hidden lg:flex flex-col gap-3 w-full min-w-0 overflow-hidden lg:w-[300px] lg:shrink-0">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
@@ -2672,7 +2672,7 @@ export default function Page() {
             </div>
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
-            <div className="hidden lg:flex flex-col gap-3 min-w-0 flex-1 overflow-hidden">
+            <div className="hidden lg:flex flex-col gap-3 w-full min-w-0 overflow-hidden">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
@@ -2845,7 +2845,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-full max-w-full min-w-0 lg:w-[420px] lg:shrink-0 overflow-hidden">
+            <div className="flex flex-col gap-3 w-full max-w-full min-w-0 overflow-hidden lg:w-[420px] lg:min-w-[420px] lg:shrink-0">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
