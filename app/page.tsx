@@ -1041,6 +1041,30 @@ export default function Page() {
     }
   };
 
+  // Spacebar to toggle play/pause
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if spacebar and not typing in an input/textarea
+      if (e.code === 'Space' && 
+          !(e.target instanceof HTMLInputElement) && 
+          !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        if (currentTrack) {
+          if (isPlaying && audioRef.current) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+          } else if (audioRef.current && currentTrack.url) {
+            audioRef.current.play();
+            setIsPlaying(true);
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentTrack, isPlaying]);
+
   const handleUploadedTrackPlayPause = async (track: Track) => {
     if (!audioRef.current || !track?.url) return;
 
