@@ -2544,12 +2544,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="grid h-[calc(100vh-112px)] w-full min-w-0 overflow-hidden grid-cols-[84px_280px_minmax(0,1fr)_520px] gap-4 p-3 pb-0">
+      <main className="grid h-[calc(100vh-112px)] w-full max-w-full min-w-0 overflow-hidden grid-cols-[84px_300px_minmax(420px,1fr)_520px] gap-4 p-3 pb-0">
 
         {activePage === "player" && (
           <>
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <aside className="relative h-full w-[280px] min-w-0 overflow-hidden flex flex-col gap-3">
+            <aside className="relative h-full w-[300px] overflow-hidden flex flex-col gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
@@ -2845,7 +2845,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <aside className="relative h-full w-[520px] min-w-[520px] max-w-[520px] shrink-0 overflow-hidden flex flex-col gap-3">
+            <aside className="relative h-full w-[520px] shrink-0 overflow-hidden flex flex-col gap-3">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
