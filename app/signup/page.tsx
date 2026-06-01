@@ -37,7 +37,7 @@ export default function SignupPage() {
     const supabase = createClient()
     
     if (!supabase) {
-      setError('Authentication service is not configured. Please contact support.')
+      setError('Missing Supabase environment variables. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in v0 environment variables.')
       setLoading(false)
       return
     }
