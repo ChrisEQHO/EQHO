@@ -2741,7 +2741,7 @@ export default function Page() {
                     className="hidden"
                   />
                   <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
-                  <p className="text-white font-bold text-xs">Drop files or folders</p>
+                  <p className="text-white font-bold text-xs">Drop files and playlists</p>
                   <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
                   <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
                 </label>
@@ -4219,7 +4219,7 @@ export default function Page() {
                   <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                     {/* Uploaded Tracks Section */}
                     <div className="mb-3">
-                      <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
+<h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks and Playlists</h2>
                       {uploadedTracks.length === 0 ? (
                         <p className="text-white/40 text-center py-2 text-xs">No tracks uploaded</p>
                       ) : (
