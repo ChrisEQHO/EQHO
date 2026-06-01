@@ -599,7 +599,7 @@ export default function Page() {
 
   const routineTimeLabel = formatSessionTime(visibleRoutineSeconds);
 
-  const estimatedSessionLabel = formatSessionTime(visibleSessionSeconds);
+  const estimatedSessionLabel = formatSessionTime(fullSessionSeconds);
 
   const remainingTimeLabel = formatDuration(remainingSeconds);
 
