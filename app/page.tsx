@@ -377,18 +377,6 @@ export default function Page() {
   // Get the visible index for a track (for display numbering)
   const getVisibleIndex = (trackId: string) => visiblePlaylist.findIndex(t => t.id === trackId);
 
-  // Scale player to fit viewport width
-  useEffect(() => {
-    const updateScale = () => {
-      const availableWidth = window.innerWidth;
-      setPlayerScale(Math.min(1, availableWidth / DESIGN_WIDTH));
-    };
-
-    updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, []);
-
   // Fetch user on mount
   useEffect(() => {
     // V0 Preview: use mock user, do not call Supabase
@@ -1474,10 +1462,6 @@ export default function Page() {
   const [remainingSessionSeconds, setRemainingSessionSeconds] = useState(0);
   const [currentTrackProgress, setCurrentTrackProgress] = useState(0);
 
-  // Scale state for viewport fitting
-  const DESIGN_WIDTH = 1440;
-  const [playerScale, setPlayerScale] = useState(1);
-
   const handleDragStart = (index: number) => {
     setDraggedTrackIndex(index);
   };
@@ -1625,16 +1609,8 @@ export default function Page() {
   };
 
   return (
-    <div className="w-full h-screen overflow-hidden">
-      <div
-        style={{
-          width: `${DESIGN_WIDTH}px`,
-          height: `${100 / playerScale}vh`,
-          transform: `scale(${playerScale})`,
-          transformOrigin: "top left",
-        }}
-        className="bg-[#020617] text-white"
-      >
+    <div className="h-screen w-full overflow-x-auto overflow-y-hidden">
+      <div className="min-w-[1440px] h-full bg-[#020617] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -3847,7 +3823,7 @@ export default function Page() {
           </div>
         </div>
       )}
-      </div>{/* End Scaled Player Shell */}
+      </div>
     </div>
   );
 }
