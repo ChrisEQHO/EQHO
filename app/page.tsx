@@ -2630,6 +2630,12 @@ export default function Page() {
                         >
                           Load
                         </button>
+                        <button
+                          onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
+                          className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
+                        >
+                          Clear
+                        </button>
                       </div>
                     ))}
                   </div>
