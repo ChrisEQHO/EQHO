@@ -1981,170 +1981,192 @@ export default function Page() {
           </div>
         )}
 
-        {/* Fullscreen Mobile Player */}
+        {/* Fullscreen Mobile Player - Enhanced to match Desktop */}
         {showFullscreenMobilePlayer && (
           <div className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset">
+            {/* Session Finished Mobile Takeover */}
+            {showSessionFinished && (
+              <div className="absolute inset-0 z-[350] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] px-6">
+                <div className="absolute inset-0 overflow-hidden">
+                  <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#ff4fa3]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                  <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#ff8a00]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                </div>
+                <div className="relative z-10 flex flex-col items-center text-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(255,79,179,0.5)]">
+                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h1 className="text-3xl font-black tracking-tight mb-2 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">SESSION COMPLETE</h1>
+                  <p className="text-lg text-white/70 mb-6">All {playlist.length} tracks finished</p>
+                  <div className="flex gap-6 mb-8">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-white">{playlist.length}</p>
+                      <p className="text-[10px] text-white/50 uppercase">Tracks</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-white">{playlistRepeats}</p>
+                      <p className="text-[10px] text-white/50 uppercase">Rounds</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-white">{formatSessionTime(totalSessionSeconds)}</p>
+                      <p className="text-[10px] text-white/50 uppercase">Time</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 w-full">
+                    <button onClick={() => { setShowSessionFinished(false); setFinishedTracks(new Set()); setCurrentIndex(0); toggleSession(); }} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold">Start New Session</button>
+                    <button onClick={() => { setShowSessionFinished(false); setShowFullscreenMobilePlayer(false); }} className="w-full py-3 rounded-xl border border-white/20 text-white font-medium">Exit Fullscreen</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Gap Countdown Overlay for final 3 seconds */}
+            {isGapPaused && gapCountdown <= 3 && (
+              <div className="absolute inset-0 z-[320] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
+                <div key={gapCountdown} className="text-[50vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent" style={{ animation: 'countdownPulse 1s ease-out' }}>
+                  {gapCountdown}
+                </div>
+                <div className="mt-4 text-center">
+                  <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Up Next</p>
+                  <p className="text-xl font-bold text-white px-4">
+                    {(() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                      return nextTrack?.title || "End of Playlist";
+                    })()}
+                  </p>
+                </div>
+                <style jsx>{`
+                  @keyframes countdownPulse {
+                    0% { transform: scale(0.5); opacity: 0; }
+                    30% { transform: scale(1.1); opacity: 1; }
+                    100% { transform: scale(1); opacity: 1; }
+                  }
+                `}</style>
+              </div>
+            )}
+
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 pt-[env(safe-area-inset-top)]">
-              <button
-                onClick={() => setShowFullscreenMobilePlayer(false)}
-                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
-              >
-                <X size={20} className="text-white" />
+            <div className="flex items-center justify-between px-4 py-2 pt-[env(safe-area-inset-top)] shrink-0">
+              <button onClick={() => setShowFullscreenMobilePlayer(false)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+                <X size={18} className="text-white" />
               </button>
-              <h2 className="text-white/80 font-medium">Now Playing</h2>
-              <div className="w-10" /> {/* Spacer for centering */}
+              <h2 className="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">NOW PLAYING</h2>
+              <button onClick={() => setIsMuted(!isMuted)} className={`w-9 h-9 rounded-full flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
             </div>
 
-            {/* Album Art / Track Visual */}
-            <div className="flex-1 flex flex-col items-center justify-center px-8">
-              <div className="w-[min(70vw,280px)] h-[min(70vw,280px)] rounded-3xl bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-cyan-400/30 border border-white/10 flex items-center justify-center shadow-[0_0_60px_rgba(236,72,153,0.3)]">
-                <Music size={80} className="text-pink-400/60" />
+            {/* Main Content - Scrollable */}
+            <div className="flex-1 flex flex-col overflow-hidden px-4">
+              {/* Session Remaining Timer - Large */}
+              <div className="text-center py-4">
+                <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Session Remaining</p>
+                <div className="text-5xl font-black tracking-tight tabular-nums leading-none">
+                  {isGapPaused ? (
+                    <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>{gapCountdown}</span>
+                  ) : (
+                    <span className="text-white">{formatSessionTime(remainingSeconds)}</span>
+                  )}
+                </div>
+                <p className="text-[10px] text-white/40 mt-1">
+                  {isGapPaused ? "Next Track In" : `${visiblePlaylist.length} tracks + ${gapSeconds}s gaps`}
+                </p>
               </div>
 
               {/* Track Info */}
-              <div className="mt-8 text-center w-full">
-                <h1 className="text-4xl md:text-5xl font-black text-white truncate px-4 bg-gradient-to-r from-white via-pink-100 to-white bg-clip-text text-transparent">
-                  {currentTrack?.title || "No Track Selected"}
-  </h1>
-  <p className="text-white/50 mt-2 text-lg">
-  {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
-  </p>
-  </div>
-
-              {/* Timer */}
-              <div className="mt-6">
-                {isGapPaused && gapCountdown <= 3 ? (
-                  /* Large animated countdown overlay for final 3 seconds */
-                  <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-                    <div 
-                      key={gapCountdown}
-                      className="text-[60vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent drop-shadow-[0_0_100px_rgba(255,79,163,0.8)]"
-                      style={{
-                        animation: 'countdownPulse 1s ease-out',
-                        textShadow: '0 0 120px rgba(255,79,163,0.6), 0 0 240px rgba(255,138,0,0.4)'
-                      }}
-                    >
-                      {gapCountdown}
-                    </div>
-                    {/* Next track info */}
-                    <div className="mt-4 text-center">
-                      <p className="text-white/60 text-lg uppercase tracking-widest mb-2">Up Next</p>
-                      <p className="text-3xl md:text-4xl font-bold text-white">
-                        {(() => {
-                          const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                          const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                          return nextTrack?.title || "End of Playlist";
-                        })()}
-                      </p>
-                    </div>
-                    <style jsx>{`
-                      @keyframes countdownPulse {
-                        0% {
-                          transform: scale(0.5);
-                          opacity: 0;
-                        }
-                        30% {
-                          transform: scale(1.1);
-                          opacity: 1;
-                        }
-                        100% {
-                          transform: scale(1);
-                          opacity: 1;
-                        }
-                      }
-                    `}</style>
-                  </div>
-                ) : isGapPaused ? (
-                  <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
-                    {gapCountdown}
-                  </div>
-                ) : (
-                  <div className="text-5xl font-black tracking-wider text-white tabular-nums">
-                    {currentTime > 0 || isPlaying
-                      ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
-                      : "00:00"}
-                  </div>
-                )}
+              <div className="text-center mb-3">
+                <h1 className="text-xl font-black text-white truncate px-2">{currentTrack?.title || "No Track Selected"}</h1>
+                <p className="text-sm text-white/70 tabular-nums mt-1">
+                  {currentTime > 0 || isPlaying ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}` : "00:00"}
+                  {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
+                </p>
+                <p className="text-xs text-white/50">{currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}</p>
               </div>
 
-              {/* Progress Bar */}
-              <div className="w-full mt-8 px-4">
-                <div 
-                  className="h-2 bg-white/10 rounded-full overflow-hidden cursor-pointer"
-                  onClick={(e) => {
-                    if (!audioRef.current || !trackDuration) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    audioRef.current.currentTime = percent * trackDuration;
-                  }}
-                >
-                  <div 
-                    className="h-full bg-gradient-to-r from-pink-500 to-orange-500 transition-all"
-                    style={{ width: `${trackDuration ? (currentTime / trackDuration) * 100 : 0}%` }}
-                  />
+              {/* Playback Controls */}
+              <div className="flex items-center justify-center gap-6 mb-3">
+                <button onClick={() => { if (isPlaying && !isGapPaused) { setShowSkipBackConfirm(true); } else { goToPreviousTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                  <StepBack size={22} className="text-white" />
+                </button>
+                <button onClick={() => { if (isPlaying && !isGapPaused) { setShowPauseConfirm(true); } else { toggleSession(); } }} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
+                  {isGapPaused ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
+                </button>
+                <button onClick={() => { if (isPlaying && !isGapPaused) { setShowSkipForwardConfirm(true); } else { goToNextTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                  <StepForward size={22} className="text-white" />
+                </button>
+              </div>
+
+              {/* Waveform Progress Bar */}
+              <div
+                className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 mb-3"
+                onClick={(e) => {
+                  if (!audioRef.current || trackDuration === 0) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = (e.clientX - rect.left) / rect.width;
+                  audioRef.current.currentTime = pct * trackDuration;
+                }}
+              >
+                {Array.from({ length: 50 }).map((_, i) => {
+                  const barProgress = (i / 50) * 100;
+                  const isPlayed = barProgress <= trackProgress;
+                  const heights = [40, 60, 80, 55, 70, 45, 85, 50, 65, 75];
+                  return (
+                    <div key={i} className={`flex-1 rounded-sm transition-colors ${isPlayed ? "bg-gradient-to-t from-pink-500 to-orange-400" : "bg-white/15"}`} style={{ height: `${heights[i % heights.length]}%` }} />
+                  );
+                })}
+                <div className="absolute bottom-0.5 left-2 text-[9px] text-white/60">{formatDuration(currentTime)}</div>
+                <div className="absolute bottom-0.5 right-2 text-[9px] text-white/60">{trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}</div>
+              </div>
+
+              {/* Up Next Queue */}
+              <div className="flex-1 min-h-0 flex flex-col bg-[#090f1c]/60 rounded-xl border border-white/10 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
+                  <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowFullscreenQueuePlaylist(true)} className="px-2 py-1 rounded bg-pink-500/10 border border-pink-500/30 text-pink-400 text-[9px] font-bold">+ Add</button>
+                    <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs text-white/40 mt-2">
-                  <span>{formatDuration(Math.floor(currentTime))}</span>
-                  <span>{formatDuration(Math.floor(trackDuration))}</span>
+                <div className="flex-1 overflow-y-auto">
+                  {visiblePlaylist.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-6">
+                      <ListMusic size={32} className="text-white/20 mb-2" />
+                      <p className="text-white/40 text-xs">No tracks in queue</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1 p-2">
+                      {visiblePlaylist.map((track, idx) => {
+                        const isCurrent = currentTrack?.id === track.id;
+                        const isFinished = finishedTracks.has(track.id);
+                        return (
+                          <div key={track.id} onClick={() => handleTrackSelect(track)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition ${isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                            <span className={`text-[10px] font-bold w-5 text-center ${isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
+                            <p className={`text-xs truncate flex-1 ${isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
+                            {isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
+                            {isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
+                            <button onClick={(e) => { e.stopPropagation(); if (sessionRunning || isPlaying) { setShowRemoveTrackConfirm({ track, originalIndex: idx }); } else { setPlaylist(prev => prev.filter(t => t.id !== track.id)); } }} className="p-1 rounded hover:bg-white/10">
+                              <X size={12} className="text-white/40" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Volume Slider */}
+              <div className="flex items-center gap-3 py-3 justify-center shrink-0">
+                <Volume2 size={14} className="text-white/40" />
+                <input type="range" min={0} max={100} value={isMuted ? 0 : volume} onChange={(e) => { setVolume(Number(e.target.value)); if (Number(e.target.value) > 0) setIsMuted(false); }} className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full" />
+                <span className="text-[10px] text-white/40 w-8">{isMuted ? "0" : volume}%</span>
               </div>
             </div>
 
-            {/* Controls */}
-            <div className={`px-8 ${!currentTrack && !isPlaying ? 'pb-24' : 'pb-8'} pb-[calc(env(safe-area-inset-bottom)+2rem)]`}>
-              <div className="flex items-center justify-center gap-8">
-                {/* Previous */}
-                <button 
-                  onClick={goToPreviousTrack}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"
-                >
-                  <StepBack size={28} className="text-white" />
-                </button>
-
-                {/* Play/Pause */}
-                <button
-                  onClick={toggleSession}
-                  disabled={!currentTrack && playlist.length === 0}
-                  className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)]"
-                >
-                  {isGapPaused ? (
-                    <span className="text-2xl font-black tabular-nums countdown-flash">{gapCountdown}</span>
-                  ) : isPlaying ? (
-                    <Pause size={36} />
-                  ) : (
-                    <Play size={36} className="ml-1" />
-                  )}
-                </button>
-
-                {/* Next */}
-                <button 
-                  onClick={goToNextTrack}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"
-                >
-                  <StepForward size={28} className="text-white" />
-                </button>
-              </div>
-
-              {/* Volume */}
-              <div className="flex items-center gap-3 mt-8 justify-center">
-                <button onClick={() => setIsMuted(!isMuted)}>
-                  {isMuted ? (
-                    <VolumeX size={20} className="text-white/50" />
-                  ) : (
-                    <Volume2 size={20} className="text-white/50" />
-                  )}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                />
-              </div>
-            </div>
+            {/* Bottom Safe Area */}
+            <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
           </div>
         )}
 
