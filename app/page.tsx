@@ -2458,6 +2458,15 @@ export default function Page() {
                   <X size={12} />
                   Clear
                 </button>
+                {hiddenTrackIds.size > 0 && (
+                  <button
+                    onClick={() => setHiddenTrackIds(new Set())}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-bold hover:bg-blue-500/20 transition"
+                  >
+                    <RotateCcw size={12} />
+                    Restore ({hiddenTrackIds.size})
+                  </button>
+                )}
   <span className="text-[10px] text-white/50">{visiblePlaylist.length} tracks{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</span>
               </div>
             </div>
@@ -2835,18 +2844,18 @@ export default function Page() {
                   >
                     Clear Playlist
                   </button>
-                </div>
-                <div className="mt-1 border-b border-white/10 pb-2 flex items-center justify-between">
-                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
                   {hiddenTrackIds.size > 0 && (
                     <button
                       onClick={() => setHiddenTrackIds(new Set())}
-                      className="flex items-center gap-1 px-2 py-1 text-[9px] md:text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md hover:bg-blue-500/20 transition"
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md hover:bg-blue-500/20 transition flex items-center gap-1"
                     >
                       <RotateCcw size={12} />
                       Restore ({hiddenTrackIds.size})
                     </button>
                   )}
+                </div>
+                <div className="mt-1 border-b border-white/10 pb-2">
+                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
                 </div>
 
                 <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[calc(100vh-200px)] overflow-y-auto">
