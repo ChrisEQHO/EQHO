@@ -2436,15 +2436,6 @@ export default function Page() {
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-2">
-                {hiddenTrackIds.size > 0 && (
-                  <button
-                    onClick={() => setHiddenTrackIds(new Set())}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-bold hover:bg-blue-500/20 transition"
-                  >
-                    <RotateCcw size={12} />
-                    Restore ({hiddenTrackIds.size})
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     if (sessionRunning || isPlaying) {
