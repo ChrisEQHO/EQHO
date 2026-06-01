@@ -1486,6 +1486,36 @@ export default function Page() {
       ...current,
       [key]: value,
     }));
+    // Sync settings to player state variables
+    if (key === "gapSeconds") setGapSeconds(value);
+    if (key === "playlistRepeats") setPlaylistRepeats(value);
+    if (key === "backToBack") setBackToBack(value);
+    if (key === "defaultVolume") setVolume(value);
+  };
+
+  // Wrapper functions to keep settings and player state in sync
+  const updateGapSeconds = (newValue: number | ((prev: number) => number)) => {
+    setGapSeconds((prev) => {
+      const val = typeof newValue === "function" ? newValue(prev) : newValue;
+      setSettings((s) => ({ ...s, gapSeconds: val }));
+      return val;
+    });
+  };
+
+  const updatePlaylistRepeats = (newValue: number | ((prev: number) => number)) => {
+    setPlaylistRepeats((prev) => {
+      const val = typeof newValue === "function" ? newValue(prev) : newValue;
+      setSettings((s) => ({ ...s, playlistRepeats: val }));
+      return val;
+    });
+  };
+
+  const updateBackToBack = (newValue: boolean | ((prev: boolean) => boolean)) => {
+    setBackToBack((prev) => {
+      const val = typeof newValue === "function" ? newValue(prev) : newValue;
+      setSettings((s) => ({ ...s, backToBack: val }));
+      return val;
+    });
   };
 
   const [sessionQueue, setSessionQueue] = useState<QueueItem[]>([]);
@@ -4555,9 +4585,9 @@ export default function Page() {
                 <div>
                   <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Gap</div>
                   <div className="flex items-center rounded border border-white/20 bg-white/5">
-                    <button onClick={() => setGapSeconds((v) => Math.max(0, v - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={12} /></button>
+                    <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={12} /></button>
                     <span className="px-2 text-xs font-semibold text-white border-x border-white/15">{gapSeconds}s</span>
-                    <button onClick={() => setGapSeconds((v) => Math.min(120, v + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={12} /></button>
+                    <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={12} /></button>
                   </div>
                 </div>
               </div>
@@ -4583,7 +4613,7 @@ export default function Page() {
                 <div>
                   <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">B2B</div>
                   <button 
-                    onClick={() => setBackToBack((v) => !v)}
+                    onClick={() => updateBackToBack((v) => !v)}
                     className="flex items-center gap-1.5"
                   >
                     <span className="text-[10px] font-medium text-white">{backToBack ? "On" : "Off"}</span>
@@ -4607,9 +4637,9 @@ export default function Page() {
                 <div>
                   <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Repeat</div>
                   <div className="flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
-                    <button onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1.5 py-0.5 text-cyan-300"><Minus size={12} /></button>
+                    <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1.5 py-0.5 text-cyan-300"><Minus size={12} /></button>
                     <span className="px-2 text-xs font-semibold text-white border-x border-cyan-400/20">{playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}</span>
-                    <button onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))} className="px-1.5 py-0.5 text-cyan-300"><Plus size={12} /></button>
+                    <button onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))} className="px-1.5 py-0.5 text-cyan-300"><Plus size={12} /></button>
                   </div>
                 </div>
               </div>
@@ -4644,14 +4674,14 @@ export default function Page() {
                 <div className="text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
                 <div className="mt-0.5 flex items-center rounded border border-white/20 bg-white/5">
                   <button 
-                    onClick={() => setGapSeconds((v) => Math.max(0, v - 5))}
+                    onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))}
                     className="px-2.5 py-1 text-white/90 hover:text-white"
                   >
                     <Minus size={14} />
                   </button>
                   <div className="border-x border-white/15 px-4 py-1 text-base font-semibold text-white">{gapSeconds} sec</div>
                   <button 
-                    onClick={() => setGapSeconds((v) => Math.min(120, v + 5))}
+                    onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))}
                     className="px-2.5 py-1 text-white/90 hover:text-white"
                   >
                     <Plus size={14} />
@@ -4669,7 +4699,7 @@ export default function Page() {
                 <div className="text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
                 <div className="mt-0.5 flex items-center gap-2">
                   <button 
-                    onClick={() => setBackToBack((v) => !v)}
+                    onClick={() => updateBackToBack((v) => !v)}
                     className="flex items-center gap-1.5"
                   >
                     <span className="text-xs font-medium text-white">{backToBack ? "On" : "Off"}</span>
@@ -4709,7 +4739,7 @@ export default function Page() {
                 <div className="text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
                 <div className="mt-0.5 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
                   <button
-                    onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))}
+                    onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))}
                     className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
                     <Minus size={14} />
@@ -4718,7 +4748,7 @@ export default function Page() {
                     {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
                   </div>
                   <button
-                    onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))}
+                    onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))}
                     className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
                     <Plus size={14} />
