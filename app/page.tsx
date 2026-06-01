@@ -2435,7 +2435,7 @@ export default function Page() {
         <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[240px] max-w-[320px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => {
                     if (sessionRunning || isPlaying) {
@@ -2444,21 +2444,21 @@ export default function Page() {
                       clearPlaylist();
                     }
                   }}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[10px] font-bold hover:bg-orange-500/20 transition"
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold hover:bg-orange-500/20 transition"
                 >
-                  <X size={12} />
+                  <X size={10} />
                   Clear
                 </button>
                 {hiddenTrackIds.size > 0 && (
                   <button
                     onClick={() => setHiddenTrackIds(new Set())}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-bold hover:bg-blue-500/20 transition"
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-bold hover:bg-blue-500/20 transition"
                   >
-                    <RotateCcw size={12} />
+                    <RotateCcw size={10} />
                     Restore ({hiddenTrackIds.size})
                   </button>
                 )}
-  <span className="text-[10px] text-white/50">{visiblePlaylist.length} tracks{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</span>
+                <span className="text-[9px] text-white/50">{visiblePlaylist.length} tracks</span>
               </div>
             </div>
             <p className="border-b border-white/10 pb-2 text-[10px] text-white/60 mb-2">Drag to re-order</p>
