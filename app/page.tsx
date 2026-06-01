@@ -2845,7 +2845,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-full max-w-full min-w-0 overflow-hidden lg:w-[420px] lg:min-w-[420px] lg:shrink-0">
+            <div className="flex flex-col gap-3 w-full min-w-0 lg:w-[420px] overflow-hidden">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
