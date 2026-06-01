@@ -590,16 +590,16 @@ export default function Page() {
   // Track completion count for display
   const completedTracks = currentIndex;
 
-  // Display labels
+  // Display labels - use visible playlist for accurate session data
   const currentPlaylistDisplayName =
     playlist.length > 0 ? currentPlaylistName : "No playlist selected";
 
   const trackCountLabel =
-    `${trackCount} ${trackCount === 1 ? "track" : "tracks"}`;
+    `${visibleTrackCount} ${visibleTrackCount === 1 ? "track" : "tracks"}`;
 
-  const routineTimeLabel = formatSessionTime(totalRoutineSeconds);
+  const routineTimeLabel = formatSessionTime(visibleRoutineSeconds);
 
-  const estimatedSessionLabel = formatSessionTime(estimatedSessionSeconds);
+  const estimatedSessionLabel = formatSessionTime(visibleSessionSeconds);
 
   const remainingTimeLabel = formatDuration(remainingSeconds);
 
@@ -3265,7 +3265,7 @@ export default function Page() {
               <h3 className="mt-2 text-[10px] font-bold uppercase">Session Overview</h3>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {[
-                  [Music, trackCount, "ROUTINES", "in playlist", "text-purple-400"],
+                  [Music, visibleTrackCount, "ROUTINES", "in playlist", "text-purple-400"],
                   [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
                   [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
                   [Timer, estimatedSessionLabel, "EST. SESSION", "(including gaps)", "text-purple-400"],
@@ -3279,23 +3279,6 @@ export default function Page() {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="mt-3 border-y border-white/10 py-2">
-                <div className="mb-1.5 flex justify-between text-[10px] uppercase">
-                  <span>Session Progress</span>
-                  <span className="text-cyan-400">{completedTracks} of {trackCount} completed</span>
-                </div>
-                <div className="h-[4px] rounded-full bg-white/15">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-pink-500 to-cyan-400 transition-all" 
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <div className="mt-1.5 flex justify-between text-[10px]">
-                  <span className="text-pink-500">{progressPercent}%</span>
-                  <span className="text-cyan-400">{remainingTimeLabel} remaining</span>
-                </div>
               </div>
             </div>
           </div>
