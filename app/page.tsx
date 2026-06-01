@@ -1995,10 +1995,10 @@ export default function Page() {
 
               {/* Track Info */}
               <div className="mt-8 text-center w-full">
-                <h1 className="text-2xl font-bold text-white truncate px-4">
+                <h1 className="text-4xl md:text-5xl font-black text-white truncate px-4 bg-gradient-to-r from-white via-pink-100 to-white bg-clip-text text-transparent">
                   {currentTrack?.title || "No Track Selected"}
   </h1>
-  <p className="text-white/50 mt-1">
+  <p className="text-white/50 mt-2 text-lg">
   {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
   </p>
   </div>
@@ -2007,16 +2007,27 @@ export default function Page() {
               <div className="mt-6">
                 {isGapPaused && gapCountdown <= 3 ? (
                   /* Large animated countdown overlay for final 3 seconds */
-                  <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                  <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
                     <div 
                       key={gapCountdown}
-                      className="text-[75vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent animate-countdown-pulse drop-shadow-[0_0_100px_rgba(255,79,163,0.8)]"
+                      className="text-[60vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent drop-shadow-[0_0_100px_rgba(255,79,163,0.8)]"
                       style={{
                         animation: 'countdownPulse 1s ease-out',
                         textShadow: '0 0 120px rgba(255,79,163,0.6), 0 0 240px rgba(255,138,0,0.4)'
                       }}
                     >
                       {gapCountdown}
+                    </div>
+                    {/* Next track info */}
+                    <div className="mt-4 text-center">
+                      <p className="text-white/60 text-lg uppercase tracking-widest mb-2">Up Next</p>
+                      <p className="text-3xl md:text-4xl font-bold text-white">
+                        {(() => {
+                          const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                          const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                          return nextTrack?.title || "End of Playlist";
+                        })()}
+                      </p>
                     </div>
                     <style jsx>{`
                       @keyframes countdownPulse {
