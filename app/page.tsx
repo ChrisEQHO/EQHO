@@ -67,6 +67,7 @@ import {
   Download,
   Check,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 
 const uploads = [
