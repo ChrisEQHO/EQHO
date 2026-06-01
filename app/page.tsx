@@ -2544,10 +2544,10 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden px-3 pt-14 md:pt-3 w-full min-w-0 max-w-full">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden pl-3 pr-4 pt-14 md:pt-3 w-full min-w-0">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[280px_minmax(0,1fr)_360px] gap-4 w-full min-w-0 max-w-full overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[260px_minmax(0,1fr)_340px] gap-3 w-full min-w-0">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="hidden xl:block space-y-4 min-w-0 overflow-hidden">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
@@ -2926,7 +2926,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-[360px] shrink-0 overflow-hidden">
+            <div className="flex flex-col gap-3 w-full min-w-0 overflow-hidden">
               <Card className="shrink-0 overflow-hidden px-4 py-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
