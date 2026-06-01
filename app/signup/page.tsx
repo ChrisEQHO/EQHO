@@ -70,18 +70,10 @@ export default function SignupPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
+        {/* Header */}
         <div className="flex flex-col items-center mb-6">
-          <div className="relative w-[300px] h-[180px]">
-            <Image
-              src="/eqho-player-logo.png"
-              alt="EQHO Player"
-              fill
-              priority
-              className="object-contain mix-blend-lighten"
-            />
-          </div>
-          <p className="text-[#cbd5e1] text-sm -mt-2">Create your account</p>
+          <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
+          <p className="text-[#cbd5e1] text-sm mt-2">Create your account</p>
         </div>
 
         {/* Signup Card */}

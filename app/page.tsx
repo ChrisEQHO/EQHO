@@ -106,26 +106,6 @@ const queue = [
 
 
 
-/* 
- * EQHO Brand Logo - Colourway 3 SUNSET
- * Uses the uploaded logo image exactly as provided
- * Logo image: /public/eqho-player-logo.png
- */
-
-function EqhoBrand({ className = "" }: { className?: string }) {
-  return (
-    <div className={`relative shrink-0 ${className}`}>
-      <Image
-        src="/eqho-player-logo.png"
-        alt="EQHO Player"
-        fill
-        priority
-        className="object-contain mix-blend-lighten"
-      />
-    </div>
-  );
-}
-
 function SettingsSection({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-3xl border border-white/10 bg-[rgba(9,15,28,0.96)] p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
@@ -2614,7 +2594,7 @@ export default function Page() {
 
       {/* Mobile Navigation Bar */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#050816] border-b border-white/10">
-        <EqhoBrand className="h-[28px] w-[100px]" />
+        <span className="text-white font-bold text-sm">EQHO</span>
         <div className="flex items-center gap-1">
           {[
             [Home, "player", "pink"],

@@ -61,18 +61,10 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
+        {/* Header */}
         <div className="flex flex-col items-center mb-4">
-          <div className="relative w-[400px] h-[220px]">
-            <Image
-              src="/eqho-player-logo.png"
-              alt="EQHO Player"
-              fill
-              priority
-              className="object-contain mix-blend-lighten"
-            />
-          </div>
-          <p className="text-[#cbd5e1] text-sm -mt-2">Welcome back to your session</p>
+          <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
+          <p className="text-[#cbd5e1] text-sm mt-2">Welcome back to your session</p>
         </div>
 
         {/* Login Card */}
