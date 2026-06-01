@@ -2814,28 +2814,31 @@ export default function Page() {
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 flex flex-col">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-                  <button
-                    onClick={() => {
-                      if (sessionRunning || isPlaying) {
-                        setShowClearPlaylistConfirm(true);
-                      } else {
-                        clearPlaylist();
-                      }
-                    }}
-                    disabled={playlist.length === 0}
-                    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Clear Playlist
-                  </button>
-                  {hiddenTrackIds.size > 0 && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setHiddenTrackIds(new Set())}
-                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md hover:bg-blue-500/20 transition flex items-center gap-1"
+                      onClick={() => {
+                        console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);
+                        if (sessionRunning || isPlaying) {
+                          setShowClearPlaylistConfirm(true);
+                        } else {
+                          clearPlaylist();
+                        }
+                      }}
+                      disabled={playlist.length === 0}
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <RotateCcw size={12} />
-                      Restore ({hiddenTrackIds.size})
+                      Clear Playlist
                     </button>
-                  )}
+                    {hiddenTrackIds.size > 0 && (
+                      <button
+                        onClick={() => setHiddenTrackIds(new Set())}
+                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md hover:bg-blue-500/20 transition flex items-center gap-1"
+                      >
+                        <RotateCcw size={12} />
+                        Restore ({hiddenTrackIds.size})
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-1 border-b border-white/10 pb-2">
                   <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
