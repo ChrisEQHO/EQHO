@@ -2108,7 +2108,7 @@ export default function Page() {
             </div>
 
             {/* Controls */}
-            <div className="px-8 pb-8 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+            <div className={`px-8 ${!currentTrack && !isPlaying ? 'pb-24' : 'pb-8'} pb-[calc(env(safe-area-inset-bottom)+2rem)]`}>
               <div className="flex items-center justify-center gap-8">
                 {/* Previous */}
                 <button 
