@@ -2292,8 +2292,8 @@ export default function Page() {
               
               {/* Session Countdown Timer - Large */}
               <div className="flex flex-col items-center mb-6">
-                <p className="text-sm text-white/40 uppercase tracking-widest mb-2">Session Remaining</p>
-                <div className="text-8xl font-black tracking-tight tabular-nums leading-none">
+                <p className="text-base text-white/40 uppercase tracking-widest mb-3">Session Remaining</p>
+                <div className="text-[10rem] font-black tracking-tight tabular-nums leading-none">
                   {isGapPaused ? (
                     <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>
                       {gapCountdown}
@@ -2304,25 +2304,25 @@ export default function Page() {
                     </span>
   )}
   </div>
-  <p className="text-xs text-white/40 mt-2">
+  <p className="text-sm text-white/40 mt-3">
   {isGapPaused ? "Next Track In" : `${visiblePlaylist.length} tracks + ${gapSeconds}s gaps`}
   </p>
               </div>
 
               {/* Track Title */}
-              <h3 className="text-3xl font-bold text-white text-center mb-2 max-w-[500px] truncate">
+              <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
                 {currentTrack?.title || "No Track Selected"}
               </h3>
               
               {/* Track Timer - Larger */}
-              <p className="text-2xl text-white/70 tabular-nums mb-2">
+              <p className="text-3xl text-white/70 tabular-nums mb-3">
                 {currentTime > 0 || isPlaying
                   ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                   : "00:00"}
                 {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
   </p>
   
-  <p className="text-base text-white/50 mb-6">
+  <p className="text-xl text-white/50 mb-6">
   {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
   </p>
 
