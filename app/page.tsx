@@ -2544,12 +2544,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-auto px-4 md:px-6 pt-14 md:pt-3 w-full box-border">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden px-4 pt-14 md:pt-3 w-full box-border">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[160px_minmax(150px,0.4fr)_minmax(400px,1fr)] gap-3 w-full pr-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[160px_minmax(150px,0.4fr)_minmax(300px,1fr)] gap-3 w-full max-w-full">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden md:flex flex-col gap-3 min-w-0 overflow-hidden">
+            <div className="hidden lg:flex flex-col gap-3 min-w-0 overflow-hidden">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
@@ -2672,7 +2672,7 @@ export default function Page() {
             </div>
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
-            <div className="flex flex-col gap-3 order-first md:order-none min-w-0 overflow-hidden">
+            <div className="hidden lg:flex flex-col gap-3 min-w-0 overflow-hidden">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
@@ -2845,8 +2845,8 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-full overflow-visible">
-              <Card className="shrink-0 overflow-hidden px-4 py-4 relative w-full">
+            <div className="flex flex-col gap-3 w-full min-w-0 overflow-hidden">
+              <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
