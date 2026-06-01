@@ -33,12 +33,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-[#020617]">
+    <html lang="en" className="bg-[#020617] overflow-x-hidden">
       <head>
         <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href={isMobileBuild ? '/apple-icon.png' : '/apple-icon'} />
       </head>
-      <body className="font-sans antialiased bg-[#020617]">
+      <body className="font-sans antialiased bg-[#020617] overflow-x-hidden w-screen max-w-[100vw]">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
         {process.env.NODE_ENV === 'production' && <SpeedInsights />}

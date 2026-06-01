@@ -2,6 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  // V0 Preview bypass: skip auth entirely in development
+  if (
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
+  ) {
+    return NextResponse.next()
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 

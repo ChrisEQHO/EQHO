@@ -15,6 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
+import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -314,6 +315,21 @@ function DraggableTrackRow({
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
+
+  // Sidebar navigation items
+  const sidebarItems = [
+    { icon: Home, page: "player", color: "pink" },
+    { icon: ListMusic, page: "playlists", color: "pink" },
+    { icon: Settings, page: "settings", color: "pink" },
+  ] as const;
+
+  const activeColors: Record<string, string> = {
+    pink: "text-[#ff4fa3] bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10",
+  };
+
+  // Mobile tab state
+  const [mobileTab, setMobileTab] = useState<"queue" | "nowplaying" | "upload">("queue");
+
   const [playlistRepeats, setPlaylistRepeats] = useState(1);
   const [gapSeconds, setGapSeconds] = useState(10);
   const [backToBack, setBackToBack] = useState(false);
@@ -378,6 +394,12 @@ export default function Page() {
 
   // Fetch user on mount
   useEffect(() => {
+    // V0 Preview: use mock user, do not call Supabase
+    if (isV0Preview) {
+      setUser(mockUser as unknown as User);
+      return;
+    }
+    
     if (!supabase) return;
     
     const getUser = async () => {
@@ -1602,7 +1624,7 @@ export default function Page() {
   };
 
   return (
-    <div className="relative h-screen overflow-hidden bg-[#020617] text-white">
+    <div className="h-screen w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -1740,7 +1762,7 @@ export default function Page() {
         {/* Queue Playlist Modal */}
         {showFullscreenQueuePlaylist && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-full max-w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-white">Queue Playlist</h3>
                 <button
@@ -2139,9 +2161,9 @@ export default function Page() {
           </div>
         )}
 
-        <div className="flex w-full h-full p-4 gap-4">
-          {/* Now Playing - Main Section (larger) */}
-          <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+          <div className="flex w-full h-full p-3 md:p-4 gap-3 md:gap-4 max-w-full overflow-hidden">
+            {/* Now Playing - Main Section (larger) */}
+            <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 md:p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
@@ -2336,8 +2358,8 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Up Next - Side Section (smaller) */}
-          <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[280px] max-w-[350px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+        {/* Up Next - Side Section (smaller) */}
+        <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[240px] max-w-[320px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-2">
@@ -2425,82 +2447,6 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Sidebar */}
-      <aside
-        onMouseEnter={() => setSidebarOpen(true)}
-        onMouseLeave={() => setSidebarOpen(false)}
-        className={`fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col bg-[#050816] border-r border-white/10 transition-all duration-300 overflow-hidden ${
-          sidebarOpen ? "w-[300px]" : "w-[76px]"
-        }`}
-      >
-        <nav className="flex flex-col gap-2 px-3 pt-6">
-          {[
-            [Home, "Home", "player", "pink"],
-            [ListMusic, "Playlists", "playlists", "pink"],
-            [Settings, "Settings", "settings", "pink"],
-          ].map(([Icon, label, page, color]: any) => {
-            const activeStyles: Record<string, string> = {
-              pink: "bg-gradient-to-r from-[#ff4fa3]/18 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/45 shadow-[0_0_15px_rgba(255,79,163,0.15)]",
-              sunset: "bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 text-[#ff8a00] border border-[#ff8a00]/40 shadow-[0_0_15px_rgba(255,138,0,0.2)]",
-            };
-            return (
-              <button
-                key={label}
-                onClick={() => setActivePage(page)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 transition-all duration-200 ${
-                  activePage === page
-                    ? activeStyles[color]
-                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03] border border-transparent"
-                }`}
-              >
-                <Icon size={22} className="shrink-0" />
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                  sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
-                }`}>{label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Pro Coming Soon Badge */}
-        <div className={`mx-3 mt-4 flex items-center gap-3 rounded-2xl px-4 py-3 bg-gradient-to-r from-[#ff4fa3]/12 to-[#ff8a00]/8 border border-[#ff4fa3]/25 cursor-default`}>
-          <div className="shrink-0 h-6 w-6 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-            <span className="text-[10px] font-bold text-white">PRO</span>
-          </div>
-          <div className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${
-            sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
-          }`}>
-            <div className="text-xs font-semibold text-[#ff4fa3]">EQHO Player Pro</div>
-            <div className="text-[10px] text-[#7c8596]">Coming September</div>
-          </div>
-        </div>
-
-        <div className={`mt-auto mb-6 mx-3 flex flex-col gap-2 overflow-hidden`}>
-          <div className="flex items-center gap-3 px-4 py-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-sm font-bold uppercase">
-              {user?.email?.charAt(0) || 'U'}
-            </div>
-            <div className={`whitespace-nowrap transition-all duration-300 min-w-0 ${
-              sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
-            }`}>
-              <div className="text-sm text-white truncate max-w-[180px]">{user?.user_metadata?.full_name || 'User'}</div>
-              <div className="text-xs text-white/65 truncate max-w-[180px]">{user?.email || ''}</div>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className={`flex items-center gap-3 mx-1 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition ${
-              sidebarOpen ? "" : "justify-center"
-            }`}
-          >
-            <LogOut size={18} className="shrink-0" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm ${
-              sidebarOpen ? "w-auto opacity-100" : "w-0 opacity-0"
-            }`}>Logout</span>
-          </button>
-        </div>
-      </aside>
-
       {/* Mobile Navigation Bar */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#050816] border-b border-white/10">
         <EqhoBrand className="h-[28px] w-[100px]" />
@@ -2536,26 +2482,63 @@ export default function Page() {
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-3 md:px-4 pt-14 md:pt-3 pb-[200px] md:pb-[150px]">
+      {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
+      <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
+
+        {/* ICON RAIL - col-start-1 (desktop only) */}
+        <aside className="relative col-start-1 h-full overflow-hidden">
+          <nav className="flex h-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm py-4">
+            <div className="w-8 h-8 mb-2 flex items-center justify-center">
+              <Image 
+                src="/eqho-logo.png" 
+                alt="EQHO Logo" 
+                width={32} 
+                height={32}
+                className="object-contain"
+                priority
+              />
+            </div>
+            {sidebarItems.map(({ icon: Icon, page, color }) => {
+              const isActive = activePage === page;
+              return (
+                <button
+                  key={page}
+                  onClick={() => setActivePage(page)}
+                  className={`p-2.5 rounded-xl transition-all ${
+                    isActive
+                      ? activeColors[color]
+                      : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03]"
+                  }`}
+                >
+                  <Icon size={20} />
+                </button>
+              );
+            })}
+            <button
+              onClick={handleLogout}
+              className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition mt-auto"
+            >
+              <LogOut size={20} />
+            </button>
+          </nav>
+        </aside>
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] xl:grid-cols-[320px_minmax(0,1fr)_minmax(280px,360px)] gap-3 md:gap-4">
-            {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden xl:block space-y-4 md:space-y-6">
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
+          <>
+            {/* UPLOAD/PLAYLISTS - col-start-2 */}
+            <aside className="relative col-start-2 h-full overflow-hidden flex flex-col gap-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
+                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
                 </h2>
-
                 <label
                   onDrop={handleDropUpload}
                   onDragOver={handleDragOverUpload}
                   onDragEnter={handleDragEnterUpload}
                   onDragLeave={handleDragLeaveUpload}
-                  className={`block cursor-pointer rounded-xl md:rounded-2xl border border-dashed p-6 md:p-8 text-center transition ${
+                  className={`block cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
                     isDraggingUpload
-                      ? "border-cyan-300 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.25)]"
+                      ? "border-cyan-300 bg-cyan-400/10"
                       : "border-[#ff4fa3]/50 bg-white/[0.03]"
                   }`}
                 >
@@ -2569,50 +2552,26 @@ export default function Page() {
                     }}
                     className="hidden"
                   />
-
-                  <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#ff8a00]" size={40} />
-
-                  <p className="text-white font-bold text-sm md:text-base">
-                    Drag and drop files or folders here
-                  </p>
-
-                  <p className="text-white/60 mt-2">
-                    or <span className="text-[#ff8a00]">click</span> to browse files
-                  </p>
-
-                  <p className="text-white/40 text-sm mt-4">
-                    Supports MP3, WAV, M4A - Drop folders to create playlists
-                  </p>
+                  <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
+                  <p className="text-white font-bold text-xs">Drop files or folders</p>
+                  <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
+                  <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
                 </label>
               </div>
 
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-white uppercase tracking-[0.25em] text-sm font-black">
-                    Your Playlists
-                  </h2>
-
-                  <button 
-                    onClick={() => setShowPlaylistModal(true)}
-                    className="text-[#ff4fa3] font-bold"
-                  >
-                    + New
-                  </button>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] flex-1 overflow-hidden">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
+                  <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
                 </div>
-
                 {savedPlaylists.length === 0 ? (
-                  <p className="text-white/40 text-center py-8">
-                    Create a playlist after uploading music
-                  </p>
+                  <p className="text-white/40 text-center py-4 text-xs">No playlists yet</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
                     {savedPlaylists.map((pl) => (
                       <div
                         key={pl.id}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                        }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
                         onDrop={(e) => {
                           e.preventDefault();
                           e.currentTarget.classList.remove("drag-over");
@@ -2620,77 +2579,46 @@ export default function Page() {
                           const trackId = e.dataTransfer.getData("trackId");
                           if (trackJson && trackId) {
                             const track: Track = JSON.parse(trackJson);
-                            setSavedPlaylists((prev) =>
-                              prev.map((p) =>
-                                p.id === pl.id
-                                  ? { ...p, tracks: [...p.tracks, track] }
-                                  : p
-                              )
-                            );
+                            setSavedPlaylists((prev) => prev.map((p) => p.id === pl.id ? { ...p, tracks: [...p.tracks, track] } : p));
                             setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
                           }
                         }}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10"
+                        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50"
                         onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
                         onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
                       >
-                        <ListMusic size={18} className="text-[#ff4fa3] shrink-0" />
-                        <span className="flex-1 truncate text-white">{pl.name}</span>
-                        <div className="flex gap-1.5 shrink-0">
-                          <button
-                            onClick={() => {
-                              if (pl.tracks.length > 0) {
-                                // Add to existing playlist (queue)
-                                setPlaylist((prev) => [...prev, ...pl.tracks]);
-                                if (!currentTrack && pl.tracks.length > 0) {
-                                  setCurrentTrack(pl.tracks[0]);
-                                  setCurrentIndex(0);
-                                }
+                        <ListMusic size={14} className="text-[#ff4fa3] shrink-0" />
+                        <span className="flex-1 truncate text-white text-[11px]">{pl.name}</span>
+                        <button
+                          onClick={() => {
+                            if (pl.tracks.length > 0) {
+                              if (sessionRunning || isPlaying) {
+                                setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
+                              } else {
+                                setPlaylist(pl.tracks);
+                                setCurrentPlaylistName(pl.name);
+                                setCurrentIndex(0);
+                                setCurrentTrack(pl.tracks[0]);
                               }
-                            }}
-                            disabled={pl.tracks.length === 0}
-                            className="rounded-lg border border-[#ff8a00]/50 bg-[#ff8a00]/10 px-2 py-1 text-xs font-semibold text-[#ff8a00] transition hover:bg-[#ff8a00]/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Add tracks to current queue"
-                          >
-                            + Queue
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (pl.tracks.length > 0) {
-                                if (sessionRunning || isPlaying) {
-                                  setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
-                                } else {
-                                  setPlaylist(pl.tracks);
-                                  setCurrentPlaylistName(pl.name);
-                                  setCurrentIndex(0);
-                                  setCurrentTrack(pl.tracks[0]);
-                                }
-                              }
-                            }}
-                            disabled={pl.tracks.length === 0}
-                            className="rounded-lg border border-pink-500/50 bg-pink-500/10 px-2 py-1 text-xs font-semibold text-pink-400 transition hover:bg-pink-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Replace current queue with this playlist"
-                          >
-                            Replace
-                          </button>
-                        </div>
+                            }
+                          }}
+                          disabled={pl.tracks.length === 0}
+                          className="rounded border border-pink-500/50 bg-pink-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-pink-400 hover:bg-pink-500/20 disabled:opacity-30"
+                        >
+                          Load
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
-                  Recently Uploaded Tracks
-                </h2>
-
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] overflow-hidden">
+                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
                 {uploadedTracks.length === 0 ? (
-                  <p className="text-white/40 text-center py-8">
-                    No tracks uploaded yet. Drag tracks to a playlist below.
-                  </p>
+                  <p className="text-white/40 text-center py-4 text-xs">No tracks uploaded</p>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto">
                     {uploadedTracks.map((track) => (
                       <div
                         key={track.id}
@@ -2700,49 +2628,45 @@ export default function Page() {
                           e.dataTransfer.setData("trackJson", JSON.stringify(track));
                           e.dataTransfer.effectAllowed = "move";
                         }}
-                        className="grid grid-cols-[24px_1fr_82px] items-center gap-3 cursor-grab active:cursor-grabbing"
+                        className="flex items-center gap-2 cursor-grab active:cursor-grabbing"
                       >
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
                           }}
-                          className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 transition hover:border-red-500/60 hover:bg-red-500/15 hover:text-red-400"
+                          className="grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 hover:border-red-500/60 hover:text-red-400"
                         >
-                          <X size={14} />
+                          <X size={10} />
                         </button>
-
-                        <p className="truncate text-white font-semibold">
-                          {track.title}
-                        </p>
-
+                        <p className="truncate text-white text-[11px] flex-1">{track.title}</p>
                         <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            </div>
+            </aside>
 
-            {/* MIDDLE: UP NEXT */}
-            <div className="flex flex-col gap-3 md:gap-4 order-first xl:order-none">
+            {/* MIDDLE: UP NEXT (IN ORDER) */}
+            <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-2">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
-  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-  <button
-    onClick={() => {
-      if (sessionRunning || isPlaying) {
-        setShowClearPlaylistConfirm(true);
-      } else {
-        clearPlaylist();
-      }
-    }}
-    disabled={playlist.length === 0}
-    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
-  >
-    Clear Playlist
-  </button>
-</div>
+                  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
+                  <button
+                    onClick={() => {
+                      if (sessionRunning || isPlaying) {
+                        setShowClearPlaylistConfirm(true);
+                      } else {
+                        clearPlaylist();
+                      }
+                    }}
+                    disabled={playlist.length === 0}
+                    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Clear Playlist
+                  </button>
+                </div>
                 <div className="mt-1 border-b border-white/10 pb-2 flex items-center justify-between">
                   <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
                   {hiddenTrackIds.size > 0 && (
@@ -2763,9 +2687,7 @@ export default function Page() {
                     </div>
                   ) : (
                     (() => {
-                      // Display visible tracks only (hidden tracks filtered out)
                       return visiblePlaylist.map((track, visibleIndex) => {
-                        // Get the original playlist index for this track (needed for drag/drop and currentIndex)
                         const originalIndex = playlist.findIndex(t => t.id === track.id);
                         const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
                         const colour = colours[visibleIndex % colours.length];
@@ -2778,7 +2700,6 @@ export default function Page() {
                       
                         return (
                           <div key={track.id} className="relative">
-                            {/* Drop indicator line above */}
                             {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
                               <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
                             )}
@@ -2800,7 +2721,6 @@ export default function Page() {
                                 e.dataTransfer.dropEffect = "move";
                                 if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
                                   setDropTargetIndex(originalIndex);
-                                  // Detect if cursor is in top or bottom half of the element
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const midpoint = rect.top + rect.height / 2;
                                   const position = e.clientY < midpoint ? "above" : "below";
@@ -2818,38 +2738,23 @@ export default function Page() {
                                 if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
                                 
                                 const fromIndex = draggedTrackIndex;
-                                const toIndex = index;
+                                const toIndex = originalIndex;
                                 const position = dropPositionRef.current;
                                 
                                 setPlaylist((prev) => {
                                   const newPlaylist = [...prev];
                                   const [draggedItem] = newPlaylist.splice(fromIndex, 1);
-                                  
-                                  // Calculate the final position where the item should go
-                                  // If line is above target: insert at target's position
-                                  // If line is below target: insert after target's position
-                                  // But we need to account for the fact that we already removed the dragged item
                                   let finalPosition: number;
                                   
                                   if (position === "above") {
-                                    // Line is above target - we want to insert BEFORE target
-                                    // If dragged from before target, target index shifted down by 1
                                     finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
                                   } else {
-                                    // Line is below target - we want to insert AFTER target
-                                    // If dragged from before target, target index shifted down by 1
-                                    // So we insert at (shifted target) + 1 = toIndex
-                                    // If dragged from after target, target index unchanged
-                                    // So we insert at toIndex + 1
                                     finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
                                   }
                                   
-                                  // Clamp to valid range
                                   finalPosition = Math.max(0, Math.min(finalPosition, newPlaylist.length));
-                                  
                                   newPlaylist.splice(finalPosition, 0, draggedItem);
                                   
-                                  // Adjust currentIndex to follow the currently playing track
                                   if (fromIndex === currentIndex) {
                                     setCurrentIndex(finalPosition);
                                   } else if (fromIndex < currentIndex && finalPosition >= currentIndex) {
@@ -2896,7 +2801,6 @@ export default function Page() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Hide from session only - does not affect saved playlist or cloud
                                   hideTrackFromSession(track.id);
                                 }}
                                 className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
@@ -2905,7 +2809,6 @@ export default function Page() {
                                 <X size={18} className="md:w-4 md:h-4" />
                               </button>
                             </div>
-                            {/* Drop indicator line below */}
                             {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
                               <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
                             )}
@@ -2916,11 +2819,11 @@ export default function Page() {
                   )}
                 </div>
               </Card>
-            </div>
+            </main>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-              <Card className="shrink-0 overflow-hidden px-3 md:px-6 lg:px-8 py-3 md:py-5 lg:py-7 relative">
+            <aside className="relative col-start-4 h-full overflow-hidden flex flex-col gap-2">
+              <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
@@ -2964,26 +2867,26 @@ export default function Page() {
                   </div>
                 )}
 
-            <div className="mb-4 md:mb-6 flex items-center justify-between">
+            <div className="mb-3 md:mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
 
               {/* Volume Control & Fullscreen */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 flex-wrap">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
-                  className={`grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border transition ${
+                  className={`grid h-[32px] w-[32px] place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
                   }`}
                 >
-                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
+                  {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[100px] md:w-[145px] h-[38px] md:h-[46px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
+                  className="relative flex items-center justify-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -3030,38 +2933,37 @@ export default function Page() {
                       toggleFullscreen();
                     }
                   }}
-                  className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
+                  className="grid h-[32px] w-[32px] place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
                   title="Enter fullscreen mode"
                 >
-                  <Maximize2 size={16} />
+                  <Maximize2 size={14} />
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 md:gap-5">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
               {/* Left - Album Icon */}
-              <div className="grid h-[70px] w-[70px] md:h-[100px] md:w-[100px] shrink-0 place-items-center rounded-xl md:rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
-                <Music size={36} className="md:hidden text-pink-400" />
-                <Music size={52} className="hidden md:block text-pink-400" />
+              <div className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                <Music size={28} className="text-pink-400" />
               </div>
 
               {/* Centre - Track Info & Progress */}
-              <div className="flex-1 min-w-0">
-                <h3 className="truncate text-xl md:text-3xl font-bold leading-tight text-white">
+              <div className="flex-1 min-w-0 text-center sm:text-left w-full">
+                <h3 className="truncate text-lg sm:text-xl font-bold leading-tight text-white">
                   {currentTrack?.title || "No Track Selected"}
                 </h3>
-                <p className="mt-1 md:mt-1.5 truncate text-sm md:text-lg text-white/60">
+                <p className="mt-1 truncate text-sm text-white/60">
                   {currentTrack ? "Playing" : "Upload tracks to begin"}
                 </p>
 
                 {/* Track Elapsed Timer */}
-                <div className="mt-3 md:mt-5 text-center">
+                <div className="mt-3 text-center">
                   {isGapPaused ? (
-                    <div className="text-3xl md:text-5xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                    <div className="text-3xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                       {gapCountdown}
                     </div>
                   ) : (
-                    <div className="text-2xl md:text-4xl font-black tracking-wider text-white tabular-nums">
+                    <div className="text-2xl font-black tracking-wider text-white tabular-nums">
                       {currentTime > 0 || isPlaying
                         ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                         : "00:00"}
@@ -3071,41 +2973,33 @@ export default function Page() {
               </div>
 
               {/* Right - Playback Controls */}
-              <div className="flex items-center justify-center gap-4 md:gap-6 shrink-0">
+              <div className="flex items-center justify-center gap-2 shrink-0">
                 <button 
                   onClick={goToPreviousTrack}
-                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[36px] w-[36px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepBack size={22} className="md:hidden" />
-                  <StepBack size={28} className="hidden md:block" />
+                  <StepBack size={18} />
                 </button>
 
                 <button
                   onClick={toggleSession}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+                  className="w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
                 >
                   {isGapPaused ? (
-                    <span className="text-xl md:text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                    <span className="text-lg font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                   ) : isPlaying ? (
-                    <>
-                      <Pause size={28} className="md:hidden" />
-                      <Pause size={40} className="hidden md:block" />
-                    </>
+                    <Pause size={24} />
                   ) : (
-                    <>
-                      <Play size={28} className="md:hidden" />
-                      <Play size={40} className="hidden md:block" />
-                    </>
+                    <Play size={24} />
                   )}
                 </button>
 
                 <button 
                   onClick={goToNextTrack}
-                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[36px] w-[36px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepForward size={22} className="md:hidden" />
-                  <StepForward size={28} className="hidden md:block" />
+                  <StepForward size={18} />
                 </button>
               </div>
             </div>
@@ -3187,41 +3081,41 @@ export default function Page() {
             </div>
           </Card>
 
-<Card className="relative flex flex-1 min-h-[560px] flex-col overflow-hidden">
+<Card className="relative flex flex-1 min-h-[400px] flex-col overflow-hidden">
 
-            <div className="p-5">
-            <div className="flex items-start justify-between border-b border-white/10 pb-2">
-              <div>
-                <h2 className="text-xl font-bold">{currentPlaylistDisplayName}</h2>
+            <div className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-white/10 pb-2">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold truncate">{currentPlaylistDisplayName}</h2>
                 <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total</p>
               </div>
-              <div className="mt-2 flex gap-3">
-                <button className="rounded border border-white/20 px-4 py-1.5 text-xs">Edit Playlist</button>
+              <div className="flex gap-2 flex-wrap shrink-0">
+                <button className="rounded border border-white/20 px-2 py-1 text-[10px]">Edit Playlist</button>
                 <button onClick={() => {
       if (sessionRunning || isPlaying) {
         setShowClearPlaylistConfirm(true);
       } else {
         clearPlaylist();
       }
-    }} className="rounded border border-pink-500 px-4 py-1.5 text-xs text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
+    }} className="rounded border border-pink-500 px-2 py-1 text-[10px] text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
               </div>
             </div>
 
-            <div>
+            <div className="overflow-hidden">
               <h3 className="mt-2 text-[10px] font-bold uppercase">Session Overview</h3>
-              <div className="mt-2 grid grid-cols-4 divide-x divide-white/10">
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 {[
                   [Music, trackCount, "ROUTINES", "in playlist", "text-purple-400"],
                   [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
                   [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
                   [Timer, estimatedSessionLabel, "EST. SESSION", "(including gaps)", "text-purple-400"],
                 ].map(([Icon, value, a, b, colour]: any, idx) => (
-                  <div key={idx} className="flex items-start gap-2 px-2 first:pl-0">
-                    <Icon className={colour} size={24} />
-                    <div>
-                      <div className="text-lg">{value}</div>
-                      <div className="text-[9px] text-white/70">{a}</div>
-                      <div className="text-[9px] text-white/70">{b}</div>
+                  <div key={idx} className="flex items-start gap-1.5 px-1.5 md:px-2 md:first:pl-0">
+                    <Icon className={`${colour} shrink-0`} size={20} />
+                    <div className="min-w-0">
+                      <div className="text-base md:text-lg truncate">{value}</div>
+                      <div className="text-[8px] md:text-[9px] text-white/70 truncate">{a}</div>
+                      <div className="text-[8px] md:text-[9px] text-white/70 truncate">{b}</div>
                     </div>
                   </div>
                 ))}
@@ -3246,8 +3140,8 @@ export default function Page() {
             </div>
           </div>
           </Card>
-        </div>
-          </div>
+        </aside>
+          </>
         )}
 
         {activePage === "playlists" && (
@@ -3704,14 +3598,148 @@ export default function Page() {
           </div>
         )}
 
-      </main>
+      </div>
+
+      {/* Mobile Layout - single column with tabs */}
+      <div className="flex lg:hidden flex-col h-[calc(100vh-160px)] w-full overflow-hidden pt-14 px-3">
+        {activePage === "player" && (
+          <div className="flex flex-col h-full gap-3 overflow-hidden">
+            {/* Mobile Tab Switcher */}
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => setMobileTab("queue")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                  mobileTab === "queue"
+                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
+                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Up Next
+              </button>
+              <button
+                onClick={() => setMobileTab("nowplaying")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                  mobileTab === "nowplaying"
+                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
+                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Now Playing
+              </button>
+              <button
+                onClick={() => setMobileTab("upload")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                  mobileTab === "upload"
+                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
+                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Upload
+              </button>
+            </div>
+
+            {/* Mobile Content Area */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {mobileTab === "queue" && (
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Up Next</h3>
+                    <span className="text-xs text-[#7c8596]">{visiblePlaylist.length} tracks</span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto max-h-[calc(100%-40px)]">
+                    {visiblePlaylist.map((track, index) => (
+                      <div
+                        key={track.id}
+                        onClick={() => handleTrackSelect(track)}
+                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
+                          currentTrack?.id === track.id
+                            ? "bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10 border border-[#ff4fa3]/30"
+                            : "hover:bg-white/5"
+                        }`}
+                      >
+                        <span className="text-xs text-[#7c8596] w-5">{index + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{track.name}</p>
+                        </div>
+                        {currentTrack?.id === track.id && isPlaying && (
+                          <div className="w-3 h-3 rounded-full bg-[#ff4fa3] animate-pulse" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {mobileTab === "nowplaying" && (
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
+                  <div className="flex flex-col items-center gap-4">
+                    {currentTrack ? (
+                      <>
+                        <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-[#ff4fa3]/20 to-[#ff8a00]/10 flex items-center justify-center">
+                          <Music size={48} className="text-[#ff4fa3]" />
+                        </div>
+                        <div className="text-center">
+                          <h3 className="text-lg font-semibold text-white">{currentTrack.name}</h3>
+                          <p className="text-sm text-[#7c8596]">Track {getVisibleIndex(currentTrack.id) + 1} of {visiblePlaylist.length}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button onClick={handlePrevious} className="p-3 rounded-full hover:bg-white/10 transition">
+                            <SkipBack size={24} className="text-white" />
+                          </button>
+                          <button onClick={togglePlayPause} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                            {isPlaying ? <Pause size={28} className="text-white" /> : <Play size={28} className="text-white" />}
+                          </button>
+                          <button onClick={handleNext} className="p-3 rounded-full hover:bg-white/10 transition">
+                            <SkipForward size={24} className="text-white" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 py-8">
+                        <Music size={48} className="text-[#7c8596]" />
+                        <p className="text-[#7c8596]">No track playing</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {mobileTab === "upload" && (
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleFileDrop}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                      isDragging ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/20 hover:border-white/40"
+                    }`}
+                  >
+                    <Upload size={32} className="mx-auto mb-3 text-[#7c8596]" />
+                    <p className="text-sm text-[#7c8596] mb-2">Drop audio files here</p>
+                    <label className="inline-block px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-medium cursor-pointer">
+                      Browse Files
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 overflow-hidden bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[100px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full px-3 md:px-6 py-3 md:py-4">
-          <div className="flex flex-wrap md:flex-nowrap items-center justify-center md:justify-start gap-3 md:gap-6 min-w-0">
+        <div className="w-full max-w-full px-2 md:px-4 py-2 md:py-3 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-4">
             {/* Gap Between Routines */}
             <div className="flex items-center gap-2 md:gap-3">
               <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-white text-white">

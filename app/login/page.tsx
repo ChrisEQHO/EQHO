@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -15,6 +15,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  // V0 Preview bypass: redirect to main app
+  useEffect(() => {
+    const isPreviewMode =
+      process.env.NODE_ENV === "development" ||
+      process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
+    
+    if (isPreviewMode) {
+      router.replace("/")
+    }
+  }, [router])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -23,7 +34,7 @@ export default function LoginPage() {
     const supabase = createClient()
     
     if (!supabase) {
-      setError('Authentication service is not configured. Please contact support.')
+      setError('Missing Supabase environment variables. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in v0 environment variables.')
       setLoading(false)
       return
     }
