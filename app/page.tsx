@@ -3954,13 +3954,13 @@ export default function Page() {
                           <p className="text-sm text-[#7c8596]">Track {getVisibleIndex(currentTrack.id) + 1} of {visiblePlaylist.length}</p>
                         </div>
                         <div className="flex items-center gap-4">
-                          <button onClick={handlePrevious} className="p-3 rounded-full hover:bg-white/10 transition">
+                          <button onClick={goToPreviousTrack} className="p-3 rounded-full hover:bg-white/10 transition">
                             <SkipBack size={24} className="text-white" />
                           </button>
-                          <button onClick={togglePlayPause} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                          <button onClick={toggleSession} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
                             {isPlaying ? <Pause size={28} className="text-white" /> : <Play size={28} className="text-white" />}
                           </button>
-                          <button onClick={handleNext} className="p-3 rounded-full hover:bg-white/10 transition">
+                          <button onClick={goToNextTrack} className="p-3 rounded-full hover:bg-white/10 transition">
                             <SkipForward size={24} className="text-white" />
                           </button>
                         </div>
