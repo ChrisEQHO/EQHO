@@ -3912,7 +3912,7 @@ export default function Page() {
                     {savedPlaylists.length === 0 ? (
                       <p className="text-white/40 text-center py-4 text-xs">No playlists yet</p>
                     ) : (
-                      <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                      <div className="space-y-2 max-h-[120px] overflow-y-auto">
                         {savedPlaylists.map((pl) => (
                           <div
                             key={pl.id}
@@ -3952,12 +3952,12 @@ export default function Page() {
                   </div>
 
                   {/* Uploaded Tracks Section */}
-                  <div>
+                  <div className="mb-4">
                     <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
                     {uploadedTracks.length === 0 ? (
-                      <p className="text-white/40 text-center py-4 text-xs">No tracks uploaded</p>
+                      <p className="text-white/40 text-center py-3 text-xs">No tracks uploaded</p>
                     ) : (
-                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      <div className="space-y-2 max-h-[120px] overflow-y-auto">
                         {uploadedTracks.map((track) => (
                           <div
                             key={track.id}
@@ -4014,6 +4014,97 @@ export default function Page() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  {/* Settings Section */}
+                  <div className="border-t border-white/10 pt-4">
+                    <h2 className="text-cyan-300 uppercase tracking-[0.15em] text-[10px] font-black mb-3">Settings</h2>
+                    
+                    {/* Playback Settings */}
+                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Headphones size={14} className="text-[#ff8a00]" />
+                        <span className="text-[10px] font-bold text-white">Playback</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Default Volume</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("defaultVolume", Math.max(0, settings.defaultVolume - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.defaultVolume}%</span>
+                            <button onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Autoplay Next Track</span>
+                          <button onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.autoplayNext ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.autoplayNext ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Session Controls */}
+                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Timer size={14} className="text-[#ff8a00]" />
+                        <span className="text-[10px] font-bold text-white">Session Controls</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Default Gap</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("gapSeconds", Math.max(0, settings.gapSeconds - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.gapSeconds}s</span>
+                            <button onClick={() => updateSetting("gapSeconds", Math.min(120, settings.gapSeconds + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Default Repeats</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("playlistRepeats", Math.max(1, settings.playlistRepeats - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.playlistRepeats}x</span>
+                            <button onClick={() => updateSetting("playlistRepeats", Math.min(20, settings.playlistRepeats + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Back-to-Back Default</span>
+                          <button onClick={() => updateSetting("backToBack", !settings.backToBack)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Coach Display */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <SlidersHorizontal size={14} className="text-[#ff8a00]" />
+                        <span className="text-[10px] font-bold text-white">Coach Display</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Show Countdown</span>
+                          <button onClick={() => updateSetting("showCountdown", !settings.showCountdown)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showCountdown ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showCountdown ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Countdown Time</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.countdownSeconds}s</span>
+                            <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </Card>
               )}
