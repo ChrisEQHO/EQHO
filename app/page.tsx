@@ -4540,66 +4540,93 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[60px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[88px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-2 md:px-4 py-1 md:py-2 overflow-hidden">
-          {/* Mobile Layout */}
-          <div className="flex md:hidden items-center justify-between gap-1">
-            {/* Gap */}
-            <div className="flex items-center gap-1">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/50 text-white/80">
-                <Users size={10} />
+        <div className="w-full max-w-full px-2 md:px-4 py-1.5 md:py-2 overflow-hidden">
+          {/* Mobile Layout - Two Rows */}
+          <div className="flex md:hidden flex-col gap-1.5">
+            {/* Top Row - Controls */}
+            <div className="flex items-center justify-between gap-2">
+              {/* Gap Between Routines */}
+              <div className="flex items-center gap-1.5">
+                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white text-white">
+                  <Users size={12} />
+                </div>
+                <div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">Gap</div>
+                  <div className="flex items-center rounded border border-white/20 bg-white/5">
+                    <button onClick={() => setGapSeconds((v) => Math.max(0, v - 5))} className="px-1 py-0.5 text-white/70"><Minus size={10} /></button>
+                    <span className="px-1.5 text-[10px] font-semibold text-white border-x border-white/15">{gapSeconds}s</span>
+                    <button onClick={() => setGapSeconds((v) => Math.min(120, v + 5))} className="px-1 py-0.5 text-white/70"><Plus size={10} /></button>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center rounded border border-white/20 bg-white/5">
-                <button onClick={() => setGapSeconds((v) => Math.max(0, v - 5))} className="px-1 py-0.5 text-white/70"><Minus size={8} /></button>
-                <span className="px-1 text-[9px] font-semibold text-white border-x border-white/15">{gapSeconds}s</span>
-                <button onClick={() => setGapSeconds((v) => Math.min(120, v + 5))} className="px-1 py-0.5 text-white/70"><Plus size={8} /></button>
+
+              {/* Back to Back */}
+              <div className="flex items-center gap-1.5">
+                <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/70"}`}>
+                  <RefreshCw size={12} />
+                </div>
+                <div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">B2B</div>
+                  <button 
+                    onClick={() => setBackToBack((v) => !v)}
+                    className="flex items-center"
+                  >
+                    <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${
+                      backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"
+                    }`}>
+                      <div className={`h-3 w-3 rounded-full transition-transform ${
+                        backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"
+                      }`} />
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Total Session Time */}
+              <div className="flex items-center gap-1.5">
+                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
+                  <Clock size={12} />
+                </div>
+                <div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">Time</div>
+                  <div className="text-white text-sm font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                </div>
+              </div>
+
+              {/* Repeat Playlist */}
+              <div className="flex items-center gap-1.5">
+                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                  <Repeat size={12} />
+                </div>
+                <div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">Repeat</div>
+                  <div className="flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
+                    <button onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1 py-0.5 text-cyan-300"><Minus size={10} /></button>
+                    <span className="px-1.5 text-[10px] font-semibold text-white border-x border-cyan-400/20">{playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}</span>
+                    <button onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))} className="px-1 py-0.5 text-cyan-300"><Plus size={10} /></button>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Back to Back */}
-            <button onClick={() => setBackToBack((v) => !v)} className="flex items-center gap-1">
-              <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-white/30 text-white/50"}`}>
-                <RefreshCw size={10} />
-              </div>
-            </button>
-
-            {/* Session Time */}
-            <div className="flex items-center gap-1">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-orange-400/70 text-orange-400">
-                <Clock size={10} />
-              </div>
-              <span className="text-[10px] font-bold text-white">{formatSessionTime(totalSessionSeconds)}</span>
-            </div>
-
-            {/* Repeat */}
-            <div className="flex items-center gap-1">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-cyan-400/70 text-cyan-400">
-                <Repeat size={10} />
-              </div>
-              <div className="flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
-                <button onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1 py-0.5 text-cyan-300"><Minus size={8} /></button>
-                <span className="px-1 text-[9px] font-semibold text-white border-x border-cyan-400/20">{playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}</span>
-                <button onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))} className="px-1 py-0.5 text-cyan-300"><Plus size={8} /></button>
-              </div>
-            </div>
-
-            {/* Start Button */}
+            {/* Bottom Row - Start Button */}
             <button 
               onClick={toggleSession}
               disabled={!currentTrack && playlist.length === 0}
-              className={`h-8 px-3 rounded-lg text-[10px] font-bold transition disabled:opacity-40 ${
+              className={`w-full h-9 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
                 isGapPaused
                   ? "bg-white/10 border border-white/30 text-white animate-pulse"
                   : isPlaying
                     ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3]"
                     : sessionRunning && !isPlaying
                       ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400"
-                      : "bg-gradient-to-r from-pink-500 to-orange-500 text-white"
+                      : "bg-gradient-to-r from-pink-500 to-orange-500 text-white shadow-[0_0_15px_rgba(255,79,179,0.2)]"
               }`}
             >
-              {isGapPaused ? "GAP" : isPlaying ? "STOP" : sessionRunning ? "PAUSED" : "START"}
+              {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
             </button>
           </div>
 
