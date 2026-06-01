@@ -1602,7 +1602,7 @@ export default function Page() {
   };
 
   return (
-    <div className="h-screen w-screen max-w-[100vw] overflow-hidden bg-[#020617] text-white">
+    <div className="h-screen w-full min-w-0 max-w-full overflow-hidden bg-[#020617] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -2537,12 +2537,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden px-3 pt-14 md:pt-3 w-full max-w-[100vw] md:max-w-[calc(100vw-76px)]">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden px-3 pt-14 md:pt-3 w-full min-w-0 max-w-full">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[280px_minmax(0,1fr)_360px] gap-4 w-full overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[280px_minmax(0,1fr)_360px] gap-4 w-full min-w-0 max-w-full overflow-hidden">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden xl:block space-y-4 min-w-0 shrink-0 overflow-hidden">
+            <div className="hidden xl:block space-y-4 min-w-0 overflow-hidden">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Files & Playlists
@@ -2919,7 +2919,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-full min-w-0 max-w-full overflow-hidden">
+            <div className="flex flex-col gap-3 w-[360px] shrink-0 overflow-hidden">
               <Card className="shrink-0 overflow-hidden px-4 py-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
@@ -3707,7 +3707,7 @@ export default function Page() {
       </main>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 h-[104px] max-w-[100vw] md:max-w-[calc(100vw-76px)] overflow-hidden bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 md:left-[76px] right-0 z-40 h-[104px] w-full min-w-0 max-w-full overflow-hidden bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
         <div className="w-full px-2 md:px-4 py-2 md:py-3 overflow-hidden">
