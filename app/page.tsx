@@ -3244,10 +3244,10 @@ export default function Page() {
 <Card className="relative flex flex-1 min-h-[400px] flex-col overflow-hidden">
 
             <div className="p-4 flex-1 flex flex-col">
-            <div className="border-b border-white/10 pb-2">
+            <div className="border-b border-white/10 pb-4 mb-2">
               <div className="min-w-0">
-                <h2 className="text-lg font-bold truncate">{currentPlaylistDisplayName}</h2>
-                <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</p>
+                <h2 className="text-xl font-bold truncate mb-1">{currentPlaylistDisplayName}</h2>
+                <p className="text-sm text-white/80">{trackCountLabel} • {routineTimeLabel} total{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</p>
               </div>
             </div>
 
