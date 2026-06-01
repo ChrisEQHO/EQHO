@@ -2537,12 +2537,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden px-2 md:px-3 pt-14 md:pt-3 pb-[200px] md:pb-[150px] w-full">
+      <main className="md:ml-[76px] h-screen overflow-y-auto overflow-x-hidden pl-2 pr-3 md:pl-3 md:pr-4 pt-14 md:pt-3 pb-[200px] md:pb-[150px] w-full">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[280px_minmax(0,1fr)_340px] gap-2 md:gap-3 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[260px_minmax(0,1fr)_400px] gap-2 md:gap-3 w-full">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden xl:block space-y-4 min-w-0 overflow-hidden shrink-0">
+            <div className="hidden xl:block space-y-4 min-w-0 overflow-hidden">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Files & Playlists
@@ -2919,8 +2919,8 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-2 md:gap-3 w-full shrink-0 overflow-hidden">
-              <Card className="shrink-0 overflow-hidden px-3 md:px-4 py-3 md:py-4 relative w-full">
+            <div className="flex flex-col gap-2 md:gap-3 w-full overflow-hidden">
+              <Card className="shrink-0 overflow-hidden px-4 md:px-5 py-4 md:py-5 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
