@@ -2977,16 +2977,16 @@ export default function Page() {
               </h2>
 
               {/* Volume Control & Fullscreen */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
-                  className={`grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border transition ${
+                  className={`grid h-[32px] w-[32px] md:h-[38px] md:w-[38px] shrink-0 place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
                   }`}
                 >
-                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
+                  {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                 </button>
 
                 <div
@@ -3037,19 +3037,19 @@ export default function Page() {
                       toggleFullscreen();
                     }
                   }}
-                  className="grid h-[38px] w-[38px] md:h-[46px] md:w-[46px] shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
+                  className="grid h-[32px] w-[32px] md:h-[38px] md:w-[38px] shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
                   title="Enter fullscreen mode"
                 >
-                  <Maximize2 size={16} />
+                  <Maximize2 size={14} />
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 md:gap-5">
+            <div className="flex items-center justify-between gap-2 md:gap-3">
               {/* Left - Album Icon */}
-              <div className="grid h-[70px] w-[70px] md:h-[100px] md:w-[100px] shrink-0 place-items-center rounded-xl md:rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
-                <Music size={36} className="md:hidden text-pink-400" />
-                <Music size={52} className="hidden md:block text-pink-400" />
+              <div className="grid h-[60px] w-[60px] md:h-[80px] md:w-[80px] shrink-0 place-items-center rounded-xl md:rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                <Music size={28} className="md:hidden text-pink-400" />
+                <Music size={40} className="hidden md:block text-pink-400" />
               </div>
 
               {/* Centre - Track Info & Progress */}
@@ -3078,41 +3078,41 @@ export default function Page() {
               </div>
 
               {/* Right - Playback Controls */}
-              <div className="flex items-center justify-center gap-4 md:gap-6 shrink-0">
+              <div className="flex items-center justify-center gap-2 md:gap-3 shrink-0">
                 <button 
                   onClick={goToPreviousTrack}
-                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[36px] w-[36px] md:h-[42px] md:w-[42px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepBack size={22} className="md:hidden" />
-                  <StepBack size={28} className="hidden md:block" />
+                  <StepBack size={18} className="md:hidden" />
+                  <StepBack size={22} className="hidden md:block" />
                 </button>
 
                 <button
                   onClick={toggleSession}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+                  className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
                 >
                   {isGapPaused ? (
-                    <span className="text-xl md:text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                    <span className="text-lg md:text-xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                   ) : isPlaying ? (
                     <>
-                      <Pause size={28} className="md:hidden" />
-                      <Pause size={40} className="hidden md:block" />
+                      <Pause size={24} className="md:hidden" />
+                      <Pause size={28} className="hidden md:block" />
                     </>
                   ) : (
                     <>
-                      <Play size={28} className="md:hidden" />
-                      <Play size={40} className="hidden md:block" />
+                      <Play size={24} className="md:hidden" />
+                      <Play size={28} className="hidden md:block" />
                     </>
                   )}
                 </button>
 
                 <button 
                   onClick={goToNextTrack}
-                  className="grid h-[44px] w-[44px] md:h-[52px] md:w-[52px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+                  className="grid h-[36px] w-[36px] md:h-[42px] md:w-[42px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
-                  <StepForward size={22} className="md:hidden" />
-                  <StepForward size={28} className="hidden md:block" />
+                  <StepForward size={18} className="md:hidden" />
+                  <StepForward size={22} className="hidden md:block" />
                 </button>
               </div>
             </div>
@@ -3201,16 +3201,16 @@ export default function Page() {
               <div>
                 <h2 className="text-xl font-bold">{currentPlaylistDisplayName}</h2>
                 <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total</p>
-              </div>
-              <div className="mt-2 flex gap-3">
-                <button className="rounded border border-white/20 px-4 py-1.5 text-xs">Edit Playlist</button>
+  </div>
+  <div className="mt-2 flex gap-2 flex-wrap">
+  <button className="rounded border border-white/20 px-2 py-1 text-[10px]">Edit Playlist</button>
                 <button onClick={() => {
       if (sessionRunning || isPlaying) {
         setShowClearPlaylistConfirm(true);
       } else {
         clearPlaylist();
       }
-    }} className="rounded border border-pink-500 px-4 py-1.5 text-xs text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
+    }} className="rounded border border-pink-500 px-2 py-1 text-[10px] text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
               </div>
             </div>
 
