@@ -327,6 +327,9 @@ export default function Page() {
     pink: "text-[#ff4fa3] bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10",
   };
 
+  // Mobile tab state
+  const [mobileTab, setMobileTab] = useState<"queue" | "nowplaying" | "upload">("queue");
+
   const [playlistRepeats, setPlaylistRepeats] = useState(1);
   const [gapSeconds, setGapSeconds] = useState(10);
   const [backToBack, setBackToBack] = useState(false);
@@ -2479,10 +2482,10 @@ export default function Page() {
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <div className="grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
+      {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
+      <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
-        {/* ICON RAIL - col-start-1 */}
+        {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
           <nav className="flex h-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm py-4">
             <div className="w-8 h-8 mb-2 flex items-center justify-center">
@@ -3595,6 +3598,140 @@ export default function Page() {
           </div>
         )}
 
+      </div>
+
+      {/* Mobile Layout - single column with tabs */}
+      <div className="flex lg:hidden flex-col h-[calc(100vh-160px)] w-full overflow-hidden pt-14 px-3">
+        {activePage === "player" && (
+          <div className="flex flex-col h-full gap-3 overflow-hidden">
+            {/* Mobile Tab Switcher */}
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => setMobileTab("queue")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                  mobileTab === "queue"
+                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
+                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Up Next
+              </button>
+              <button
+                onClick={() => setMobileTab("nowplaying")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                  mobileTab === "nowplaying"
+                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
+                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Now Playing
+              </button>
+              <button
+                onClick={() => setMobileTab("upload")}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                  mobileTab === "upload"
+                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
+                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Upload
+              </button>
+            </div>
+
+            {/* Mobile Content Area */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {mobileTab === "queue" && (
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Up Next</h3>
+                    <span className="text-xs text-[#7c8596]">{visiblePlaylist.length} tracks</span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto max-h-[calc(100%-40px)]">
+                    {visiblePlaylist.map((track, index) => (
+                      <div
+                        key={track.id}
+                        onClick={() => handleTrackSelect(track)}
+                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
+                          currentTrack?.id === track.id
+                            ? "bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10 border border-[#ff4fa3]/30"
+                            : "hover:bg-white/5"
+                        }`}
+                      >
+                        <span className="text-xs text-[#7c8596] w-5">{index + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{track.name}</p>
+                        </div>
+                        {currentTrack?.id === track.id && isPlaying && (
+                          <div className="w-3 h-3 rounded-full bg-[#ff4fa3] animate-pulse" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {mobileTab === "nowplaying" && (
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
+                  <div className="flex flex-col items-center gap-4">
+                    {currentTrack ? (
+                      <>
+                        <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-[#ff4fa3]/20 to-[#ff8a00]/10 flex items-center justify-center">
+                          <Music size={48} className="text-[#ff4fa3]" />
+                        </div>
+                        <div className="text-center">
+                          <h3 className="text-lg font-semibold text-white">{currentTrack.name}</h3>
+                          <p className="text-sm text-[#7c8596]">Track {getVisibleIndex(currentTrack.id) + 1} of {visiblePlaylist.length}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button onClick={handlePrevious} className="p-3 rounded-full hover:bg-white/10 transition">
+                            <SkipBack size={24} className="text-white" />
+                          </button>
+                          <button onClick={togglePlayPause} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                            {isPlaying ? <Pause size={28} className="text-white" /> : <Play size={28} className="text-white" />}
+                          </button>
+                          <button onClick={handleNext} className="p-3 rounded-full hover:bg-white/10 transition">
+                            <SkipForward size={24} className="text-white" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 py-8">
+                        <Music size={48} className="text-[#7c8596]" />
+                        <p className="text-[#7c8596]">No track playing</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {mobileTab === "upload" && (
+                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleFileDrop}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                      isDragging ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/20 hover:border-white/40"
+                    }`}
+                  >
+                    <Upload size={32} className="mx-auto mb-3 text-[#7c8596]" />
+                    <p className="text-sm text-[#7c8596] mb-2">Drop audio files here</p>
+                    <label className="inline-block px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-medium cursor-pointer">
+                      Browse Files
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fixed Bottom Control Bar */}
