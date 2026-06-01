@@ -2773,7 +2773,7 @@ export default function Page() {
                   )}
                 </div>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[calc(100vh-280px)] overflow-y-auto">
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[calc(100vh-200px)] overflow-y-auto">
                   {visiblePlaylist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
