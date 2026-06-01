@@ -4023,33 +4023,33 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[100px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-2 md:px-4 py-2 md:py-3 overflow-hidden">
+        <div className="w-full max-w-full px-2 md:px-4 py-1 md:py-2 overflow-hidden">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-4">
             {/* Gap Between Routines */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-white text-white">
-                <Users size={18} className="md:hidden" />
-                <Users size={20} className="hidden md:block" />
+            <div className="flex items-center gap-1.5 md:gap-3">
+              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-white text-white">
+                <Users size={14} className="md:hidden" />
+                <Users size={18} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
-                <div className="mt-1 flex items-center rounded border border-white/20 bg-white/5">
+                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
+                <div className="mt-0.5 flex items-center rounded border border-white/20 bg-white/5">
                   <button 
                     onClick={() => setGapSeconds((v) => Math.max(0, v - 5))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-white/90 hover:text-white"
+                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-white/90 hover:text-white"
                   >
-                    <Minus size={12} className="md:hidden" />
+                    <Minus size={10} className="md:hidden" />
                     <Minus size={14} className="hidden md:block" />
                   </button>
-                  <div className="border-x border-white/15 px-3 md:px-4 py-1 md:py-1.5 text-sm md:text-base font-semibold text-white">{gapSeconds} sec</div>
+                  <div className="border-x border-white/15 px-2 md:px-4 py-0.5 md:py-1 text-xs md:text-base font-semibold text-white">{gapSeconds} sec</div>
                   <button 
                     onClick={() => setGapSeconds((v) => Math.min(120, v + 5))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-white/90 hover:text-white"
+                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-white/90 hover:text-white"
                   >
-                    <Plus size={12} className="md:hidden" />
+                    <Plus size={10} className="md:hidden" />
                     <Plus size={14} className="hidden md:block" />
                   </button>
                 </div>
@@ -4057,27 +4057,27 @@ export default function Page() {
             </div>
 
             {/* Back To Back */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
-                <RefreshCw size={18} className="md:hidden" />
-                <RefreshCw size={20} className="hidden md:block" />
+            <div className="flex items-center gap-1.5 md:gap-3">
+              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
+                <RefreshCw size={14} className="md:hidden" />
+                <RefreshCw size={18} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
-                <div className="mt-1 flex items-center gap-3">
+                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
+                <div className="mt-0.5 flex items-center gap-2">
                   <button 
                     onClick={() => setBackToBack((v) => !v)}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1.5"
                   >
-                    <span className="text-sm font-medium text-white">{backToBack ? "On" : "Off"}</span>
-                    <div className={`h-6 w-12 rounded-full border p-0.5 transition-colors duration-200 ${
+                    <span className="text-xs font-medium text-white">{backToBack ? "On" : "Off"}</span>
+                    <div className={`h-5 w-10 rounded-full border p-0.5 transition-colors duration-200 ${
                       backToBack 
                         ? "border-pink-500 bg-pink-500/30" 
                         : "border-white/25 bg-white/15"
                     }`}>
-                      <div className={`h-5 w-5 rounded-full transition-transform duration-200 ${
+                      <div className={`h-4 w-4 rounded-full transition-transform duration-200 ${
                         backToBack 
-                          ? "translate-x-6 bg-pink-500" 
+                          ? "translate-x-5 bg-pink-500" 
                           : "translate-x-0 bg-white/50"
                       }`} />
                     </div>
@@ -4087,42 +4087,41 @@ export default function Page() {
             </div>
 
             {/* Total Session Time */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
-                <Clock size={20} className="md:hidden" />
-                <Clock size={22} className="hidden md:block" />
+            <div className="flex items-center gap-1.5 md:gap-3">
+              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
+                <Clock size={14} className="md:hidden" />
+                <Clock size={20} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
-                <div className="text-white text-xl md:text-2xl font-bold">{formatSessionTime(totalSessionSeconds)}</div>
-                <div className="text-[9px] md:text-[10px] text-white/60">(including gaps)</div>
+                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
+                <div className="text-white text-base md:text-xl font-bold leading-tight">{formatSessionTime(totalSessionSeconds)}</div>
               </div>
             </div>
 
             {/* Repeat Playlist */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                <Repeat size={18} className="md:hidden" />
-                <Repeat size={20} className="hidden md:block" />
+            <div className="flex items-center gap-1.5 md:gap-3">
+              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                <Repeat size={14} className="md:hidden" />
+                <Repeat size={18} className="hidden md:block" />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
-                <div className="mt-1 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
+                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
+                <div className="mt-0.5 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
                   <button
                     onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-cyan-300 hover:text-cyan-100 transition"
+                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Minus size={12} className="md:hidden" />
+                    <Minus size={10} className="md:hidden" />
                     <Minus size={14} className="hidden md:block" />
                   </button>
-                  <div className="border-x border-cyan-400/20 px-3 md:px-4 py-1 md:py-1.5 text-sm md:text-base font-semibold text-white">
+                  <div className="border-x border-cyan-400/20 px-2 md:px-4 py-0.5 md:py-1 text-xs md:text-base font-semibold text-white">
                     {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
                   </div>
                   <button
                     onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-cyan-300 hover:text-cyan-100 transition"
+                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Plus size={12} className="md:hidden" />
+                    <Plus size={10} className="md:hidden" />
                     <Plus size={14} className="hidden md:block" />
                   </button>
                 </div>
