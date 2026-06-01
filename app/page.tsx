@@ -2544,12 +2544,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden pl-4 pr-10 lg:pr-12 pt-14 md:pt-3 w-full max-w-full min-w-0 box-border">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto w-full max-w-[100vw] overflow-x-hidden pt-14 md:pt-3 px-4">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_380px] gap-4 w-full max-w-full min-w-0 overflow-hidden">
+          <div className="grid w-full max-w-full min-w-0 overflow-hidden gap-4 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_420px]">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden lg:flex flex-col gap-3 w-full min-w-0 overflow-hidden lg:w-[300px] lg:shrink-0">
+            <div className="hidden lg:flex flex-col gap-3 w-full min-w-0 overflow-hidden lg:w-[300px]">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
@@ -2845,7 +2845,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-full min-w-0 lg:w-[380px] overflow-hidden">
+            <div className="flex flex-col gap-3 w-full min-w-0 overflow-hidden lg:w-[420px] lg:shrink-0">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
