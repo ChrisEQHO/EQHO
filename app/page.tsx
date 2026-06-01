@@ -3348,228 +3348,153 @@ export default function Page() {
 
         {activePage === "playlists" && (
           <div className="p-4 md:p-6 h-full overflow-y-auto">
-            {/* Header */}
-            <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-              <div>
-                <p className="text-pink-400 uppercase tracking-[0.25em] text-sm font-bold">
-                  EQHO Library
-                </p>
-                <h1 className="text-4xl font-black mt-2">Playlists</h1>
-                <p className="text-white/50 mt-2">
-                  Organise routine music into folders for fast session setup.
-                </p>
-              </div>
-              
-              {/* Cloud Sync Status & Refresh */}
-              {user && isCloudSyncAvailable() && (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-sm text-white/60">
-                    <Cloud size={16} className="text-cyan-400" />
-                    <span>{cloudPlaylists.length} cloud playlist{cloudPlaylists.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      const playlists = await fetchCloudPlaylists();
-                      setCloudPlaylists(playlists);
-                    }}
-                    className="px-4 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
-                  >
-                    <RefreshCw size={14} />
-                    Refresh
-                  </button>
+            {/* Header with Upload Area */}
+            <div className="mb-6">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-pink-400 uppercase tracking-[0.25em] text-sm font-bold">
+                    EQHO Library
+                  </p>
+                  <h1 className="text-3xl font-black mt-2">Playlists</h1>
+                  <p className="text-white/50 mt-1 text-sm">
+                    Organise routine music into folders for fast session setup.
+                  </p>
                 </div>
-              )}
-            </div>
+                
+                {/* Cloud Sync Status & Refresh */}
+                {user && isCloudSyncAvailable() && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-white/60">
+                      <Cloud size={16} className="text-cyan-400" />
+                      <span>{cloudPlaylists.length} cloud</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const playlists = await fetchCloudPlaylists();
+                        setCloudPlaylists(playlists);
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
+                    >
+                      <RefreshCw size={14} />
+                      Sync
+                    </button>
+                  </div>
+                )}
+              </div>
 
-            {/* Two Column Layout: Drop Zone + Playlists */}
-            <div className="flex flex-col lg:flex-row gap-6">
-              {/* Left Column - Drop Zone */}
-              <div className="lg:w-80 shrink-0">
-                <label
-                  onDrop={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingUpload(false);
-                    
-                    const items = e.dataTransfer?.items;
-                    if (!items) return;
-                    
-                    // Helper to recursively read folder contents
-                    const readDirectory = (entry: FileSystemDirectoryEntry): Promise<File[]> => {
-                      return new Promise((resolve) => {
-                        const reader = entry.createReader();
-                        const files: File[] = [];
-                        
-                        const readEntries = () => {
-                          reader.readEntries(async (entries) => {
-                            if (entries.length === 0) {
-                              resolve(files);
-                              return;
-                            }
-                            
-                            for (const ent of entries) {
-                              if (ent.isFile) {
-                                const fileEntry = ent as FileSystemFileEntry;
-                                const file = await new Promise<File>((res) => fileEntry.file(res));
-                                if (file.type.startsWith("audio/")) {
-                                  files.push(file);
-                                }
-                              } else if (ent.isDirectory) {
-                                const subFiles = await readDirectory(ent as FileSystemDirectoryEntry);
-                                files.push(...subFiles);
-                              }
-                            }
-                            readEntries();
-                          });
-                        };
-                        readEntries();
-                      });
-                    };
-                    
-                    // Process each dropped item
-                    for (let i = 0; i < items.length; i++) {
-                      const item = items[i];
-                      const entry = item.webkitGetAsEntry?.();
+              {/* Compact Upload Drop Zone */}
+              <label
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingUpload(false);
+                  
+                  const items = e.dataTransfer?.items;
+                  if (!items) return;
+                  
+                  const readDirectory = (entry: FileSystemDirectoryEntry): Promise<File[]> => {
+                    return new Promise((resolve) => {
+                      const reader = entry.createReader();
+                      const files: File[] = [];
                       
-                      if (entry?.isDirectory) {
-                        // Folder dropped - use folder name as playlist name
-                        const folderName = entry.name;
-                        const audioFiles = await readDirectory(entry as FileSystemDirectoryEntry);
-                        
-                        if (audioFiles.length > 0) {
-                          const newPlaylistId = crypto.randomUUID();
-                          const newTracks: Track[] = [];
+                      const readEntries = () => {
+                        reader.readEntries(async (entries) => {
+                          if (entries.length === 0) {
+                            resolve(files);
+                            return;
+                          }
                           
-                          let processed = 0;
-                          audioFiles.forEach((file) => {
-                            const url = URL.createObjectURL(file);
-                            const audio = new Audio(url);
-                            audio.onloadedmetadata = async () => {
-                              const newTrack: Track = {
-                                id: crypto.randomUUID(),
-                                title: file.name.replace(/\.[^/.]+$/, ""),
-                                fileName: file.name,
-                                url,
-                                durationSeconds: Math.round(audio.duration),
-                                uploadedAt: new Date().toISOString(),
-                                file,
-                              };
-                              newTracks.push(newTrack);
-                              
-                              processed++;
-                              if (processed === audioFiles.length) {
-                                setSavedPlaylists((prev) => [
-                                  ...prev,
-                                  { id: newPlaylistId, name: folderName, tracks: newTracks },
-                                ]);
+                          for (const ent of entries) {
+                            if (ent.isFile) {
+                              const fileEntry = ent as FileSystemFileEntry;
+                              const file = await new Promise<File>((res) => fileEntry.file(res));
+                              if (file.type.startsWith("audio/")) {
+                                files.push(file);
                               }
-                            };
-                          });
-                        }
-                      } else if (entry?.isFile) {
-                        // Single file dropped - collect all files for a generic playlist
-                        const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
-                          file.type.startsWith("audio/")
-                        );
+                            } else if (ent.isDirectory) {
+                              const subFiles = await readDirectory(ent as FileSystemDirectoryEntry);
+                              files.push(...subFiles);
+                            }
+                          }
+                          readEntries();
+                        });
+                      };
+                      readEntries();
+                    });
+                  };
+                  
+                  for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    const entry = item.webkitGetAsEntry?.();
+                    
+                    if (entry?.isDirectory) {
+                      const folderName = entry.name;
+                      const audioFiles = await readDirectory(entry as FileSystemDirectoryEntry);
+                      
+                      if (audioFiles.length > 0) {
+                        const newPlaylistId = crypto.randomUUID();
+                        const newTracks: Track[] = [];
                         
-                        if (files.length > 0) {
-                          // Try to extract folder name from file path if available
-                          const firstFile = files[0];
-                          const pathParts = (firstFile as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/");
-                          const playlistName = pathParts && pathParts.length > 1 
-                            ? pathParts[0] 
-                            : `Playlist ${savedPlaylists.length + 1}`;
-                          
-                          const newPlaylistId = crypto.randomUUID();
-                          const newTracks: Track[] = [];
-                          
-                          let processed = 0;
-                          files.forEach((file) => {
-                            const url = URL.createObjectURL(file);
-                            const audio = new Audio(url);
-                            audio.onloadedmetadata = async () => {
-                              const newTrack: Track = {
-                                id: crypto.randomUUID(),
-                                title: file.name.replace(/\.[^/.]+$/, ""),
-                                sub: "Uploaded Track",
-                                duration: formatDuration(Math.round(audio.duration)),
-                                fileName: file.name,
-                                url,
-                                durationSeconds: Math.round(audio.duration),
-                                uploadedAt: new Date().toISOString(),
-                                file,
-                              };
-                              newTracks.push(newTrack);
-                              
-                              processed++;
-                              if (processed === files.length) {
-                                setSavedPlaylists((prev) => [
-                                  ...prev,
-                                  { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                                ]);
-                              }
+                        let processed = 0;
+                        audioFiles.forEach((file) => {
+                          const url = URL.createObjectURL(file);
+                          const audio = new Audio(url);
+                          audio.onloadedmetadata = async () => {
+                            const newTrack: Track = {
+                              id: crypto.randomUUID(),
+                              title: file.name.replace(/\.[^/.]+$/, ""),
+                              fileName: file.name,
+                              url,
+                              durationSeconds: Math.round(audio.duration),
+                              uploadedAt: new Date().toISOString(),
+                              file,
                             };
-                          });
-                        }
-                        break; // Only process files once
+                            newTracks.push(newTrack);
+                            
+                            processed++;
+                            if (processed === audioFiles.length) {
+                              setSavedPlaylists((prev) => [
+                                ...prev,
+                                { id: newPlaylistId, name: folderName, tracks: newTracks },
+                              ]);
+                            }
+                          };
+                        });
                       }
-                    }
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingUpload(true);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingUpload(false);
-                  }}
-                  className={`block cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition h-full min-h-[280px] flex flex-col items-center justify-center ${
-                    isDraggingUpload
-                      ? "border-cyan-300 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.25)]"
-                      : "border-pink-500/50 bg-white/[0.03] hover:border-pink-500/80 hover:bg-white/[0.05]"
-                  }`}
-                >
-                  <input
-                    type="file"
-                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
-                    multiple
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files || []).filter((file) =>
-                        file.type.startsWith("audio/") || 
-                        file.name.endsWith(".mp3") || 
-                        file.name.endsWith(".wav") || 
-                        file.name.endsWith(".m4a")
+                    } else if (entry?.isFile) {
+                      const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
+                        file.type.startsWith("audio/")
                       );
+                      
                       if (files.length > 0) {
-                        const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                        const firstFile = files[0];
+                        const pathParts = (firstFile as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/");
+                        const playlistName = pathParts && pathParts.length > 1 
+                          ? pathParts[0] 
+                          : `Playlist ${savedPlaylists.length + 1}`;
+                        
                         const newPlaylistId = crypto.randomUUID();
                         const newTracks: Track[] = [];
                         
                         let processed = 0;
                         files.forEach((file) => {
-                            const url = URL.createObjectURL(file);
-                            const audio = new Audio(url);
-                            audio.onloadedmetadata = async () => {
-                              const newTrack: Track = {
-                                id: crypto.randomUUID(),
-                                title: file.name.replace(/\.[^/.]+$/, ""),
-                                sub: "Uploaded Track",
-                                duration: formatDuration(Math.round(audio.duration)),
-                                fileName: file.name,
-                                url,
-                                durationSeconds: Math.round(audio.duration),
-                                uploadedAt: new Date().toISOString(),
-                                file,
-                              };
-                              newTracks.push(newTrack);
-                              
-                              processed++;
+                          const url = URL.createObjectURL(file);
+                          const audio = new Audio(url);
+                          audio.onloadedmetadata = async () => {
+                            const newTrack: Track = {
+                              id: crypto.randomUUID(),
+                              title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
+                              fileName: file.name,
+                              url,
+                              durationSeconds: Math.round(audio.duration),
+                              uploadedAt: new Date().toISOString(),
+                              file,
+                            };
+                            newTracks.push(newTrack);
+                            
+                            processed++;
                             if (processed === files.length) {
                               setSavedPlaylists((prev) => [
                                 ...prev,
@@ -3579,165 +3504,204 @@ export default function Page() {
                           };
                         });
                       }
-                      event.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
-                    isDraggingUpload 
-                      ? "bg-cyan-500/20 border border-cyan-500/40" 
-                      : "bg-pink-500/10 border border-pink-500/30"
+                      break;
+                    }
+                  }
+                }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(false); }}
+                className={`block cursor-pointer rounded-xl border-2 border-dashed p-4 transition ${
+                  isDraggingUpload
+                    ? "border-cyan-300 bg-cyan-400/10"
+                    : "border-pink-500/40 bg-white/[0.02] hover:border-pink-500/60 hover:bg-white/[0.04]"
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []).filter((file) =>
+                      file.type.startsWith("audio/") || 
+                      file.name.endsWith(".mp3") || 
+                      file.name.endsWith(".wav") || 
+                      file.name.endsWith(".m4a")
+                    );
+                    if (files.length > 0) {
+                      const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                      const newPlaylistId = crypto.randomUUID();
+                      const newTracks: Track[] = [];
+                      
+                      let processed = 0;
+                      files.forEach((file) => {
+                        const url = URL.createObjectURL(file);
+                        const audio = new Audio(url);
+                        audio.onloadedmetadata = async () => {
+                          const newTrack: Track = {
+                            id: crypto.randomUUID(),
+                            title: file.name.replace(/\.[^/.]+$/, ""),
+                            sub: "Uploaded Track",
+                            duration: formatDuration(Math.round(audio.duration)),
+                            fileName: file.name,
+                            url,
+                            durationSeconds: Math.round(audio.duration),
+                            uploadedAt: new Date().toISOString(),
+                            file,
+                          };
+                          newTracks.push(newTrack);
+                          
+                          processed++;
+                          if (processed === files.length) {
+                            setSavedPlaylists((prev) => [
+                              ...prev,
+                              { id: newPlaylistId, name: playlistName, tracks: newTracks },
+                            ]);
+                          }
+                        };
+                      });
+                    }
+                    event.target.value = "";
+                  }}
+                  className="hidden"
+                />
+                <div className="flex items-center justify-center gap-4">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    isDraggingUpload ? "bg-cyan-500/20" : "bg-pink-500/10"
                   }`}>
-                    <UploadCloud size={32} className={isDraggingUpload ? "text-cyan-300" : "text-pink-400"} />
+                    <UploadCloud size={20} className={isDraggingUpload ? "text-cyan-300" : "text-pink-400"} />
                   </div>
-                  <p className={`font-bold text-lg ${isDraggingUpload ? "text-cyan-300" : "text-white"}`}>
-                    Drop your playlist folder
-                  </p>
-                  <p className={`font-medium mt-1 ${isDraggingUpload ? "text-cyan-300/70" : "text-white/70"}`}>
-                    to create a new playlist
-                  </p>
-                  <p className="text-white/40 text-sm mt-3">or click to browse</p>
-                </label>
+                  <div className="text-left">
+                    <p className={`font-semibold ${isDraggingUpload ? "text-cyan-300" : "text-white"}`}>
+                      Drop your playlist folder here
+                    </p>
+                    <p className="text-white/40 text-sm">or click to browse audio files</p>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {/* Playlists Grid - Full Width */}
+            {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-center">
+                <Folder size={40} className="mx-auto mb-3 text-white/20" />
+                <h3 className="text-base font-bold text-white/60">No playlists yet</h3>
+                <p className="text-white/40 mt-1 text-sm">Drop a folder above to create your first playlist</p>
               </div>
-
-              {/* Right Column - Playlists Display */}
-              <div className="flex-1 min-w-0">
-                {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center h-full min-h-[280px] flex flex-col items-center justify-center">
-                    <Folder size={48} className="mx-auto mb-4 text-white/20" />
-                    <h3 className="text-lg font-bold text-white/60">No playlists yet</h3>
-                    <p className="text-white/40 mt-2 text-sm">Drop a folder to create your first playlist</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Local Playlists */}
-                    {savedPlaylists.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <h2 className="text-base font-bold text-white/70 flex items-center gap-2">
-                            <Folder size={18} />
-                            Local Playlists
-                            <span className="text-white/40 font-normal">({savedPlaylists.length})</span>
-                          </h2>
-                          <button
-                            onClick={() => {
-                              if (sessionRunning || isPlaying) {
-                                setShowClearPlaylistConfirm(true);
-                              } else {
-                                setSavedPlaylists([]);
-                                clearPlaylist();
-                              }
-                            }}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-lg hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition"
+            ) : (
+              <div className="space-y-6">
+                {/* Local Playlists */}
+                {savedPlaylists.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-bold text-white/60 flex items-center gap-2 uppercase tracking-wider">
+                        <Folder size={16} />
+                        Local Playlists
+                        <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
+                      </h2>
+                      <button
+                        onClick={() => {
+                          if (sessionRunning || isPlaying) {
+                            setShowClearPlaylistConfirm(true);
+                          } else {
+                            setSavedPlaylists([]);
+                            clearPlaylist();
+                          }
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-lg hover:bg-[#ff8a00]/20 transition"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {savedPlaylists.map((localPlaylist) => {
+                        const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
+                        const isSyncing = syncingPlaylistId === localPlaylist.id;
+                        const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
+                        
+                        return (
+                          <div
+                            key={localPlaylist.id}
+                            className="rounded-xl border border-white/10 bg-white/[0.03] p-3
+                                       hover:border-pink-500/40 hover:bg-pink-500/5
+                                       transition group"
                           >
-                            Clear All
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                          {savedPlaylists.map((localPlaylist) => {
-                            const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
-                            const isSyncing = syncingPlaylistId === localPlaylist.id;
-                            const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
-                            
-                            return (
-                              <div
-                                key={localPlaylist.id}
-                                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4
-                                           hover:border-pink-500/50 hover:bg-pink-500/5
-                                           transition group relative"
-                              >
-                                <div className="flex items-start gap-3">
-                                  {/* Playlist Icon */}
-                                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
-                                    <ListMusic size={22} />
-                                  </div>
-                                  
-                                  {/* Playlist Info */}
-                                  <div className="flex-1 min-w-0">
-                                    <h3 className="text-base font-bold truncate">{localPlaylist.name}</h3>
-                                    <div className="flex items-center gap-3 mt-1 text-sm text-white/50">
-                                      <span>{localPlaylist.tracks.length} tracks</span>
-                                      <span className="w-1 h-1 rounded-full bg-white/30"></span>
-                                      <span>{formatDuration(totalDuration)}</span>
-                                    </div>
-                                    {isInCloud && (
-                                      <div className="mt-1 flex items-center gap-1 text-xs text-cyan-400">
-                                        <Cloud size={10} />
-                                        Synced
-                                      </div>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Action buttons */}
-                                  {!isMobileBuild && (
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSyncPlaylistToCloud(localPlaylist.id);
-                                        }}
-                                        disabled={isSyncing}
-                                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
-                                        title={isInCloud ? "Re-sync to cloud" : "Upload to cloud"}
-                                      >
-                                        {isSyncing ? (
-                                          <Loader2 size={14} className="animate-spin text-cyan-400" />
-                                        ) : (
-                                          <Cloud size={14} className={isInCloud ? "text-cyan-400" : "text-white/60"} />
-                                        )}
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name });
-                                        }}
-                                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
-                                        title="Delete playlist"
-                                      >
-                                        <Trash2 size={14} className="text-white/60" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Track Preview */}
-                                <div className="mt-3 space-y-1">
-                                  {localPlaylist.tracks.slice(0, 3).map((track, idx) => (
-                                    <div key={track.id} className="flex items-center gap-2 text-xs text-white/40">
-                                      <span className="w-4 text-white/30">{idx + 1}.</span>
-                                      <span className="truncate flex-1">{track.title}</span>
-                                      <span>{formatDuration(track.durationSeconds || 0)}</span>
-                                    </div>
-                                  ))}
-                                  {localPlaylist.tracks.length > 3 && (
-                                    <p className="text-xs text-white/30 pl-6">+{localPlaylist.tracks.length - 3} more tracks</p>
-                                  )}
-                                </div>
-                                
-                                {/* Send to session button */}
-                                <button
-                                  onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
-                                  className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-orange-500/20 
-                                             border border-pink-500/30 text-pink-400 text-sm font-medium
-                                             hover:from-pink-500/30 hover:to-orange-500/30 transition"
-                                >
-                                  Send to Session
-                                </button>
+                            <div className="flex items-start gap-3 mb-2">
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
+                                <ListMusic size={18} />
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-bold truncate">{localPlaylist.name}</h3>
+                                <div className="flex items-center gap-2 mt-0.5 text-xs text-white/50">
+                                  <span>{localPlaylist.tracks.length} tracks</span>
+                                  <span className="text-white/20">|</span>
+                                  <span>{formatDuration(totalDuration)}</span>
+                                </div>
+                              </div>
+                              {!isMobileBuild && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
+                                    disabled={isSyncing}
+                                    className="w-7 h-7 rounded-md bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
+                                    title={isInCloud ? "Re-sync" : "Upload"}
+                                  >
+                                    {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/50"} />}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
+                                    className="w-7 h-7 rounded-md bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={12} className="text-white/50" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {isInCloud && (
+                              <div className="mb-2 flex items-center gap-1 text-[10px] text-cyan-400">
+                                <Cloud size={10} />
+                                Synced
+                              </div>
+                            )}
+                            
+                            <div className="space-y-0.5 mb-2">
+                              {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
+                                <div key={track.id} className="flex items-center gap-1.5 text-[11px] text-white/40">
+                                  <span className="w-3 text-white/25">{idx + 1}.</span>
+                                  <span className="truncate flex-1">{track.title}</span>
+                                  <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
+                                </div>
+                              ))}
+                              {localPlaylist.tracks.length > 2 && (
+                                <p className="text-[10px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more</p>
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
+                              className="w-full py-1.5 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                                         border border-pink-500/25 text-pink-400 text-xs font-semibold
+                                         hover:from-pink-500/25 hover:to-orange-500/25 transition"
+                            >
+                              Send to Session
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                    {/* Cloud Playlists (not downloaded locally) */}
-                    {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
-                      <div>
-                        <h2 className="text-base font-bold text-white/70 mb-4 flex items-center gap-2">
-                          <Cloud size={18} className="text-cyan-400" />
-                          Cloud Playlists
-                        </h2>
-                        <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                {/* Cloud Playlists */}
+                {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
+                  <div>
+                    <h2 className="text-sm font-bold text-white/60 mb-4 flex items-center gap-2 uppercase tracking-wider">
+                      <Cloud size={16} className="text-cyan-400" />
+                      Cloud Playlists
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                           {cloudPlaylists
                             .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
                             .map((cloudPlaylist) => {
@@ -3788,13 +3752,11 @@ export default function Page() {
                                 </div>
                               );
                             })}
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
         )}
 
