@@ -2405,47 +2405,112 @@ export default function Page() {
                     const colour = colours[originalIndex % colours.length];
                     const isActiveTrack = currentTrack?.id === track.id;
                     const isCompleted = originalIndex < currentIndex;
+                    const isDropTarget = dropTargetIndex === originalIndex && draggedTrackIndex !== null;
 
                     return (
-                      <div
-                        key={track.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-pointer ${
-                          isActiveTrack
-                            ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
-                            : isCompleted
-                            ? "opacity-50 bg-white/[0.02]"
-                            : "bg-white/[0.03] hover:bg-white/[0.06]"
-                        }`}
-                        onClick={() => {
-                          setCurrentIndex(originalIndex);
-                          togglePlayPause(track);
-                        }}
-                      >
-                        <span className={`text-sm font-black w-6 ${colour}`}>{originalIndex + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
-                            {track.title}
-                          </p>
-                          <p className="text-[10px] text-white/50">{formatDuration(track.durationSeconds)}</p>
-                        </div>
-                        {isActiveTrack && isPlaying && (
-                          <div className="flex gap-0.5">
-                            {[1, 2, 3].map((i) => (
-                              <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
-                            ))}
-                          </div>
+                      <div key={track.id} className="relative">
+                        {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
+                          <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
                         )}
-                        {isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            hideTrackFromSession(track.id);
+                        <div
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedTrackIndex(originalIndex);
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", originalIndex.toString());
                           }}
-                          className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
-                          title="Hide from this session"
+                          onDragEnd={() => {
+                            setDraggedTrackIndex(null);
+                            setDropTargetIndex(null);
+                            setDropPosition("below");
+                            dropPositionRef.current = "below";
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
+                              setDropTargetIndex(originalIndex);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const midpoint = rect.top + rect.height / 2;
+                              const position = e.clientY < midpoint ? "above" : "below";
+                              setDropPosition(position);
+                              dropPositionRef.current = position;
+                            }
+                          }}
+                          onDragLeave={() => {
+                            if (dropTargetIndex === originalIndex) {
+                              setDropTargetIndex(null);
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
+                            
+                            const fromIndex = draggedTrackIndex;
+                            const toIndex = originalIndex;
+                            const position = dropPositionRef.current;
+                            
+                            setPlaylist((prev) => {
+                              const newPlaylist = [...prev];
+                              const [draggedItem] = newPlaylist.splice(fromIndex, 1);
+                              let finalPosition: number;
+                              
+                              if (position === "above") {
+                                finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
+                              } else {
+                                finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
+                              }
+                              
+                              newPlaylist.splice(finalPosition, 0, draggedItem);
+                              return newPlaylist;
+                            });
+                            
+                            setDraggedTrackIndex(null);
+                            setDropTargetIndex(null);
+                            setDropPosition("below");
+                            dropPositionRef.current = "below";
+                          }}
+                          className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
+                            isActiveTrack
+                              ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
+                              : isCompleted
+                              ? "opacity-50 bg-white/[0.02]"
+                              : "bg-white/[0.03] hover:bg-white/[0.06]"
+                          } ${draggedTrackIndex === originalIndex ? "opacity-50 scale-95" : ""}`}
+                          onClick={() => {
+                            setCurrentIndex(originalIndex);
+                            togglePlayPause(track);
+                          }}
                         >
-                          <X size={14} />
-                        </button>
+                          <span className={`text-sm font-black w-6 ${colour}`}>{originalIndex + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
+                              {track.title}
+                            </p>
+                            <p className="text-[10px] text-white/50">{formatDuration(track.durationSeconds)}</p>
+                          </div>
+                          {isActiveTrack && isPlaying && (
+                            <div className="flex gap-0.5">
+                              {[1, 2, 3].map((i) => (
+                                <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
+                              ))}
+                            </div>
+                          )}
+                          {isCompleted && <span className="text-[10px] text-white/40">Played</span>}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              hideTrackFromSession(track.id);
+                            }}
+                            className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
+                            title="Hide from this session"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
+                          <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
+                        )}
                       </div>
                     );
                   });
