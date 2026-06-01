@@ -1181,6 +1181,8 @@ export default function Page() {
     setBackToBackPlayed(false);
     setIsGapPaused(false);
     setGapCountdown(0);
+    setHiddenTrackIds(new Set());
+    setCurrentPlaylistName("Untitled Playlist");
 
     // Clear IndexedDB cache (playlists only)
     await clearCachedPlaylist();
