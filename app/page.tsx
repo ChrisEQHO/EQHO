@@ -55,6 +55,7 @@ import {
   Upload,
   SlidersHorizontal,
   AlertTriangle,
+  AlertCircle,
   Headphones,
   Save,
   Repeat,
@@ -68,6 +69,7 @@ import {
   Check,
   Loader2,
   RotateCcw,
+  Bell,
 } from "lucide-react";
 
 const uploads = [
@@ -3724,40 +3726,154 @@ export default function Page() {
         )}
 
         {activePage === "settings" && (
-          <div className="p-8 h-full overflow-y-auto">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
-              <div className="flex-1">
-                <p className="text-cyan-300 uppercase tracking-[0.25em] text-sm font-bold">
-                  EQHO System Settings
-                </p>
-                <h1 className="text-4xl font-black mt-2">Settings</h1>
-                <p className="text-white/50 mt-2 max-w-md">
-                  Control playback, sessions, uploads, display and coach workflow.
-                </p>
+          <div className="h-full overflow-y-auto">
+            {/* Header */}
+            <div className="px-8 pt-6 pb-4 border-b border-white/10">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
+                    EQHO System Settings
+                  </p>
+                  <h1 className="text-3xl font-black mt-1">Settings</h1>
+                </div>
+                <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 text-sm">
+                  <Save size={16} className="inline mr-2" />
+                  Save Settings
+                </button>
               </div>
-
-              <button className="px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 self-start">
-                <Save size={20} className="inline mr-2" />
-                Save Settings
-              </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              <SettingsSection icon={<Headphones size={22} />} title="Playback">
-                <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
-                <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
-              </SettingsSection>
+            {/* Settings Grid */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Playback Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Headphones size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Playback</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
+                    <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
+                  </div>
+                </div>
 
-              <SettingsSection icon={<Timer size={22} />} title="Session Controls">
-                <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
-                <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
-                <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
-              </SettingsSection>
+                {/* Session Controls */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Timer size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Session Controls</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
+                    <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
+                    <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
+                  </div>
+                </div>
 
-              <SettingsSection icon={<SlidersHorizontal size={22} />} title="Coach Display">
-                <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
-                <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
-              </SettingsSection>
+                {/* Coach Display */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <SlidersHorizontal size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Coach Display</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
+                    <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
+                  </div>
+                </div>
+
+                {/* Audio Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
+                      <Volume2 size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Audio</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Fade Between Tracks" value={settings.fadeEnabled ?? false} onChange={(v) => updateSetting("fadeEnabled", v)} />
+                    <NumberSetting label="Fade Duration" value={settings.fadeDuration ?? 2} suffix="sec" min={0} max={10} step={1} onChange={(v) => updateSetting("fadeDuration", v)} />
+                  </div>
+                </div>
+
+                {/* Upload Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                      <Upload size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Uploads</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Auto-add to Playlist" value={settings.autoAddToPlaylist ?? true} onChange={(v) => updateSetting("autoAddToPlaylist", v)} />
+                    <ToggleSetting label="Keep Originals After Session" value={settings.keepOriginals ?? true} onChange={(v) => updateSetting("keepOriginals", v)} />
+                  </div>
+                </div>
+
+                {/* Notifications */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
+                      <Bell size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Notifications</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Sound Alerts" value={settings.soundAlerts ?? true} onChange={(v) => updateSetting("soundAlerts", v)} />
+                    <ToggleSetting label="Session Complete Alert" value={settings.sessionCompleteAlert ?? true} onChange={(v) => updateSetting("sessionCompleteAlert", v)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/5 p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center">
+                    <AlertCircle size={18} className="text-red-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-red-400">Danger Zone</h2>
+                    <p className="text-xs text-white/50">Irreversible actions</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button 
+                    onClick={() => {
+                      if (confirm("Are you sure you want to clear all saved playlists?")) {
+                        setSavedPlaylists([]);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition"
+                  >
+                    Clear All Playlists
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (confirm("Are you sure you want to reset all settings to default?")) {
+                        setSettings({
+                          defaultVolume: 80,
+                          autoplayNext: true,
+                          gapSeconds: 10,
+                          playlistRepeats: 1,
+                          backToBack: false,
+                          showCountdown: true,
+                          countdownSeconds: 5,
+                        });
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition"
+                  >
+                    Reset All Settings
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
