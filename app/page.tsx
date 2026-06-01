@@ -379,8 +379,8 @@ export default function Page() {
 
   // Fetch user on mount
   useEffect(() => {
-    // V0 Preview: use mock user when Supabase is not configured
-    if (isV0Preview && !supabase) {
+    // V0 Preview: use mock user, do not call Supabase
+    if (isV0Preview) {
       setUser(mockUser as unknown as User);
       return;
     }
@@ -389,12 +389,7 @@ export default function Page() {
     
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      // In preview mode, fall back to mock user if not authenticated
-      if (isV0Preview && !user) {
-        setUser(mockUser as unknown as User);
-      } else {
-        setUser(user);
-      }
+      setUser(user);
     };
     getUser();
 

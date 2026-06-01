@@ -17,7 +17,11 @@ export default function LoginPage() {
 
   // V0 Preview bypass: redirect to main app
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_V0_PREVIEW === "true") {
+    const isPreviewMode =
+      process.env.NODE_ENV === "development" ||
+      process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
+    
+    if (isPreviewMode) {
       router.replace("/")
     }
   }, [router])
