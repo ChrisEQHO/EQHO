@@ -302,8 +302,6 @@ export default function Page() {
   // Sidebar navigation items
   const sidebarItems = [
     { icon: Home, page: "player", color: "pink" },
-    { icon: ListMusic, page: "playlists", color: "pink" },
-    { icon: Settings, page: "settings", color: "pink" },
   ] as const;
 
   const activeColors: Record<string, string> = {
