@@ -2480,17 +2480,17 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <div className="grid h-[calc(100vh-112px)] w-full grid-cols-[84px_320px_minmax(0,1fr)_520px] gap-4 overflow-hidden p-3 pb-0">
+      <div className="grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
         {/* ICON RAIL - col-start-1 */}
         <aside className="relative col-start-1 h-full overflow-hidden">
           <nav className="flex h-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm py-4">
-            <div className="w-10 h-10 mb-2 flex items-center justify-center">
+            <div className="w-8 h-8 mb-2 flex items-center justify-center">
               <Image 
                 src="/eqho-logo.png" 
                 alt="EQHO Logo" 
-                width={40} 
-                height={40}
+                width={32} 
+                height={32}
                 className="object-contain"
                 priority
               />
@@ -2523,7 +2523,7 @@ export default function Page() {
         {activePage === "player" && (
           <>
             {/* UPLOAD/PLAYLISTS - col-start-2 */}
-            <aside className="relative col-start-2 h-full overflow-hidden flex flex-col gap-3">
+            <aside className="relative col-start-2 h-full overflow-hidden flex flex-col gap-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
@@ -2646,7 +2646,7 @@ export default function Page() {
             </aside>
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
-            <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-3">
+            <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-2">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
@@ -2819,7 +2819,7 @@ export default function Page() {
             </main>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <aside className="relative col-start-4 h-full overflow-hidden flex flex-col gap-3">
+            <aside className="relative col-start-4 h-full overflow-hidden flex flex-col gap-2">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
@@ -3598,7 +3598,7 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[112px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[100px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
         <div className="w-full max-w-full px-2 md:px-4 py-2 md:py-3 overflow-hidden">
