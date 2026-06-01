@@ -1,12 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Check if running in v0 preview/development
-const isV0Preview =
-  process.env.NODE_ENV === "development" ||
-  process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
-
 export async function updateSession(request: NextRequest) {
+  // V0 Preview bypass: skip auth entirely in development
+  if (
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
+  ) {
+    return NextResponse.next()
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -15,12 +18,6 @@ export async function updateSession(request: NextRequest) {
   // Public routes that don't require authentication
   const publicRoutes = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
-
-  // V0 Preview bypass: allow access without auth in development
-  if (isV0Preview && (!supabaseUrl || !supabaseAnonKey)) {
-    // In preview without Supabase config, allow all routes
-    return NextResponse.next({ request })
-  }
 
   // If Supabase is not configured, redirect protected routes to login
   if (!supabaseUrl || !supabaseAnonKey) {
