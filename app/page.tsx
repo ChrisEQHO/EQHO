@@ -3347,7 +3347,7 @@ export default function Page() {
         )}
 
         {activePage === "playlists" && (
-          <div className="p-4 md:p-6 h-full overflow-y-auto">
+          <div className="col-span-3 col-start-2 p-4 md:p-6 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header with Upload Area */}
             <div className="mb-6">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
@@ -3613,7 +3613,7 @@ export default function Page() {
                         Clear All
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                       {savedPlaylists.map((localPlaylist) => {
                         const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
                         const isSyncing = syncingPlaylistId === localPlaylist.id;
@@ -3701,7 +3701,7 @@ export default function Page() {
                       <Cloud size={16} className="text-cyan-400" />
                       Cloud Playlists
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                           {cloudPlaylists
                             .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
                             .map((cloudPlaylist) => {
@@ -3761,7 +3761,7 @@ export default function Page() {
         )}
 
         {activePage === "settings" && (
-          <div className="h-full overflow-y-auto">
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
