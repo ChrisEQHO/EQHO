@@ -2423,6 +2423,16 @@ export default function Page() {
                           </div>
                         )}
                         {isCompleted && <span className="text-[10px] text-white/40">Played</span>}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            hideTrackFromSession(track.id);
+                          }}
+                          className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
+                          title="Hide from this session"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
                     );
                   });
