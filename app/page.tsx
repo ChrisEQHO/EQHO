@@ -2544,10 +2544,10 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto pl-3 pr-3 md:pl-4 md:pr-4 pt-14 md:pt-3 w-full">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-auto px-4 md:px-6 pt-14 md:pt-3 w-full box-border">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[160px_minmax(0,0.5fr)_minmax(320px,1fr)] gap-2 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-[160px_minmax(150px,0.4fr)_minmax(400px,1fr)] gap-3 w-full pr-4">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="hidden md:flex flex-col gap-3 min-w-0 overflow-hidden">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
