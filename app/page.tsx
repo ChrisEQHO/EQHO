@@ -1740,7 +1740,7 @@ export default function Page() {
         {/* Queue Playlist Modal */}
         {showFullscreenQueuePlaylist && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 w-full max-w-[400px] max-h-[500px] flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-white">Queue Playlist</h3>
                 <button
@@ -2919,7 +2919,7 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 min-w-0 w-[360px] shrink-0 overflow-hidden">
+            <div className="flex flex-col gap-3 w-full min-w-0 max-w-full overflow-hidden">
               <Card className="shrink-0 overflow-hidden px-4 py-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
