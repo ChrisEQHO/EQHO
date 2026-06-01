@@ -67,6 +67,7 @@ import {
   Download,
   Check,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 
 const uploads = [
@@ -558,23 +559,26 @@ export default function Page() {
 
   const estimatedSessionSeconds = totalRoutineSeconds + totalGapSeconds;
 
-  // Calculate full session time including repeats and back-to-back
-  const totalTracksWithRepeats = trackCount * playlistRepeats * (backToBack ? 2 : 1);
+  // Calculate full session time including repeats and back-to-back (using visible tracks only)
+  const totalVisibleTracksWithRepeats = visibleTrackCount * playlistRepeats * (backToBack ? 2 : 1);
   const fullSessionSeconds = 
-    totalRoutineSeconds * playlistRepeats * (backToBack ? 2 : 1) +
-    Math.max(0, totalTracksWithRepeats - 1) * gapSeconds;
+    visibleRoutineSeconds * playlistRepeats * (backToBack ? 2 : 1) +
+    Math.max(0, totalVisibleTracksWithRepeats - 1) * gapSeconds;
 
-  // Calculate completed tracks across all rounds
+  // Calculate completed tracks across all rounds (using visible playlist)
   const currentRoundIndex = playlistRound - 1;
-  const tracksCompletedInPreviousRounds = currentRoundIndex * trackCount * (backToBack ? 2 : 1);
-  const totalTracksCompleted = tracksCompletedInPreviousRounds + currentIndex;
+  const tracksCompletedInPreviousRounds = currentRoundIndex * visibleTrackCount * (backToBack ? 2 : 1);
+  
+  // Find current track's position in visible playlist
+  const currentVisibleIndex = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+  const visibleTracksCompleted = tracksCompletedInPreviousRounds + Math.max(0, currentVisibleIndex);
 
-  // Real-time progress: sum of completed tracks' durations + current track elapsed time
-  const completedSeconds = playlist
-    .slice(0, currentIndex)
+  // Real-time progress: sum of completed visible tracks' durations + current track elapsed time
+  const completedSeconds = visiblePlaylist
+    .slice(0, Math.max(0, currentVisibleIndex))
     .reduce((sum, t) => sum + t.durationSeconds, 0);
-  const previousRoundsSeconds = currentRoundIndex * totalRoutineSeconds * (backToBack ? 2 : 1);
-  const completedGapSeconds = totalTracksCompleted > 0 ? totalTracksCompleted * gapSeconds : 0;
+  const previousRoundsSeconds = currentRoundIndex * visibleRoutineSeconds * (backToBack ? 2 : 1);
+  const completedGapSeconds = visibleTracksCompleted > 0 ? visibleTracksCompleted * gapSeconds : 0;
   const elapsedSeconds = previousRoundsSeconds + completedSeconds + completedGapSeconds + currentTime;
 
   const progressPercent = fullSessionSeconds > 0
@@ -586,16 +590,16 @@ export default function Page() {
   // Track completion count for display
   const completedTracks = currentIndex;
 
-  // Display labels
+  // Display labels - use visible playlist for accurate session data
   const currentPlaylistDisplayName =
     playlist.length > 0 ? currentPlaylistName : "No playlist selected";
 
   const trackCountLabel =
-    `${trackCount} ${trackCount === 1 ? "track" : "tracks"}`;
+    `${visibleTrackCount} ${visibleTrackCount === 1 ? "track" : "tracks"}`;
 
-  const routineTimeLabel = formatSessionTime(totalRoutineSeconds);
+  const routineTimeLabel = formatSessionTime(visibleRoutineSeconds);
 
-  const estimatedSessionLabel = formatSessionTime(estimatedSessionSeconds);
+  const estimatedSessionLabel = formatSessionTime(fullSessionSeconds);
 
   const remainingTimeLabel = formatDuration(remainingSeconds);
 
@@ -1038,6 +1042,30 @@ export default function Page() {
     }
   };
 
+  // Spacebar to toggle play/pause
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if spacebar and not typing in an input/textarea
+      if (e.code === 'Space' && 
+          !(e.target instanceof HTMLInputElement) && 
+          !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        if (currentTrack) {
+          if (isPlaying && audioRef.current) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+          } else if (audioRef.current && currentTrack.url) {
+            audioRef.current.play();
+            setIsPlaying(true);
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentTrack, isPlaying]);
+
   const handleUploadedTrackPlayPause = async (track: Track) => {
     if (!audioRef.current || !track?.url) return;
 
@@ -1153,6 +1181,8 @@ export default function Page() {
     setBackToBackPlayed(false);
     setIsGapPaused(false);
     setGapCountdown(0);
+    setHiddenTrackIds(new Set());
+    setCurrentPlaylistName("Untitled Playlist");
 
     // Clear IndexedDB cache (playlists only)
     await clearCachedPlaylist();
@@ -1231,8 +1261,8 @@ export default function Page() {
       setCurrentTrack(nextTrack);
       if (audioRef.current && nextTrack) {
         audioRef.current.src = nextTrack.url;
-        audioRef.current.play();
-        setIsPlaying(true);
+        audioRef.current.pause();
+        setIsPlaying(false);
       }
     }
   };
@@ -1248,8 +1278,8 @@ export default function Page() {
       setCurrentTrack(prevTrack);
       if (audioRef.current && prevTrack) {
         audioRef.current.src = prevTrack.url;
-        audioRef.current.play();
-        setIsPlaying(true);
+        audioRef.current.pause();
+        setIsPlaying(false);
       }
     } else if (audioRef.current) {
       // If at first track, restart it
@@ -1300,6 +1330,7 @@ export default function Page() {
           setIsPlaying(false);
           setIsGapPaused(true);
           setGapCountdown(_gapSeconds);
+          lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
           gapCallbackRef.current = playFn;
         } else {
           playFn();
@@ -1386,6 +1417,7 @@ export default function Page() {
   }, [volume, isMuted]);
 
   // Futuristic beep sound for countdown
+  const lastBeepedCountdown = useRef<number>(-1);
   const playBeep = useCallback((frequency: number = 880, duration: number = 100) => {
     try {
       const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -1415,13 +1447,15 @@ export default function Page() {
         const cb = gapCallbackRef.current;
         gapCallbackRef.current = null;
         setIsGapPaused(false);
+        lastBeepedCountdown.current = -1; // Reset beep tracking
         cb();
       }
       return;
     }
     
-    // Play beep on final 3 seconds
-    if (gapCountdown <= 3 && gapCountdown > 0) {
+    // Play beep on final 3 seconds - only if we haven't beeped this second yet
+    if (gapCountdown <= 3 && gapCountdown > 0 && lastBeepedCountdown.current !== gapCountdown) {
+      lastBeepedCountdown.current = gapCountdown;
       const freq = gapCountdown === 3 ? 660 : gapCountdown === 2 ? 880 : 1100;
       playBeep(freq, 150);
     }
@@ -1988,17 +2022,58 @@ export default function Page() {
 
               {/* Track Info */}
               <div className="mt-8 text-center w-full">
-                <h1 className="text-2xl font-bold text-white truncate px-4">
+                <h1 className="text-4xl md:text-5xl font-black text-white truncate px-4 bg-gradient-to-r from-white via-pink-100 to-white bg-clip-text text-transparent">
                   {currentTrack?.title || "No Track Selected"}
   </h1>
-  <p className="text-white/50 mt-1">
+  <p className="text-white/50 mt-2 text-lg">
   {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
   </p>
   </div>
 
               {/* Timer */}
               <div className="mt-6">
-                {isGapPaused ? (
+                {isGapPaused && gapCountdown <= 3 ? (
+                  /* Large animated countdown overlay for final 3 seconds */
+                  <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
+                    <div 
+                      key={gapCountdown}
+                      className="text-[60vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent drop-shadow-[0_0_100px_rgba(255,79,163,0.8)]"
+                      style={{
+                        animation: 'countdownPulse 1s ease-out',
+                        textShadow: '0 0 120px rgba(255,79,163,0.6), 0 0 240px rgba(255,138,0,0.4)'
+                      }}
+                    >
+                      {gapCountdown}
+                    </div>
+                    {/* Next track info */}
+                    <div className="mt-4 text-center">
+                      <p className="text-white/60 text-lg uppercase tracking-widest mb-2">Up Next</p>
+                      <p className="text-3xl md:text-4xl font-bold text-white">
+                        {(() => {
+                          const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                          const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                          return nextTrack?.title || "End of Playlist";
+                        })()}
+                      </p>
+                    </div>
+                    <style jsx>{`
+                      @keyframes countdownPulse {
+                        0% {
+                          transform: scale(0.5);
+                          opacity: 0;
+                        }
+                        30% {
+                          transform: scale(1.1);
+                          opacity: 1;
+                        }
+                        100% {
+                          transform: scale(1);
+                          opacity: 1;
+                        }
+                      }
+                    `}</style>
+                  </div>
+                ) : isGapPaused ? (
                   <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                     {gapCountdown}
                   </div>
@@ -2035,7 +2110,7 @@ export default function Page() {
             </div>
 
             {/* Controls */}
-            <div className="px-8 pb-8 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+            <div className={`px-8 ${!currentTrack && !isPlaying ? 'pb-24' : 'pb-8'} pb-[calc(env(safe-area-inset-bottom)+2rem)]`}>
               <div className="flex items-center justify-center gap-8">
                 {/* Previous */}
                 <button 
@@ -2220,8 +2295,8 @@ export default function Page() {
               
               {/* Session Countdown Timer - Large */}
               <div className="flex flex-col items-center mb-6">
-                <p className="text-sm text-white/40 uppercase tracking-widest mb-2">Session Remaining</p>
-                <div className="text-8xl font-black tracking-tight tabular-nums leading-none">
+                <p className="text-base text-white/40 uppercase tracking-widest mb-3">Session Remaining</p>
+                <div className="text-[10rem] font-black tracking-tight tabular-nums leading-none">
                   {isGapPaused ? (
                     <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>
                       {gapCountdown}
@@ -2232,25 +2307,25 @@ export default function Page() {
                     </span>
   )}
   </div>
-  <p className="text-xs text-white/40 mt-2">
+  <p className="text-sm text-white/40 mt-3">
   {isGapPaused ? "Next Track In" : `${visiblePlaylist.length} tracks + ${gapSeconds}s gaps`}
   </p>
               </div>
 
               {/* Track Title */}
-              <h3 className="text-3xl font-bold text-white text-center mb-2 max-w-[500px] truncate">
+              <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
                 {currentTrack?.title || "No Track Selected"}
               </h3>
               
               {/* Track Timer - Larger */}
-              <p className="text-2xl text-white/70 tabular-nums mb-2">
+              <p className="text-3xl text-white/70 tabular-nums mb-3">
                 {currentTime > 0 || isPlaying
                   ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                   : "00:00"}
                 {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
   </p>
   
-  <p className="text-base text-white/50 mb-6">
+  <p className="text-xl text-white/50 mb-6">
   {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
   </p>
 
@@ -2362,15 +2437,30 @@ export default function Page() {
         <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[240px] max-w-[320px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setShowFullscreenQueuePlaylist(true)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-pink-500/10 border border-pink-500/30 text-pink-400 text-[10px] font-bold hover:bg-pink-500/20 transition"
+                  onClick={() => {
+                    if (sessionRunning || isPlaying) {
+                      setShowClearPlaylistConfirm(true);
+                    } else {
+                      clearPlaylist();
+                    }
+                  }}
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold hover:bg-orange-500/20 transition"
                 >
-  <Plus size={12} />
-  Queue
-  </button>
-  <span className="text-[10px] text-white/50">{visiblePlaylist.length} tracks{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</span>
+                  <X size={10} />
+                  Clear
+                </button>
+                {hiddenTrackIds.size > 0 && (
+                  <button
+                    onClick={() => setHiddenTrackIds(new Set())}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-bold hover:bg-blue-500/20 transition"
+                  >
+                    <RotateCcw size={10} />
+                    Restore ({hiddenTrackIds.size})
+                  </button>
+                )}
+                <span className="text-[9px] text-white/50">{visiblePlaylist.length} tracks</span>
               </div>
             </div>
             <p className="border-b border-white/10 pb-2 text-[10px] text-white/60 mb-2">Drag to re-order</p>
@@ -2392,37 +2482,112 @@ export default function Page() {
                     const colour = colours[originalIndex % colours.length];
                     const isActiveTrack = currentTrack?.id === track.id;
                     const isCompleted = originalIndex < currentIndex;
+                    const isDropTarget = dropTargetIndex === originalIndex && draggedTrackIndex !== null;
 
                     return (
-                      <div
-                        key={track.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-pointer ${
-                          isActiveTrack
-                            ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
-                            : isCompleted
-                            ? "opacity-50 bg-white/[0.02]"
-                            : "bg-white/[0.03] hover:bg-white/[0.06]"
-                        }`}
-                        onClick={() => {
-                          setCurrentIndex(originalIndex);
-                          togglePlayPause(track);
-                        }}
-                      >
-                        <span className={`text-sm font-black w-6 ${colour}`}>{originalIndex + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
-                            {track.title}
-                          </p>
-                          <p className="text-[10px] text-white/50">{formatDuration(track.durationSeconds)}</p>
-                        </div>
-                        {isActiveTrack && isPlaying && (
-                          <div className="flex gap-0.5">
-                            {[1, 2, 3].map((i) => (
-                              <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
-                            ))}
-                          </div>
+                      <div key={track.id} className="relative">
+                        {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
+                          <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
                         )}
-                        {isCompleted && <span className="text-[10px] text-white/40">Played</span>}
+                        <div
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedTrackIndex(originalIndex);
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", originalIndex.toString());
+                          }}
+                          onDragEnd={() => {
+                            setDraggedTrackIndex(null);
+                            setDropTargetIndex(null);
+                            setDropPosition("below");
+                            dropPositionRef.current = "below";
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
+                              setDropTargetIndex(originalIndex);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const midpoint = rect.top + rect.height / 2;
+                              const position = e.clientY < midpoint ? "above" : "below";
+                              setDropPosition(position);
+                              dropPositionRef.current = position;
+                            }
+                          }}
+                          onDragLeave={() => {
+                            if (dropTargetIndex === originalIndex) {
+                              setDropTargetIndex(null);
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
+                            
+                            const fromIndex = draggedTrackIndex;
+                            const toIndex = originalIndex;
+                            const position = dropPositionRef.current;
+                            
+                            setPlaylist((prev) => {
+                              const newPlaylist = [...prev];
+                              const [draggedItem] = newPlaylist.splice(fromIndex, 1);
+                              let finalPosition: number;
+                              
+                              if (position === "above") {
+                                finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
+                              } else {
+                                finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
+                              }
+                              
+                              newPlaylist.splice(finalPosition, 0, draggedItem);
+                              return newPlaylist;
+                            });
+                            
+                            setDraggedTrackIndex(null);
+                            setDropTargetIndex(null);
+                            setDropPosition("below");
+                            dropPositionRef.current = "below";
+                          }}
+                          className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
+                            isActiveTrack
+                              ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
+                              : isCompleted
+                              ? "opacity-50 bg-white/[0.02]"
+                              : "bg-white/[0.03] hover:bg-white/[0.06]"
+                          } ${draggedTrackIndex === originalIndex ? "opacity-50 scale-95" : ""}`}
+                          onClick={() => {
+                            setCurrentIndex(originalIndex);
+                            togglePlayPause(track);
+                          }}
+                        >
+                          <span className={`text-sm font-black w-6 ${colour}`}>{originalIndex + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
+                              {track.title}
+                            </p>
+                            <p className="text-[10px] text-white/50">{formatDuration(track.durationSeconds)}</p>
+                          </div>
+                          {isActiveTrack && isPlaying && (
+                            <div className="flex gap-0.5">
+                              {[1, 2, 3].map((i) => (
+                                <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
+                              ))}
+                            </div>
+                          )}
+                          {isCompleted && <span className="text-[10px] text-white/40">Played</span>}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              hideTrackFromSession(track.id);
+                            }}
+                            className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
+                            title="Hide from this session"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
+                          <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
+                        )}
                       </div>
                     );
                   });
@@ -2488,16 +2653,6 @@ export default function Page() {
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
           <nav className="flex h-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm py-4">
-            <div className="w-8 h-8 mb-2 flex items-center justify-center">
-              <Image 
-                src="/eqho-logo.png" 
-                alt="EQHO Logo" 
-                width={32} 
-                height={32}
-                className="object-contain"
-                priority
-              />
-            </div>
             {sidebarItems.map(({ icon: Icon, page, color }) => {
               const isActive = activePage === page;
               return (
@@ -2607,6 +2762,12 @@ export default function Page() {
                         >
                           Load
                         </button>
+                        <button
+                          onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
+                          className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
+                        >
+                          Clear
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -2650,36 +2811,40 @@ export default function Page() {
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
             <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-2">
-              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 flex flex-col">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-                  <button
-                    onClick={() => {
-                      if (sessionRunning || isPlaying) {
-                        setShowClearPlaylistConfirm(true);
-                      } else {
-                        clearPlaylist();
-                      }
-                    }}
-                    disabled={playlist.length === 0}
-                    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Clear Playlist
-                  </button>
-                </div>
-                <div className="mt-1 border-b border-white/10 pb-2 flex items-center justify-between">
-                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
-                  {hiddenTrackIds.size > 0 && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={restoreHiddenTracks}
-                      className="px-2 py-1 text-[9px] md:text-[10px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-md hover:bg-cyan-500/20 transition"
+                      onClick={() => {
+                        console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);
+                        if (sessionRunning || isPlaying) {
+                          setShowClearPlaylistConfirm(true);
+                        } else {
+                          clearPlaylist();
+                        }
+                      }}
+                      disabled={playlist.length === 0}
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      Restore {hiddenTrackIds.size} hidden
+                      Clear Playlist
                     </button>
-                  )}
+                    {hiddenTrackIds.size > 0 && (
+                      <button
+                        onClick={() => setHiddenTrackIds(new Set())}
+                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md hover:bg-blue-500/20 transition flex items-center gap-1"
+                      >
+                        <RotateCcw size={12} />
+                        Restore ({hiddenTrackIds.size})
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-1 border-b border-white/10 pb-2">
+                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
                 </div>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[calc(100vh-200px)] overflow-y-auto">
                   {visiblePlaylist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
@@ -3083,21 +3248,11 @@ export default function Page() {
 
 <Card className="relative flex flex-1 min-h-[400px] flex-col overflow-hidden">
 
-            <div className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-white/10 pb-2">
+            <div className="p-4 flex-1 flex flex-col">
+            <div className="border-b border-white/10 pb-4 mb-2">
               <div className="min-w-0">
-                <h2 className="text-lg font-bold truncate">{currentPlaylistDisplayName}</h2>
-                <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total</p>
-              </div>
-              <div className="flex gap-2 flex-wrap shrink-0">
-                <button className="rounded border border-white/20 px-2 py-1 text-[10px]">Edit Playlist</button>
-                <button onClick={() => {
-      if (sessionRunning || isPlaying) {
-        setShowClearPlaylistConfirm(true);
-      } else {
-        clearPlaylist();
-      }
-    }} className="rounded border border-pink-500 px-2 py-1 text-[10px] text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
+                <h2 className="text-xl font-bold truncate mb-1">{currentPlaylistDisplayName}</h2>
+                <p className="text-sm text-white/80">{trackCountLabel} • {routineTimeLabel} total{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</p>
               </div>
             </div>
 
@@ -3105,7 +3260,7 @@ export default function Page() {
               <h3 className="mt-2 text-[10px] font-bold uppercase">Session Overview</h3>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {[
-                  [Music, trackCount, "ROUTINES", "in playlist", "text-purple-400"],
+                  [Music, visibleTrackCount, "ROUTINES", "in playlist", "text-purple-400"],
                   [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
                   [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
                   [Timer, estimatedSessionLabel, "EST. SESSION", "(including gaps)", "text-purple-400"],
@@ -3120,22 +3275,36 @@ export default function Page() {
                   </div>
                 ))}
               </div>
+            </div>
 
-              <div className="mt-3 border-y border-white/10 py-2">
-                <div className="mb-1.5 flex justify-between text-[10px] uppercase">
-                  <span>Session Progress</span>
-                  <span className="text-cyan-400">{completedTracks} of {trackCount} completed</span>
+            {/* Session Status */}
+            <div className="mt-4 flex-1 flex flex-col justify-end">
+              <div className="border-t border-white/10 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] uppercase text-white/50">Session Status</span>
+                  <span className={`text-[10px] font-bold ${sessionRunning ? 'text-green-400' : 'text-white/40'}`}>
+                    {sessionRunning ? 'In Progress' : 'Ready'}
+                  </span>
                 </div>
-                <div className="h-[4px] rounded-full bg-white/15">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-pink-500 to-cyan-400 transition-all" 
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <div className="mt-1.5 flex justify-between text-[10px]">
-                  <span className="text-pink-500">{progressPercent}%</span>
-                  <span className="text-cyan-400">{remainingTimeLabel} remaining</span>
-                </div>
+                {sessionRunning && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Current Track</span>
+                      <span className="text-pink-400 font-medium truncate max-w-[150px]">{currentTrack?.title || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Progress</span>
+                      <span className="text-cyan-400 font-medium">{completedTracks} of {visibleTrackCount} completed</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Time Remaining</span>
+                      <span className="text-orange-400 font-medium">{remainingTimeLabel}</span>
+                    </div>
+                  </div>
+                )}
+                {!sessionRunning && playlist.length > 0 && (
+                  <p className="text-[10px] text-white/40 mt-1">Press play to start your session</p>
+                )}
               </div>
             </div>
           </div>
@@ -3397,10 +3566,25 @@ export default function Page() {
                 {/* Local Playlists */}
                 {savedPlaylists.length > 0 && (
                   <div className="mb-8">
-                    <h2 className="text-lg font-bold text-white/70 mb-4 flex items-center gap-2">
-                      <Folder size={20} />
-                      Local Playlists
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-bold text-white/70 flex items-center gap-2">
+                        <Folder size={20} />
+                        Local Playlists
+                      </h2>
+                      <button
+                        onClick={() => {
+                          if (sessionRunning || isPlaying) {
+                            setShowClearPlaylistConfirm(true);
+                          } else {
+                            setSavedPlaylists([]);
+                            clearPlaylist();
+                          }
+                        }}
+                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition"
+                      >
+                        Clear All
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                       {savedPlaylists.map((localPlaylist) => {
                         const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
