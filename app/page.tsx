@@ -3840,20 +3840,6 @@ export default function Page() {
                   </div>
                 </div>
 
-                {/* Audio Settings */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
-                      <Volume2 size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Audio</h2>
-                  </div>
-                  <div className="space-y-4">
-                    <ToggleSetting label="Fade Between Tracks" value={settings.fadeEnabled ?? false} onChange={(v) => updateSetting("fadeEnabled", v)} />
-                    <NumberSetting label="Fade Duration" value={settings.fadeDuration ?? 2} suffix="sec" min={0} max={10} step={1} onChange={(v) => updateSetting("fadeDuration", v)} />
-                  </div>
-                </div>
-
                 {/* Upload Settings */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
@@ -4438,32 +4424,6 @@ export default function Page() {
                             <button onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
                             <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.countdownSeconds}s</span>
                             <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Audio Settings */}
-                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Volume2 size={14} className="text-cyan-400" />
-                        <span className="text-[10px] font-bold text-white">Audio</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Fade Between Tracks</span>
-                          <button onClick={() => updateSetting("fadeEnabled", !(settings.fadeEnabled ?? false))} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.fadeEnabled ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.fadeEnabled ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Fade Duration</span>
-                          <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("fadeDuration", Math.max(0, (settings.fadeDuration ?? 2) - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.fadeDuration ?? 2}s</span>
-                            <button onClick={() => updateSetting("fadeDuration", Math.min(10, (settings.fadeDuration ?? 2) + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
                       </div>
