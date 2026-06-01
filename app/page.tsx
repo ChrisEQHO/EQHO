@@ -4478,7 +4478,7 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[120px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[145px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
         <div className="w-full max-w-full px-3 md:px-4 py-2 md:py-2 overflow-hidden">
