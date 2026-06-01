@@ -3955,13 +3955,13 @@ export default function Page() {
                         </div>
                         <div className="flex items-center gap-4">
                           <button onClick={goToPreviousTrack} className="p-3 rounded-full hover:bg-white/10 transition">
-                            <SkipBack size={24} className="text-white" />
+                            <StepBack size={24} className="text-white" />
                           </button>
                           <button onClick={toggleSession} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
                             {isPlaying ? <Pause size={28} className="text-white" /> : <Play size={28} className="text-white" />}
                           </button>
                           <button onClick={goToNextTrack} className="p-3 rounded-full hover:bg-white/10 transition">
-                            <SkipForward size={24} className="text-white" />
+                            <StepForward size={24} className="text-white" />
                           </button>
                         </div>
                       </>
