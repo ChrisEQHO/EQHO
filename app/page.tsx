@@ -4540,47 +4540,103 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[60px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
         <div className="w-full max-w-full px-2 md:px-4 py-1 md:py-2 overflow-hidden">
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-4">
+          {/* Mobile Layout */}
+          <div className="flex md:hidden items-center justify-between gap-1">
+            {/* Gap */}
+            <div className="flex items-center gap-1">
+              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/50 text-white/80">
+                <Users size={10} />
+              </div>
+              <div className="flex items-center rounded border border-white/20 bg-white/5">
+                <button onClick={() => setGapSeconds((v) => Math.max(0, v - 5))} className="px-1 py-0.5 text-white/70"><Minus size={8} /></button>
+                <span className="px-1 text-[9px] font-semibold text-white border-x border-white/15">{gapSeconds}s</span>
+                <button onClick={() => setGapSeconds((v) => Math.min(120, v + 5))} className="px-1 py-0.5 text-white/70"><Plus size={8} /></button>
+              </div>
+            </div>
+
+            {/* Back to Back */}
+            <button onClick={() => setBackToBack((v) => !v)} className="flex items-center gap-1">
+              <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-white/30 text-white/50"}`}>
+                <RefreshCw size={10} />
+              </div>
+            </button>
+
+            {/* Session Time */}
+            <div className="flex items-center gap-1">
+              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-orange-400/70 text-orange-400">
+                <Clock size={10} />
+              </div>
+              <span className="text-[10px] font-bold text-white">{formatSessionTime(totalSessionSeconds)}</span>
+            </div>
+
+            {/* Repeat */}
+            <div className="flex items-center gap-1">
+              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-cyan-400/70 text-cyan-400">
+                <Repeat size={10} />
+              </div>
+              <div className="flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
+                <button onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1 py-0.5 text-cyan-300"><Minus size={8} /></button>
+                <span className="px-1 text-[9px] font-semibold text-white border-x border-cyan-400/20">{playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}</span>
+                <button onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))} className="px-1 py-0.5 text-cyan-300"><Plus size={8} /></button>
+              </div>
+            </div>
+
+            {/* Start Button */}
+            <button 
+              onClick={toggleSession}
+              disabled={!currentTrack && playlist.length === 0}
+              className={`h-8 px-3 rounded-lg text-[10px] font-bold transition disabled:opacity-40 ${
+                isGapPaused
+                  ? "bg-white/10 border border-white/30 text-white animate-pulse"
+                  : isPlaying
+                    ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3]"
+                    : sessionRunning && !isPlaying
+                      ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400"
+                      : "bg-gradient-to-r from-pink-500 to-orange-500 text-white"
+              }`}
+            >
+              {isGapPaused ? "GAP" : isPlaying ? "STOP" : sessionRunning ? "PAUSED" : "START"}
+            </button>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden md:flex flex-wrap items-center justify-start gap-4">
             {/* Gap Between Routines */}
-            <div className="flex items-center gap-1.5 md:gap-3">
-              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-white text-white">
-                <Users size={14} className="md:hidden" />
-                <Users size={18} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white text-white">
+                <Users size={18} />
               </div>
               <div>
-                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
+                <div className="text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
                 <div className="mt-0.5 flex items-center rounded border border-white/20 bg-white/5">
                   <button 
                     onClick={() => setGapSeconds((v) => Math.max(0, v - 5))}
-                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-white/90 hover:text-white"
+                    className="px-2.5 py-1 text-white/90 hover:text-white"
                   >
-                    <Minus size={10} className="md:hidden" />
-                    <Minus size={14} className="hidden md:block" />
+                    <Minus size={14} />
                   </button>
-                  <div className="border-x border-white/15 px-2 md:px-4 py-0.5 md:py-1 text-xs md:text-base font-semibold text-white">{gapSeconds} sec</div>
+                  <div className="border-x border-white/15 px-4 py-1 text-base font-semibold text-white">{gapSeconds} sec</div>
                   <button 
                     onClick={() => setGapSeconds((v) => Math.min(120, v + 5))}
-                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-white/90 hover:text-white"
+                    className="px-2.5 py-1 text-white/90 hover:text-white"
                   >
-                    <Plus size={10} className="md:hidden" />
-                    <Plus size={14} className="hidden md:block" />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Back To Back */}
-            <div className="flex items-center gap-1.5 md:gap-3">
-              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
-                <RefreshCw size={14} className="md:hidden" />
-                <RefreshCw size={18} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
+                <RefreshCw size={18} />
               </div>
               <div>
-                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
+                <div className="text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
                 <div className="mt-0.5 flex items-center gap-2">
                   <button 
                     onClick={() => setBackToBack((v) => !v)}
@@ -4604,42 +4660,38 @@ export default function Page() {
             </div>
 
             {/* Total Session Time */}
-            <div className="flex items-center gap-1.5 md:gap-3">
-              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
-                <Clock size={14} className="md:hidden" />
-                <Clock size={20} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
+                <Clock size={20} />
               </div>
               <div>
-                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
-                <div className="text-white text-base md:text-xl font-bold leading-tight">{formatSessionTime(totalSessionSeconds)}</div>
+                <div className="text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
+                <div className="text-white text-xl font-bold leading-tight">{formatSessionTime(totalSessionSeconds)}</div>
               </div>
             </div>
 
             {/* Repeat Playlist */}
-            <div className="flex items-center gap-1.5 md:gap-3">
-              <div className="grid h-7 w-7 md:h-10 md:w-10 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                <Repeat size={14} className="md:hidden" />
-                <Repeat size={18} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                <Repeat size={18} />
               </div>
               <div>
-                <div className="text-[8px] md:text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
+                <div className="text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
                 <div className="mt-0.5 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
                   <button
                     onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))}
-                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-cyan-300 hover:text-cyan-100 transition"
+                    className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Minus size={10} className="md:hidden" />
-                    <Minus size={14} className="hidden md:block" />
+                    <Minus size={14} />
                   </button>
-                  <div className="border-x border-cyan-400/20 px-2 md:px-4 py-0.5 md:py-1 text-xs md:text-base font-semibold text-white">
+                  <div className="border-x border-cyan-400/20 px-4 py-1 text-base font-semibold text-white">
                     {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
                   </div>
                   <button
                     onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))}
-                    className="px-1.5 md:px-2.5 py-0.5 md:py-1 text-cyan-300 hover:text-cyan-100 transition"
+                    className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Plus size={10} className="md:hidden" />
-                    <Plus size={14} className="hidden md:block" />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
@@ -4649,7 +4701,7 @@ export default function Page() {
             <button 
               onClick={toggleSession}
               disabled={!currentTrack && playlist.length === 0}
-              className={`h-11 md:h-[52px] min-w-[140px] md:min-w-[160px] rounded-xl text-xs md:text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`h-[52px] min-w-[160px] rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
                 isGapPaused
                   ? "bg-white/10 border border-white/30 text-white animate-pulse"
                   : isPlaying
