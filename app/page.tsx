@@ -4031,6 +4031,66 @@ export default function Page() {
                     </div>
                   </label>
 
+                  {/* Uploaded Tracks Section */}
+                  {uploadedTracks.length > 0 && (
+                    <div className="shrink-0 mb-2 rounded-xl border border-[#ff8a00]/30 bg-[#ff8a00]/5 p-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-[10px] font-bold text-[#ff8a00] uppercase tracking-wider">Uploaded Tracks ({uploadedTracks.length})</h3>
+                        <button
+                          onClick={() => {
+                            if (sessionRunning || isPlaying) {
+                              setShowSendToSessionConfirm({ name: "Uploaded Tracks", tracks: uploadedTracks });
+                            } else {
+                              setPlaylist((prev) => [...prev, ...uploadedTracks]);
+                              if (!currentTrack && uploadedTracks.length > 0) {
+                                setCurrentTrack(uploadedTracks[0]);
+                                setCurrentIndex(0);
+                              }
+                              setUploadedTracks([]);
+                            }
+                          }}
+                          className="px-2 py-1 rounded bg-gradient-to-r from-pink-500/20 to-orange-500/20 border border-pink-500/30 text-pink-400 text-[9px] font-bold"
+                        >
+                          Add All
+                        </button>
+                      </div>
+                      <div className="space-y-1 max-h-[100px] overflow-y-auto">
+                        {uploadedTracks.map((track) => (
+                          <div key={track.id} className="flex items-center gap-2 bg-white/[0.03] rounded-lg px-2 py-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
+                              }}
+                              className="grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 hover:border-red-500/60 hover:text-red-400 shrink-0"
+                            >
+                              <X size={10} />
+                            </button>
+                            <p className="truncate text-white text-[10px] flex-1">{track.title}</p>
+                            <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
+                            <button
+                              onClick={() => {
+                                if (sessionRunning || isPlaying) {
+                                  setShowSendToSessionConfirm({ name: track.title, tracks: [track] });
+                                } else {
+                                  setPlaylist((prev) => [...prev, track]);
+                                  setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
+                                  if (!currentTrack) {
+                                    setCurrentTrack(track);
+                                    setCurrentIndex(0);
+                                  }
+                                }
+                              }}
+                              className="rounded border border-cyan-500/50 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-400 hover:bg-cyan-500/20 shrink-0"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Scrollable Playlists List */}
                   <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                     {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
