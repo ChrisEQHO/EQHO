@@ -1231,8 +1231,8 @@ export default function Page() {
       setCurrentTrack(nextTrack);
       if (audioRef.current && nextTrack) {
         audioRef.current.src = nextTrack.url;
-        audioRef.current.play();
-        setIsPlaying(true);
+        audioRef.current.pause();
+        setIsPlaying(false);
       }
     }
   };
@@ -1248,8 +1248,8 @@ export default function Page() {
       setCurrentTrack(prevTrack);
       if (audioRef.current && prevTrack) {
         audioRef.current.src = prevTrack.url;
-        audioRef.current.play();
-        setIsPlaying(true);
+        audioRef.current.pause();
+        setIsPlaying(false);
       }
     } else if (audioRef.current) {
       // If at first track, restart it
