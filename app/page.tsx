@@ -3853,63 +3853,6 @@ export default function Page() {
                     <ToggleSetting label="Keep Originals After Session" value={settings.keepOriginals ?? true} onChange={(v) => updateSetting("keepOriginals", v)} />
                   </div>
                 </div>
-
-                {/* Notifications */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
-                      <Bell size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Notifications</h2>
-                  </div>
-                  <div className="space-y-4">
-                    <ToggleSetting label="Sound Alerts" value={settings.soundAlerts ?? true} onChange={(v) => updateSetting("soundAlerts", v)} />
-                    <ToggleSetting label="Session Complete Alert" value={settings.sessionCompleteAlert ?? true} onChange={(v) => updateSetting("sessionCompleteAlert", v)} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Danger Zone */}
-              <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/5 p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center">
-                    <AlertCircle size={18} className="text-red-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-red-400">Danger Zone</h2>
-                    <p className="text-xs text-white/50">Irreversible actions</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <button 
-                    onClick={() => {
-                      if (confirm("Are you sure you want to clear all saved playlists?")) {
-                        setSavedPlaylists([]);
-                      }
-                    }}
-                    className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition"
-                  >
-                    Clear All Playlists
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (confirm("Are you sure you want to reset all settings to default?")) {
-                        setSettings({
-                          defaultVolume: 80,
-                          autoplayNext: true,
-                          gapSeconds: 10,
-                          playlistRepeats: 1,
-                          backToBack: false,
-                          showCountdown: true,
-                          countdownSeconds: 5,
-                        });
-                      }
-                    }}
-                    className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition"
-                  >
-                    Reset All Settings
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -4452,70 +4395,6 @@ export default function Page() {
                             </div>
                           </button>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Notifications */}
-                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Bell size={14} className="text-purple-400" />
-                        <span className="text-[10px] font-bold text-white">Notifications</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Sound Alerts</span>
-                          <button onClick={() => updateSetting("soundAlerts", !(settings.soundAlerts ?? true))} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.soundAlerts ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.soundAlerts ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Session Complete Alert</span>
-                          <button onClick={() => updateSetting("sessionCompleteAlert", !(settings.sessionCompleteAlert ?? true))} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.sessionCompleteAlert ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.sessionCompleteAlert ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Danger Zone */}
-                    <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertCircle size={14} className="text-red-400" />
-                        <span className="text-[10px] font-bold text-red-400">Danger Zone</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button 
-                          onClick={() => {
-                            if (confirm("Clear all saved playlists?")) {
-                              setSavedPlaylists([]);
-                            }
-                          }}
-                          className="px-2 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-400 text-[9px] font-medium"
-                        >
-                          Clear Playlists
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm("Reset all settings to default?")) {
-                              setSettings({
-                                defaultVolume: 80,
-                                autoplayNext: true,
-                                gapSeconds: 10,
-                                playlistRepeats: 1,
-                                backToBack: false,
-                                showCountdown: true,
-                                countdownSeconds: 5,
-                              });
-                            }
-                          }}
-                          className="px-2 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-400 text-[9px] font-medium"
-                        >
-                          Reset Settings
-                        </button>
                       </div>
                     </div>
                   </div>
