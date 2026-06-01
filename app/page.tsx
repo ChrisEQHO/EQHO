@@ -2595,8 +2595,7 @@ export default function Page() {
       </div>
 
       {/* Mobile Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#050816] border-b border-white/10">
-        <span className="text-white font-bold text-sm">EQHO</span>
+      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-center px-3 py-2 bg-[#050816] border-b border-white/10">
         <div className="flex items-center gap-1">
           {[
             [Home, "player", "pink"],
