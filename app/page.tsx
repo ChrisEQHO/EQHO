@@ -2544,10 +2544,10 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto overflow-x-hidden pl-3 pr-4 md:pl-4 md:pr-6 pt-14 md:pt-3 w-full min-w-0">
+      <main className="md:ml-[76px] h-[calc(100vh-104px)] overflow-y-auto pl-3 pr-3 md:pl-4 md:pr-4 pt-14 md:pt-3 w-full">
 
         {activePage === "player" && (
-          <div className="grid grid-cols-1 md:grid-cols-[180px_minmax(100px,1fr)_380px] gap-3 w-full min-w-0">
+          <div className="grid grid-cols-1 md:grid-cols-[160px_minmax(0,0.5fr)_minmax(320px,1fr)] gap-2 w-full">
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="hidden md:flex flex-col gap-3 min-w-0 overflow-hidden">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
@@ -2845,8 +2845,8 @@ export default function Page() {
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <div className="flex flex-col gap-3 w-full min-w-0 overflow-hidden">
-              <Card className="shrink-0 overflow-hidden px-3 py-3 relative w-full">
+            <div className="flex flex-col gap-3 w-full overflow-visible">
+              <Card className="shrink-0 overflow-hidden px-4 py-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
                   <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] rounded-xl">
