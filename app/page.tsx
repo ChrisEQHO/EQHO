@@ -1609,7 +1609,7 @@ export default function Page() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#050814] text-white">
+    <div className="h-screen w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -2544,12 +2544,12 @@ export default function Page() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="grid h-[calc(100vh-112px)] w-full min-w-0 overflow-hidden grid-cols-[76px_260px_minmax(360px,1fr)_minmax(420px,460px)] gap-3 p-3 pb-0">
+      <main className="grid h-[calc(100vh-112px)] w-full min-w-0 overflow-hidden grid-cols-[84px_280px_minmax(0,1fr)_520px] gap-4 p-3 pb-0">
 
         {activePage === "player" && (
           <>
             {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <aside className="hidden lg:flex flex-col gap-3 h-full w-[260px] overflow-hidden">
+            <aside className="relative h-full w-[280px] min-w-0 overflow-hidden flex flex-col gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
                   Upload Files & Playlists
@@ -2672,7 +2672,7 @@ export default function Page() {
             </aside>
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
-            <main className="hidden lg:flex flex-col gap-3 min-w-0 overflow-hidden">
+            <div className="relative h-full min-w-0 overflow-hidden flex flex-col gap-3">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
@@ -2842,10 +2842,10 @@ export default function Page() {
                   )}
                 </div>
               </Card>
-            </main>
+            </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <aside className="flex flex-col gap-3 min-w-[420px] max-w-[460px] overflow-hidden shrink-0">
+            <aside className="relative h-full w-[520px] min-w-[520px] max-w-[520px] shrink-0 overflow-hidden flex flex-col gap-3">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
@@ -3624,7 +3624,7 @@ export default function Page() {
       </main>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[112px] w-screen overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[112px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
         <div className="w-full max-w-full px-2 md:px-4 py-2 md:py-3 overflow-hidden">
