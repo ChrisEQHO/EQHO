@@ -558,23 +558,26 @@ export default function Page() {
 
   const estimatedSessionSeconds = totalRoutineSeconds + totalGapSeconds;
 
-  // Calculate full session time including repeats and back-to-back
-  const totalTracksWithRepeats = trackCount * playlistRepeats * (backToBack ? 2 : 1);
+  // Calculate full session time including repeats and back-to-back (using visible tracks only)
+  const totalVisibleTracksWithRepeats = visibleTrackCount * playlistRepeats * (backToBack ? 2 : 1);
   const fullSessionSeconds = 
-    totalRoutineSeconds * playlistRepeats * (backToBack ? 2 : 1) +
-    Math.max(0, totalTracksWithRepeats - 1) * gapSeconds;
+    visibleRoutineSeconds * playlistRepeats * (backToBack ? 2 : 1) +
+    Math.max(0, totalVisibleTracksWithRepeats - 1) * gapSeconds;
 
-  // Calculate completed tracks across all rounds
+  // Calculate completed tracks across all rounds (using visible playlist)
   const currentRoundIndex = playlistRound - 1;
-  const tracksCompletedInPreviousRounds = currentRoundIndex * trackCount * (backToBack ? 2 : 1);
-  const totalTracksCompleted = tracksCompletedInPreviousRounds + currentIndex;
+  const tracksCompletedInPreviousRounds = currentRoundIndex * visibleTrackCount * (backToBack ? 2 : 1);
+  
+  // Find current track's position in visible playlist
+  const currentVisibleIndex = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+  const visibleTracksCompleted = tracksCompletedInPreviousRounds + Math.max(0, currentVisibleIndex);
 
-  // Real-time progress: sum of completed tracks' durations + current track elapsed time
-  const completedSeconds = playlist
-    .slice(0, currentIndex)
+  // Real-time progress: sum of completed visible tracks' durations + current track elapsed time
+  const completedSeconds = visiblePlaylist
+    .slice(0, Math.max(0, currentVisibleIndex))
     .reduce((sum, t) => sum + t.durationSeconds, 0);
-  const previousRoundsSeconds = currentRoundIndex * totalRoutineSeconds * (backToBack ? 2 : 1);
-  const completedGapSeconds = totalTracksCompleted > 0 ? totalTracksCompleted * gapSeconds : 0;
+  const previousRoundsSeconds = currentRoundIndex * visibleRoutineSeconds * (backToBack ? 2 : 1);
+  const completedGapSeconds = visibleTracksCompleted > 0 ? visibleTracksCompleted * gapSeconds : 0;
   const elapsedSeconds = previousRoundsSeconds + completedSeconds + completedGapSeconds + currentTime;
 
   const progressPercent = fullSessionSeconds > 0
