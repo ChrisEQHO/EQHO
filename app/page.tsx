@@ -2672,7 +2672,7 @@ export default function Page() {
             </aside>
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
-            <main className="hidden lg:flex flex-col gap-3 h-full min-w-0 overflow-hidden">
+            <main className="hidden lg:flex flex-col gap-3 min-w-0 overflow-hidden">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
@@ -2845,7 +2845,7 @@ export default function Page() {
             </main>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
-            <aside className="flex flex-col gap-3 h-full min-w-[420px] max-w-[460px] overflow-hidden">
+            <aside className="flex flex-col gap-3 min-w-[420px] max-w-[460px] overflow-hidden shrink-0">
               <Card className="shrink-0 overflow-hidden p-3 md:p-4 relative w-full">
                 {/* Session Finished Overlay */}
                 {showSessionFinished && (
