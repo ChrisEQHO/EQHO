@@ -3243,11 +3243,11 @@ export default function Page() {
 
 <Card className="relative flex flex-1 min-h-[400px] flex-col overflow-hidden">
 
-            <div className="p-4">
+            <div className="p-4 flex-1 flex flex-col">
             <div className="border-b border-white/10 pb-2">
               <div className="min-w-0">
                 <h2 className="text-lg font-bold truncate">{currentPlaylistDisplayName}</h2>
-                <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total</p>
+                <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total{hiddenTrackIds.size > 0 ? ` (${hiddenTrackIds.size} hidden)` : ''}</p>
               </div>
             </div>
 
@@ -3269,6 +3269,37 @@ export default function Page() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Session Status */}
+            <div className="mt-4 flex-1 flex flex-col justify-end">
+              <div className="border-t border-white/10 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] uppercase text-white/50">Session Status</span>
+                  <span className={`text-[10px] font-bold ${sessionRunning ? 'text-green-400' : 'text-white/40'}`}>
+                    {sessionRunning ? 'In Progress' : 'Ready'}
+                  </span>
+                </div>
+                {sessionRunning && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Current Track</span>
+                      <span className="text-pink-400 font-medium truncate max-w-[150px]">{currentTrack?.title || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Progress</span>
+                      <span className="text-cyan-400 font-medium">{completedTracks} of {visibleTrackCount} completed</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Time Remaining</span>
+                      <span className="text-orange-400 font-medium">{remainingTimeLabel}</span>
+                    </div>
+                  </div>
+                )}
+                {!sessionRunning && playlist.length > 0 && (
+                  <p className="text-[10px] text-white/40 mt-1">Press play to start your session</p>
+                )}
               </div>
             </div>
           </div>
