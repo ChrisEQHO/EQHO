@@ -299,9 +299,11 @@ export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
 
-  // Sidebar navigation items
+  // Sidebar navigation items (desktop only)
   const sidebarItems = [
     { icon: Home, page: "player", color: "pink" },
+    { icon: ListMusic, page: "playlists", color: "pink" },
+    { icon: Settings, page: "settings", color: "pink" },
   ] as const;
 
   const activeColors: Record<string, string> = {
