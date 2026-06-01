@@ -2744,7 +2744,7 @@ export default function Page() {
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
             <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-2">
-              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 flex flex-col">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
                   <button
@@ -2773,7 +2773,7 @@ export default function Page() {
                   )}
                 </div>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent flex-1 overflow-y-auto">
                   {visiblePlaylist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
