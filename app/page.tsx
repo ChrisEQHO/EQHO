@@ -1625,16 +1625,15 @@ export default function Page() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#020617]">
-      {/* Scaled Player Shell */}
+    <div className="w-full h-screen overflow-hidden">
       <div
         style={{
-          transform: `scale(${playerScale})`,
-          transformOrigin: "top left",
           width: `${DESIGN_WIDTH}px`,
           height: `${100 / playerScale}vh`,
+          transform: `scale(${playerScale})`,
+          transformOrigin: "top left",
         }}
-        className="text-white"
+        className="bg-[#020617] text-white"
       >
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
