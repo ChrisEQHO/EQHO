@@ -592,11 +592,7 @@ export default function Page() {
 
   // Display labels - use visible playlist for accurate session data
   const currentPlaylistDisplayName =
-    playlist.length > 0 
-      ? (currentPlaylistName !== "Untitled Playlist" 
-          ? currentPlaylistName 
-          : (playlist[0]?.title ? `${playlist[0].title}${playlist.length > 1 ? ` +${playlist.length - 1} more` : ''}` : "Custom Playlist"))
-      : "No playlist selected";
+    playlist.length > 0 ? currentPlaylistName : "No playlist selected";
 
   const trackCountLabel =
     `${visibleTrackCount} ${visibleTrackCount === 1 ? "track" : "tracks"}`;
@@ -3248,20 +3244,10 @@ export default function Page() {
 <Card className="relative flex flex-1 min-h-[400px] flex-col overflow-hidden">
 
             <div className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-white/10 pb-2">
+            <div className="border-b border-white/10 pb-2">
               <div className="min-w-0">
                 <h2 className="text-lg font-bold truncate">{currentPlaylistDisplayName}</h2>
                 <p className="text-xs text-white/80">{trackCountLabel} • {routineTimeLabel} total</p>
-              </div>
-              <div className="flex gap-2 flex-wrap shrink-0">
-                <button className="rounded border border-white/20 px-2 py-1 text-[10px]">Edit Playlist</button>
-                <button onClick={() => {
-      if (sessionRunning || isPlaying) {
-        setShowClearPlaylistConfirm(true);
-      } else {
-        clearPlaylist();
-      }
-    }} className="rounded border border-pink-500 px-2 py-1 text-[10px] text-pink-500 hover:bg-pink-500/10 transition">Clear Playlist</button>
               </div>
             </div>
 
