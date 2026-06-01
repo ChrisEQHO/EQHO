@@ -3397,10 +3397,25 @@ export default function Page() {
                 {/* Local Playlists */}
                 {savedPlaylists.length > 0 && (
                   <div className="mb-8">
-                    <h2 className="text-lg font-bold text-white/70 mb-4 flex items-center gap-2">
-                      <Folder size={20} />
-                      Local Playlists
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-bold text-white/70 flex items-center gap-2">
+                        <Folder size={20} />
+                        Local Playlists
+                      </h2>
+                      <button
+                        onClick={() => {
+                          if (sessionRunning || isPlaying) {
+                            setShowClearPlaylistConfirm(true);
+                          } else {
+                            setSavedPlaylists([]);
+                            clearPlaylist();
+                          }
+                        }}
+                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition"
+                      >
+                        Clear All
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                       {savedPlaylists.map((localPlaylist) => {
                         const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
