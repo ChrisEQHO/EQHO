@@ -2651,16 +2651,6 @@ export default function Page() {
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
           <nav className="flex h-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm py-4">
-            <div className="w-8 h-8 mb-2 flex items-center justify-center">
-              <Image 
-                src="/eqho-player-logo.png" 
-                alt="EQHO Logo" 
-                width={32} 
-                height={32}
-                className="object-contain"
-                priority
-              />
-            </div>
             {sidebarItems.map(({ icon: Icon, page, color }) => {
               const isActive = activePage === page;
               return (
