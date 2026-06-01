@@ -1303,6 +1303,7 @@ export default function Page() {
           setIsPlaying(false);
           setIsGapPaused(true);
           setGapCountdown(_gapSeconds);
+          lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
           gapCallbackRef.current = playFn;
         } else {
           playFn();
@@ -1389,6 +1390,7 @@ export default function Page() {
   }, [volume, isMuted]);
 
   // Futuristic beep sound for countdown
+  const lastBeepedCountdown = useRef<number>(-1);
   const playBeep = useCallback((frequency: number = 880, duration: number = 100) => {
     try {
       const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -1418,13 +1420,15 @@ export default function Page() {
         const cb = gapCallbackRef.current;
         gapCallbackRef.current = null;
         setIsGapPaused(false);
+        lastBeepedCountdown.current = -1; // Reset beep tracking
         cb();
       }
       return;
     }
     
-    // Play beep on final 3 seconds
-    if (gapCountdown <= 3 && gapCountdown > 0) {
+    // Play beep on final 3 seconds - only if we haven't beeped this second yet
+    if (gapCountdown <= 3 && gapCountdown > 0 && lastBeepedCountdown.current !== gapCountdown) {
+      lastBeepedCountdown.current = gapCountdown;
       const freq = gapCountdown === 3 ? 660 : gapCountdown === 2 ? 880 : 1100;
       playBeep(freq, 150);
     }
