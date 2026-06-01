@@ -2548,9 +2548,131 @@ export default function Page() {
 
         {activePage === "player" && (
           <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(150px,1fr)_300px] gap-3 w-full min-w-0">
-            {/* LEFT: UP NEXT (IN ORDER) */}
+            {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
             <div className="hidden md:flex flex-col gap-3 min-w-0 overflow-hidden">
-              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[70vh]">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
+                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
+                  Upload Files
+                </h2>
+                <label
+                  onDrop={handleDropUpload}
+                  onDragOver={handleDragOverUpload}
+                  onDragEnter={handleDragEnterUpload}
+                  onDragLeave={handleDragLeaveUpload}
+                  className={`block cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
+                    isDraggingUpload
+                      ? "border-cyan-300 bg-cyan-400/10"
+                      : "border-[#ff4fa3]/50 bg-white/[0.03]"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                    multiple
+                    onChange={(event) => {
+                      handleFiles(event.target.files);
+                      event.target.value = "";
+                    }}
+                    className="hidden"
+                  />
+                  <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
+                  <p className="text-white font-bold text-xs">Drop files here</p>
+                  <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] flex-1 overflow-hidden">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
+                  <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
+                </div>
+                {savedPlaylists.length === 0 ? (
+                  <p className="text-white/40 text-center py-4 text-xs">No playlists yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                    {savedPlaylists.map((pl) => (
+                      <div
+                        key={pl.id}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove("drag-over");
+                          const trackJson = e.dataTransfer.getData("trackJson");
+                          const trackId = e.dataTransfer.getData("trackId");
+                          if (trackJson && trackId) {
+                            const track: Track = JSON.parse(trackJson);
+                            setSavedPlaylists((prev) => prev.map((p) => p.id === pl.id ? { ...p, tracks: [...p.tracks, track] } : p));
+                            setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                          }
+                        }}
+                        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50"
+                        onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
+                        onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
+                      >
+                        <ListMusic size={14} className="text-[#ff4fa3] shrink-0" />
+                        <span className="flex-1 truncate text-white text-[11px]">{pl.name}</span>
+                        <button
+                          onClick={() => {
+                            if (pl.tracks.length > 0) {
+                              if (sessionRunning || isPlaying) {
+                                setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
+                              } else {
+                                setPlaylist(pl.tracks);
+                                setCurrentPlaylistName(pl.name);
+                                setCurrentIndex(0);
+                                setCurrentTrack(pl.tracks[0]);
+                              }
+                            }
+                          }}
+                          disabled={pl.tracks.length === 0}
+                          className="rounded border border-pink-500/50 bg-pink-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-pink-400 hover:bg-pink-500/20 disabled:opacity-30"
+                        >
+                          Load
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] overflow-hidden">
+                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
+                {uploadedTracks.length === 0 ? (
+                  <p className="text-white/40 text-center py-4 text-xs">No tracks uploaded</p>
+                ) : (
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                    {uploadedTracks.map((track) => (
+                      <div
+                        key={track.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("trackId", track.id);
+                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        className="flex items-center gap-2 cursor-grab active:cursor-grabbing"
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
+                          }}
+                          className="grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 hover:border-red-500/60 hover:text-red-400"
+                        >
+                          <X size={10} />
+                        </button>
+                        <p className="truncate text-white text-[11px] flex-1">{track.title}</p>
+                        <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* MIDDLE: UP NEXT (IN ORDER) */}
+            <div className="flex flex-col gap-3 order-first md:order-none min-w-0 overflow-hidden">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
                   <button
@@ -2674,7 +2796,7 @@ export default function Page() {
                                 setCurrentIndex(originalIndex);
                                 togglePlayPause(track);
                               }}
-                              className={`grid h-[60px] grid-cols-[16px_28px_1fr_44px_32px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] text-xs ${
+                              className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_44px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
                                 isDragging ? "opacity-40 bg-cyan-500/10" : ""
                               } ${
                                 isActiveTrack 
@@ -2685,25 +2807,28 @@ export default function Page() {
                               }`}
                             >
                               <div className="cursor-grab active:cursor-grabbing">
-                                <GripVertical size={12} className="text-white/75 hover:text-white" />
+                                <GripVertical size={15} className="text-white/75 hover:text-white" />
                               </div>
-                              <div className={`text-lg font-black ${isFinished ? "text-white/20" : colour}`}>{visibleIndex + 1}</div>
-                              <div className="min-w-0">
-                                <div className={`text-xs font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
-                                <div className="text-[10px] text-white/85 truncate">
-                                  {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound}/${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
+                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{visibleIndex + 1}</div>
+                              <div>
+                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                                <div className="text-xs text-white/85">
+                                  {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
                               </div>
-                              <div className={`text-xs font-bold text-right ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
+                              <div className="flex flex-col items-end pr-2">
+                                <div className="text-[10px]">Duration</div>
+                                <div className={`text-base font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
+                              </div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   hideTrackFromSession(track.id);
                                 }}
-                                className="p-1 rounded text-white/40 hover:text-orange-400 hover:bg-orange-500/15 transition"
-                                title="Hide from this session"
+                                className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
+                                title="Hide from this session (does not delete from playlist)"
                               >
-                                <X size={14} />
+                                <X size={18} className="md:w-4 md:h-4" />
                               </button>
                             </div>
                             {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
@@ -2716,188 +2841,6 @@ export default function Page() {
                   )}
                 </div>
               </Card>
-            </div>
-
-            {/* MIDDLE: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="flex flex-col gap-3 order-first md:order-none min-w-0 overflow-hidden">
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
-                  Upload Files & Playlists
-                </h2>
-
-                <label
-                  onDrop={handleDropUpload}
-                  onDragOver={handleDragOverUpload}
-                  onDragEnter={handleDragEnterUpload}
-                  onDragLeave={handleDragLeaveUpload}
-                  className={`block cursor-pointer rounded-xl md:rounded-2xl border border-dashed p-6 md:p-8 text-center transition ${
-                    isDraggingUpload
-                      ? "border-cyan-300 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.25)]"
-                      : "border-[#ff4fa3]/50 bg-white/[0.03]"
-                  }`}
-                >
-                  <input
-                    type="file"
-                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
-                    multiple
-                    onChange={(event) => {
-                      handleFiles(event.target.files);
-                      event.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-
-                  <UploadCloud className="mx-auto mb-3 md:mb-4 text-[#ff8a00]" size={40} />
-
-                  <p className="text-white font-bold text-sm md:text-base">
-                    Drag and drop files or folders here
-                  </p>
-
-                  <p className="text-white/60 mt-2">
-                    or <span className="text-[#ff8a00]">click</span> to browse files
-                  </p>
-
-                  <p className="text-white/40 text-sm mt-4">
-                    Supports MP3, WAV, M4A - Drop folders to create playlists
-                  </p>
-                </label>
-              </div>
-
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-white uppercase tracking-[0.25em] text-sm font-black">
-                    Your Playlists
-                  </h2>
-
-                  <button 
-                    onClick={() => setShowPlaylistModal(true)}
-                    className="text-[#ff4fa3] font-bold"
-                  >
-                    + New
-                  </button>
-                </div>
-
-                {savedPlaylists.length === 0 ? (
-                  <p className="text-white/40 text-center py-8">
-                    Create a playlist after uploading music
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {savedPlaylists.map((pl) => (
-                      <div
-                        key={pl.id}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.currentTarget.classList.remove("drag-over");
-                          const trackJson = e.dataTransfer.getData("trackJson");
-                          const trackId = e.dataTransfer.getData("trackId");
-                          if (trackJson && trackId) {
-                            const track: Track = JSON.parse(trackJson);
-                            setSavedPlaylists((prev) =>
-                              prev.map((p) =>
-                                p.id === pl.id
-                                  ? { ...p, tracks: [...p.tracks, track] }
-                                  : p
-                              )
-                            );
-                            setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                          }
-                        }}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50 [&.drag-over]:bg-pink-500/10"
-                        onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
-                        onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
-                      >
-                        <ListMusic size={18} className="text-[#ff4fa3] shrink-0" />
-                        <span className="flex-1 truncate text-white">{pl.name}</span>
-                        <div className="flex gap-1.5 shrink-0">
-                          <button
-                            onClick={() => {
-                              if (pl.tracks.length > 0) {
-                                setPlaylist((prev) => [...prev, ...pl.tracks]);
-                                if (!currentTrack && pl.tracks.length > 0) {
-                                  setCurrentTrack(pl.tracks[0]);
-                                  setCurrentIndex(0);
-                                }
-                              }
-                            }}
-                            disabled={pl.tracks.length === 0}
-                            className="rounded-lg border border-[#ff8a00]/50 bg-[#ff8a00]/10 px-2 py-1 text-xs font-semibold text-[#ff8a00] transition hover:bg-[#ff8a00]/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Add tracks to current queue"
-                          >
-                            + Queue
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (pl.tracks.length > 0) {
-                                if (sessionRunning || isPlaying) {
-                                  setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
-                                } else {
-                                  setPlaylist(pl.tracks);
-                                  setCurrentPlaylistName(pl.name);
-                                  setCurrentIndex(0);
-                                  setCurrentTrack(pl.tracks[0]);
-                                }
-                              }
-                            }}
-                            disabled={pl.tracks.length === 0}
-                            className="rounded-lg border border-pink-500/50 bg-pink-500/10 px-2 py-1 text-xs font-semibold text-pink-400 transition hover:bg-pink-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Replace current queue with this playlist"
-                          >
-                            Replace
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
-                  Recently Uploaded Tracks
-                </h2>
-
-                {uploadedTracks.length === 0 ? (
-                  <p className="text-white/40 text-center py-8">
-                    No tracks uploaded yet. Drag tracks to a playlist below.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {uploadedTracks.map((track) => (
-                      <div
-                        key={track.id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("trackId", track.id);
-                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        className="grid grid-cols-[24px_1fr_82px] items-center gap-3 cursor-grab active:cursor-grabbing"
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
-                          }}
-                          className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 transition hover:border-red-500/60 hover:bg-red-500/15 hover:text-red-400"
-                        >
-                          <X size={14} />
-                        </button>
-
-                        <p className="truncate text-white font-semibold">
-                          {track.title}
-                        </p>
-
-                        <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
