@@ -2552,7 +2552,7 @@ export default function Page() {
             <div className="hidden md:flex flex-col gap-3 min-w-0 overflow-hidden">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
-                  Upload Files
+                  Upload Files & Playlists
                 </h2>
                 <label
                   onDrop={handleDropUpload}
@@ -2576,8 +2576,9 @@ export default function Page() {
                     className="hidden"
                   />
                   <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
-                  <p className="text-white font-bold text-xs">Drop files here</p>
+                  <p className="text-white font-bold text-xs">Drop files or folders</p>
                   <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
+                  <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
                 </label>
               </div>
 
