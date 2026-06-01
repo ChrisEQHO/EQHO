@@ -2548,8 +2548,178 @@ export default function Page() {
 
         {activePage === "player" && (
           <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(150px,1fr)_300px] gap-3 w-full min-w-0">
-            {/* LEFT: UPLOAD / TRACKS / PLAYLISTS */}
-            <div className="hidden md:block space-y-4 min-w-0 overflow-hidden">
+            {/* LEFT: UP NEXT (IN ORDER) */}
+            <div className="hidden md:flex flex-col gap-3 min-w-0 overflow-hidden">
+              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[70vh]">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
+                  <button
+                    onClick={() => {
+                      if (sessionRunning || isPlaying) {
+                        setShowClearPlaylistConfirm(true);
+                      } else {
+                        clearPlaylist();
+                      }
+                    }}
+                    disabled={playlist.length === 0}
+                    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Clear Playlist
+                  </button>
+                </div>
+                <div className="mt-1 border-b border-white/10 pb-2 flex items-center justify-between">
+                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
+                  {hiddenTrackIds.size > 0 && (
+                    <button
+                      onClick={restoreHiddenTracks}
+                      className="px-2 py-1 text-[9px] md:text-[10px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-md hover:bg-cyan-500/20 transition"
+                    >
+                      Restore {hiddenTrackIds.size} hidden
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
+                  {visiblePlaylist.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-center py-12">
+                      <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
+                      <p className="mt-2 text-sm text-white/35">Upload tracks and add them to your playlist</p>
+                    </div>
+                  ) : (
+                    (() => {
+                      return visiblePlaylist.map((track, visibleIndex) => {
+                        const originalIndex = playlist.findIndex(t => t.id === track.id);
+                        const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
+                        const colour = colours[visibleIndex % colours.length];
+                        const isActiveTrack = currentTrack?.id === track.id;
+                        const isFinished = finishedTracks.has(track.id);
+                        const isCompleted = !isFinished && originalIndex < currentIndex;
+                        const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
+                        const isDragging = draggedTrackIndex === originalIndex;
+                        const isDropTarget = dropTargetIndex === originalIndex;
+                      
+                        return (
+                          <div key={track.id} className="relative">
+                            {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
+                              <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
+                            )}
+                            <div 
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedTrackIndex(originalIndex);
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData("text/plain", originalIndex.toString());
+                              }}
+                              onDragEnd={() => {
+                                setDraggedTrackIndex(null);
+                                setDropTargetIndex(null);
+                                setDropPosition("below");
+                                dropPositionRef.current = "below";
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                                if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
+                                  setDropTargetIndex(originalIndex);
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const midpoint = rect.top + rect.height / 2;
+                                  const position = e.clientY < midpoint ? "above" : "below";
+                                  setDropPosition(position);
+                                  dropPositionRef.current = position;
+                                }
+                              }}
+                              onDragLeave={() => {
+                                if (dropTargetIndex === originalIndex) {
+                                  setDropTargetIndex(null);
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
+                                
+                                const fromIndex = draggedTrackIndex;
+                                const toIndex = originalIndex;
+                                const position = dropPositionRef.current;
+                                
+                                setPlaylist((prev) => {
+                                  const newPlaylist = [...prev];
+                                  const [draggedItem] = newPlaylist.splice(fromIndex, 1);
+                                  let finalPosition: number;
+                                  
+                                  if (position === "above") {
+                                    finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
+                                  } else {
+                                    finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
+                                  }
+                                  
+                                  finalPosition = Math.max(0, Math.min(finalPosition, newPlaylist.length));
+                                  newPlaylist.splice(finalPosition, 0, draggedItem);
+                                  
+                                  if (fromIndex === currentIndex) {
+                                    setCurrentIndex(finalPosition);
+                                  } else if (fromIndex < currentIndex && finalPosition >= currentIndex) {
+                                    setCurrentIndex((idx) => idx - 1);
+                                  } else if (fromIndex > currentIndex && finalPosition <= currentIndex) {
+                                    setCurrentIndex((idx) => idx + 1);
+                                  }
+                                  
+                                  return newPlaylist;
+                                });
+                                setDraggedTrackIndex(null);
+                                setDropTargetIndex(null);
+                                setDropPosition("below");
+                                dropPositionRef.current = "below";
+                              }}
+                              onClick={() => {
+                                setCurrentIndex(originalIndex);
+                                togglePlayPause(track);
+                              }}
+                              className={`grid h-[60px] grid-cols-[16px_28px_1fr_44px_32px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] text-xs ${
+                                isDragging ? "opacity-40 bg-cyan-500/10" : ""
+                              } ${
+                                isActiveTrack 
+                                  ? "border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
+                                  : isFinished
+                                    ? "border-white/5 opacity-30"
+                                    : "border-white/8"
+                              }`}
+                            >
+                              <div className="cursor-grab active:cursor-grabbing">
+                                <GripVertical size={12} className="text-white/75 hover:text-white" />
+                              </div>
+                              <div className={`text-lg font-black ${isFinished ? "text-white/20" : colour}`}>{visibleIndex + 1}</div>
+                              <div className="min-w-0">
+                                <div className={`text-xs font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                                <div className="text-[10px] text-white/85 truncate">
+                                  {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound}/${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
+                                </div>
+                              </div>
+                              <div className={`text-xs font-bold text-right ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  hideTrackFromSession(track.id);
+                                }}
+                                className="p-1 rounded text-white/40 hover:text-orange-400 hover:bg-orange-500/15 transition"
+                                title="Hide from this session"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                            {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
+                              <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
+                            )}
+                          </div>
+                        );
+                      });
+                    })()
+                  )}
+                </div>
+              </Card>
+            </div>
+
+            {/* MIDDLE: UPLOAD / TRACKS / PLAYLISTS */}
+            <div className="flex flex-col gap-3 order-first md:order-none min-w-0 overflow-hidden">
               <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.25em] text-xs md:text-sm font-black mb-3 md:mb-4">
                   Upload Files & Playlists
@@ -2593,7 +2763,7 @@ export default function Page() {
                 </label>
               </div>
 
-              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
+              <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 md:p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-white uppercase tracking-[0.25em] text-sm font-black">
                     Your Playlists
@@ -2647,7 +2817,6 @@ export default function Page() {
                           <button
                             onClick={() => {
                               if (pl.tracks.length > 0) {
-                                // Add to existing playlist (queue)
                                 setPlaylist((prev) => [...prev, ...pl.tracks]);
                                 if (!currentTrack && pl.tracks.length > 0) {
                                   setCurrentTrack(pl.tracks[0]);
@@ -2729,200 +2898,6 @@ export default function Page() {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* MIDDLE: UP NEXT */}
-            <div className="flex flex-col gap-3 order-first xl:order-none min-w-0 overflow-hidden">
-              <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 max-h-[45vh] md:max-h-[50vh] xl:max-h-none">
-                <div className="flex items-center justify-between">
-  <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-  <button
-    onClick={() => {
-      if (sessionRunning || isPlaying) {
-        setShowClearPlaylistConfirm(true);
-      } else {
-        clearPlaylist();
-      }
-    }}
-    disabled={playlist.length === 0}
-    className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
-  >
-    Clear Playlist
-  </button>
-</div>
-                <div className="mt-1 border-b border-white/10 pb-2 flex items-center justify-between">
-                  <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
-                  {hiddenTrackIds.size > 0 && (
-                    <button
-                      onClick={restoreHiddenTracks}
-                      className="px-2 py-1 text-[9px] md:text-[10px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-md hover:bg-cyan-500/20 transition"
-                    >
-                      Restore {hiddenTrackIds.size} hidden
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[300px] md:max-h-[400px] overflow-y-auto">
-                  {visiblePlaylist.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center text-center py-12">
-                      <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
-                      <p className="mt-2 text-sm text-white/35">Upload tracks and add them to your playlist</p>
-                    </div>
-                  ) : (
-                    (() => {
-                      // Display visible tracks only (hidden tracks filtered out)
-                      return visiblePlaylist.map((track, visibleIndex) => {
-                        // Get the original playlist index for this track (needed for drag/drop and currentIndex)
-                        const originalIndex = playlist.findIndex(t => t.id === track.id);
-                        const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                        const colour = colours[visibleIndex % colours.length];
-                        const isActiveTrack = currentTrack?.id === track.id;
-                        const isFinished = finishedTracks.has(track.id);
-                        const isCompleted = !isFinished && originalIndex < currentIndex;
-                        const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
-                        const isDragging = draggedTrackIndex === originalIndex;
-                        const isDropTarget = dropTargetIndex === originalIndex;
-                      
-                        return (
-                          <div key={track.id} className="relative">
-                            {/* Drop indicator line above */}
-                            {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
-                              <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
-                            )}
-                            <div 
-                              draggable
-                              onDragStart={(e) => {
-                                setDraggedTrackIndex(originalIndex);
-                                e.dataTransfer.effectAllowed = "move";
-                                e.dataTransfer.setData("text/plain", originalIndex.toString());
-                              }}
-                              onDragEnd={() => {
-                                setDraggedTrackIndex(null);
-                                setDropTargetIndex(null);
-                                setDropPosition("below");
-                                dropPositionRef.current = "below";
-                              }}
-                              onDragOver={(e) => {
-                                e.preventDefault();
-                                e.dataTransfer.dropEffect = "move";
-                                if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
-                                  setDropTargetIndex(originalIndex);
-                                  // Detect if cursor is in top or bottom half of the element
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  const midpoint = rect.top + rect.height / 2;
-                                  const position = e.clientY < midpoint ? "above" : "below";
-                                  setDropPosition(position);
-                                  dropPositionRef.current = position;
-                                }
-                              }}
-                              onDragLeave={() => {
-                                if (dropTargetIndex === originalIndex) {
-                                  setDropTargetIndex(null);
-                                }
-                              }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
-                                
-                                const fromIndex = draggedTrackIndex;
-                                const toIndex = index;
-                                const position = dropPositionRef.current;
-                                
-                                setPlaylist((prev) => {
-                                  const newPlaylist = [...prev];
-                                  const [draggedItem] = newPlaylist.splice(fromIndex, 1);
-                                  
-                                  // Calculate the final position where the item should go
-                                  // If line is above target: insert at target's position
-                                  // If line is below target: insert after target's position
-                                  // But we need to account for the fact that we already removed the dragged item
-                                  let finalPosition: number;
-                                  
-                                  if (position === "above") {
-                                    // Line is above target - we want to insert BEFORE target
-                                    // If dragged from before target, target index shifted down by 1
-                                    finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
-                                  } else {
-                                    // Line is below target - we want to insert AFTER target
-                                    // If dragged from before target, target index shifted down by 1
-                                    // So we insert at (shifted target) + 1 = toIndex
-                                    // If dragged from after target, target index unchanged
-                                    // So we insert at toIndex + 1
-                                    finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
-                                  }
-                                  
-                                  // Clamp to valid range
-                                  finalPosition = Math.max(0, Math.min(finalPosition, newPlaylist.length));
-                                  
-                                  newPlaylist.splice(finalPosition, 0, draggedItem);
-                                  
-                                  // Adjust currentIndex to follow the currently playing track
-                                  if (fromIndex === currentIndex) {
-                                    setCurrentIndex(finalPosition);
-                                  } else if (fromIndex < currentIndex && finalPosition >= currentIndex) {
-                                    setCurrentIndex((idx) => idx - 1);
-                                  } else if (fromIndex > currentIndex && finalPosition <= currentIndex) {
-                                    setCurrentIndex((idx) => idx + 1);
-                                  }
-                                  
-                                  return newPlaylist;
-                                });
-                                setDraggedTrackIndex(null);
-                                setDropTargetIndex(null);
-                                setDropPosition("below");
-                                dropPositionRef.current = "below";
-                              }}
-                              onClick={() => {
-                                setCurrentIndex(originalIndex);
-                                togglePlayPause(track);
-                              }}
-                              className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_44px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
-                                isDragging ? "opacity-40 bg-cyan-500/10" : ""
-                              } ${
-                                isActiveTrack 
-                                  ? "border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
-                                  : isFinished
-                                    ? "border-white/5 opacity-30"
-                                    : "border-white/8"
-                              }`}
-                            >
-                              <div className="cursor-grab active:cursor-grabbing">
-                                <GripVertical size={15} className="text-white/75 hover:text-white" />
-                              </div>
-                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{visibleIndex + 1}</div>
-                              <div>
-                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
-                                <div className="text-xs text-white/85">
-                                  {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
-                                </div>
-                              </div>
-                              <div className="flex flex-col items-end pr-2">
-                                <div className="text-[10px]">Duration</div>
-                                <div className={`text-base font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Hide from session only - does not affect saved playlist or cloud
-                                  hideTrackFromSession(track.id);
-                                }}
-                                className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
-                                title="Hide from this session (does not delete from playlist)"
-                              >
-                                <X size={18} className="md:w-4 md:h-4" />
-                              </button>
-                            </div>
-                            {/* Drop indicator line below */}
-                            {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
-                              <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
-                            )}
-                          </div>
-                        );
-                      });
-                    })()
-                  )}
-                </div>
-              </Card>
             </div>
 
             {/* RIGHT: NOW PLAYING / PLAYLIST PREVIEW */}
