@@ -2833,9 +2833,18 @@ export default function Page() {
                 </button>
               );
             })}
+            <a
+              href="/downloads/eqho-player-mac.dmg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
+              title="Download EQHO Desktop App"
+            >
+              <Download size={20} />
+            </a>
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition mt-auto"
+              className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
             >
               <LogOut size={20} />
             </button>
