@@ -67,6 +67,7 @@ import {
   CloudOff,
   Trash2,
   Download,
+  Monitor,
   Check,
   Loader2,
   RotateCcw,
@@ -2833,9 +2834,18 @@ export default function Page() {
                 </button>
               );
             })}
+            <a
+              href="/downloads/eqho-player-mac.dmg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
+              title="Download EQHO Desktop App"
+            >
+              <Monitor size={20} />
+            </a>
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition mt-auto"
+              className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
             >
               <LogOut size={20} />
             </button>
@@ -3976,7 +3986,7 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-[calc(env(safe-area-inset-top)+12px)] landscape:pt-[calc(env(safe-area-inset-top)+4px)] pb-[env(safe-area-inset-bottom)] px-2 sm:px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-130px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3">
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -4743,6 +4753,28 @@ export default function Page() {
                       </div>
                     </div>
 
+                    {/* Desktop App */}
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/10 via-transparent to-[#ff8a00]/10 p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                          <Download size={12} className="text-white" />
+                        </div>
+                        <span className="text-[11px] sm:text-xs font-bold text-white">Desktop App</span>
+                      </div>
+                      <p className="text-[10px] sm:text-[11px] text-white/60 mb-3 leading-relaxed">
+                        Run EQHO Player as a dedicated desktop application for Mac with improved performance and fullscreen support.
+                      </p>
+                      <a
+                        href="/downloads/eqho-player-mac.dmg"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-[11px] sm:text-xs font-bold hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition-all"
+                      >
+                        <Download size={14} />
+                        Download for Mac
+                      </a>
+                    </div>
+
                     {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
                       <div className="flex items-center gap-2 mb-2">
@@ -4768,7 +4800,7 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[110px] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816]">
+      <div className="fixed bottom-0 left-0 right-0 h-[calc(110px+env(safe-area-inset-bottom))] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816]">
         <div className="session-bottom-divider" />
 
         <div className="w-full max-w-full px-3 sm:px-4 md:px-4 py-1 landscape:py-1 md:py-2 overflow-hidden">
@@ -4832,7 +4864,7 @@ export default function Page() {
             <button
               onClick={handlePauseClick}
               disabled={!currentTrack && playlist.length === 0}
-              className={`w-full py-2 landscape:py-1.5 text-xs font-bold rounded-lg transition disabled:opacity-30 ${
+              className={`w-full py-3 pb-[calc(12px+env(safe-area-inset-bottom))] landscape:py-1.5 landscape:pb-1.5 md:py-2 md:pb-2 text-sm font-bold rounded-lg rounded-b-none transition disabled:opacity-30 ${
                 isGapPaused
                   ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                   : isPlaying
