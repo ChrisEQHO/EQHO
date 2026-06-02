@@ -3903,13 +3903,13 @@ export default function Page() {
                             <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={goToPreviousTrack} className="p-2 rounded-full hover:bg-white/10 transition">
+                            <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipBackConfirm(true); } else { goToPreviousTrack(); } }} className="p-2 rounded-full hover:bg-white/10 transition">
                               <StepBack size={18} className="text-white" />
                             </button>
-                            <button onClick={toggleSession} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                            <button onClick={() => { if (isPlaying && !isGapPaused && settings.showPauseWarning) { setShowPauseConfirm(true); } else { toggleSession(); } }} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
                               {isPlaying ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
                             </button>
-                            <button onClick={goToNextTrack} className="p-2 rounded-full hover:bg-white/10 transition">
+                            <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipForwardConfirm(true); } else { goToNextTrack(); } }} className="p-2 rounded-full hover:bg-white/10 transition">
                               <StepForward size={18} className="text-white" />
                             </button>
                           </div>
@@ -4568,26 +4568,26 @@ export default function Page() {
                       </div>
                     </div>
 
-                    {/* Uploads */}
+                    {/* Warnings */}
                     <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
-                        <Upload size={14} className="text-green-400" />
-                        <span className="text-[10px] font-bold text-white">Uploads</span>
+                        <AlertTriangle size={14} className="text-yellow-400" />
+                        <span className="text-[10px] font-bold text-white">Warnings</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Auto-add to Playlist</span>
-                          <button onClick={() => updateSetting("autoAddToPlaylist", !(settings.autoAddToPlaylist ?? true))} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.autoAddToPlaylist ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.autoAddToPlaylist ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                          <span className="text-[10px] text-white/70">Show Pause Warning</span>
+                          <button onClick={() => updateSetting("showPauseWarning", !settings.showPauseWarning)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showPauseWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showPauseWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
                             </div>
                           </button>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Keep Originals</span>
-                          <button onClick={() => updateSetting("keepOriginals", !(settings.keepOriginals ?? true))} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${(settings.keepOriginals ?? true) ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${(settings.keepOriginals ?? true) ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                          <span className="text-[10px] text-white/70">Show Skip Warning</span>
+                          <button onClick={() => updateSetting("showSkipWarning", !settings.showSkipWarning)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showSkipWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showSkipWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
                             </div>
                           </button>
                         </div>
