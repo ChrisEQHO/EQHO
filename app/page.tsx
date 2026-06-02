@@ -4743,6 +4743,28 @@ export default function Page() {
                       </div>
                     </div>
 
+                    {/* Desktop App */}
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/10 via-transparent to-[#ff8a00]/10 p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                          <Download size={12} className="text-white" />
+                        </div>
+                        <span className="text-[11px] sm:text-xs font-bold text-white">Desktop App</span>
+                      </div>
+                      <p className="text-[10px] sm:text-[11px] text-white/60 mb-3 leading-relaxed">
+                        Run EQHO Player as a dedicated desktop application for Mac with improved performance and fullscreen support.
+                      </p>
+                      <a
+                        href="/downloads/eqho-player-mac.dmg"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-[11px] sm:text-xs font-bold hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition-all"
+                      >
+                        <Download size={14} />
+                        Download for Mac
+                      </a>
+                    </div>
+
                     {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
                       <div className="flex items-center gap-2 mb-2">
