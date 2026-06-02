@@ -3830,13 +3830,13 @@ export default function Page() {
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
-            <div className="flex gap-0.5 shrink-0 bg-white/[0.02] rounded-lg p-0.5">
+            <div className="flex gap-0.5 shrink-0 bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 rounded-xl p-1 border border-white/10">
               <button
                 onClick={() => setMobileTab("nowplaying")}
-                className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
+                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                   mobileTab === "nowplaying"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                    ? "bg-white text-[#0a0a1a] shadow-md"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Home size={14} className="mx-auto sm:hidden" />
@@ -3844,10 +3844,10 @@ export default function Page() {
               </button>
               <button
                 onClick={() => setMobileTab("playlists")}
-                className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
+                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                   mobileTab === "playlists"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                    ? "bg-white text-[#0a0a1a] shadow-md"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <ListMusic size={14} className="mx-auto sm:hidden" />
@@ -3855,10 +3855,10 @@ export default function Page() {
               </button>
               <button
                 onClick={() => setMobileTab("settings")}
-                className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
+                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                   mobileTab === "settings"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                    ? "bg-white text-[#0a0a1a] shadow-md"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Settings size={14} className="mx-auto sm:hidden" />
@@ -3866,7 +3866,7 @@ export default function Page() {
               </button>
               <button
                 onClick={() => setActivePage("coach")}
-                className="flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium text-[#7c8596] hover:text-white hover:bg-white/5 transition-all"
+                className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/70 hover:text-white hover:bg-white/10 transition-all"
               >
                 <ExternalLink size={14} className="mx-auto sm:hidden" />
                 <span className="hidden sm:inline">Coach</span>
