@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { CapacitorInit } from '@/components/capacitor-init'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -17,6 +18,16 @@ export const metadata: Metadata = {
     icon: isMobileBuild ? '/icon.png' : '/icon',
     apple: isMobileBuild ? '/apple-icon.png' : '/apple-icon',
   },
+  // PWA manifest for home screen installation
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'EQHO Player',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 }
 
 export const viewport: Viewport = {
@@ -25,6 +36,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#020617',
 }
 
 export default function RootLayout({
@@ -33,15 +45,20 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-[#020617] overflow-x-hidden">
+    <html lang="en" className="bg-[#020617] overflow-x-hidden" suppressHydrationWarning>
       <head>
         <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href={isMobileBuild ? '/apple-icon.png' : '/apple-icon'} />
+        {/* iOS status bar styling */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="font-sans antialiased bg-[#020617] overflow-x-hidden w-screen max-w-[100vw]">
+      <body className="font-sans antialiased bg-[#020617] overflow-x-hidden w-screen max-w-[100vw] min-h-screen min-h-[100dvh]">
+        <CapacitorInit />
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
-        {process.env.NODE_ENV === 'production' && <SpeedInsights />}
+        {process.env.NODE_ENV === 'production' && !isMobileBuild && <Analytics />}
+        {process.env.NODE_ENV === 'production' && !isMobileBuild && <SpeedInsights />}
       </body>
     </html>
   )

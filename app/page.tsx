@@ -4809,7 +4809,12 @@ export default function Page() {
               {/* Total Session Time */}
               <div className="flex flex-col items-center">
                 <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Time</div>
-                <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                    <Clock size={10} />
+                  </div>
+                  <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                </div>
               </div>
 
               {/* Repeats */}

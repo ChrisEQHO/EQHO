@@ -5,7 +5,21 @@ const config: CapacitorConfig = {
   appName: 'EQHO Player',
   webDir: 'out',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    iosScheme: 'https',
+  },
+  ios: {
+    // Full screen for iPhone notches and iPad
+    contentInset: 'automatic',
+    allowsLinkPreview: false,
+    scrollEnabled: false,
+    // Prefer edge-to-edge layout
+    backgroundColor: '#020617',
+    preferredContentMode: 'mobile',
+  },
+  android: {
+    backgroundColor: '#020617',
+    allowMixedContent: true,
   },
   plugins: {
     SplashScreen: {
@@ -17,12 +31,19 @@ const config: CapacitorConfig = {
       showSpinner: false,
       splashFullScreen: true,
       splashImmersive: true,
+      iosSpinnerStyle: 'large',
+      spinnerColor: '#ff4fa3',
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#020617'
-    }
-  }
+      backgroundColor: '#020617',
+      overlaysWebView: true,
+    },
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true,
+    },
+  },
 };
 
 export default config;

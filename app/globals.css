@@ -203,11 +203,96 @@ body {
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Capacitor native app environment */
+html.capacitor {
+  /* Prevent rubber-banding/bounce effect on iOS */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Standalone/PWA mode detection */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html {
+    overscroll-behavior: none;
+  }
+}
+
+/* Touch-friendly controls - ensure minimum tap target size */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Active states for touch devices (replace hover-only) */
+@media (hover: none) and (pointer: coarse) {
+  .touch-active:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+  
+  /* Disable hover effects on touch devices */
+  .hover\:bg-white\/10:hover {
+    background-color: transparent;
+  }
+}
+
+/* Improved touch feedback */
+button, 
+[role="button"],
+.clickable {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent text selection on interactive elements */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iPad-specific styles */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .ipad-optimized {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
 }
 
 /* Landscape mode adjustments */
 @media (orientation: landscape) and (max-height: 500px) {
   .landscape\:compact-player .text-4xl {
     font-size: 1.5rem;
+  }
+}
+
+/* iOS status bar area */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .ios-status-bar-padding {
+    padding-top: max(20px, env(safe-area-inset-top));
+  }
+}
+
+/* Notch-aware layouts */
+@supports (padding-left: env(safe-area-inset-left)) {
+  .notch-aware {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 }
