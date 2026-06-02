@@ -1289,6 +1289,8 @@ export default function Page() {
   currentIndexRef.current = currentIndex;
   const playlistRef = useRef(playlist);
   playlistRef.current = playlist;
+  const hiddenTrackIdsRef = useRef(hiddenTrackIds);
+  hiddenTrackIdsRef.current = hiddenTrackIds;
 
   // Wire up audio element events for real-time tracking and auto-advance
   useEffect(() => {
@@ -1311,6 +1313,10 @@ export default function Page() {
       const _playlistRound = playlistRoundRef.current;
       const _currentIndex = currentIndexRef.current;
       const _playlist = playlistRef.current;
+      const _hiddenTrackIds = hiddenTrackIdsRef.current;
+      
+      // Filter to get only visible tracks
+      const _visiblePlaylist = _playlist.filter(track => !_hiddenTrackIds.has(track.id));
 
       const playAfterGap = (playFn: () => void) => {
         if (_gapSeconds > 0) {
@@ -1339,13 +1345,18 @@ export default function Page() {
       }
       setBackToBackPlayed(false);
 
-      const nextIdx = _currentIndex + 1;
+      // Find current track in visible playlist and get next visible track
+      const currentTrackId = _playlist[_currentIndex]?.id;
+      const currentVisibleIndex = _visiblePlaylist.findIndex(t => t.id === currentTrackId);
+      const nextVisibleIndex = currentVisibleIndex + 1;
 
-      // There's a next track in the playlist
-      if (nextIdx < _playlist.length) {
+      // There's a next visible track in the playlist
+      if (nextVisibleIndex < _visiblePlaylist.length) {
         playAfterGap(() => {
-          const nextTrack = _playlist[nextIdx];
-          setCurrentIndex(nextIdx);
+          const nextTrack = _visiblePlaylist[nextVisibleIndex];
+          // Find the index in the full playlist for state management
+          const nextFullIndex = _playlist.findIndex(t => t.id === nextTrack.id);
+          setCurrentIndex(nextFullIndex);
           setCurrentTrack(nextTrack);
           if (nextTrack?.url) {
             audio.src = nextTrack.url;
@@ -1357,13 +1368,15 @@ export default function Page() {
           }
         });
       } else {
-        // End of playlist - check if we need to repeat
+        // End of visible playlist - check if we need to repeat
         if (_playlistRound < _playlistRepeats) {
           setPlaylistRound((r) => r + 1);
 
           playAfterGap(() => {
-            const firstTrack = _playlist[0];
-            setCurrentIndex(0);
+            const firstTrack = _visiblePlaylist[0];
+            // Find the index in the full playlist for state management
+            const firstFullIndex = _playlist.findIndex(t => t.id === firstTrack.id);
+            setCurrentIndex(firstFullIndex);
             setCurrentTrack(firstTrack);
             if (firstTrack?.url) {
               audio.src = firstTrack.url;
@@ -1375,8 +1388,8 @@ export default function Page() {
             }
           });
         } else {
-          // All repeats done - mark all tracks as finished
-          setFinishedTracks(new Set(_playlist.map((t) => t.id)));
+          // All repeats done - mark all visible tracks as finished
+          setFinishedTracks(new Set(_visiblePlaylist.map((t) => t.id)));
           setIsPlaying(false);
           setSessionRunning(false);
           setPlaylistRound(1);
@@ -1655,7 +1668,7 @@ export default function Page() {
   };
 
   const startSession = () => {
-    const queueTracks = playlist.map((track) => ({
+    const queueTracks = visiblePlaylist.map((track) => ({
       title: track.title,
       duration: formatDuration(track.durationSeconds),
     }));
