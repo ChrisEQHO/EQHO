@@ -62,6 +62,7 @@ import {
   Maximize2,
   Minimize2,
   LogOut,
+  ExternalLink,
   Cloud,
   CloudOff,
   Trash2,
@@ -3857,40 +3858,50 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100vh-160px)] w-full overflow-hidden pt-14 px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-120px)] landscape:h-[calc(100dvh-90px)] w-full overflow-hidden pt-12 landscape:pt-10 px-2 sm:px-3">
         {activePage === "player" && (
-          <div className="flex flex-col h-full gap-3 overflow-hidden">
+          <div className="flex flex-col h-full gap-2 landscape:gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
             <div className="flex gap-1 shrink-0">
               <button
                 onClick={() => setMobileTab("nowplaying")}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
+                className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
                   mobileTab === "nowplaying"
                     ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
                     : "text-[#7c8596] hover:text-white hover:bg-white/5"
                 }`}
               >
-                Playing
+                <Home size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Playing</span>
               </button>
               <button
                 onClick={() => setMobileTab("playlists")}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
+                className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
                   mobileTab === "playlists"
                     ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
                     : "text-[#7c8596] hover:text-white hover:bg-white/5"
                 }`}
               >
-                Playlists
+                <ListMusic size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Playlists</span>
               </button>
               <button
                 onClick={() => setMobileTab("settings")}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
+                className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
                   mobileTab === "settings"
                     ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
                     : "text-[#7c8596] hover:text-white hover:bg-white/5"
                 }`}
               >
-                Settings
+                <Settings size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Settings</span>
+              </button>
+              <button
+                onClick={() => setActivePage("coach")}
+                className="flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium text-[#7c8596] hover:text-white hover:bg-white/5 transition-all"
+              >
+                <ExternalLink size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Coach</span>
               </button>
             </div>
 
@@ -4614,89 +4625,83 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[145px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[110px] landscape:h-[70px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-3 md:px-4 py-2 md:py-2 overflow-hidden">
-          {/* Mobile Layout - 2x2 Grid + Button */}
-          <div className="flex md:hidden flex-col gap-2">
-            {/* Controls Grid - 2 columns */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              {/* Left Column */}
+        <div className="w-full max-w-full px-2 sm:px-3 md:px-4 py-1.5 landscape:py-1 md:py-2 overflow-hidden">
+          {/* Mobile Layout - Compact Grid + Button */}
+          <div className="flex md:hidden flex-col gap-1.5 landscape:gap-1">
+            {/* Controls Grid - 2 columns in portrait, 4 columns in landscape */}
+            <div className="grid grid-cols-2 landscape:grid-cols-4 gap-x-3 gap-y-1">
               {/* Gap Between Routines */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <div>
-                  <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Gap</div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">Gap</div>
                   <div className="flex items-center rounded border border-white/20 bg-white/5">
-                    <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={12} /></button>
-                    <span className="px-2 text-xs font-semibold text-white border-x border-white/15">{gapSeconds}s</span>
-                    <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={12} /></button>
+                    <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-1 py-0.5 text-white/70"><Minus size={10} /></button>
+                    <span className="px-1.5 text-[10px] font-semibold text-white border-x border-white/15">{gapSeconds}s</span>
+                    <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-1 py-0.5 text-white/70"><Plus size={10} /></button>
                   </div>
                 </div>
               </div>
 
-              {/* Right Column */}
               {/* Total Session Time */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <div>
-                  <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Time</div>
-                  <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">Time</div>
+                  <div className="text-white text-sm font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
                 </div>
               </div>
 
-              {/* Left Column - Row 2 */}
               {/* Back to Back */}
-              <div className="flex items-center gap-2">
-                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/70"}`}>
-                  <RefreshCw size={14} />
+              <div className="flex items-center gap-1.5">
+                <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/70"}`}>
+                  <RefreshCw size={10} />
                 </div>
                 <div>
-                  <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">B2B</div>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">B2B</div>
                   <button 
                     onClick={() => updateBackToBack((v) => !v)}
-                    className="flex items-center gap-1.5"
+                    className="flex items-center gap-1"
                   >
-                    <span className="text-[10px] font-medium text-white">{backToBack ? "On" : "Off"}</span>
-                    <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${
+                    <span className="text-[9px] font-medium text-white">{backToBack ? "On" : "Off"}</span>
+                    <div className={`h-3.5 w-7 rounded-full border p-0.5 transition-colors ${
                       backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"
                     }`}>
-                      <div className={`h-3 w-3 rounded-full transition-transform ${
-                        backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"
+                      <div className={`h-2.5 w-2.5 rounded-full transition-transform ${
+                        backToBack ? "translate-x-3.5 bg-pink-500" : "translate-x-0 bg-white/50"
                       }`} />
                     </div>
                   </button>
                 </div>
               </div>
 
-              {/* Right Column - Row 2 */}
-              {/* Repeat Playlist */}
-              <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                  <Repeat size={14} />
+              {/* Repeats */}
+              <div className="flex items-center gap-1.5">
+                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                  <Repeat size={10} />
                 </div>
                 <div>
-                  <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Repeat</div>
-                  <div className="flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
-                    <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1.5 py-0.5 text-cyan-300"><Minus size={12} /></button>
-                    <span className="px-2 text-xs font-semibold text-white border-x border-cyan-400/20">{playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}</span>
-                    <button onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))} className="px-1.5 py-0.5 text-cyan-300"><Plus size={12} /></button>
+                  <div className="text-[7px] font-medium tracking-wide text-white/60 uppercase">Reps</div>
+                  <div className="flex items-center rounded border border-white/20 bg-white/5">
+                    <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1 py-0.5 text-white/70"><Minus size={10} /></button>
+                    <span className="px-1.5 text-[10px] font-semibold text-white border-x border-white/15">{playlistRepeats}x</span>
+                    <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-1 py-0.5 text-white/70"><Plus size={10} /></button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Start Button */}
-            <button 
-              onClick={toggleSession}
+            {/* Session Button */}
+            <button
+              onClick={handlePauseClick}
               disabled={!currentTrack && playlist.length === 0}
-              className={`w-full h-10 rounded-xl text-sm font-bold transition disabled:opacity-40 ${
+              className={`w-full py-2 landscape:py-1.5 text-xs font-bold rounded-lg transition disabled:opacity-30 ${
                 isGapPaused
-                  ? "bg-white/10 border border-white/30 text-white animate-pulse"
+                  ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                   : isPlaying
-                    ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3]"
-                    : sessionRunning && !isPlaying
-                      ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400"
-                      : "bg-gradient-to-r from-pink-500 to-orange-500 text-white shadow-[0_0_15px_rgba(255,79,179,0.2)]"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
+                    : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/30"
               }`}
             >
               {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
