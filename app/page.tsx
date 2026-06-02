@@ -1482,6 +1482,8 @@ export default function Page() {
     backToBack: false,
     autoplayNext: true,
     showCountdown: true,
+    showPauseWarning: true,
+    showSkipWarning: true,
   });
 
   const updateSetting = (key: string, value: any) => {
@@ -2120,13 +2122,13 @@ export default function Page() {
 
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-6 mb-3">
-                <button onClick={() => { if (isPlaying && !isGapPaused) { setShowSkipBackConfirm(true); } else { goToPreviousTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipBackConfirm(true); } else { goToPreviousTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                   <StepBack size={22} className="text-white" />
                 </button>
-                <button onClick={() => { if (isPlaying && !isGapPaused) { setShowPauseConfirm(true); } else { toggleSession(); } }} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
+                <button onClick={() => { if (isPlaying && !isGapPaused && settings.showPauseWarning) { setShowPauseConfirm(true); } else { toggleSession(); } }} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
                   {isGapPaused ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
                 </button>
-                <button onClick={() => { if (isPlaying && !isGapPaused) { setShowSkipForwardConfirm(true); } else { goToNextTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipForwardConfirm(true); } else { goToNextTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                   <StepForward size={22} className="text-white" />
                 </button>
               </div>
@@ -2370,7 +2372,7 @@ export default function Page() {
               <div className="flex items-center justify-center gap-8">
                 <button 
                   onClick={() => {
-                    if (isPlaying && !isGapPaused) {
+                    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
                       setShowSkipBackConfirm(true);
                     } else {
                       goToPreviousTrack();
@@ -2383,7 +2385,7 @@ export default function Page() {
 
                 <button
                   onClick={() => {
-                    if (isPlaying && !isGapPaused) {
+                    if (isPlaying && !isGapPaused && settings.showPauseWarning) {
                       setShowPauseConfirm(true);
                     } else {
                       toggleSession();
@@ -2399,7 +2401,7 @@ export default function Page() {
 
                 <button 
                   onClick={() => {
-                    if (isPlaying && !isGapPaused) {
+                    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
                       setShowSkipForwardConfirm(true);
                     } else {
                       goToNextTrack();
@@ -3827,17 +3829,17 @@ export default function Page() {
                   </div>
                 </div>
 
-                {/* Upload Settings */}
+                {/* Warning Settings */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                      <Upload size={18} />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+                      <AlertTriangle size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Uploads</h2>
+                    <h2 className="text-lg font-bold">Warnings</h2>
                   </div>
                   <div className="space-y-4">
-                    <ToggleSetting label="Auto-add to Playlist" value={settings.autoAddToPlaylist ?? true} onChange={(v) => updateSetting("autoAddToPlaylist", v)} />
-                    <ToggleSetting label="Keep Originals After Session" value={settings.keepOriginals ?? true} onChange={(v) => updateSetting("keepOriginals", v)} />
+                    <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
+                    <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
                   </div>
                 </div>
               </div>
