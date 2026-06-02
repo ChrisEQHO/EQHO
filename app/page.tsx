@@ -3885,37 +3885,135 @@ export default function Page() {
             {/* Mobile Content Area */}
             <div className="flex-1 min-h-0 overflow-y-auto">
               {mobileTab === "nowplaying" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
-                  <div className="flex flex-col items-center gap-4">
+                <div className="h-full flex flex-col overflow-hidden">
+                  {/* Now Playing Section - Compact */}
+                  <Card className="shrink-0 bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 mb-2">
                     {currentTrack ? (
-                      <>
-                        <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-[#ff4fa3]/20 to-[#ff8a00]/10 flex items-center justify-center">
-                          <Music size={48} className="text-[#ff4fa3]" />
+                      <div className="flex flex-col gap-3">
+                        {/* Track Info & Controls Row */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
+                            <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
+                            <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={goToPreviousTrack} className="p-2 rounded-full hover:bg-white/10 transition">
+                              <StepBack size={18} className="text-white" />
+                            </button>
+                            <button onClick={toggleSession} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                              {isPlaying ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
+                            </button>
+                            <button onClick={goToNextTrack} className="p-2 rounded-full hover:bg-white/10 transition">
+                              <StepForward size={18} className="text-white" />
+                            </button>
+                          </div>
                         </div>
+                        {/* Timer */}
                         <div className="text-center">
-                          <h3 className="text-lg font-semibold text-white">{currentTrack.name}</h3>
-                          <p className="text-sm text-[#7c8596]">Track {getVisibleIndex(currentTrack.id) + 1} of {visiblePlaylist.length}</p>
+                          <span className="text-2xl font-black text-white tabular-nums">
+                            {String(Math.floor(currentTime / 60)).padStart(2, "0")}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
+                          </span>
+                          <span className="text-white/40 text-sm ml-2">/ {formatDuration(currentTrack.durationSeconds)}</span>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <button onClick={goToPreviousTrack} className="p-3 rounded-full hover:bg-white/10 transition">
-                            <StepBack size={24} className="text-white" />
-                          </button>
-                          <button onClick={toggleSession} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
-                            {isPlaying ? <Pause size={28} className="text-white" /> : <Play size={28} className="text-white" />}
-                          </button>
-                          <button onClick={goToNextTrack} className="p-3 rounded-full hover:bg-white/10 transition">
-                            <StepForward size={24} className="text-white" />
-                          </button>
-                        </div>
-                      </>
+                      </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-3 py-8">
-                        <Music size={48} className="text-[#7c8596]" />
-                        <p className="text-[#7c8596]">No track playing</p>
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <p className="text-white/50 text-sm">No track playing</p>
+                        <p className="text-white/30 text-xs">Add tracks from Playlists tab</p>
                       </div>
                     )}
-                  </div>
-                </Card>
+                  </Card>
+
+                  {/* Up Next Playlist */}
+                  <Card className="flex-1 min-h-0 bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between mb-2 shrink-0">
+                      <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
+                      <button
+                        onClick={() => {
+                          if (sessionRunning || isPlaying) {
+                            setShowClearPlaylistConfirm(true);
+                          } else {
+                            clearPlaylist();
+                          }
+                        }}
+                        disabled={playlist.length === 0}
+                        className="px-2 py-1 text-[9px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 transition disabled:opacity-30"
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    {/* Track List */}
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {visiblePlaylist.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                          <p className="text-white/40 text-sm">No tracks queued</p>
+                          <p className="text-white/25 text-xs mt-1">Go to Playlists tab to add music</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {visiblePlaylist.map((track, visibleIndex) => {
+                            const originalIndex = playlist.findIndex(t => t.id === track.id);
+                            const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
+                            const colour = colours[visibleIndex % colours.length];
+                            const isActiveTrack = currentTrack?.id === track.id;
+                            const isFinished = finishedTracks.has(track.id);
+                            
+                            return (
+                              <div
+                                key={track.id}
+                                onClick={() => {
+                                  setCurrentIndex(originalIndex);
+                                  togglePlayPause(track);
+                                }}
+                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                  isActiveTrack 
+                                    ? "bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
+                                    : isFinished
+                                      ? "opacity-40"
+                                      : "hover:bg-white/5"
+                                }`}
+                              >
+                                {/* Track Number */}
+                                <div className={`text-xl font-black w-6 text-center ${isFinished ? "text-white/20" : colour}`}>
+                                  {visibleIndex + 1}
+                                </div>
+                                
+                                {/* Track Info */}
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                    {track.title}
+                                  </p>
+                                  <p className="text-[10px] text-white/50">
+                                    {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
+                                  </p>
+                                </div>
+                                
+                                {/* Duration */}
+                                <div className="text-right shrink-0">
+                                  <p className="text-[9px] text-white/40">Duration</p>
+                                  <p className={`text-sm font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
+                                </div>
+                                
+                                {/* Remove Button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    hideTrackFromSession(track.id);
+                                  }}
+                                  className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
               )}
 
               {mobileTab === "playlists" && (
