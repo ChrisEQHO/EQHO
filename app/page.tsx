@@ -1487,12 +1487,10 @@ export default function Page() {
   });
 
   const updateSetting = (key: string, value: any) => {
-    console.log("[v0] updateSetting - key:", key, "value:", value);
-    setSettings((current) => {
-      const newSettings = { ...current, [key]: value };
-      console.log("[v0] new settings:", newSettings);
-      return newSettings;
-    });
+    setSettings((current) => ({
+      ...current,
+      [key]: value,
+    }));
     // Sync settings to player state variables
     if (key === "gapSeconds") setGapSeconds(value);
     if (key === "playlistRepeats") setPlaylistRepeats(value);
@@ -1502,7 +1500,6 @@ export default function Page() {
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
-    console.log("[v0] handlePauseClick - settings.showPauseWarning:", settings.showPauseWarning, "isPlaying:", isPlaying, "isGapPaused:", isGapPaused);
     if (isPlaying && !isGapPaused && settings.showPauseWarning) {
       setShowPauseConfirm(true);
     } else {
@@ -1512,7 +1509,6 @@ export default function Page() {
 
   // Handler for skip back button with warning check
   const handleSkipBackClick = () => {
-    console.log("[v0] handleSkipBackClick - settings.showSkipWarning:", settings.showSkipWarning);
     if (isPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipBackConfirm(true);
     } else {
@@ -1522,7 +1518,6 @@ export default function Page() {
 
   // Handler for skip forward button with warning check
   const handleSkipForwardClick = () => {
-    console.log("[v0] handleSkipForwardClick - settings.showSkipWarning:", settings.showSkipWarning);
     if (isPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipForwardConfirm(true);
     } else {
@@ -4489,15 +4484,18 @@ export default function Page() {
               )}
 
               {mobileTab === "settings" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 flex flex-col">
-                  {/* Scrollable Content - Uses all remaining space */}
-                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-                    {/* Settings Section */}
-                    <div>
-                      <h2 className="text-cyan-300 uppercase tracking-[0.15em] text-[10px] font-black mb-3">Settings</h2>
+                <div className="h-full flex flex-col">
+                  <Card className="flex-1 bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 flex flex-col overflow-hidden">
+                    {/* Header */}
+                    <div className="shrink-0 mb-3">
+                      <h2 className="text-cyan-300 uppercase tracking-[0.15em] text-[10px] font-black">Settings</h2>
+                    </div>
+                    
+                    {/* Scrollable Content */}
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
                     
                     {/* Playback Settings */}
-                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Headphones size={14} className="text-[#ff8a00]" />
                         <span className="text-[10px] font-bold text-white">Playback</span>
@@ -4523,7 +4521,7 @@ export default function Page() {
                     </div>
 
                     {/* Session Controls */}
-                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Timer size={14} className="text-[#ff8a00]" />
                         <span className="text-[10px] font-bold text-white">Session Controls</span>
@@ -4557,7 +4555,7 @@ export default function Page() {
                     </div>
 
                     {/* Coach Display */}
-                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <SlidersHorizontal size={14} className="text-[#ff8a00]" />
                         <span className="text-[10px] font-bold text-white">Coach Display</span>
@@ -4583,7 +4581,7 @@ export default function Page() {
                     </div>
 
                     {/* Warnings */}
-                    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle size={14} className="text-yellow-400" />
                         <span className="text-[10px] font-bold text-white">Warnings</span>
@@ -4607,9 +4605,10 @@ export default function Page() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                  </div>
-                </Card>
+                    
+                    </div>
+                  </Card>
+                </div>
               )}
             </div>
           </div>
