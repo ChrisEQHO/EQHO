@@ -4293,124 +4293,176 @@ export default function Page() {
                     {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
                       <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
                         <Folder size={32} className="mx-auto mb-2 text-white/20" />
-                        <p className="text-xs text-white/40">No playlists yet</p>
+                        <h3 className="text-sm font-bold text-white/60">No playlists yet</h3>
+                        <p className="text-[10px] text-white/40 mt-1">Drop a folder above to create your first playlist</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 pb-2">
+                      <div className="space-y-3 pb-2">
                         {/* Local Playlists */}
                         {savedPlaylists.length > 0 && (
                           <div>
                             <div className="flex items-center justify-between mb-2 sticky top-0 bg-[#050816] py-1 z-10">
-                              <h3 className="text-[10px] font-bold text-white/70 flex items-center gap-1">
+                              <h3 className="text-[10px] font-bold text-white/60 flex items-center gap-1.5 uppercase tracking-wider">
                                 <Folder size={12} />
-                                Local ({savedPlaylists.length})
+                                Local Playlists
+                                <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
                               </h3>
                               <button
                                 onClick={() => {
-                                  if (confirm("Clear all local playlists?")) {
+                                  if (sessionRunning || isPlaying) {
+                                    setShowClearPlaylistConfirm(true);
+                                  } else {
                                     setSavedPlaylists([]);
+                                    clearPlaylist();
                                   }
                                 }}
-                                className="text-[9px] text-orange-400 font-medium"
+                                className="px-2 py-0.5 text-[9px] font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-md"
                               >
                                 Clear All
                               </button>
                             </div>
                             <div className="space-y-2">
                               {savedPlaylists.map((localPlaylist) => {
+                                const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
+                                const isSyncing = syncingPlaylistId === localPlaylist.id;
                                 const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
+                                
                                 return (
                                   <div
                                     key={localPlaylist.id}
-                                    className="rounded-xl border border-white/10 bg-white/[0.02] p-3"
+                                    className="rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:border-pink-500/40 transition"
                                   >
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 to-cyan-400 flex items-center justify-center shrink-0">
-                                        <Folder size={18} />
+                                    {/* Header Row */}
+                                    <div className="flex items-start gap-2 mb-2">
+                                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
+                                        <ListMusic size={16} />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-white truncate">{localPlaylist.name}</p>
-                                        <p className="text-[10px] text-white/50">{localPlaylist.tracks.length} tracks • {formatSessionTime(totalDuration)}</p>
+                                        <h4 className="text-sm font-bold text-white truncate">{localPlaylist.name}</h4>
+                                        <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+                                          <span>{localPlaylist.tracks.length} tracks</span>
+                                          <span className="text-white/20">|</span>
+                                          <span>{formatDuration(totalDuration)}</span>
+                                        </div>
+                                      </div>
+                                      {/* Action Buttons */}
+                                      <div className="flex gap-1 shrink-0">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
+                                          disabled={isSyncing}
+                                          className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
+                                        >
+                                          {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/40"} />}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
+                                          className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
+                                        >
+                                          <Trash2 size={12} className="text-white/40" />
+                                        </button>
                                       </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() => {
-                                          if (localPlaylist.tracks.length > 0) {
-                                            if (sessionRunning || isPlaying) {
-                                              setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks });
-                                            } else {
-                                              setPlaylist(localPlaylist.tracks);
-                                              setCurrentPlaylistName(localPlaylist.name);
-                                              setCurrentIndex(0);
-                                              setCurrentTrack(localPlaylist.tracks[0]);
-                                            }
-                                          }
-                                        }}
-                                        disabled={localPlaylist.tracks.length === 0}
-                                        className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/20 to-orange-500/20 border border-pink-500/30 text-pink-400 text-[11px] font-bold disabled:opacity-30"
-                                      >
-                                        Load to Session
-                                      </button>
-                                      <button
-                                        onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== localPlaylist.id))}
-                                        className="px-4 py-2 rounded-lg border border-white/10 text-white/50 hover:text-red-400 hover:border-red-500/30"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
+                                    
+                                    {/* Cloud Sync Badge */}
+                                    {isInCloud && (
+                                      <div className="mb-2 flex items-center gap-1 text-[9px] text-cyan-400">
+                                        <Cloud size={9} />
+                                        Synced to cloud
+                                      </div>
+                                    )}
+                                    
+                                    {/* Track Preview */}
+                                    <div className="space-y-0.5 mb-2">
+                                      {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
+                                        <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
+                                          <span className="w-3 text-white/25">{idx + 1}.</span>
+                                          <span className="truncate flex-1">{track.title}</span>
+                                          <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
+                                        </div>
+                                      ))}
+                                      {localPlaylist.tracks.length > 2 && (
+                                        <p className="text-[9px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more tracks</p>
+                                      )}
                                     </div>
+                                    
+                                    {/* Send to Session Button */}
+                                    <button
+                                      onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
+                                      disabled={localPlaylist.tracks.length === 0}
+                                      className="w-full py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                                                 border border-pink-500/25 text-pink-400 text-[11px] font-semibold
+                                                 hover:from-pink-500/25 hover:to-orange-500/25 transition disabled:opacity-30"
+                                    >
+                                      Send to Session
+                                    </button>
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
                         )}
-
+                        
                         {/* Cloud Playlists */}
-                        {cloudPlaylists.length > 0 && (
-                          <div className={savedPlaylists.length > 0 ? "mt-3" : ""}>
-                            <h3 className="text-[10px] font-bold text-white/70 flex items-center gap-1 mb-2 sticky top-0 bg-[#050816] py-1 z-10">
+                        {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
+                          <div>
+                            <h3 className="text-[10px] font-bold text-white/60 mb-2 flex items-center gap-1.5 uppercase tracking-wider sticky top-0 bg-[#050816] py-1 z-10">
                               <Cloud size={12} className="text-cyan-400" />
-                              Cloud ({cloudPlaylists.length})
+                              Cloud Playlists
                             </h3>
                             <div className="space-y-2">
-                              {cloudPlaylists.map((cloudPlaylist) => {
-                                const totalDuration = cloudPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
-                                return (
-                                  <div
-                                    key={cloudPlaylist.id}
-                                    className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3"
-                                  >
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0">
-                                        <Cloud size={18} />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-white truncate">{cloudPlaylist.name}</p>
-                                        <p className="text-[10px] text-white/50">{cloudPlaylist.tracks.length} tracks • {formatSessionTime(totalDuration)}</p>
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={() => {
-                                        if (cloudPlaylist.tracks.length > 0) {
-                                          if (sessionRunning || isPlaying) {
-                                            setShowSendToSessionConfirm({ name: cloudPlaylist.name, tracks: cloudPlaylist.tracks });
-                                          } else {
-                                            setPlaylist(cloudPlaylist.tracks);
-                                            setCurrentPlaylistName(cloudPlaylist.name);
-                                            setCurrentIndex(0);
-                                            setCurrentTrack(cloudPlaylist.tracks[0]);
-                                          }
-                                        }
-                                      }}
-                                      disabled={cloudPlaylist.tracks.length === 0}
-                                      className="w-full py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-[11px] font-bold disabled:opacity-30"
+                              {cloudPlaylists
+                                .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
+                                .map((cloudPlaylist) => {
+                                  const totalDuration = cloudPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
+                                  
+                                  return (
+                                    <div
+                                      key={cloudPlaylist.id}
+                                      className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3"
                                     >
-                                      Load to Session
-                                    </button>
-                                  </div>
-                                );
-                              })}
+                                      {/* Header Row */}
+                                      <div className="flex items-start gap-2 mb-2">
+                                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
+                                          <Cloud size={16} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="text-sm font-bold text-white truncate">{cloudPlaylist.name}</h4>
+                                          <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+                                            <span>{cloudPlaylist.tracks.length} tracks</span>
+                                            <span className="text-white/20">|</span>
+                                            <span>{formatDuration(totalDuration)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Track Preview */}
+                                      <div className="space-y-0.5 mb-2">
+                                        {cloudPlaylist.tracks.slice(0, 2).map((track, idx) => (
+                                          <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
+                                            <span className="w-3 text-white/25">{idx + 1}.</span>
+                                            <span className="truncate flex-1">{track.title}</span>
+                                            <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
+                                          </div>
+                                        ))}
+                                        {cloudPlaylist.tracks.length > 2 && (
+                                          <p className="text-[9px] text-white/25 pl-4">+{cloudPlaylist.tracks.length - 2} more tracks</p>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Download Button */}
+                                      <button
+                                        onClick={() => {
+                                          setSavedPlaylists(prev => [...prev, cloudPlaylist]);
+                                        }}
+                                        className="w-full py-2 rounded-lg bg-gradient-to-r from-cyan-500/15 to-blue-500/15 
+                                                   border border-cyan-500/25 text-cyan-400 text-[11px] font-semibold
+                                                   hover:from-cyan-500/25 hover:to-blue-500/25 transition"
+                                      >
+                                        Download to Device
+                                      </button>
+                                    </div>
+                                  );
+                                })}
                             </div>
                           </div>
                         )}
