@@ -1487,7 +1487,6 @@ export default function Page() {
   });
 
   const updateSetting = (key: string, value: any) => {
-    console.log("[v0] updateSetting called - key:", key, "value:", value);
     setSettings((current) => ({
       ...current,
       [key]: value,
@@ -1497,6 +1496,33 @@ export default function Page() {
     if (key === "playlistRepeats") setPlaylistRepeats(value);
     if (key === "backToBack") setBackToBack(value);
     if (key === "defaultVolume") setVolume(value);
+  };
+
+  // Handler for pause button with warning check
+  const handlePauseClick = () => {
+    if (isPlaying && !isGapPaused && settings.showPauseWarning) {
+      setShowPauseConfirm(true);
+    } else {
+      toggleSession();
+    }
+  };
+
+  // Handler for skip back button with warning check
+  const handleSkipBackClick = () => {
+    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+      setShowSkipBackConfirm(true);
+    } else {
+      goToPreviousTrack();
+    }
+  };
+
+  // Handler for skip forward button with warning check
+  const handleSkipForwardClick = () => {
+    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+      setShowSkipForwardConfirm(true);
+    } else {
+      goToNextTrack();
+    }
   };
 
   // Wrapper functions to keep settings and player state in sync
@@ -2123,13 +2149,13 @@ export default function Page() {
 
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-6 mb-3">
-                <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipBackConfirm(true); } else { goToPreviousTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                <button onClick={handleSkipBackClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                   <StepBack size={22} className="text-white" />
                 </button>
-                <button onClick={() => { if (isPlaying && !isGapPaused && settings.showPauseWarning) { setShowPauseConfirm(true); } else { toggleSession(); } }} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
+                <button onClick={handlePauseClick} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
                   {isGapPaused ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
                 </button>
-                <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipForwardConfirm(true); } else { goToNextTrack(); } }} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                <button onClick={handleSkipForwardClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                   <StepForward size={22} className="text-white" />
                 </button>
               </div>
@@ -2372,27 +2398,14 @@ export default function Page() {
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-8">
                 <button 
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
-                      setShowSkipBackConfirm(true);
-                    } else {
-                      goToPreviousTrack();
-                    }
-                  }}
+                  onClick={handleSkipBackClick}
                   className="grid h-12 w-12 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
                   <StepBack size={24} />
                 </button>
 
                 <button
-                  onClick={() => {
-                    console.log("[v0] Pause button clicked - isPlaying:", isPlaying, "isGapPaused:", isGapPaused, "showPauseWarning:", settings.showPauseWarning);
-                    if (isPlaying && !isGapPaused && settings.showPauseWarning) {
-                      setShowPauseConfirm(true);
-                    } else {
-                      toggleSession();
-                    }
-                  }}
+                  onClick={handlePauseClick}
                   disabled={!currentTrack && playlist.length === 0}
                   className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
                 >
@@ -2402,13 +2415,7 @@ export default function Page() {
                 </button>
 
                 <button 
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
-                      setShowSkipForwardConfirm(true);
-                    } else {
-                      goToNextTrack();
-                    }
-                  }}
+                  onClick={handleSkipForwardClick}
                   className="grid h-12 w-12 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
                   <StepForward size={24} />
@@ -3905,13 +3912,13 @@ export default function Page() {
                             <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipBackConfirm(true); } else { goToPreviousTrack(); } }} className="p-2 rounded-full hover:bg-white/10 transition">
+                            <button onClick={handleSkipBackClick} className="p-2 rounded-full hover:bg-white/10 transition">
                               <StepBack size={18} className="text-white" />
                             </button>
-                            <button onClick={() => { if (isPlaying && !isGapPaused && settings.showPauseWarning) { setShowPauseConfirm(true); } else { toggleSession(); } }} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                            <button onClick={handlePauseClick} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
                               {isPlaying ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
                             </button>
-                            <button onClick={() => { if (isPlaying && !isGapPaused && settings.showSkipWarning) { setShowSkipForwardConfirm(true); } else { goToNextTrack(); } }} className="p-2 rounded-full hover:bg-white/10 transition">
+                            <button onClick={handleSkipForwardClick} className="p-2 rounded-full hover:bg-white/10 transition">
                               <StepForward size={18} className="text-white" />
                             </button>
                           </div>
