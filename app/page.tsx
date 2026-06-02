@@ -3838,11 +3838,11 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-9 landscape:pt-8 px-2 sm:px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-8 landscape:pt-7 px-2 sm:px-3">
         {activePage === "player" && (
-          <div className="flex flex-col h-full gap-2 landscape:gap-1 overflow-hidden">
+          <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
-            <div className="flex gap-1 shrink-0">
+            <div className="flex gap-0.5 shrink-0 bg-white/[0.02] rounded-lg p-0.5">
               <button
                 onClick={() => setMobileTab("nowplaying")}
                 className={`flex-1 py-1 landscape:py-0.5 px-2 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
@@ -3890,7 +3890,7 @@ export default function Page() {
               {mobileTab === "nowplaying" && (
                 <div className="h-full flex flex-col overflow-hidden">
                   {/* Now Playing Section - Compact */}
-                  <Card className="shrink-0 bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 mb-2">
+                  <div className="shrink-0 bg-white/[0.02] rounded-lg p-2 mb-1">
                     {currentTrack ? (
                       <div className="flex flex-col gap-3">
                         {/* Track Info & Controls Row */}
@@ -3967,10 +3967,10 @@ export default function Page() {
                         <p className="text-white/30 text-xs">Add tracks from Playlists tab</p>
                       </div>
                     )}
-                  </Card>
+                  </div>
 
                   {/* Up Next Playlist */}
-                  <Card className="flex-1 min-h-0 bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 flex flex-col overflow-hidden">
+                  <div className="flex-1 min-h-0 bg-white/[0.02] rounded-lg p-2 flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between mb-2 shrink-0">
                       <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
                       <button
@@ -4070,7 +4070,7 @@ export default function Page() {
                         </div>
                       )}
                     </div>
-                  </Card>
+                  </div>
                 </div>
               )}
 
