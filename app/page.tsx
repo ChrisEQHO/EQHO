@@ -2512,10 +2512,10 @@ export default function Page() {
             </div>
           )}
 
-          {/* Gap Countdown Overlay for final 3 seconds */}
-          {isGapPaused && gapCountdown <= 3 && (
+          {/* Gap Countdown Overlay - shows during entire gap */}
+          {isGapPaused && (
             <div className="absolute inset-0 z-[320] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-              <div key={gapCountdown} className="text-[50vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent" style={{ animation: 'countdownPulse 1s ease-out' }}>
+              <div key={gapCountdown} className={`font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`} style={{ animation: gapCountdown <= 3 ? 'countdownPulse 1s ease-out' : 'none' }}>
                 {gapCountdown}
               </div>
               <div className="mt-4 text-center">
