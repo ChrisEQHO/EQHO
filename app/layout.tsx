@@ -54,7 +54,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="font-sans antialiased bg-[#020617] overflow-x-hidden w-screen max-w-[100vw] min-h-screen min-h-[100dvh] pt-[env(safe-area-inset-top)]">
+      <body className="font-sans antialiased bg-[#020617] overflow-x-hidden w-screen max-w-[100vw] min-h-screen min-h-[100dvh]">
         <CapacitorInit />
         {children}
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <Analytics />}
