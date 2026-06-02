@@ -1087,8 +1087,11 @@ export default function Page() {
     
     // If paused with a current track loaded AND not all finished, resume
     if (currentTrack && currentTrack.url && !allTracksFinished) {
-      // Re-set the source to ensure it's valid
-      audioRef.current.src = currentTrack.url;
+      // Only re-set the source if it's different (track changed while paused)
+      // Otherwise just resume from current position
+      if (audioRef.current.src !== currentTrack.url) {
+        audioRef.current.src = currentTrack.url;
+      }
       try {
         await audioRef.current.play();
         setIsPlaying(true);
