@@ -1085,10 +1085,10 @@ export default function Page() {
     }
 
     // Check if all tracks are finished - need to restart fresh
-    const allTracksFinished = finishedTracks.size === playlist.length && playlist.length > 0;
+    const allTracksFinished = finishedTracks.size === visiblePlaylist.length && visiblePlaylist.length > 0;
     
-    // If paused with a current track loaded AND not all finished, resume
-    if (currentTrack && currentTrack.url && !allTracksFinished) {
+    // If paused with a current track loaded AND not all finished AND track is not hidden, resume
+    if (currentTrack && currentTrack.url && !allTracksFinished && !hiddenTrackIds.has(currentTrack.id)) {
       // Only re-set the source if it's different (track changed while paused)
       // Otherwise just resume from current position
       if (audioRef.current.src !== currentTrack.url) {
@@ -1104,10 +1104,12 @@ export default function Page() {
       return;
     }
 
-    // No track loaded yet OR all tracks finished - start from first track in playlist
-    if (playlist.length > 0) {
-      const firstTrack = playlist[0];
+    // No track loaded yet OR all tracks finished OR current track hidden - start from first visible track
+    if (visiblePlaylist.length > 0) {
+      const firstTrack = visiblePlaylist[0];
       if (!firstTrack.url) return;
+      // Find the index in the full playlist for state management
+      const firstFullIndex = playlist.findIndex(t => t.id === firstTrack.id);
       // Reset session tracking
       setPlaylistRound(1);
       setBackToBackPlayed(false);
@@ -1117,7 +1119,7 @@ export default function Page() {
       setShowSessionFinished(false);
       audioRef.current.src = firstTrack.url;
       setCurrentTrack(firstTrack);
-      setCurrentIndex(0);
+      setCurrentIndex(firstFullIndex);
       try {
         await audioRef.current.play();
         setIsPlaying(true);
@@ -1238,13 +1240,17 @@ export default function Page() {
   };
 
   const goToNextTrack = () => {
-    if (playlist.length === 0) return;
+    if (visiblePlaylist.length === 0) return;
     
-    const nextIdx = currentIndex + 1;
+    // Find current track in visible playlist
+    const currentVisibleIndex = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+    const nextVisibleIndex = currentVisibleIndex + 1;
     
-    if (nextIdx < playlist.length) {
-      setCurrentIndex(nextIdx);
-      const nextTrack = playlist[nextIdx];
+    if (nextVisibleIndex < visiblePlaylist.length) {
+      const nextTrack = visiblePlaylist[nextVisibleIndex];
+      // Find the index in the full playlist for state management
+      const nextFullIndex = playlist.findIndex(t => t.id === nextTrack.id);
+      setCurrentIndex(nextFullIndex);
       setCurrentTrack(nextTrack);
       if (audioRef.current && nextTrack) {
         audioRef.current.src = nextTrack.url;
@@ -1255,13 +1261,17 @@ export default function Page() {
   };
 
   const goToPreviousTrack = () => {
-    if (playlist.length === 0) return;
+    if (visiblePlaylist.length === 0) return;
     
-    const prevIdx = currentIndex - 1;
+    // Find current track in visible playlist
+    const currentVisibleIndex = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : 0;
+    const prevVisibleIndex = currentVisibleIndex - 1;
     
-    if (prevIdx >= 0) {
-      setCurrentIndex(prevIdx);
-      const prevTrack = playlist[prevIdx];
+    if (prevVisibleIndex >= 0) {
+      const prevTrack = visiblePlaylist[prevVisibleIndex];
+      // Find the index in the full playlist for state management
+      const prevFullIndex = playlist.findIndex(t => t.id === prevTrack.id);
+      setCurrentIndex(prevFullIndex);
       setCurrentTrack(prevTrack);
       if (audioRef.current && prevTrack) {
         audioRef.current.src = prevTrack.url;
@@ -1269,7 +1279,7 @@ export default function Page() {
         setIsPlaying(false);
       }
     } else if (audioRef.current) {
-      // If at first track, restart it
+      // If at first visible track, restart it
       audioRef.current.currentTime = 0;
     }
   };
