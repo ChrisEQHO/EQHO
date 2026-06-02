@@ -1487,6 +1487,7 @@ export default function Page() {
   });
 
   const updateSetting = (key: string, value: any) => {
+    console.log("[v0] updateSetting called - key:", key, "value:", value);
     setSettings((current) => ({
       ...current,
       [key]: value,
@@ -2385,6 +2386,7 @@ export default function Page() {
 
                 <button
                   onClick={() => {
+                    console.log("[v0] Pause button clicked - isPlaying:", isPlaying, "isGapPaused:", isGapPaused, "showPauseWarning:", settings.showPauseWarning);
                     if (isPlaying && !isGapPaused && settings.showPauseWarning) {
                       setShowPauseConfirm(true);
                     } else {
