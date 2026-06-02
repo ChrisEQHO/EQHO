@@ -3916,6 +3916,47 @@ export default function Page() {
                           </span>
                           <span className="text-white/40 text-sm ml-2">/ {formatDuration(currentTrack.durationSeconds)}</span>
                         </div>
+                        
+                        {/* Waveform Progress Bar */}
+                        <div
+                          className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-lg border border-white/10 bg-white/[0.02] px-2 pb-1.5 pt-1.5 select-none"
+                          onClick={(e) => {
+                            if (!audioRef.current || trackDuration === 0) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const pct = x / rect.width;
+                            audioRef.current.currentTime = pct * trackDuration;
+                          }}
+                        >
+                          {Array.from({ length: 50 }).map((_, i) => {
+                            const barProgress = (i / 50) * 100;
+                            const isPlayed = barProgress <= trackProgress;
+                            const heights = [40, 60, 80, 55, 70, 45, 85, 50, 65, 75];
+                            const h = heights[i % heights.length];
+                            return (
+                              <div
+                                key={i}
+                                className={`flex-1 rounded-sm transition-colors ${
+                                  isPlayed
+                                    ? "bg-gradient-to-t from-pink-500 to-orange-400"
+                                    : "bg-white/15"
+                                }`}
+                                style={{ height: `${h}%` }}
+                              />
+                            );
+                          })}
+                          {/* Playhead indicator */}
+                          <div 
+                            className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                            style={{ left: `${Math.max(8, Math.min(trackProgress, 100) * 0.92 + 8)}%` }}
+                          />
+                          <div className="absolute bottom-0.5 left-2 text-[9px] text-white/60">
+                            {formatDuration(currentTime)}
+                          </div>
+                          <div className="absolute bottom-0.5 right-2 text-[9px] text-white/60">
+                            {trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2 py-4">
