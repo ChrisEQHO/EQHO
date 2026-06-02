@@ -2661,18 +2661,6 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Mobile Navigation Bar - Only show logout, not duplicate nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-1.5 bg-[#050816]/95 backdrop-blur-sm border-b border-white/10">
-        <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">EQHO Player</span>
-        <button
-          onClick={handleLogout}
-          className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition text-[10px] flex items-center gap-1"
-        >
-          <LogOut size={14} />
-          <span className="hidden sm:inline">Logout</span>
-        </button>
-      </nav>
-
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
       <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
@@ -3838,7 +3826,7 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-8 landscape:pt-7 px-2 sm:px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-2 landscape:pt-1 px-2 sm:px-3">
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -4603,6 +4591,21 @@ export default function Page() {
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Account / Logout */}
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LogOut size={14} className="text-red-400" />
+                        <span className="text-[10px] font-bold text-white">Account</span>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                      >
+                        <LogOut size={12} />
+                        Sign Out
+                      </button>
                     </div>
                     
                     </div>
