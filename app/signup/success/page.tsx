@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { Mail } from 'lucide-react'
 
 export default function SignupSuccessPage() {
@@ -12,17 +11,9 @@ export default function SignupSuccessPage() {
       </div>
 
       <div className="relative w-full max-w-md text-center">
-        {/* Logo */}
-        <div className="flex justify-center mb-6">
-          <div className="relative w-[280px] h-[160px]">
-            <Image
-              src="/eqho-player-logo.png"
-              alt="EQHO Player"
-              fill
-              priority
-              className="object-contain mix-blend-lighten"
-            />
-          </div>
+        {/* Header */}
+        <div className="flex flex-col items-center mb-6">
+          <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
         </div>
 
         {/* Success Card */}

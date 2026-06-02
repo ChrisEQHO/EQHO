@@ -55,12 +55,14 @@ import {
   Upload,
   SlidersHorizontal,
   AlertTriangle,
+  AlertCircle,
   Headphones,
   Save,
   Repeat,
   Maximize2,
   Minimize2,
   LogOut,
+  ExternalLink,
   Cloud,
   CloudOff,
   Trash2,
@@ -68,6 +70,7 @@ import {
   Check,
   Loader2,
   RotateCcw,
+  Bell,
 } from "lucide-react";
 
 const uploads = [
@@ -105,26 +108,6 @@ const queue = [
 
 
 
-
-/* 
- * EQHO Brand Logo - Colourway 3 SUNSET
- * Uses the uploaded logo image exactly as provided
- * Logo image: /public/eqho-player-logo.png
- */
-
-function EqhoBrand({ className = "" }: { className?: string }) {
-  return (
-    <div className={`relative shrink-0 ${className}`}>
-      <Image
-        src="/eqho-player-logo.png"
-        alt="EQHO Player"
-        fill
-        priority
-        className="object-contain mix-blend-lighten"
-      />
-    </div>
-  );
-}
 
 function SettingsSection({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
@@ -317,7 +300,7 @@ export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
 
-  // Sidebar navigation items
+  // Sidebar navigation items (desktop only)
   const sidebarItems = [
     { icon: Home, page: "player", color: "pink" },
     { icon: ListMusic, page: "playlists", color: "pink" },
@@ -329,7 +312,7 @@ export default function Page() {
   };
 
   // Mobile tab state
-  const [mobileTab, setMobileTab] = useState<"queue" | "nowplaying" | "upload">("queue");
+  const [mobileTab, setMobileTab] = useState<"nowplaying" | "playlists" | "settings">("nowplaying");
 
   const [playlistRepeats, setPlaylistRepeats] = useState(1);
   const [gapSeconds, setGapSeconds] = useState(10);
@@ -1105,8 +1088,11 @@ export default function Page() {
     
     // If paused with a current track loaded AND not all finished, resume
     if (currentTrack && currentTrack.url && !allTracksFinished) {
-      // Re-set the source to ensure it's valid
-      audioRef.current.src = currentTrack.url;
+      // Only re-set the source if it's different (track changed while paused)
+      // Otherwise just resume from current position
+      if (audioRef.current.src !== currentTrack.url) {
+        audioRef.current.src = currentTrack.url;
+      }
       try {
         await audioRef.current.play();
         setIsPlaying(true);
@@ -1497,6 +1483,8 @@ export default function Page() {
     backToBack: false,
     autoplayNext: true,
     showCountdown: true,
+    showPauseWarning: true,
+    showSkipWarning: true,
   });
 
   const updateSetting = (key: string, value: any) => {
@@ -1504,6 +1492,63 @@ export default function Page() {
       ...current,
       [key]: value,
     }));
+    // Sync settings to player state variables
+    if (key === "gapSeconds") setGapSeconds(value);
+    if (key === "playlistRepeats") setPlaylistRepeats(value);
+    if (key === "backToBack") setBackToBack(value);
+    if (key === "defaultVolume") setVolume(value);
+  };
+
+  // Handler for pause button with warning check
+  const handlePauseClick = () => {
+    if (isPlaying && !isGapPaused && settings.showPauseWarning) {
+      setShowPauseConfirm(true);
+    } else {
+      toggleSession();
+    }
+  };
+
+  // Handler for skip back button with warning check
+  const handleSkipBackClick = () => {
+    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+      setShowSkipBackConfirm(true);
+    } else {
+      goToPreviousTrack();
+    }
+  };
+
+  // Handler for skip forward button with warning check
+  const handleSkipForwardClick = () => {
+    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+      setShowSkipForwardConfirm(true);
+    } else {
+      goToNextTrack();
+    }
+  };
+
+  // Wrapper functions to keep settings and player state in sync
+  const updateGapSeconds = (newValue: number | ((prev: number) => number)) => {
+    setGapSeconds((prev) => {
+      const val = typeof newValue === "function" ? newValue(prev) : newValue;
+      setSettings((s) => ({ ...s, gapSeconds: val }));
+      return val;
+    });
+  };
+
+  const updatePlaylistRepeats = (newValue: number | ((prev: number) => number)) => {
+    setPlaylistRepeats((prev) => {
+      const val = typeof newValue === "function" ? newValue(prev) : newValue;
+      setSettings((s) => ({ ...s, playlistRepeats: val }));
+      return val;
+    });
+  };
+
+  const updateBackToBack = (newValue: boolean | ((prev: boolean) => boolean)) => {
+    setBackToBack((prev) => {
+      const val = typeof newValue === "function" ? newValue(prev) : newValue;
+      setSettings((s) => ({ ...s, backToBack: val }));
+      return val;
+    });
   };
 
   const [sessionQueue, setSessionQueue] = useState<QueueItem[]>([]);
@@ -1999,173 +2044,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Fullscreen Mobile Player */}
-        {showFullscreenMobilePlayer && (
-          <div className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 pt-[env(safe-area-inset-top)]">
-              <button
-                onClick={() => setShowFullscreenMobilePlayer(false)}
-                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
-              >
-                <X size={20} className="text-white" />
-              </button>
-              <h2 className="text-white/80 font-medium">Now Playing</h2>
-              <div className="w-10" /> {/* Spacer for centering */}
-            </div>
-
-            {/* Album Art / Track Visual */}
-            <div className="flex-1 flex flex-col items-center justify-center px-8">
-              <div className="w-[min(70vw,280px)] h-[min(70vw,280px)] rounded-3xl bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-cyan-400/30 border border-white/10 flex items-center justify-center shadow-[0_0_60px_rgba(236,72,153,0.3)]">
-                <Music size={80} className="text-pink-400/60" />
-              </div>
-
-              {/* Track Info */}
-              <div className="mt-8 text-center w-full">
-                <h1 className="text-4xl md:text-5xl font-black text-white truncate px-4 bg-gradient-to-r from-white via-pink-100 to-white bg-clip-text text-transparent">
-                  {currentTrack?.title || "No Track Selected"}
-  </h1>
-  <p className="text-white/50 mt-2 text-lg">
-  {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
-  </p>
-  </div>
-
-              {/* Timer */}
-              <div className="mt-6">
-                {isGapPaused && gapCountdown <= 3 ? (
-                  /* Large animated countdown overlay for final 3 seconds */
-                  <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-                    <div 
-                      key={gapCountdown}
-                      className="text-[60vh] font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent drop-shadow-[0_0_100px_rgba(255,79,163,0.8)]"
-                      style={{
-                        animation: 'countdownPulse 1s ease-out',
-                        textShadow: '0 0 120px rgba(255,79,163,0.6), 0 0 240px rgba(255,138,0,0.4)'
-                      }}
-                    >
-                      {gapCountdown}
-                    </div>
-                    {/* Next track info */}
-                    <div className="mt-4 text-center">
-                      <p className="text-white/60 text-lg uppercase tracking-widest mb-2">Up Next</p>
-                      <p className="text-3xl md:text-4xl font-bold text-white">
-                        {(() => {
-                          const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                          const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                          return nextTrack?.title || "End of Playlist";
-                        })()}
-                      </p>
-                    </div>
-                    <style jsx>{`
-                      @keyframes countdownPulse {
-                        0% {
-                          transform: scale(0.5);
-                          opacity: 0;
-                        }
-                        30% {
-                          transform: scale(1.1);
-                          opacity: 1;
-                        }
-                        100% {
-                          transform: scale(1);
-                          opacity: 1;
-                        }
-                      }
-                    `}</style>
-                  </div>
-                ) : isGapPaused ? (
-                  <div className="text-6xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
-                    {gapCountdown}
-                  </div>
-                ) : (
-                  <div className="text-5xl font-black tracking-wider text-white tabular-nums">
-                    {currentTime > 0 || isPlaying
-                      ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
-                      : "00:00"}
-                  </div>
-                )}
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full mt-8 px-4">
-                <div 
-                  className="h-2 bg-white/10 rounded-full overflow-hidden cursor-pointer"
-                  onClick={(e) => {
-                    if (!audioRef.current || !trackDuration) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    audioRef.current.currentTime = percent * trackDuration;
-                  }}
-                >
-                  <div 
-                    className="h-full bg-gradient-to-r from-pink-500 to-orange-500 transition-all"
-                    style={{ width: `${trackDuration ? (currentTime / trackDuration) * 100 : 0}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-xs text-white/40 mt-2">
-                  <span>{formatDuration(Math.floor(currentTime))}</span>
-                  <span>{formatDuration(Math.floor(trackDuration))}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div className={`px-8 ${!currentTrack && !isPlaying ? 'pb-24' : 'pb-8'} pb-[calc(env(safe-area-inset-bottom)+2rem)]`}>
-              <div className="flex items-center justify-center gap-8">
-                {/* Previous */}
-                <button 
-                  onClick={goToPreviousTrack}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"
-                >
-                  <StepBack size={28} className="text-white" />
-                </button>
-
-                {/* Play/Pause */}
-                <button
-                  onClick={toggleSession}
-                  disabled={!currentTrack && playlist.length === 0}
-                  className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)]"
-                >
-                  {isGapPaused ? (
-                    <span className="text-2xl font-black tabular-nums countdown-flash">{gapCountdown}</span>
-                  ) : isPlaying ? (
-                    <Pause size={36} />
-                  ) : (
-                    <Play size={36} className="ml-1" />
-                  )}
-                </button>
-
-                {/* Next */}
-                <button 
-                  onClick={goToNextTrack}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"
-                >
-                  <StepForward size={28} className="text-white" />
-                </button>
-              </div>
-
-              {/* Volume */}
-              <div className="flex items-center gap-3 mt-8 justify-center">
-                <button onClick={() => setIsMuted(!isMuted)}>
-                  {isMuted ? (
-                    <VolumeX size={20} className="text-white/50" />
-                  ) : (
-                    <Volume2 size={20} className="text-white/50" />
-                  )}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Session Finished Takeover */}
         {showSessionFinished && (
           <div className="absolute inset-0 z-[250] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020]">
@@ -2314,7 +2192,14 @@ export default function Page() {
 
               {/* Track Title */}
               <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
-                {currentTrack?.title || "No Track Selected"}
+                {isGapPaused 
+                  ? (() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                      return nextTrack?.title || "End of Playlist";
+                    })()
+                  : (currentTrack?.title || "No Track Selected")
+                }
               </h3>
               
               {/* Track Timer - Larger */}
@@ -2326,32 +2211,26 @@ export default function Page() {
   </p>
   
   <p className="text-xl text-white/50 mb-6">
-  {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
+  {isGapPaused 
+    ? (() => {
+        const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+        return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+      })()
+    : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
+  }
   </p>
 
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-8">
                 <button 
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused) {
-                      setShowSkipBackConfirm(true);
-                    } else {
-                      goToPreviousTrack();
-                    }
-                  }}
+                  onClick={handleSkipBackClick}
                   className="grid h-12 w-12 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
                   <StepBack size={24} />
                 </button>
 
                 <button
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused) {
-                      setShowPauseConfirm(true);
-                    } else {
-                      toggleSession();
-                    }
-                  }}
+                  onClick={handlePauseClick}
                   disabled={!currentTrack && playlist.length === 0}
                   className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
                 >
@@ -2361,13 +2240,7 @@ export default function Page() {
                 </button>
 
                 <button 
-                  onClick={() => {
-                    if (isPlaying && !isGapPaused) {
-                      setShowSkipForwardConfirm(true);
-                    } else {
-                      goToNextTrack();
-                    }
-                  }}
+                  onClick={handleSkipForwardClick}
                   className="grid h-12 w-12 place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
                 >
                   <StepForward size={24} />
@@ -2612,40 +2485,331 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Mobile Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-2 bg-[#050816] border-b border-white/10">
-        <EqhoBrand className="h-[28px] w-[100px]" />
-        <div className="flex items-center gap-1">
-          {[
-            [Home, "player", "pink"],
-            [ListMusic, "playlists", "pink"],
-            [Settings, "settings", "pink"],
-          ].map(([Icon, page, color]: any) => {
-            const activeColors: Record<string, string> = {
-              pink: "text-[#ff4fa3] bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10",
-            };
-            return (
+      {/* Fullscreen Mobile Player - Rendered outside isFullscreen container so it shows on mobile */}
+      {showFullscreenMobilePlayer && (
+        <div className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset">
+          {/* Session Finished Mobile Takeover */}
+          {showSessionFinished && (
+            <div className="absolute inset-0 z-[350] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] px-6">
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#ff4fa3]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#ff8a00]/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+              </div>
+              <div className="relative z-10 flex flex-col items-center text-center">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(255,79,179,0.5)]">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h1 className="text-3xl font-black tracking-tight mb-2 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">SESSION COMPLETE</h1>
+                <p className="text-lg text-white/70 mb-6">All {playlist.length} tracks finished</p>
+                <div className="flex gap-6 mb-8">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-white">{playlist.length}</p>
+                    <p className="text-[10px] text-white/50 uppercase">Tracks</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-white">{playlistRepeats}</p>
+                    <p className="text-[10px] text-white/50 uppercase">Rounds</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-white">{formatSessionTime(totalSessionSeconds)}</p>
+                    <p className="text-[10px] text-white/50 uppercase">Time</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 w-full">
+                  <button onClick={() => { setShowSessionFinished(false); setFinishedTracks(new Set()); setCurrentIndex(0); toggleSession(); }} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold">Start New Session</button>
+                  <button onClick={() => { setShowSessionFinished(false); setShowFullscreenMobilePlayer(false); }} className="w-full py-3 rounded-xl border border-white/20 text-white font-medium">Exit Fullscreen</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Gap Countdown Overlay - shows during entire gap */}
+          {isGapPaused && (
+            <div className="absolute inset-0 z-[320] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
+              <div key={gapCountdown} className={`font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`} style={{ animation: gapCountdown <= 3 ? 'countdownPulse 1s ease-out' : 'none' }}>
+                {gapCountdown}
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Up Next</p>
+                <p className="text-xl font-bold text-white px-4">
+                  {(() => {
+                    const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                    const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                    return nextTrack?.title || "End of Playlist";
+                  })()}
+                </p>
+              </div>
+              <style jsx>{`
+                @keyframes countdownPulse {
+                  0% { transform: scale(0.5); opacity: 0; }
+                  30% { transform: scale(1.1); opacity: 1; }
+                  100% { transform: scale(1); opacity: 1; }
+                }
+              `}</style>
+            </div>
+          )}
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2 pt-[env(safe-area-inset-top)] shrink-0">
+            <button onClick={() => setShowFullscreenMobilePlayer(false)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+              <X size={18} className="text-white" />
+            </button>
+            <h2 className="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+              {currentTrack ? "NOW PLAYING" : "COACH VIEW"}
+            </h2>
+            <button onClick={() => setIsMuted(!isMuted)} className={`w-9 h-9 rounded-full flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          </div>
+
+          {/* No Session Loaded State */}
+          {!currentTrack && playlist.length === 0 && (
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+              <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+                <ListMusic size={32} className="text-white/30" />
+              </div>
+              <h2 className="text-2xl font-bold text-white/80 mb-2">No Session Loaded</h2>
+              <p className="text-white/50 mb-8 max-w-xs">
+                Add tracks to your playlist and start a session to use Coach View
+              </p>
               <button
-                key={page}
-                onClick={() => setActivePage(page)}
-                className={`p-2.5 rounded-xl transition-all duration-200 ${
-                  activePage === page
-                    ? activeColors[color]
-                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03]"
-                }`}
+                onClick={() => setShowFullscreenMobilePlayer(false)}
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold shadow-lg shadow-pink-500/20"
               >
-                <Icon size={20} />
+                Go Back
               </button>
-            );
-          })}
-          <button
-            onClick={handleLogout}
-            className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
-          >
-            <LogOut size={20} />
-          </button>
+            </div>
+          )}
+
+          {/* Main Content - Scrollable (only show when session is loaded) */}
+          {(currentTrack || playlist.length > 0) && (
+          <div className="flex-1 flex flex-col overflow-hidden px-4">
+            {/* Session Remaining Timer - Large */}
+            <div className="text-center py-4">
+              <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Session Remaining</p>
+              <div className="text-5xl font-black tracking-tight tabular-nums leading-none">
+                {isGapPaused ? (
+                  <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>{gapCountdown}</span>
+                ) : (
+                  <span className="text-white">{formatSessionTime(remainingSeconds)}</span>
+                )}
+              </div>
+              <p className="text-[10px] text-white/40 mt-1">
+                {isGapPaused ? "Next Track In" : `${visiblePlaylist.length} tracks + ${gapSeconds}s gaps`}
+              </p>
+            </div>
+
+            {/* Track Info */}
+            <div className="text-center mb-3">
+              <h1 className="text-xl font-black text-white truncate px-2">
+                {isGapPaused 
+                  ? (() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                      return nextTrack?.title || "End of Playlist";
+                    })()
+                  : (currentTrack?.title || "No Track Selected")
+                }
+              </h1>
+              <p className="text-sm text-white/70 tabular-nums mt-1">
+                {currentTime > 0 || isPlaying ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}` : "00:00"}
+                {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
+              </p>
+              <p className="text-xs text-white/50">
+                {isGapPaused 
+                  ? (() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+                    })()
+                  : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
+                }
+              </p>
+            </div>
+
+            {/* Playback Controls */}
+            <div className="flex items-center justify-center gap-6 mb-3">
+              <button onClick={handleSkipBackClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                <StepBack size={22} className="text-white" />
+              </button>
+              <button onClick={handlePauseClick} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
+                {isGapPaused ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
+              </button>
+              <button onClick={handleSkipForwardClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                <StepForward size={22} className="text-white" />
+              </button>
+            </div>
+
+            {/* Waveform Progress Bar */}
+            <div
+              className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 mb-3"
+              onClick={(e) => {
+                if (!audioRef.current || trackDuration === 0) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                audioRef.current.currentTime = pct * trackDuration;
+              }}
+            >
+              {Array.from({ length: 50 }).map((_, i) => {
+                const barProgress = (i / 50) * 100;
+                const isPlayed = barProgress <= trackProgress;
+                const heights = [40, 60, 80, 55, 70, 45, 85, 50, 65, 75];
+                return (
+                  <div key={i} className={`flex-1 rounded-sm transition-colors ${isPlayed ? "bg-gradient-to-t from-pink-500 to-orange-400" : "bg-white/15"}`} style={{ height: `${heights[i % heights.length]}%` }} />
+                );
+              })}
+              <div className="absolute bottom-0.5 left-2 text-[9px] text-white/60">{formatDuration(currentTime)}</div>
+              <div className="absolute bottom-0.5 right-2 text-[9px] text-white/60">{trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}</div>
+            </div>
+
+            {/* Up Next Queue */}
+            <div className="flex-1 min-h-0 flex flex-col bg-[#090f1c]/60 rounded-xl border border-white/10 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
+                <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {visiblePlaylist.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-6">
+                    <ListMusic size={32} className="text-white/20 mb-2" />
+                    <p className="text-white/40 text-xs">No tracks in queue</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 p-2">
+                    {visiblePlaylist.map((track, idx) => {
+                      const isCurrent = currentTrack?.id === track.id;
+                      const isFinished = finishedTracks.has(track.id);
+                      return (
+                        <div key={track.id} onClick={() => handleTrackSelect(track)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition ${isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                          <span className={`text-[10px] font-bold w-5 text-center ${isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
+                          <p className={`text-xs truncate flex-1 ${isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
+                          {isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
+                          {isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
+                          <button onClick={(e) => { e.stopPropagation(); if (sessionRunning || isPlaying) { setShowRemoveTrackConfirm({ track, originalIndex: idx }); } else { setPlaylist(prev => prev.filter(t => t.id !== track.id)); } }} className="p-1 rounded hover:bg-white/10">
+                            <X size={12} className="text-white/40" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Volume Slider */}
+            <div className="flex items-center gap-3 py-3 justify-center shrink-0">
+              <Volume2 size={14} className="text-white/40" />
+              <input type="range" min={0} max={100} value={isMuted ? 0 : volume} onChange={(e) => { setVolume(Number(e.target.value)); if (Number(e.target.value) > 0) setIsMuted(false); }} className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full" />
+              <span className="text-[10px] text-white/40 w-8">{isMuted ? "0" : volume}%</span>
+            </div>
+          </div>
+          )}
+
+          {/* Bottom Safe Area */}
+          <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
         </div>
-      </nav>
+      )}
+
+      {/* Send to Session Confirmation - Mobile (outside isFullscreen container) */}
+      {showSendToSessionConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <ListMusic size={40} className="mx-auto mb-3 text-[#ff8a00]" />
+            <h3 className="text-xl font-bold text-white mb-2">Replace Current Playlist?</h3>
+            <p className="text-white/60 text-sm mb-5">Loading &quot;{showSendToSessionConfirm.name}&quot; will replace your current session playlist.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowSendToSessionConfirm(null)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const { name, tracks } = showSendToSessionConfirm;
+                  setShowSendToSessionConfirm(null);
+                  if (isPlaying && audioRef.current) {
+                    audioRef.current.pause();
+                    setIsPlaying(false);
+                  }
+                  setPlaylist(tracks);
+                  setHiddenTrackIds(new Set());
+                  setCurrentPlaylistName(name);
+                  setCurrentIndex(0);
+                  setCurrentTrack(tracks[0]);
+                  setSessionRunning(false);
+                  setFinishedTracks(new Set());
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
+              >
+                Yes, Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pause Confirmation - Mobile (outside isFullscreen container) */}
+      {showPauseConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={40} className="mx-auto mb-3 text-orange-400" />
+            <h3 className="text-xl font-bold text-white mb-2">Pause Playback?</h3>
+            <p className="text-white/60 text-sm mb-5">Are you sure you want to pause the current session?</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowPauseConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowPauseConfirm(false);
+                  if (audioRef.current) {
+                    audioRef.current.pause();
+                    setIsPlaying(false);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition text-sm"
+              >
+                Yes, Pause
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Playlist Confirmation - Mobile (outside isFullscreen container) */}
+      {showClearPlaylistConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={40} className="mx-auto mb-3 text-[#ff8a00]" />
+            <h3 className="text-xl font-bold text-white mb-2">Clear Playlist?</h3>
+            <p className="text-white/60 text-sm mb-5">This will remove all tracks from your current session. The session will stop playing.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowClearPlaylistConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearPlaylistConfirm(false);
+                  clearPlaylist();
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
+              >
+                Yes, Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
       <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
@@ -2708,7 +2872,7 @@ export default function Page() {
                     className="hidden"
                   />
                   <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
-                  <p className="text-white font-bold text-xs">Drop files or folders</p>
+                  <p className="text-white font-bold text-xs">Drop files and playlists</p>
                   <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
                   <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
                 </label>
@@ -3314,41 +3478,42 @@ export default function Page() {
         )}
 
         {activePage === "playlists" && (
-          <div className="p-4">
-            <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-              <div>
-                <p className="text-pink-400 uppercase tracking-[0.25em] text-sm font-bold">
-                  EQHO Library
-                </p>
-                <h1 className="text-4xl font-black mt-2">Playlists</h1>
-                <p className="text-white/50 mt-2">
-                  Organise routine music into folders for fast session setup.
-                </p>
-              </div>
-              
-              {/* Cloud Sync Status & Refresh */}
-              {user && isCloudSyncAvailable() && (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-sm text-white/60">
-                    <Cloud size={16} className="text-cyan-400" />
-                    <span>{cloudPlaylists.length} cloud playlist{cloudPlaylists.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      const playlists = await fetchCloudPlaylists();
-                      setCloudPlaylists(playlists);
-                    }}
-                    className="px-4 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
-                  >
-                    <RefreshCw size={14} />
-                    Refresh
-                  </button>
+          <div className="col-span-3 col-start-2 p-4 md:p-6 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            {/* Header with Upload Area */}
+            <div className="mb-6">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-pink-400 uppercase tracking-[0.25em] text-sm font-bold">
+                    EQHO Library
+                  </p>
+                  <h1 className="text-3xl font-black mt-2">Playlists</h1>
+                  <p className="text-white/50 mt-1 text-sm">
+                    Organise routine music into folders for fast session setup.
+                  </p>
                 </div>
-              )}
-            </div>
+                
+                {/* Cloud Sync Status & Refresh */}
+                {user && isCloudSyncAvailable() && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-white/60">
+                      <Cloud size={16} className="text-cyan-400" />
+                      <span>{cloudPlaylists.length} cloud</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const playlists = await fetchCloudPlaylists();
+                        setCloudPlaylists(playlists);
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
+                    >
+                      <RefreshCw size={14} />
+                      Sync
+                    </button>
+                  </div>
+                )}
+              </div>
 
-            {/* Drag and Drop Upload Area */}
-            <div className="mb-8">
+              {/* Compact Upload Drop Zone */}
               <label
                 onDrop={async (e) => {
                   e.preventDefault();
@@ -3358,7 +3523,6 @@ export default function Page() {
                   const items = e.dataTransfer?.items;
                   if (!items) return;
                   
-                  // Helper to recursively read folder contents
                   const readDirectory = (entry: FileSystemDirectoryEntry): Promise<File[]> => {
                     return new Promise((resolve) => {
                       const reader = entry.createReader();
@@ -3390,13 +3554,11 @@ export default function Page() {
                     });
                   };
                   
-                  // Process each dropped item
                   for (let i = 0; i < items.length; i++) {
                     const item = items[i];
                     const entry = item.webkitGetAsEntry?.();
                     
                     if (entry?.isDirectory) {
-                      // Folder dropped - use folder name as playlist name
                       const folderName = entry.name;
                       const audioFiles = await readDirectory(entry as FileSystemDirectoryEntry);
                       
@@ -3431,13 +3593,11 @@ export default function Page() {
                         });
                       }
                     } else if (entry?.isFile) {
-                      // Single file dropped - collect all files for a generic playlist
                       const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
                         file.type.startsWith("audio/")
                       );
                       
                       if (files.length > 0) {
-                        // Try to extract folder name from file path if available
                         const firstFile = files[0];
                         const pathParts = (firstFile as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/");
                         const playlistName = pathParts && pathParts.length > 1 
@@ -3475,28 +3635,17 @@ export default function Page() {
                           };
                         });
                       }
-                      break; // Only process files once
+                      break;
                     }
                   }
                 }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingUpload(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingUpload(false);
-                }}
-                className={`block cursor-pointer rounded-2xl border border-dashed p-10 text-center transition ${
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(false); }}
+                className={`block cursor-pointer rounded-xl border-2 border-dashed p-4 transition ${
                   isDraggingUpload
-                    ? "border-cyan-300 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.25)]"
-                    : "border-pink-500/50 bg-white/[0.03] hover:border-pink-500/80 hover:bg-white/[0.05]"
+                    ? "border-cyan-300 bg-cyan-400/10"
+                    : "border-pink-500/40 bg-white/[0.02] hover:border-pink-500/60 hover:bg-white/[0.04]"
                 }`}
               >
                 <input
@@ -3517,23 +3666,23 @@ export default function Page() {
                       
                       let processed = 0;
                       files.forEach((file) => {
-                          const url = URL.createObjectURL(file);
-                          const audio = new Audio(url);
-                          audio.onloadedmetadata = async () => {
-                            const newTrack: Track = {
-                              id: crypto.randomUUID(),
-                              title: file.name.replace(/\.[^/.]+$/, ""),
-                              sub: "Uploaded Track",
-                              duration: formatDuration(Math.round(audio.duration)),
-                              fileName: file.name,
-                              url,
-                              durationSeconds: Math.round(audio.duration),
-                              uploadedAt: new Date().toISOString(),
-                              file,
-                            };
-                            newTracks.push(newTrack);
-                            
-                            processed++;
+                        const url = URL.createObjectURL(file);
+                        const audio = new Audio(url);
+                        audio.onloadedmetadata = async () => {
+                          const newTrack: Track = {
+                            id: crypto.randomUUID(),
+                            title: file.name.replace(/\.[^/.]+$/, ""),
+                            sub: "Uploaded Track",
+                            duration: formatDuration(Math.round(audio.duration)),
+                            fileName: file.name,
+                            url,
+                            durationSeconds: Math.round(audio.duration),
+                            uploadedAt: new Date().toISOString(),
+                            file,
+                          };
+                          newTracks.push(newTrack);
+                          
+                          processed++;
                           if (processed === files.length) {
                             setSavedPlaylists((prev) => [
                               ...prev,
@@ -3547,29 +3696,39 @@ export default function Page() {
                   }}
                   className="hidden"
                 />
-                <UploadCloud size={40} className={`mx-auto mb-3 ${isDraggingUpload ? "text-cyan-300" : "text-pink-400"}`} />
-                <p className={`font-bold ${isDraggingUpload ? "text-cyan-300" : "text-white"}`}>
-                  Drop your playlist folder here to create a new playlist
-                </p>
-                <p className="text-white/40 text-sm mt-1">or click to browse</p>
+                <div className="flex items-center justify-center gap-4">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    isDraggingUpload ? "bg-cyan-500/20" : "bg-pink-500/10"
+                  }`}>
+                    <UploadCloud size={20} className={isDraggingUpload ? "text-cyan-300" : "text-pink-400"} />
+                  </div>
+                  <div className="text-left">
+                    <p className={`font-semibold ${isDraggingUpload ? "text-cyan-300" : "text-white"}`}>
+                      Drop your playlist folder here
+                    </p>
+                    <p className="text-white/40 text-sm">or click to browse audio files</p>
+                  </div>
+                </div>
               </label>
             </div>
 
+            {/* Playlists Grid - Full Width */}
             {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-16 text-center">
-                <Folder size={64} className="mx-auto mb-4 text-white/20" />
-                <h3 className="text-xl font-bold text-white/60">No playlists yet</h3>
-                <p className="text-white/40 mt-2">Drag and drop audio files above to create your first playlist</p>
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-center">
+                <Folder size={40} className="mx-auto mb-3 text-white/20" />
+                <h3 className="text-base font-bold text-white/60">No playlists yet</h3>
+                <p className="text-white/40 mt-1 text-sm">Drop a folder above to create your first playlist</p>
               </div>
             ) : (
-              <>
+              <div className="space-y-6">
                 {/* Local Playlists */}
                 {savedPlaylists.length > 0 && (
-                  <div className="mb-8">
+                  <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-bold text-white/70 flex items-center gap-2">
-                        <Folder size={20} />
+                      <h2 className="text-sm font-bold text-white/60 flex items-center gap-2 uppercase tracking-wider">
+                        <Folder size={16} />
                         Local Playlists
+                        <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
                       </h2>
                       <button
                         onClick={() => {
@@ -3580,81 +3739,82 @@ export default function Page() {
                             clearPlaylist();
                           }
                         }}
-                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition"
+                        className="px-2.5 py-1 text-xs font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-lg hover:bg-[#ff8a00]/20 transition"
                       >
                         Clear All
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                       {savedPlaylists.map((localPlaylist) => {
                         const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
                         const isSyncing = syncingPlaylistId === localPlaylist.id;
+                        const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
                         
                         return (
                           <div
                             key={localPlaylist.id}
-                            className="rounded-3xl border border-white/10 bg-white/[0.04] p-6
-                                       hover:border-pink-500/60 hover:bg-pink-500/10
-                                       transition group relative"
+                            className="rounded-xl border border-white/10 bg-white/[0.03] p-3
+                                       hover:border-pink-500/40 hover:bg-pink-500/5
+                                       transition group"
                           >
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20">
-                                <Folder size={28} />
+                            <div className="flex items-start gap-3 mb-2">
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
+                                <ListMusic size={18} />
                               </div>
-                              
-                              {/* Action buttons - web only */}
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-bold truncate">{localPlaylist.name}</h3>
+                                <div className="flex items-center gap-2 mt-0.5 text-xs text-white/50">
+                                  <span>{localPlaylist.tracks.length} tracks</span>
+                                  <span className="text-white/20">|</span>
+                                  <span>{formatDuration(totalDuration)}</span>
+                                </div>
+                              </div>
                               {!isMobileBuild && (
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                  {/* Sync to cloud */}
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSyncPlaylistToCloud(localPlaylist.id);
-                                    }}
+                                    onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
                                     disabled={isSyncing}
-                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
-                                    title={isInCloud ? "Re-sync to cloud" : "Upload to cloud"}
+                                    className="w-7 h-7 rounded-md bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
+                                    title={isInCloud ? "Re-sync" : "Upload"}
                                   >
-                                    {isSyncing ? (
-                                      <Loader2 size={16} className="animate-spin text-cyan-400" />
-                                    ) : syncStatus === 'success' && syncingPlaylistId === localPlaylist.id ? (
-                                      <Check size={16} className="text-green-400" />
-                                    ) : (
-                                      <Cloud size={16} className={isInCloud ? "text-cyan-400" : "text-white/60"} />
-                                    )}
+                                    {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/50"} />}
                                   </button>
-                                  
-                                  {/* Delete */}
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name });
-                                    }}
-                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
-                                    title="Delete playlist"
+                                    onClick={(e) => { e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
+                                    className="w-7 h-7 rounded-md bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
+                                    title="Delete"
                                   >
-                                    <Trash2 size={16} className="text-white/60" />
+                                    <Trash2 size={12} className="text-white/50" />
                                   </button>
                                 </div>
                               )}
                             </div>
-
-                            <h3 className="text-xl font-bold">{localPlaylist.name}</h3>
-                            <p className="text-white/45 mt-1">{localPlaylist.tracks.length} tracks</p>
                             
                             {isInCloud && (
-                              <div className="mt-3 flex items-center gap-1 text-xs text-cyan-400">
-                                <Cloud size={12} />
-                                Synced to cloud
+                              <div className="mb-2 flex items-center gap-1 text-[10px] text-cyan-400">
+                                <Cloud size={10} />
+                                Synced
                               </div>
                             )}
                             
-                            {/* Send to session button */}
+                            <div className="space-y-0.5 mb-2">
+                              {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
+                                <div key={track.id} className="flex items-center gap-1.5 text-[11px] text-white/40">
+                                  <span className="w-3 text-white/25">{idx + 1}.</span>
+                                  <span className="truncate flex-1">{track.title}</span>
+                                  <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
+                                </div>
+                              ))}
+                              {localPlaylist.tracks.length > 2 && (
+                                <p className="text-[10px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more</p>
+                              )}
+                            </div>
+                            
                             <button
                               onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
-                              className="mt-4 w-full py-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-orange-500/20 
-                                         border border-pink-500/30 text-pink-400 font-medium
-                                         hover:from-pink-500/30 hover:to-orange-500/30 transition"
+                              className="w-full py-1.5 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                                         border border-pink-500/25 text-pink-400 text-xs font-semibold
+                                         hover:from-pink-500/25 hover:to-orange-500/25 transition"
                             >
                               Send to Session
                             </button>
@@ -3665,119 +3825,150 @@ export default function Page() {
                   </div>
                 )}
 
-                {/* Cloud Playlists (not downloaded locally) */}
+                {/* Cloud Playlists */}
                 {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
                   <div>
-                    <h2 className="text-lg font-bold text-white/70 mb-4 flex items-center gap-2">
-                      <Cloud size={20} className="text-cyan-400" />
+                    <h2 className="text-sm font-bold text-white/60 mb-4 flex items-center gap-2 uppercase tracking-wider">
+                      <Cloud size={16} className="text-cyan-400" />
                       Cloud Playlists
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-                      {cloudPlaylists
-                        .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
-                        .map((cloudPlaylist) => {
-                          const isDownloading = downloadingPlaylistId === cloudPlaylist.id;
-                          
-                          return (
-                            <div
-                              key={cloudPlaylist.id}
-                              className="rounded-3xl border border-cyan-500/30 bg-cyan-500/5 p-6
-                                         hover:border-cyan-400/60 hover:bg-cyan-500/10
-                                         transition group relative"
-                            >
-                              <div className="flex items-start justify-between mb-4">
-                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-400 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                                  <Cloud size={28} />
-                                </div>
-                                
-                                {/* Action buttons */}
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                  {/* Download */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDownloadCloudPlaylist(cloudPlaylist.id);
-                                    }}
-                                    disabled={isDownloading}
-                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition"
-                                    title="Download to device"
-                                  >
-                                    {isDownloading ? (
-                                      <Loader2 size={16} className="animate-spin text-cyan-400" />
-                                    ) : (
-                                      <Download size={16} className="text-cyan-400" />
-                                    )}
-                                  </button>
-                                  
-                                  {/* Delete - web only */}
-                                  {!isMobileBuild && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                          {cloudPlaylists
+                            .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
+                            .map((cloudPlaylist) => {
+                              const isDownloading = downloadingPlaylistId === cloudPlaylist.id;
+                              
+                              return (
+                                <div
+                                  key={cloudPlaylist.id}
+                                  className="rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-4
+                                             hover:border-cyan-400/50 hover:bg-cyan-500/10
+                                             transition group relative"
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-400 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
+                                      <Cloud size={22} />
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="text-base font-bold truncate">{cloudPlaylist.name}</h3>
+                                      <p className="text-sm text-white/50 mt-1">{cloudPlaylist.tracks.length} tracks</p>
+                                    </div>
+                                    
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setShowDeletePlaylistConfirm({ id: cloudPlaylist.id, name: cloudPlaylist.name });
+                                        handleDownloadCloudPlaylist(cloudPlaylist.id);
                                       }}
-                                      className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
-                                      title="Delete from cloud"
+                                      disabled={isDownloading}
+                                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition opacity-0 group-hover:opacity-100 shrink-0"
+                                      title="Download to device"
                                     >
-                                      <Trash2 size={16} className="text-white/60" />
+                                      {isDownloading ? (
+                                        <Loader2 size={14} className="animate-spin text-cyan-400" />
+                                      ) : (
+                                        <Download size={14} className="text-cyan-400" />
+                                      )}
                                     </button>
-                                  )}
+                                  </div>
+                                  
+                                  <button
+                                    onClick={() => setShowSendToSessionConfirm({ name: cloudPlaylist.name, tracks: cloudPlaylist.tracks })}
+                                    className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 
+                                               border border-cyan-500/30 text-cyan-400 text-sm font-medium
+                                               hover:from-cyan-500/30 hover:to-blue-500/30 transition"
+                                  >
+                                    Send to Session
+                                  </button>
                                 </div>
-                              </div>
-
-                              <h3 className="text-xl font-bold">{cloudPlaylist.name}</h3>
-                              <p className="text-white/45 mt-1">
-                                {cloudPlaylist.track_order?.length || 0} tracks
-                              </p>
-                              <p className="text-cyan-400/60 text-xs mt-1">
-                                Tap download to use offline
-                              </p>
-                            </div>
-                          );
-                        })}
+                              );
+                            })}
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}
 
         {activePage === "settings" && (
-          <div className="p-8">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <p className="text-cyan-300 uppercase tracking-[0.25em] text-sm font-bold">
-                  EQHO System Settings
-                </p>
-                <h1 className="text-4xl font-black mt-2">Settings</h1>
-                <p className="text-white/50 mt-2">
-                  Control playback, sessions, uploads, display and coach workflow.
-                </p>
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            {/* Header */}
+            <div className="px-8 pt-6 pb-4 border-b border-white/10">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
+                    EQHO System Settings
+                  </p>
+                  <h1 className="text-3xl font-black mt-1">Settings</h1>
+                </div>
+                <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 text-sm">
+                  <Save size={16} className="inline mr-2" />
+                  Save Settings
+                </button>
               </div>
-
-              <button className="px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20">
-                <Save size={20} className="inline mr-2" />
-                Save Settings
-              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <SettingsSection icon={<Headphones size={22} />} title="Playback">
-                <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
-                <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
-              </SettingsSection>
+            {/* Settings Grid */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Playback Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Headphones size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Playback</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
+                    <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
+                  </div>
+                </div>
 
-              <SettingsSection icon={<Timer size={22} />} title="Session Controls">
-                <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
-                <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
-                <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
-              </SettingsSection>
+                {/* Session Controls */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Timer size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Session Controls</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
+                    <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
+                    <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
+                  </div>
+                </div>
 
-              <SettingsSection icon={<SlidersHorizontal size={22} />} title="Coach Display">
-                <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
-                <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
-              </SettingsSection>
+                {/* Coach Display */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <SlidersHorizontal size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Coach Display</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
+                    <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
+                  </div>
+                </div>
+
+                {/* Warning Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+                      <AlertTriangle size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Warnings</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
+                    <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -3785,133 +3976,791 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100vh-160px)] w-full overflow-hidden pt-14 px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-2 landscape:pt-1 px-2 sm:px-3">
         {activePage === "player" && (
-          <div className="flex flex-col h-full gap-3 overflow-hidden">
+          <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => setMobileTab("queue")}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-                  mobileTab === "queue"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
-                }`}
-              >
-                Up Next
-              </button>
+            <div className="flex gap-0.5 shrink-0 bg-white/[0.04] rounded-xl p-1 border border-white/10">
               <button
                 onClick={() => setMobileTab("nowplaying")}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                   mobileTab === "nowplaying"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                    ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                Now Playing
+                <Home size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Playing</span>
               </button>
               <button
-                onClick={() => setMobileTab("upload")}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-                  mobileTab === "upload"
-                    ? "bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/10 text-white border border-[#ff4fa3]/30"
-                    : "text-[#7c8596] hover:text-white hover:bg-white/5"
+                onClick={() => setMobileTab("playlists")}
+                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                  mobileTab === "playlists"
+                    ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                Upload
+                <ListMusic size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Playlists</span>
+              </button>
+              <button
+                onClick={() => setMobileTab("settings")}
+                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                  mobileTab === "settings"
+                    ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                }`}
+              >
+                <Settings size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Settings</span>
+              </button>
+              <button
+                onClick={() => setShowFullscreenMobilePlayer(true)}
+                className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
+              >
+                <ExternalLink size={14} className="mx-auto sm:hidden" />
+                <span className="hidden sm:inline">Coach</span>
               </button>
             </div>
 
             {/* Mobile Content Area */}
             <div className="flex-1 min-h-0 overflow-y-auto">
-              {mobileTab === "queue" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white">Up Next</h3>
-                    <span className="text-xs text-[#7c8596]">{visiblePlaylist.length} tracks</span>
-                  </div>
-                  <div className="space-y-2 overflow-y-auto max-h-[calc(100%-40px)]">
-                    {visiblePlaylist.map((track, index) => (
-                      <div
-                        key={track.id}
-                        onClick={() => handleTrackSelect(track)}
-                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
-                          currentTrack?.id === track.id
-                            ? "bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10 border border-[#ff4fa3]/30"
-                            : "hover:bg-white/5"
-                        }`}
-                      >
-                        <span className="text-xs text-[#7c8596] w-5">{index + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{track.name}</p>
-                        </div>
-                        {currentTrack?.id === track.id && isPlaying && (
-                          <div className="w-3 h-3 rounded-full bg-[#ff4fa3] animate-pulse" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-
               {mobileTab === "nowplaying" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
-                  <div className="flex flex-col items-center gap-4">
+                <div className="h-full flex flex-col overflow-hidden">
+                  {/* Now Playing Section - Compact */}
+                  <div className="shrink-0 bg-white/[0.02] rounded-lg p-2 mb-1">
                     {currentTrack ? (
-                      <>
-                        <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-[#ff4fa3]/20 to-[#ff8a00]/10 flex items-center justify-center">
-                          <Music size={48} className="text-[#ff4fa3]" />
+                      <div className="flex flex-col gap-3">
+                        {/* Track Info & Controls Row */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
+                            <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
+                            <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={handleSkipBackClick} className="p-2 rounded-full hover:bg-white/10 transition">
+                              <StepBack size={18} className="text-white" />
+                            </button>
+                            <button onClick={handlePauseClick} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                              {isPlaying ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
+                            </button>
+                            <button onClick={handleSkipForwardClick} className="p-2 rounded-full hover:bg-white/10 transition">
+                              <StepForward size={18} className="text-white" />
+                            </button>
+                          </div>
                         </div>
+                        {/* Timer */}
                         <div className="text-center">
-                          <h3 className="text-lg font-semibold text-white">{currentTrack.name}</h3>
-                          <p className="text-sm text-[#7c8596]">Track {getVisibleIndex(currentTrack.id) + 1} of {visiblePlaylist.length}</p>
+                          <span className="text-2xl font-black text-white tabular-nums">
+                            {String(Math.floor(currentTime / 60)).padStart(2, "0")}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
+                          </span>
+                          <span className="text-white/40 text-sm ml-2">/ {formatDuration(currentTrack.durationSeconds)}</span>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <button onClick={handlePrevious} className="p-3 rounded-full hover:bg-white/10 transition">
-                            <SkipBack size={24} className="text-white" />
-                          </button>
-                          <button onClick={togglePlayPause} className="p-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
-                            {isPlaying ? <Pause size={28} className="text-white" /> : <Play size={28} className="text-white" />}
-                          </button>
-                          <button onClick={handleNext} className="p-3 rounded-full hover:bg-white/10 transition">
-                            <SkipForward size={24} className="text-white" />
-                          </button>
+                        
+                        {/* Waveform Progress Bar */}
+                        <div
+                          className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-lg border border-white/10 bg-white/[0.02] px-2 pb-1.5 pt-1.5 select-none"
+                          onClick={(e) => {
+                            if (!audioRef.current || trackDuration === 0) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const pct = x / rect.width;
+                            audioRef.current.currentTime = pct * trackDuration;
+                          }}
+                        >
+                          {Array.from({ length: 50 }).map((_, i) => {
+                            const barProgress = (i / 50) * 100;
+                            const isPlayed = barProgress <= trackProgress;
+                            const heights = [40, 60, 80, 55, 70, 45, 85, 50, 65, 75];
+                            const h = heights[i % heights.length];
+                            return (
+                              <div
+                                key={i}
+                                className={`flex-1 rounded-sm transition-colors ${
+                                  isPlayed
+                                    ? "bg-gradient-to-t from-pink-500 to-orange-400"
+                                    : "bg-white/15"
+                                }`}
+                                style={{ height: `${h}%` }}
+                              />
+                            );
+                          })}
+                          {/* Playhead indicator */}
+                          <div 
+                            className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                            style={{ left: `${Math.max(8, Math.min(trackProgress, 100) * 0.92 + 8)}%` }}
+                          />
+                          <div className="absolute bottom-0.5 left-2 text-[9px] text-white/60">
+                            {formatDuration(currentTime)}
+                          </div>
+                          <div className="absolute bottom-0.5 right-2 text-[9px] text-white/60">
+                            {trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}
+                          </div>
                         </div>
-                      </>
+                      </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-3 py-8">
-                        <Music size={48} className="text-[#7c8596]" />
-                        <p className="text-[#7c8596]">No track playing</p>
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <p className="text-white/50 text-sm">No track playing</p>
+                        <p className="text-white/30 text-xs">Add tracks from Playlists tab</p>
                       </div>
                     )}
                   </div>
-                </Card>
+
+                  {/* Up Next Playlist */}
+                  <div className="flex-1 min-h-0 bg-white/[0.02] rounded-lg p-2 flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between mb-2 shrink-0">
+                      <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
+                      <button
+                        onClick={() => {
+                          if (sessionRunning || isPlaying) {
+                            setShowClearPlaylistConfirm(true);
+                          } else {
+                            clearPlaylist();
+                          }
+                        }}
+                        disabled={playlist.length === 0}
+                        className="px-2 py-1 text-[9px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 transition disabled:opacity-30"
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    {/* Track List - Revolves to show current track at top */}
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {visiblePlaylist.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                          <p className="text-white/40 text-sm">No tracks queued</p>
+                          <p className="text-white/25 text-xs mt-1">Go to Playlists tab to add music</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {(() => {
+                            // Find current track index in visible playlist
+                            const currentVisibleIndex = visiblePlaylist.findIndex(t => t.id === currentTrack?.id);
+                            // Reorder: current track first, then remaining tracks after it, then tracks before it
+                            const reorderedPlaylist = currentVisibleIndex >= 0
+                              ? [
+                                  ...visiblePlaylist.slice(currentVisibleIndex),
+                                  ...visiblePlaylist.slice(0, currentVisibleIndex)
+                                ]
+                              : visiblePlaylist;
+                            
+                            return reorderedPlaylist.map((track, displayIndex) => {
+                              // Get original position for numbering
+                              const originalVisibleIndex = visiblePlaylist.findIndex(t => t.id === track.id);
+                              const originalIndex = playlist.findIndex(t => t.id === track.id);
+                              const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
+                              const colour = colours[originalVisibleIndex % colours.length];
+                              const isActiveTrack = currentTrack?.id === track.id;
+                              const isFinished = finishedTracks.has(track.id);
+                              
+                              return (
+                                <div
+                                  key={track.id}
+                                  onClick={() => {
+                                    setCurrentIndex(originalIndex);
+                                    togglePlayPause(track);
+                                  }}
+                                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                    isActiveTrack 
+                                      ? "bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
+                                      : isFinished
+                                        ? "opacity-40"
+                                        : "hover:bg-white/5"
+                                  }`}
+                                >
+                                  {/* Track Number - shows original playlist position */}
+                                  <div className={`text-xl font-black w-6 text-center ${isFinished ? "text-white/20" : colour}`}>
+                                    {originalVisibleIndex + 1}
+                                  </div>
+                                  
+                                  {/* Track Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                      {track.title}
+                                    </p>
+                                    <p className="text-[10px] text-white/50">
+                                      {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Duration */}
+                                  <div className="text-right shrink-0">
+                                    <p className="text-[9px] text-white/40">Duration</p>
+                                    <p className={`text-sm font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
+                                  </div>
+                                  
+                                  {/* Remove Button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      hideTrackFromSession(track.id);
+                                    }}
+                                    className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
 
-              {mobileTab === "upload" && (
-                <Card className="h-full bg-white/[0.03] border-white/10 backdrop-blur-sm p-3">
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                    onDragLeave={() => setIsDragging(false)}
-                    onDrop={handleFileDrop}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
-                      isDragging ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/20 hover:border-white/40"
-                    }`}
-                  >
-                    <Upload size={32} className="mx-auto mb-3 text-[#7c8596]" />
-                    <p className="text-sm text-[#7c8596] mb-2">Drop audio files here</p>
-                    <label className="inline-block px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-medium cursor-pointer">
-                      Browse Files
+              {mobileTab === "playlists" && (
+                <div className="flex flex-col h-full">
+                  {/* Fixed Header */}
+                  <div className="shrink-0 mb-2">
+                    <p className="text-pink-400 uppercase tracking-[0.15em] text-[9px] font-bold">EQHO Library</p>
+                    <h2 className="text-base font-black">Playlists</h2>
+                  </div>
+
+                  {/* Upload Area - Creates playlists like desktop */}
+                  <div className="mb-2 shrink-0">
+                    <label
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingUpload(false);
+                        
+                        const items = e.dataTransfer?.items;
+                        if (!items) return;
+                        
+                        const readDirectory = (entry: FileSystemDirectoryEntry): Promise<File[]> => {
+                          return new Promise((resolve) => {
+                            const reader = entry.createReader();
+                            const files: File[] = [];
+                            
+                            const readEntries = () => {
+                              reader.readEntries(async (entries) => {
+                                if (entries.length === 0) {
+                                  resolve(files);
+                                  return;
+                                }
+                                
+                                for (const ent of entries) {
+                                  if (ent.isFile) {
+                                    const fileEntry = ent as FileSystemFileEntry;
+                                    const file = await new Promise<File>((res) => fileEntry.file(res));
+                                    if (file.type.startsWith("audio/")) {
+                                      files.push(file);
+                                    }
+                                  } else if (ent.isDirectory) {
+                                    const subFiles = await readDirectory(ent as FileSystemDirectoryEntry);
+                                    files.push(...subFiles);
+                                  }
+                                }
+                                readEntries();
+                              });
+                            };
+                            readEntries();
+                          });
+                        };
+                        
+                        for (let i = 0; i < items.length; i++) {
+                          const item = items[i];
+                          const entry = item.webkitGetAsEntry?.();
+                          
+                          if (entry?.isDirectory) {
+                            const folderName = entry.name;
+                            const audioFiles = await readDirectory(entry as FileSystemDirectoryEntry);
+                            
+                            if (audioFiles.length > 0) {
+                              const newPlaylistId = crypto.randomUUID();
+                              const newTracks: Track[] = [];
+                              
+                              let processed = 0;
+                              audioFiles.forEach((file) => {
+                                const url = URL.createObjectURL(file);
+                                const audio = new Audio(url);
+                                audio.onloadedmetadata = async () => {
+                                  const newTrack: Track = {
+                                    id: crypto.randomUUID(),
+                                    title: file.name.replace(/\.[^/.]+$/, ""),
+                                    fileName: file.name,
+                                    url,
+                                    durationSeconds: Math.round(audio.duration),
+                                    uploadedAt: new Date().toISOString(),
+                                    file,
+                                  };
+                                  newTracks.push(newTrack);
+                                  
+                                  processed++;
+                                  if (processed === audioFiles.length) {
+                                    setSavedPlaylists((prev) => [
+                                      ...prev,
+                                      { id: newPlaylistId, name: folderName, tracks: newTracks },
+                                    ]);
+                                  }
+                                };
+                              });
+                            }
+                          } else if (entry?.isFile) {
+                            const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
+                              file.type.startsWith("audio/")
+                            );
+                            
+                            if (files.length > 0) {
+                              const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                              const newPlaylistId = crypto.randomUUID();
+                              const newTracks: Track[] = [];
+                              
+                              let processed = 0;
+                              files.forEach((file) => {
+                                const url = URL.createObjectURL(file);
+                                const audio = new Audio(url);
+                                audio.onloadedmetadata = async () => {
+                                  const newTrack: Track = {
+                                    id: crypto.randomUUID(),
+                                    title: file.name.replace(/\.[^/.]+$/, ""),
+                                    sub: "Uploaded Track",
+                                    duration: formatDuration(Math.round(audio.duration)),
+                                    fileName: file.name,
+                                    url,
+                                    durationSeconds: Math.round(audio.duration),
+                                    uploadedAt: new Date().toISOString(),
+                                    file,
+                                  };
+                                  newTracks.push(newTrack);
+                                  
+                                  processed++;
+                                  if (processed === files.length) {
+                                    setSavedPlaylists((prev) => [
+                                      ...prev,
+                                      { id: newPlaylistId, name: playlistName, tracks: newTracks },
+                                    ]);
+                                  }
+                                };
+                              });
+                            }
+                            break;
+                          }
+                        }
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(true); }}
+                      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingUpload(false); }}
+                      className={`block cursor-pointer rounded-xl border border-dashed p-2 text-center transition ${
+                        isDraggingUpload
+                          ? "border-cyan-300 bg-cyan-400/10"
+                          : "border-[#ff4fa3]/50 bg-white/[0.03]"
+                      }`}
+                    >
                       <input
                         type="file"
-                        accept="audio/*"
+                        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                         multiple
-                        onChange={handleFileSelect}
+                        onChange={(event) => {
+                          const files = Array.from(event.target.files || []).filter((file) =>
+                            file.type.startsWith("audio/") || 
+                            file.name.endsWith(".mp3") || 
+                            file.name.endsWith(".wav") || 
+                            file.name.endsWith(".m4a")
+                          );
+                          if (files.length > 0) {
+                            const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                            const newPlaylistId = crypto.randomUUID();
+                            const newTracks: Track[] = [];
+                            
+                            let processed = 0;
+                            files.forEach((file) => {
+                              const url = URL.createObjectURL(file);
+                              const audio = new Audio(url);
+                              audio.onloadedmetadata = async () => {
+                                const newTrack: Track = {
+                                  id: crypto.randomUUID(),
+                                  title: file.name.replace(/\.[^/.]+$/, ""),
+                                  sub: "Uploaded Track",
+                                  duration: formatDuration(Math.round(audio.duration)),
+                                  fileName: file.name,
+                                  url,
+                                  durationSeconds: Math.round(audio.duration),
+                                  uploadedAt: new Date().toISOString(),
+                                  file,
+                                };
+                                newTracks.push(newTrack);
+                                
+                                processed++;
+                                if (processed === files.length) {
+                                  setSavedPlaylists((prev) => [
+                                    ...prev,
+                                    { id: newPlaylistId, name: playlistName, tracks: newTracks },
+                                  ]);
+                                }
+                              };
+                            });
+                          }
+                          event.target.value = "";
+                        }}
                         className="hidden"
                       />
+                      <div className="flex items-center justify-center gap-2">
+                        <UploadCloud className="text-[#ff8a00]" size={18} />
+                        <span className="text-white font-bold text-xs">Drop folder to create playlist</span>
+                      </div>
                     </label>
                   </div>
-                </Card>
+
+                  {/* Cloud Sync Status */}
+                  {user && isCloudSyncAvailable() && (
+                    <div className="shrink-0 flex items-center justify-between mb-2 p-2 rounded-lg bg-white/[0.03] border border-white/10">
+                      <div className="flex items-center gap-2 text-[10px] text-white/60">
+                        <Cloud size={12} className="text-cyan-400" />
+                        <span>{cloudPlaylists.length} cloud</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const playlists = await fetchCloudPlaylists();
+                          setCloudPlaylists(playlists);
+                        }}
+                        className="px-2 py-1 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-[9px] font-medium flex items-center gap-1"
+                      >
+                        <RefreshCw size={10} />
+                        Refresh
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Scrollable Playlists List */}
+                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                    {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
+                        <Folder size={32} className="mx-auto mb-2 text-white/20" />
+                        <h3 className="text-sm font-bold text-white/60">No playlists yet</h3>
+                        <p className="text-[10px] text-white/40 mt-1">Drop a folder above to create your first playlist</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 pb-2">
+                        {/* Local Playlists */}
+                        {savedPlaylists.length > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-2 sticky top-0 bg-[#050816] py-1 z-10">
+                              <h3 className="text-[10px] font-bold text-white/60 flex items-center gap-1.5 uppercase tracking-wider">
+                                <Folder size={12} />
+                                Local Playlists
+                                <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
+                              </h3>
+                              <button
+                                onClick={() => {
+                                  if (sessionRunning || isPlaying) {
+                                    setShowClearPlaylistConfirm(true);
+                                  } else {
+                                    setSavedPlaylists([]);
+                                    clearPlaylist();
+                                  }
+                                }}
+                                className="px-2 py-0.5 text-[9px] font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-md"
+                              >
+                                Clear All
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              {savedPlaylists.map((localPlaylist) => {
+                                const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
+                                const isSyncing = syncingPlaylistId === localPlaylist.id;
+                                const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
+                                
+                                return (
+                                  <div
+                                    key={localPlaylist.id}
+                                    className="rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:border-pink-500/40 transition"
+                                  >
+                                    {/* Header Row */}
+                                    <div className="flex items-start gap-2 mb-2">
+                                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
+                                        <ListMusic size={16} />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-bold text-white truncate">{localPlaylist.name}</h4>
+                                        <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+                                          <span>{localPlaylist.tracks.length} tracks</span>
+                                          <span className="text-white/20">|</span>
+                                          <span>{formatDuration(totalDuration)}</span>
+                                        </div>
+                                      </div>
+                                      {/* Action Buttons */}
+                                      <div className="flex gap-1 shrink-0">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
+                                          disabled={isSyncing}
+                                          className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
+                                        >
+                                          {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/40"} />}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
+                                          className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
+                                        >
+                                          <Trash2 size={12} className="text-white/40" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Cloud Sync Badge */}
+                                    {isInCloud && (
+                                      <div className="mb-2 flex items-center gap-1 text-[9px] text-cyan-400">
+                                        <Cloud size={9} />
+                                        Synced to cloud
+                                      </div>
+                                    )}
+                                    
+                                    {/* Track Preview */}
+                                    <div className="space-y-0.5 mb-2">
+                                      {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
+                                        <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
+                                          <span className="w-3 text-white/25">{idx + 1}.</span>
+                                          <span className="truncate flex-1">{track.title}</span>
+                                          <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
+                                        </div>
+                                      ))}
+                                      {localPlaylist.tracks.length > 2 && (
+                                        <p className="text-[9px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more tracks</p>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Send to Session Button */}
+                                    <button
+                                      onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
+                                      disabled={localPlaylist.tracks.length === 0}
+                                      className="w-full py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                                                 border border-pink-500/25 text-pink-400 text-[11px] font-semibold
+                                                 hover:from-pink-500/25 hover:to-orange-500/25 transition disabled:opacity-30"
+                                    >
+                                      Send to Session
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Cloud Playlists */}
+                        {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
+                          <div>
+                            <h3 className="text-[10px] font-bold text-white/60 mb-2 flex items-center gap-1.5 uppercase tracking-wider sticky top-0 bg-[#050816] py-1 z-10">
+                              <Cloud size={12} className="text-cyan-400" />
+                              Cloud Playlists
+                            </h3>
+                            <div className="space-y-2">
+                              {cloudPlaylists
+                                .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
+                                .map((cloudPlaylist) => {
+                                  const totalDuration = cloudPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
+                                  
+                                  return (
+                                    <div
+                                      key={cloudPlaylist.id}
+                                      className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3"
+                                    >
+                                      {/* Header Row */}
+                                      <div className="flex items-start gap-2 mb-2">
+                                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
+                                          <Cloud size={16} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="text-sm font-bold text-white truncate">{cloudPlaylist.name}</h4>
+                                          <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+                                            <span>{cloudPlaylist.tracks.length} tracks</span>
+                                            <span className="text-white/20">|</span>
+                                            <span>{formatDuration(totalDuration)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Track Preview */}
+                                      <div className="space-y-0.5 mb-2">
+                                        {cloudPlaylist.tracks.slice(0, 2).map((track, idx) => (
+                                          <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
+                                            <span className="w-3 text-white/25">{idx + 1}.</span>
+                                            <span className="truncate flex-1">{track.title}</span>
+                                            <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
+                                          </div>
+                                        ))}
+                                        {cloudPlaylist.tracks.length > 2 && (
+                                          <p className="text-[9px] text-white/25 pl-4">+{cloudPlaylist.tracks.length - 2} more tracks</p>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Action Buttons */}
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => setShowSendToSessionConfirm({ name: cloudPlaylist.name, tracks: cloudPlaylist.tracks })}
+                                          className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                                                     border border-pink-500/25 text-pink-400 text-[11px] font-semibold
+                                                     hover:from-pink-500/25 hover:to-orange-500/25 transition"
+                                        >
+                                          Send to Session
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setSavedPlaylists(prev => [...prev, cloudPlaylist]);
+                                          }}
+                                          className="py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500/15 to-blue-500/15 
+                                                     border border-cyan-500/25 text-cyan-400 text-[11px] font-semibold
+                                                     hover:from-cyan-500/25 hover:to-blue-500/25 transition"
+                                        >
+                                          <Download size={12} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {mobileTab === "settings" && (
+                <div className="h-full flex flex-col">
+                  <Card className="flex-1 bg-white/[0.03] border-white/10 backdrop-blur-sm p-3 flex flex-col overflow-hidden">
+                    {/* Header */}
+                    <div className="shrink-0 mb-3">
+                      <h2 className="text-cyan-300 uppercase tracking-[0.15em] text-[10px] font-black">Settings</h2>
+                    </div>
+                    
+                    {/* Scrollable Content */}
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+                    
+                    {/* Playback Settings */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Headphones size={14} className="text-[#ff8a00]" />
+                        <span className="text-[10px] font-bold text-white">Playback</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Default Volume</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("defaultVolume", Math.max(0, settings.defaultVolume - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.defaultVolume}%</span>
+                            <button onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Autoplay Next Track</span>
+                          <button onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.autoplayNext ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.autoplayNext ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Session Controls */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Timer size={14} className="text-[#ff8a00]" />
+                        <span className="text-[10px] font-bold text-white">Session Controls</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Default Gap</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("gapSeconds", Math.max(0, settings.gapSeconds - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.gapSeconds}s</span>
+                            <button onClick={() => updateSetting("gapSeconds", Math.min(120, settings.gapSeconds + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Default Repeats</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("playlistRepeats", Math.max(1, settings.playlistRepeats - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.playlistRepeats}x</span>
+                            <button onClick={() => updateSetting("playlistRepeats", Math.min(20, settings.playlistRepeats + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Back-to-Back Default</span>
+                          <button onClick={() => updateSetting("backToBack", !settings.backToBack)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Coach Display */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <SlidersHorizontal size={14} className="text-[#ff8a00]" />
+                        <span className="text-[10px] font-bold text-white">Coach Display</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Show Countdown</span>
+                          <button onClick={() => updateSetting("showCountdown", !settings.showCountdown)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showCountdown ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showCountdown ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Countdown Time</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.countdownSeconds}s</span>
+                            <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Warnings */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle size={14} className="text-yellow-400" />
+                        <span className="text-[10px] font-bold text-white">Warnings</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Show Pause Warning</span>
+                          <button onClick={() => updateSetting("showPauseWarning", !settings.showPauseWarning)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showPauseWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showPauseWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Show Skip Warning</span>
+                          <button onClick={() => updateSetting("showSkipWarning", !settings.showSkipWarning)} className="flex items-center">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showSkipWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showSkipWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account / Logout */}
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LogOut size={14} className="text-red-400" />
+                        <span className="text-[10px] font-bold text-white">Account</span>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                      >
+                        <LogOut size={12} />
+                        Sign Out
+                      </button>
+                    </div>
+                    
+                    </div>
+                  </Card>
+                </div>
               )}
             </div>
           </div>
@@ -3919,61 +4768,125 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[100px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[100px] landscape:h-[70px] md:h-[80px] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-2 md:px-4 py-2 md:py-3 overflow-hidden">
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-4">
+        <div className="w-full max-w-full px-3 sm:px-4 md:px-4 py-1 landscape:py-1 md:py-2 overflow-hidden">
+          {/* Mobile Layout - Compact Grid + Button */}
+          <div className="flex md:hidden flex-col gap-1 landscape:gap-1">
+            {/* Controls Grid - 2 columns in portrait, 4 columns in landscape */}
+            <div className="grid grid-cols-4 gap-x-2 gap-y-0.5">
+              {/* Gap Between Routines */}
+              <div className="flex flex-col items-center">
+                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Gap</div>
+                <div className="flex items-center rounded border border-white/20 bg-white/5">
+                  <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-1.5 py-1 text-white/70"><Minus size={10} /></button>
+                  <span className="px-2 text-[11px] font-bold text-white border-x border-white/15 min-w-[28px] text-center">{gapSeconds}s</span>
+                  <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-1.5 py-1 text-white/70"><Plus size={10} /></button>
+                </div>
+              </div>
+
+              {/* Back to Back */}
+              <div className="flex flex-col items-center">
+                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">B2B</div>
+                <button 
+                  onClick={() => updateBackToBack((v) => !v)}
+                  className="flex items-center gap-1.5"
+                >
+                  <div className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
+                    <RefreshCw size={10} />
+                  </div>
+                  <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${
+                    backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"
+                  }`}>
+                    <div className={`h-3 w-3 rounded-full transition-transform ${
+                      backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/40"
+                    }`} />
+                  </div>
+                </button>
+              </div>
+
+              {/* Total Session Time */}
+              <div className="flex flex-col items-center">
+                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Time</div>
+                <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+              </div>
+
+              {/* Repeats */}
+              <div className="flex flex-col items-center">
+                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Reps</div>
+                <div className="flex items-center rounded border border-white/20 bg-white/5">
+                  <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1.5 py-1 text-white/70"><Minus size={10} /></button>
+                  <span className="px-2 text-[11px] font-bold text-white border-x border-white/15 min-w-[24px] text-center">{playlistRepeats}x</span>
+                  <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-1.5 py-1 text-white/70"><Plus size={10} /></button>
+                </div>
+              </div>
+            </div>
+
+            {/* Session Button */}
+            <button
+              onClick={handlePauseClick}
+              disabled={!currentTrack && playlist.length === 0}
+              className={`w-full py-2 landscape:py-1.5 text-xs font-bold rounded-lg transition disabled:opacity-30 ${
+                isGapPaused
+                  ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
+                  : isPlaying
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
+                    : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/30"
+              }`}
+            >
+              {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
+            </button>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden md:flex flex-wrap items-center justify-start gap-4">
             {/* Gap Between Routines */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-white text-white">
-                <Users size={18} className="md:hidden" />
-                <Users size={20} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white text-white">
+                <Users size={18} />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
-                <div className="mt-1 flex items-center rounded border border-white/20 bg-white/5">
+                <div className="text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
+                <div className="mt-0.5 flex items-center rounded border border-white/20 bg-white/5">
                   <button 
-                    onClick={() => setGapSeconds((v) => Math.max(0, v - 5))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-white/90 hover:text-white"
+                    onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))}
+                    className="px-2.5 py-1 text-white/90 hover:text-white"
                   >
-                    <Minus size={12} className="md:hidden" />
-                    <Minus size={14} className="hidden md:block" />
+                    <Minus size={14} />
                   </button>
-                  <div className="border-x border-white/15 px-3 md:px-4 py-1 md:py-1.5 text-sm md:text-base font-semibold text-white">{gapSeconds} sec</div>
+                  <div className="border-x border-white/15 px-4 py-1 text-base font-semibold text-white">{gapSeconds} sec</div>
                   <button 
-                    onClick={() => setGapSeconds((v) => Math.min(120, v + 5))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-white/90 hover:text-white"
+                    onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))}
+                    className="px-2.5 py-1 text-white/90 hover:text-white"
                   >
-                    <Plus size={12} className="md:hidden" />
-                    <Plus size={14} className="hidden md:block" />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Back To Back */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
-                <RefreshCw size={18} className="md:hidden" />
-                <RefreshCw size={20} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
+                <RefreshCw size={18} />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
-                <div className="mt-1 flex items-center gap-3">
+                <div className="text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
+                <div className="mt-0.5 flex items-center gap-2">
                   <button 
-                    onClick={() => setBackToBack((v) => !v)}
-                    className="flex items-center gap-2"
+                    onClick={() => updateBackToBack((v) => !v)}
+                    className="flex items-center gap-1.5"
                   >
-                    <span className="text-sm font-medium text-white">{backToBack ? "On" : "Off"}</span>
-                    <div className={`h-6 w-12 rounded-full border p-0.5 transition-colors duration-200 ${
+                    <span className="text-xs font-medium text-white">{backToBack ? "On" : "Off"}</span>
+                    <div className={`h-5 w-10 rounded-full border p-0.5 transition-colors duration-200 ${
                       backToBack 
                         ? "border-pink-500 bg-pink-500/30" 
                         : "border-white/25 bg-white/15"
                     }`}>
-                      <div className={`h-5 w-5 rounded-full transition-transform duration-200 ${
+                      <div className={`h-4 w-4 rounded-full transition-transform duration-200 ${
                         backToBack 
-                          ? "translate-x-6 bg-pink-500" 
+                          ? "translate-x-5 bg-pink-500" 
                           : "translate-x-0 bg-white/50"
                       }`} />
                     </div>
@@ -3983,43 +4896,38 @@ export default function Page() {
             </div>
 
             {/* Total Session Time */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
-                <Clock size={20} className="md:hidden" />
-                <Clock size={22} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
+                <Clock size={20} />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
-                <div className="text-white text-xl md:text-2xl font-bold">{formatSessionTime(totalSessionSeconds)}</div>
-                <div className="text-[9px] md:text-[10px] text-white/60">(including gaps)</div>
+                <div className="text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
+                <div className="text-white text-xl font-bold leading-tight">{formatSessionTime(totalSessionSeconds)}</div>
               </div>
             </div>
 
             {/* Repeat Playlist */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="grid h-9 w-9 md:h-11 md:w-11 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                <Repeat size={18} className="md:hidden" />
-                <Repeat size={20} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                <Repeat size={18} />
               </div>
               <div>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
-                <div className="mt-1 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
+                <div className="text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
+                <div className="mt-0.5 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
                   <button
-                    onClick={() => setPlaylistRepeats((v) => Math.max(1, v - 1))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-cyan-300 hover:text-cyan-100 transition"
+                    onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))}
+                    className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Minus size={12} className="md:hidden" />
-                    <Minus size={14} className="hidden md:block" />
+                    <Minus size={14} />
                   </button>
-                  <div className="border-x border-cyan-400/20 px-3 md:px-4 py-1 md:py-1.5 text-sm md:text-base font-semibold text-white">
+                  <div className="border-x border-cyan-400/20 px-4 py-1 text-base font-semibold text-white">
                     {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
                   </div>
                   <button
-                    onClick={() => setPlaylistRepeats((v) => Math.min(99, v + 1))}
-                    className="px-2 md:px-2.5 py-1 md:py-1.5 text-cyan-300 hover:text-cyan-100 transition"
+                    onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))}
+                    className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
                   >
-                    <Plus size={12} className="md:hidden" />
-                    <Plus size={14} className="hidden md:block" />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
@@ -4029,7 +4937,7 @@ export default function Page() {
             <button 
               onClick={toggleSession}
               disabled={!currentTrack && playlist.length === 0}
-              className={`h-11 md:h-[52px] min-w-[140px] md:min-w-[160px] rounded-xl text-xs md:text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`h-[52px] min-w-[160px] rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
                 isGapPaused
                   ? "bg-white/10 border border-white/30 text-white animate-pulse"
                   : isPlaying
@@ -4056,7 +4964,7 @@ export default function Page() {
 
       {/* Stop/Pause Session Confirmation Modal */}
       {showStopConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-orange-500/30 bg-[#090f1c] p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
