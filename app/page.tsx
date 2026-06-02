@@ -2638,7 +2638,6 @@ export default function Page() {
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
                 <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setShowFullscreenQueuePlaylist(true)} className="px-2 py-1 rounded bg-pink-500/10 border border-pink-500/30 text-pink-400 text-[9px] font-bold">+ Add</button>
                   <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
                 </div>
               </div>
