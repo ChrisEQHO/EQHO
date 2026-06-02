@@ -2192,7 +2192,14 @@ export default function Page() {
 
               {/* Track Title */}
               <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
-                {currentTrack?.title || "No Track Selected"}
+                {isGapPaused 
+                  ? (() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                      return nextTrack?.title || "End of Playlist";
+                    })()
+                  : (currentTrack?.title || "No Track Selected")
+                }
               </h3>
               
               {/* Track Timer - Larger */}
@@ -2204,7 +2211,13 @@ export default function Page() {
   </p>
   
   <p className="text-xl text-white/50 mb-6">
-  {currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}
+  {isGapPaused 
+    ? (() => {
+        const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+        return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+      })()
+    : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
+  }
   </p>
 
               {/* Playback Controls */}
@@ -2590,12 +2603,29 @@ export default function Page() {
 
             {/* Track Info */}
             <div className="text-center mb-3">
-              <h1 className="text-xl font-black text-white truncate px-2">{currentTrack?.title || "No Track Selected"}</h1>
+              <h1 className="text-xl font-black text-white truncate px-2">
+                {isGapPaused 
+                  ? (() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+                      return nextTrack?.title || "End of Playlist";
+                    })()
+                  : (currentTrack?.title || "No Track Selected")
+                }
+              </h1>
               <p className="text-sm text-white/70 tabular-nums mt-1">
                 {currentTime > 0 || isPlaying ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}` : "00:00"}
                 {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
               </p>
-              <p className="text-xs text-white/50">{currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin"}</p>
+              <p className="text-xs text-white/50">
+                {isGapPaused 
+                  ? (() => {
+                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
+                      return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+                    })()
+                  : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
+                }
+              </p>
             </div>
 
             {/* Playback Controls */}
