@@ -2521,11 +2521,7 @@ export default function Page() {
               <div className="mt-4 text-center">
                 <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Up Next</p>
                 <p className="text-xl font-bold text-white px-4">
-                  {(() => {
-                    const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                    const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                    return nextTrack?.title || "End of Playlist";
-                  })()}
+                  {currentTrack?.title || "End of Playlist"}
                 </p>
               </div>
               <style jsx>{`
