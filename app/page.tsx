@@ -2665,8 +2665,6 @@ export default function Page() {
         <div className="flex items-center gap-1">
           {[
             [Home, "player", "pink"],
-            [ListMusic, "playlists", "pink"],
-            [Settings, "settings", "pink"],
           ].map(([Icon, page, color]: any) => {
             const activeColors: Record<string, string> = {
               pink: "text-[#ff4fa3] bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10",
@@ -4627,9 +4625,6 @@ export default function Page() {
               {/* Left Column */}
               {/* Gap Between Routines */}
               <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white text-white">
-                  <Users size={14} />
-                </div>
                 <div>
                   <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Gap</div>
                   <div className="flex items-center rounded border border-white/20 bg-white/5">
@@ -4643,9 +4638,6 @@ export default function Page() {
               {/* Right Column */}
               {/* Total Session Time */}
               <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
-                  <Clock size={14} />
-                </div>
                 <div>
                   <div className="text-[8px] font-medium tracking-wide text-white/60 uppercase">Time</div>
                   <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
