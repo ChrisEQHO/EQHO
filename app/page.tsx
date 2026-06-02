@@ -25,6 +25,13 @@ import {
   type CloudPlaylist,
   type SyncStatus 
 } from "@/lib/cloud-sync";
+import {
+  uploadMusicFile,
+  listUserMusicFiles,
+  deleteMusicFile,
+  downloadMusicFile,
+  type CloudMusicFile,
+} from "@/lib/cloud-storage";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -367,6 +374,12 @@ export default function Page() {
   const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
   const [downloadingPlaylistId, setDownloadingPlaylistId] = useState<string | null>(null);
   const [showFullscreenMobilePlayer, setShowFullscreenMobilePlayer] = useState(false);
+
+  // Cloud music files state
+  const [cloudMusicFiles, setCloudMusicFiles] = useState<CloudMusicFile[]>([]);
+  const [cloudMusicLoading, setCloudMusicLoading] = useState(false);
+  const [cloudUploadProgress, setCloudUploadProgress] = useState<{ fileName: string; progress: number } | null>(null);
+  const [cloudMusicError, setCloudMusicError] = useState<string | null>(null);
 
   // Session-only hidden tracks (does not affect saved playlists or cloud)
   const [hiddenTrackIds, setHiddenTrackIds] = useState<Set<string>>(new Set());
@@ -1196,6 +1209,91 @@ export default function Page() {
       updated.splice(toIndex, 0, moved);
       return updated;
     });
+  };
+
+  // Cloud Music Functions
+  const loadCloudMusicFiles = useCallback(async () => {
+    if (!user) return;
+    setCloudMusicLoading(true);
+    setCloudMusicError(null);
+    try {
+      const files = await listUserMusicFiles(user.id);
+      setCloudMusicFiles(files);
+    } catch (err) {
+      setCloudMusicError('Failed to load cloud files');
+    } finally {
+      setCloudMusicLoading(false);
+    }
+  }, [user]);
+
+  const handleCloudUpload = async (files: FileList) => {
+    if (!user) return;
+    
+    for (const file of Array.from(files)) {
+      // Validate file type
+      if (!file.name.match(/\.(mp3|wav)$/i)) {
+        setCloudMusicError('Only MP3 and WAV files are allowed');
+        continue;
+      }
+
+      setCloudUploadProgress({ fileName: file.name, progress: 0 });
+      setCloudMusicError(null);
+
+      const result = await uploadMusicFile(user.id, file, (progress) => {
+        setCloudUploadProgress({ fileName: file.name, progress });
+      });
+
+      if (!result.success) {
+        setCloudMusicError(result.error || 'Upload failed');
+      }
+
+      setCloudUploadProgress(null);
+    }
+
+    // Refresh the file list
+    await loadCloudMusicFiles();
+  };
+
+  const handleCloudDelete = async (storagePath: string) => {
+    const success = await deleteMusicFile(storagePath);
+    if (success) {
+      setCloudMusicFiles(prev => prev.filter(f => f.storage_path !== storagePath));
+    } else {
+      setCloudMusicError('Failed to delete file');
+    }
+  };
+
+  const handleCloudPlay = async (cloudFile: CloudMusicFile) => {
+    // Download and add to playlist
+    const file = await downloadMusicFile(cloudFile.storage_path);
+    if (!file) {
+      setCloudMusicError('Failed to download file');
+      return;
+    }
+
+    // Get audio duration
+    const audio = new Audio();
+    audio.src = URL.createObjectURL(file);
+    
+    await new Promise<void>((resolve) => {
+      audio.onloadedmetadata = () => resolve();
+      audio.onerror = () => resolve();
+    });
+
+    const durationSeconds = Math.floor(audio.duration) || 0;
+    
+    const track: Track = {
+      id: `cloud-${cloudFile.id}-${Date.now()}`,
+      title: cloudFile.name.replace(/\.(mp3|wav)$/i, ''),
+      sub: 'Cloud Track',
+      duration: formatDuration(durationSeconds),
+      fileName: cloudFile.name,
+      url: URL.createObjectURL(file),
+      durationSeconds,
+      uploadedAt: cloudFile.created_at,
+    };
+
+    addTrackToPlaylist(track);
   };
 
   // Hide track from current session only (does not affect saved playlist or cloud)
@@ -4818,6 +4916,106 @@ export default function Page() {
                         Download for Mac
                       </a>
                     </div>
+
+                    {/* Cloud Music Storage */}
+                    {user && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500">
+                              <Cloud size={12} className="text-white" />
+                            </div>
+                            <span className="text-[11px] sm:text-xs font-bold text-white">Cloud Music</span>
+                          </div>
+                          <button
+                            onClick={loadCloudMusicFiles}
+                            disabled={cloudMusicLoading}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition"
+                          >
+                            <RefreshCw size={12} className={`text-white/60 ${cloudMusicLoading ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
+                        
+                        <p className="text-[10px] sm:text-[11px] text-white/60 mb-3 leading-relaxed">
+                          Upload music files to the cloud. Access your tracks from any device.
+                        </p>
+
+                        {cloudMusicError && (
+                          <div className="mb-3 p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[10px]">
+                            {cloudMusicError}
+                          </div>
+                        )}
+
+                        {/* Upload Button */}
+                        <label className="flex items-center justify-center gap-2 w-full py-2.5 mb-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-[11px] sm:text-xs font-bold hover:shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all cursor-pointer">
+                          <Upload size={14} />
+                          {cloudUploadProgress ? `Uploading ${cloudUploadProgress.fileName}...` : 'Upload MP3 or WAV'}
+                          <input
+                            type="file"
+                            accept=".mp3,.wav,audio/mpeg,audio/wav"
+                            multiple
+                            onChange={(e) => e.target.files && handleCloudUpload(e.target.files)}
+                            className="hidden"
+                            disabled={!!cloudUploadProgress}
+                          />
+                        </label>
+
+                        {/* Upload Progress */}
+                        {cloudUploadProgress && (
+                          <div className="mb-3">
+                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all"
+                                style={{ width: `${cloudUploadProgress.progress}%` }}
+                              />
+                            </div>
+                            <p className="text-[9px] text-white/40 mt-1">{cloudUploadProgress.progress}% complete</p>
+                          </div>
+                        )}
+
+                        {/* Cloud Files List */}
+                        <div className="max-h-[200px] overflow-y-auto space-y-1.5">
+                          {cloudMusicLoading ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 size={16} className="text-white/40 animate-spin" />
+                            </div>
+                          ) : cloudMusicFiles.length === 0 ? (
+                            <div className="text-center py-4">
+                              <CloudOff size={20} className="text-white/20 mx-auto mb-2" />
+                              <p className="text-[10px] text-white/40">No cloud files yet</p>
+                            </div>
+                          ) : (
+                            cloudMusicFiles.map((file) => (
+                              <div
+                                key={file.id}
+                                className="flex items-center justify-between p-2 rounded-lg bg-white/5 hover:bg-white/10 transition group"
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <Music size={12} className="text-cyan-400 shrink-0" />
+                                  <span className="text-[10px] text-white truncate">{file.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleCloudPlay(file)}
+                                    className="p-1.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 transition"
+                                    title="Add to playlist"
+                                  >
+                                    <Plus size={10} className="text-cyan-400" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleCloudDelete(file.storage_path)}
+                                    className="p-1.5 rounded bg-red-500/20 hover:bg-red-500/30 transition"
+                                    title="Delete from cloud"
+                                  >
+                                    <Trash2 size={10} className="text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
