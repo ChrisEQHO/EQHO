@@ -1487,10 +1487,12 @@ export default function Page() {
   });
 
   const updateSetting = (key: string, value: any) => {
-    setSettings((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    console.log("[v0] updateSetting - key:", key, "value:", value);
+    setSettings((current) => {
+      const newSettings = { ...current, [key]: value };
+      console.log("[v0] new settings:", newSettings);
+      return newSettings;
+    });
     // Sync settings to player state variables
     if (key === "gapSeconds") setGapSeconds(value);
     if (key === "playlistRepeats") setPlaylistRepeats(value);
@@ -1500,6 +1502,7 @@ export default function Page() {
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
+    console.log("[v0] handlePauseClick - settings.showPauseWarning:", settings.showPauseWarning, "isPlaying:", isPlaying, "isGapPaused:", isGapPaused);
     if (isPlaying && !isGapPaused && settings.showPauseWarning) {
       setShowPauseConfirm(true);
     } else {
@@ -1509,6 +1512,7 @@ export default function Page() {
 
   // Handler for skip back button with warning check
   const handleSkipBackClick = () => {
+    console.log("[v0] handleSkipBackClick - settings.showSkipWarning:", settings.showSkipWarning);
     if (isPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipBackConfirm(true);
     } else {
@@ -1518,6 +1522,7 @@ export default function Page() {
 
   // Handler for skip forward button with warning check
   const handleSkipForwardClick = () => {
+    console.log("[v0] handleSkipForwardClick - settings.showSkipWarning:", settings.showSkipWarning);
     if (isPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipForwardConfirm(true);
     } else {
