@@ -67,6 +67,7 @@ import {
   CloudOff,
   Trash2,
   Download,
+  Monitor,
   Check,
   Loader2,
   RotateCcw,
@@ -2840,7 +2841,7 @@ export default function Page() {
               className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
               title="Download EQHO Desktop App"
             >
-              <Download size={20} />
+              <Monitor size={20} />
             </a>
             <button
               onClick={handleLogout}
