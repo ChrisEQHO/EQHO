@@ -218,6 +218,13 @@ body {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
+  /* Margin variants for safe areas */
+  .mt-safe {
+    margin-top: env(safe-area-inset-top);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 /* Capacitor native app environment */
@@ -225,6 +232,22 @@ html.capacitor {
   /* Prevent rubber-banding/bounce effect on iOS */
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
+}
+
+/* iOS Capacitor specific - ensure safe areas are respected */
+html.capacitor body {
+  /* Account for iOS status bar/Dynamic Island */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* When viewport-fit: cover is active, ensure content respects safe areas */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .ios-safe-top {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .ios-safe-bottom {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
 }
 
 /* Standalone/PWA mode detection */
