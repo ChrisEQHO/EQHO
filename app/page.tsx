@@ -3985,7 +3985,7 @@ export default function Page() {
                       </button>
                     </div>
 
-                    {/* Track List */}
+                    {/* Track List - Revolves to show current track at top */}
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       {visiblePlaylist.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-center py-8">
@@ -3994,62 +3994,76 @@ export default function Page() {
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          {visiblePlaylist.map((track, visibleIndex) => {
-                            const originalIndex = playlist.findIndex(t => t.id === track.id);
-                            const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                            const colour = colours[visibleIndex % colours.length];
-                            const isActiveTrack = currentTrack?.id === track.id;
-                            const isFinished = finishedTracks.has(track.id);
+                          {(() => {
+                            // Find current track index in visible playlist
+                            const currentVisibleIndex = visiblePlaylist.findIndex(t => t.id === currentTrack?.id);
+                            // Reorder: current track first, then remaining tracks after it, then tracks before it
+                            const reorderedPlaylist = currentVisibleIndex >= 0
+                              ? [
+                                  ...visiblePlaylist.slice(currentVisibleIndex),
+                                  ...visiblePlaylist.slice(0, currentVisibleIndex)
+                                ]
+                              : visiblePlaylist;
                             
-                            return (
-                              <div
-                                key={track.id}
-                                onClick={() => {
-                                  setCurrentIndex(originalIndex);
-                                  togglePlayPause(track);
-                                }}
-                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
-                                  isActiveTrack 
-                                    ? "bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
-                                    : isFinished
-                                      ? "opacity-40"
-                                      : "hover:bg-white/5"
-                                }`}
-                              >
-                                {/* Track Number */}
-                                <div className={`text-xl font-black w-6 text-center ${isFinished ? "text-white/20" : colour}`}>
-                                  {visibleIndex + 1}
-                                </div>
-                                
-                                {/* Track Info */}
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
-                                    {track.title}
-                                  </p>
-                                  <p className="text-[10px] text-white/50">
-                                    {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
-                                  </p>
-                                </div>
-                                
-                                {/* Duration */}
-                                <div className="text-right shrink-0">
-                                  <p className="text-[9px] text-white/40">Duration</p>
-                                  <p className={`text-sm font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
-                                </div>
-                                
-                                {/* Remove Button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    hideTrackFromSession(track.id);
+                            return reorderedPlaylist.map((track, displayIndex) => {
+                              // Get original position for numbering
+                              const originalVisibleIndex = visiblePlaylist.findIndex(t => t.id === track.id);
+                              const originalIndex = playlist.findIndex(t => t.id === track.id);
+                              const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
+                              const colour = colours[originalVisibleIndex % colours.length];
+                              const isActiveTrack = currentTrack?.id === track.id;
+                              const isFinished = finishedTracks.has(track.id);
+                              
+                              return (
+                                <div
+                                  key={track.id}
+                                  onClick={() => {
+                                    setCurrentIndex(originalIndex);
+                                    togglePlayPause(track);
                                   }}
-                                  className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
+                                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                    isActiveTrack 
+                                      ? "bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
+                                      : isFinished
+                                        ? "opacity-40"
+                                        : "hover:bg-white/5"
+                                  }`}
                                 >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            );
-                          })}
+                                  {/* Track Number - shows original playlist position */}
+                                  <div className={`text-xl font-black w-6 text-center ${isFinished ? "text-white/20" : colour}`}>
+                                    {originalVisibleIndex + 1}
+                                  </div>
+                                  
+                                  {/* Track Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                      {track.title}
+                                    </p>
+                                    <p className="text-[10px] text-white/50">
+                                      {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Duration */}
+                                  <div className="text-right shrink-0">
+                                    <p className="text-[9px] text-white/40">Duration</p>
+                                    <p className={`text-sm font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
+                                  </div>
+                                  
+                                  {/* Remove Button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      hideTrackFromSession(track.id);
+                                    }}
+                                    className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                       )}
                     </div>
