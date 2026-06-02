@@ -3025,7 +3025,6 @@ export default function Page() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
-                        console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);
                         if (sessionRunning || isPlaying) {
                           setShowClearPlaylistConfirm(true);
                         } else {
