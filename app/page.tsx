@@ -2723,6 +2723,37 @@ export default function Page() {
         </div>
       )}
 
+      {/* Pause Confirmation - Mobile (outside isFullscreen container) */}
+      {showPauseConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={40} className="mx-auto mb-3 text-orange-400" />
+            <h3 className="text-xl font-bold text-white mb-2">Pause Playback?</h3>
+            <p className="text-white/60 text-sm mb-5">Are you sure you want to pause the current session?</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowPauseConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowPauseConfirm(false);
+                  if (audioRef.current) {
+                    audioRef.current.pause();
+                    setIsPlaying(false);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition text-sm"
+              >
+                Yes, Pause
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
       <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
@@ -4888,7 +4919,7 @@ export default function Page() {
 
       {/* Stop/Pause Session Confirmation Modal */}
       {showStopConfirm && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-orange-500/30 bg-[#090f1c] p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
