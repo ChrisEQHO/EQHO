@@ -2684,6 +2684,45 @@ export default function Page() {
         </div>
       )}
 
+      {/* Send to Session Confirmation - Mobile (outside isFullscreen container) */}
+      {showSendToSessionConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <ListMusic size={40} className="mx-auto mb-3 text-[#ff8a00]" />
+            <h3 className="text-xl font-bold text-white mb-2">Replace Current Playlist?</h3>
+            <p className="text-white/60 text-sm mb-5">Loading &quot;{showSendToSessionConfirm.name}&quot; will replace your current session playlist.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowSendToSessionConfirm(null)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const { name, tracks } = showSendToSessionConfirm;
+                  setShowSendToSessionConfirm(null);
+                  if (isPlaying && audioRef.current) {
+                    audioRef.current.pause();
+                    setIsPlaying(false);
+                  }
+                  setPlaylist(tracks);
+                  setHiddenTrackIds(new Set());
+                  setCurrentPlaylistName(name);
+                  setCurrentIndex(0);
+                  setCurrentTrack(tracks[0]);
+                  setSessionRunning(false);
+                  setFinishedTracks(new Set());
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
+              >
+                Yes, Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
       <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
