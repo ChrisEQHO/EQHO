@@ -4768,7 +4768,7 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[calc(110px+env(safe-area-inset-bottom))] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816] pb-[env(safe-area-inset-bottom)]">
+      <div className="fixed bottom-0 left-0 right-0 h-[calc(110px+env(safe-area-inset-bottom))] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816]">
         <div className="session-bottom-divider" />
 
         <div className="w-full max-w-full px-3 sm:px-4 md:px-4 py-1 landscape:py-1 md:py-2 overflow-hidden">
@@ -4832,7 +4832,7 @@ export default function Page() {
             <button
               onClick={handlePauseClick}
               disabled={!currentTrack && playlist.length === 0}
-              className={`w-full py-2 landscape:py-1.5 text-xs font-bold rounded-lg transition disabled:opacity-30 ${
+              className={`w-full py-3 pb-[calc(12px+env(safe-area-inset-bottom))] landscape:py-1.5 landscape:pb-1.5 md:py-2 md:pb-2 text-sm font-bold rounded-lg rounded-b-none transition disabled:opacity-30 ${
                 isGapPaused
                   ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                   : isPlaying
