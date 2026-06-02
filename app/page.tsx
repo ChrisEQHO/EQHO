@@ -3888,7 +3888,7 @@ export default function Page() {
                 <span className="hidden sm:inline">Settings</span>
               </button>
               <button
-                onClick={() => setActivePage("coach")}
+                onClick={() => setShowFullscreenMobilePlayer(true)}
                 className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
               >
                 <ExternalLink size={14} className="mx-auto sm:hidden" />
