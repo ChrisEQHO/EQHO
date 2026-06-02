@@ -2661,36 +2661,16 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Mobile Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-center px-3 py-2 bg-[#050816] border-b border-white/10">
-        <div className="flex items-center gap-1">
-          {[
-            [Home, "player", "pink"],
-          ].map(([Icon, page, color]: any) => {
-            const activeColors: Record<string, string> = {
-              pink: "text-[#ff4fa3] bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/10",
-            };
-            return (
-              <button
-                key={page}
-                onClick={() => setActivePage(page)}
-                className={`p-2.5 rounded-xl transition-all duration-200 ${
-                  activePage === page
-                    ? activeColors[color]
-                    : "text-[#cbd5e1] hover:text-white hover:bg-white/[0.03]"
-                }`}
-              >
-                <Icon size={20} />
-              </button>
-            );
-          })}
-          <button
-            onClick={handleLogout}
-            className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
-          >
-            <LogOut size={20} />
-          </button>
-        </div>
+      {/* Mobile Navigation Bar - Only show logout, not duplicate nav */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex md:hidden items-center justify-between px-3 py-1.5 bg-[#050816]/95 backdrop-blur-sm border-b border-white/10">
+        <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">EQHO Player</span>
+        <button
+          onClick={handleLogout}
+          className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition text-[10px] flex items-center gap-1"
+        >
+          <LogOut size={14} />
+          <span className="hidden sm:inline">Logout</span>
+        </button>
       </nav>
 
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
@@ -3858,7 +3838,7 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-120px)] landscape:h-[calc(100dvh-90px)] w-full overflow-hidden pt-12 landscape:pt-10 px-2 sm:px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-9 landscape:pt-8 px-2 sm:px-3">
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-2 landscape:gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
