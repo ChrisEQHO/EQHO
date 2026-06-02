@@ -2115,13 +2115,35 @@ export default function Page() {
               <button onClick={() => setShowFullscreenMobilePlayer(false)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
                 <X size={18} className="text-white" />
               </button>
-              <h2 className="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">NOW PLAYING</h2>
+              <h2 className="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+                {currentTrack ? "NOW PLAYING" : "COACH VIEW"}
+              </h2>
               <button onClick={() => setIsMuted(!isMuted)} className={`w-9 h-9 rounded-full flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
                 {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </button>
             </div>
 
-            {/* Main Content - Scrollable */}
+            {/* No Session Loaded State */}
+            {!currentTrack && playlist.length === 0 && (
+              <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+                <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+                  <ListMusic size={32} className="text-white/30" />
+                </div>
+                <h2 className="text-2xl font-bold text-white/80 mb-2">No Session Loaded</h2>
+                <p className="text-white/50 mb-8 max-w-xs">
+                  Add tracks to your playlist and start a session to use Coach View
+                </p>
+                <button
+                  onClick={() => setShowFullscreenMobilePlayer(false)}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold shadow-lg shadow-pink-500/20"
+                >
+                  Go Back
+                </button>
+              </div>
+            )}
+
+            {/* Main Content - Scrollable (only show when session is loaded) */}
+            {(currentTrack || playlist.length > 0) && (
             <div className="flex-1 flex flex-col overflow-hidden px-4">
               {/* Session Remaining Timer - Large */}
               <div className="text-center py-4">
@@ -2227,6 +2249,7 @@ export default function Page() {
                 <span className="text-[10px] text-white/40 w-8">{isMuted ? "0" : volume}%</span>
               </div>
             </div>
+            )}
 
             {/* Bottom Safe Area */}
             <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
