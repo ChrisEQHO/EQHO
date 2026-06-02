@@ -2360,8 +2360,10 @@ export default function Page() {
                 </div>
               ) : (
                 (() => {
-                  const upcoming = playlist.slice(currentIndex).map((track, i) => ({ track, originalIndex: currentIndex + i }));
-                  const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
+                  // Use visiblePlaylist to exclude hidden tracks
+                  const currentVisibleIndex = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : 0;
+                  const upcoming = visiblePlaylist.slice(currentVisibleIndex).map((track, i) => ({ track, originalIndex: currentVisibleIndex + i }));
+                  const completed = visiblePlaylist.slice(0, currentVisibleIndex).map((track, i) => ({ track, originalIndex: i }));
                   const reordered = [...upcoming, ...completed];
 
                   return reordered.map(({ track, originalIndex }) => {
@@ -2682,6 +2684,15 @@ export default function Page() {
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
                 <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
                 <div className="flex items-center gap-2">
+                  {hiddenTrackIds.size > 0 && (
+                    <button 
+                      onClick={() => setHiddenTrackIds(new Set())} 
+                      className="flex items-center gap-0.5 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-bold"
+                    >
+                      <RotateCcw size={10} />
+                      Restore ({hiddenTrackIds.size})
+                    </button>
+                  )}
                   <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
                 </div>
               </div>
@@ -2702,7 +2713,7 @@ export default function Page() {
                           <p className={`text-xs truncate flex-1 ${isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
                           {isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
                           {isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                          <button onClick={(e) => { e.stopPropagation(); if (sessionRunning || isPlaying) { setShowRemoveTrackConfirm({ track, originalIndex: idx }); } else { setPlaylist(prev => prev.filter(t => t.id !== track.id)); } }} className="p-1 rounded hover:bg-white/10">
+                          <button onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }} className="p-1 rounded hover:bg-white/10" title="Hide from this session">
                             <X size={12} className="text-white/40" />
                           </button>
                         </div>
@@ -4134,19 +4145,30 @@ export default function Page() {
                   <div className="flex-1 min-h-0 bg-white/[0.02] rounded-lg p-2 flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between mb-2 shrink-0">
                       <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
-                      <button
-                        onClick={() => {
-                          if (sessionRunning || isPlaying) {
-                            setShowClearPlaylistConfirm(true);
-                          } else {
-                            clearPlaylist();
-                          }
-                        }}
-                        disabled={playlist.length === 0}
-                        className="px-2 py-1 text-[9px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 transition disabled:opacity-30"
-                      >
-                        Clear
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {hiddenTrackIds.size > 0 && (
+                          <button
+                            onClick={() => setHiddenTrackIds(new Set())}
+                            className="flex items-center gap-0.5 px-2 py-1 text-[9px] font-bold text-blue-400 bg-blue-500/20 border border-blue-500/50 rounded-md hover:bg-blue-500/30 transition"
+                          >
+                            <RotateCcw size={10} />
+                            Restore ({hiddenTrackIds.size})
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (sessionRunning || isPlaying) {
+                              setShowClearPlaylistConfirm(true);
+                            } else {
+                              clearPlaylist();
+                            }
+                          }}
+                          disabled={playlist.length === 0}
+                          className="px-2 py-1 text-[9px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 transition disabled:opacity-30"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     </div>
 
                     {/* Track List - Revolves to show current track at top */}
