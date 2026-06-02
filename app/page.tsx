@@ -3976,7 +3976,7 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden pt-[calc(env(safe-area-inset-top)+12px)] landscape:pt-[calc(env(safe-area-inset-top)+4px)] pb-[env(safe-area-inset-bottom)] px-2 sm:px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-110px)] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[env(safe-area-inset-top)] pt-3 landscape:pt-1 px-2 sm:px-3">
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
