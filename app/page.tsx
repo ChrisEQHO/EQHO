@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ProBadge, UpgradePrompt } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
+import { deleteAccount } from "@/app/actions/account";
 import Link from "next/link";
 import {
   Home,
@@ -363,6 +364,8 @@ export default function Page() {
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
   const [showClearPlaylistConfirm, setShowClearPlaylistConfirm] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
   const [showRemoveTrackConfirm, setShowRemoveTrackConfirm] = useState<{ track: Track; originalIndex: number } | null>(null);
 
@@ -412,6 +415,25 @@ export default function Page() {
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteAccountLoading(true);
+    try {
+      const result = await deleteAccount();
+      if (result.success) {
+        router.push('/login');
+        router.refresh();
+      } else {
+        alert(result.error || 'Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      alert('An error occurred while deleting your account');
+    } finally {
+      setDeleteAccountLoading(false);
+      setShowDeleteAccountConfirm(false);
+    }
   };
 
   // Keep currentTrack synced with playlist[currentIndex]
@@ -1927,6 +1949,43 @@ export default function Page() {
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Account Confirmation */}
+        {showDeleteAccountConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+              <h3 className="text-2xl font-bold text-white mb-2">Delete Account?</h3>
+              <p className="text-white/60 mb-6">This will permanently delete your account and all associated data including playlists, tracks, and subscription. This action cannot be undone.</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowDeleteAccountConfirm(false)}
+                  disabled={deleteAccountLoading}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteAccountLoading}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  {deleteAccountLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={18} />
+                      Delete Forever
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -4028,6 +4087,26 @@ export default function Page() {
                     <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
                   </div>
                 </div>
+
+                {/* Danger Zone - Delete Account */}
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-500 flex items-center justify-center">
+                      <Trash2 size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold text-red-400">Danger Zone</h2>
+                  </div>
+                  <p className="text-white/60 text-sm mb-4">
+                    Permanently delete your account and all associated data. This action cannot be undone.
+                  </p>
+                  <button
+                    onClick={() => setShowDeleteAccountConfirm(true)}
+                    className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    Delete Account
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -4837,13 +4916,22 @@ export default function Page() {
                         <LogOut size={14} className="text-red-400" />
                         <span className="text-[10px] font-bold text-white">Account</span>
                       </div>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
-                      >
-                        <LogOut size={12} />
-                        Sign Out
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                        >
+                          <LogOut size={12} />
+                          Sign Out
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteAccountConfirm(true)}
+                          className="w-full py-2 rounded-lg bg-red-600/10 border border-red-600/30 text-red-500 text-[11px] font-semibold hover:bg-red-600/20 transition flex items-center justify-center gap-2"
+                        >
+                          <Trash2 size={12} />
+                          Delete Account
+                        </button>
+                      </div>
                     </div>
                     
                     </div>
