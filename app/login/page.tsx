@@ -7,6 +7,9 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
+// Stripe Payment Link with 30-day free trial
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_bIYeYb5lB1CS2LS145'
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -48,6 +51,29 @@ export default function LoginPage() {
       setError(authError.message)
       setLoading(false)
     } else {
+      // Check if user has an active subscription
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', user.id)
+          .single()
+        
+        const hasSubscription = profile?.subscription_status && 
+          ['active', 'trialing', 'past_due'].includes(profile.subscription_status)
+        
+        if (!hasSubscription) {
+          // Redirect to Stripe Payment Link for free trial
+          const paymentUrl = new URL(STRIPE_PAYMENT_LINK)
+          paymentUrl.searchParams.set('client_reference_id', user.id)
+          paymentUrl.searchParams.set('prefilled_email', user.email || '')
+          window.location.href = paymentUrl.toString()
+          return
+        }
+      }
+      
       router.replace('/')
     }
   }

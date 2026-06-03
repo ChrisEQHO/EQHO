@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Mail } from 'lucide-react'
+import { Mail, Crown } from 'lucide-react'
 
 export default function SignupSuccessPage() {
   return (
@@ -24,9 +24,20 @@ export default function SignupSuccessPage() {
 
           <h2 className="text-2xl font-bold text-white mb-4">Check your email</h2>
           
-          <p className="text-[#cbd5e1] mb-6">
-            We&apos;ve sent you a confirmation link. Please check your email to verify your account and complete the signup process.
+          <p className="text-[#cbd5e1] mb-4">
+            We&apos;ve sent you a confirmation link. Please check your email to verify your account.
           </p>
+
+          {/* Free Trial Info */}
+          <div className="bg-gradient-to-r from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/20 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Crown className="w-5 h-5 text-[#ff8a00]" />
+              <span className="font-bold text-white">30-Day Free Pro Trial</span>
+            </div>
+            <p className="text-sm text-[#cbd5e1]">
+              After confirming your email, you&apos;ll be redirected to start your free 30-day Pro trial with full access to cloud sync and all premium features.
+            </p>
+          </div>
 
           <Link
             href="/login"

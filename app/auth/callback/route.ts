@@ -2,6 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Stripe Payment Link with 30-day free trial
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_bIYeYb5lB1CS2LS145'
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
   const code = searchParams.get('code')
@@ -32,6 +35,31 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      // Get the user to check subscription status
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        // Check if user has a subscription in the profiles table
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status, stripe_customer_id')
+          .eq('user_id', user.id)
+          .single()
+
+        // If user has no profile or no subscription, redirect to start free trial
+        const hasSubscription = profile?.subscription_status && 
+          ['active', 'trialing', 'past_due'].includes(profile.subscription_status)
+        
+        if (!hasSubscription) {
+          // Redirect to Stripe Payment Link with user info for the free trial
+          const paymentUrl = new URL(STRIPE_PAYMENT_LINK)
+          paymentUrl.searchParams.set('client_reference_id', user.id)
+          paymentUrl.searchParams.set('prefilled_email', user.email || '')
+          
+          return NextResponse.redirect(paymentUrl.toString())
+        }
+      }
+      
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
