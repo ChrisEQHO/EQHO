@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { CapacitorInit } from '@/components/capacitor-init'
+import { SubscriptionProvider } from '@/lib/subscription-context'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -56,7 +57,9 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased bg-[#020617] overflow-x-hidden w-screen max-w-[100vw] min-h-screen min-h-[100dvh]">
         <CapacitorInit />
-        {children}
+        <SubscriptionProvider>
+          {children}
+        </SubscriptionProvider>
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <Analytics />}
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <SpeedInsights />}
       </body>

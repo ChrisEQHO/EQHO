@@ -22,11 +22,15 @@ import {
   syncPlaylistToCloud, 
   deleteCloudPlaylist,
   isCloudSyncAvailable,
+  checkProStatus,
   type CloudPlaylist,
   type SyncStatus 
 } from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
+import { ProBadge, UpgradePrompt } from "@/components/pro-badge";
+import { useSubscription } from "@/lib/subscription-context";
+import Link from "next/link";
 import {
   Home,
   ListMusic,
@@ -72,6 +76,8 @@ import {
   Loader2,
   RotateCcw,
   Bell,
+  Crown,
+  CreditCard,
 } from "lucide-react";
 
 const uploads = [
@@ -300,6 +306,7 @@ function DraggableTrackRow({
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
+  const { isPro, isLoading: isSubscriptionLoading } = useSubscription();
 
   // Sidebar navigation items (desktop only)
   const sidebarItems = [
@@ -3502,8 +3509,8 @@ export default function Page() {
                   </p>
                 </div>
                 
-                {/* Cloud Sync Status & Refresh */}
-                {user && isCloudSyncAvailable() && (
+{/* Cloud Sync Status & Refresh */}
+                    {user && isCloudSyncAvailable() && isPro && (
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 text-sm text-white/60">
                       <Cloud size={16} className="text-cyan-400" />
@@ -3520,6 +3527,10 @@ export default function Page() {
                       Sync
                     </button>
                   </div>
+                )}
+                {/* Upgrade Prompt for Free Users */}
+                {user && isCloudSyncAvailable() && !isPro && (
+                  <UpgradePrompt />
                 )}
               </div>
 
@@ -3906,11 +3917,14 @@ export default function Page() {
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
-                    EQHO System Settings
-                  </p>
-                  <h1 className="text-3xl font-black mt-1">Settings</h1>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
+                      EQHO System Settings
+                    </p>
+                    <h1 className="text-3xl font-black mt-1">Settings</h1>
+                  </div>
+                  <ProBadge />
                 </div>
                 <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 text-sm">
                   <Save size={16} className="inline mr-2" />
@@ -3922,6 +3936,42 @@ export default function Page() {
             {/* Settings Grid */}
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Subscription Card */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Crown size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Subscription</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70 text-sm">Current Plan</span>
+                      <ProBadge showLink={false} />
+                    </div>
+                    {isPro ? (
+                      <Link href="/billing">
+                        <button className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                          <CreditCard size={16} />
+                          Manage Billing
+                        </button>
+                      </Link>
+                    ) : (
+                      <Link href="/upgrade">
+                        <button className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 text-sm font-bold shadow-lg shadow-pink-500/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                          <Crown size={16} />
+                          Upgrade to Pro
+                        </button>
+                      </Link>
+                    )}
+                    {!isPro && (
+                      <p className="text-xs text-white/50 text-center">
+                        Unlock cloud sync and more features
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 {/* Playback Settings */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
@@ -4416,8 +4466,8 @@ export default function Page() {
                     </label>
                   </div>
 
-                  {/* Cloud Sync Status */}
-                  {user && isCloudSyncAvailable() && (
+{/* Cloud Sync Status */}
+                    {user && isCloudSyncAvailable() && isPro && (
                     <div className="shrink-0 flex items-center justify-between mb-2 p-2 rounded-lg bg-white/[0.03] border border-white/10">
                       <div className="flex items-center gap-2 text-[10px] text-white/60">
                         <Cloud size={12} className="text-cyan-400" />
@@ -4433,6 +4483,12 @@ export default function Page() {
                         <RefreshCw size={10} />
                         Refresh
                       </button>
+                    </div>
+                  )}
+                  {/* Mobile Upgrade Prompt */}
+                  {user && isCloudSyncAvailable() && !isPro && (
+                    <div className="shrink-0 mb-2">
+                      <UpgradePrompt className="text-[10px]" />
                     </div>
                   )}
 
