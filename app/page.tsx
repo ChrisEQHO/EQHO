@@ -28,7 +28,7 @@ import {
 } from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { ProBadge, UpgradePrompt } from "@/components/pro-badge";
+import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
 import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
@@ -3588,10 +3588,6 @@ export default function Page() {
                     </button>
                   </div>
                 )}
-                {/* Upgrade Prompt for Free Users */}
-                {user && isCloudSyncAvailable() && !isPro && (
-                  <UpgradePrompt />
-                )}
               </div>
 
               {/* Compact Upload Drop Zone */}
@@ -4011,67 +4007,65 @@ export default function Page() {
                       <ProBadge showLink={false} />
                     </div>
                     
-                    {/* Trial or Active Subscription Info */}
-                    {isTrialing && profile?.trial_end && (
-                      <div className="rounded-xl bg-gradient-to-r from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/20 p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-white/70 text-xs">Trial ends</span>
-                          <span className="text-white text-xs font-medium">{formatTrialEndDate(profile.trial_end)}</span>
-                        </div>
+                    {/* Pro Trial State */}
+                    {isTrialing && (
+                      <div className="rounded-xl bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 border border-cyan-500/20 p-3 space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] rounded-full transition-all"
-                              style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
-                            />
-                          </div>
-                          <span className="text-[#ff8a00] text-sm font-bold whitespace-nowrap">
-                            {getTrialDaysRemaining(profile.trial_end)} days left
-                          </span>
+                          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                          <span className="text-cyan-300 text-sm font-semibold">30-Day Pro Trial Active</span>
                         </div>
+                        {profile?.trial_end && (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full transition-all"
+                                  style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
+                                />
+                              </div>
+                              <span className="text-cyan-300 text-sm font-bold whitespace-nowrap">
+                                {getTrialDaysRemaining(profile.trial_end)} days left
+                              </span>
+                            </div>
+                            <p className="text-white/50 text-xs">
+                              Renews on {formatTrialEndDate(profile.trial_end)}
+                            </p>
+                          </>
+                        )}
                       </div>
                     )}
                     
+                    {/* Pro Active State */}
                     {isPro && !isTrialing && (
-                      <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                      <div className="rounded-xl bg-gradient-to-r from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/20 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[#ff4fa3] animate-pulse" />
+                          <span className="text-[#ff8a00] text-sm font-semibold">EQHO Player Pro Active</span>
+                        </div>
                         <div className="flex items-center justify-between">
                           <span className="text-white/70 text-xs">Billing</span>
                           <span className="text-white text-sm font-medium">£7.99/month</span>
                         </div>
                         {profile?.current_period_end && (
-                          <p className="text-white/50 text-xs mt-1">
+                          <p className="text-white/50 text-xs">
                             Next billing: {formatTrialEndDate(profile.current_period_end)}
                           </p>
                         )}
                       </div>
                     )}
                     
-                    {/* Action Button */}
-                    {isPro ? (
-                      <Link href="/billing">
-                        <button className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors flex items-center justify-center gap-2">
-                          <CreditCard size={16} />
-                          Manage Billing
-                        </button>
-                      </Link>
-                    ) : (
-                      <Link href="/upgrade">
-                        <button className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 text-sm font-bold shadow-lg shadow-pink-500/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
-                          <Crown size={16} />
-                          Upgrade to Pro
-                        </button>
-                      </Link>
-                    )}
+                    {/* Manage Subscription Button - Opens Stripe Customer Portal */}
+                    <Link href="/billing">
+                      <button className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                        <CreditCard size={16} />
+                        Manage Subscription
+                      </button>
+                    </Link>
                     
-                    {/* Small Print */}
+                    {/* Small Print for Trial Users */}
                     {isTrialing && (
                       <p className="text-[10px] text-white/40 text-center leading-relaxed">
-                        Your subscription will automatically renew at £7.99/month when your free trial ends. Cancel anytime from the billing page.
-                      </p>
-                    )}
-                    {!isPro && (
-                      <p className="text-xs text-white/50 text-center">
-                        Unlock cloud sync and more features
+                        Your subscription will automatically renew at £7.99/month when your trial ends. Cancel anytime.
                       </p>
                     )}
                   </div>
@@ -4608,12 +4602,6 @@ export default function Page() {
                         <RefreshCw size={10} />
                         Refresh
                       </button>
-                    </div>
-                  )}
-                  {/* Mobile Upgrade Prompt */}
-                  {user && isCloudSyncAvailable() && !isPro && (
-                    <div className="shrink-0 mb-2">
-                      <UpgradePrompt className="text-[10px]" />
                     </div>
                   )}
 
