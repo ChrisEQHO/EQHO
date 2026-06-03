@@ -384,7 +384,7 @@ export default function Page() {
   // Get the visible index for a track (for display numbering)
   const getVisibleIndex = (trackId: string) => visiblePlaylist.findIndex(t => t.id === trackId);
 
-  // Fetch user on mount
+  // Fetch user on mount and check subscription
   useEffect(() => {
     // V0 Preview: use mock user, do not call Supabase
     if (isV0Preview) {
@@ -396,6 +396,25 @@ export default function Page() {
     
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Check subscription status
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', user.id)
+          .single();
+        
+        const hasActiveSubscription = profile?.subscription_status && 
+          ['active', 'trialing'].includes(profile.subscription_status);
+        
+        if (!hasActiveSubscription) {
+          // Redirect to trial page
+          router.replace('/trial');
+          return;
+        }
+      }
+      
       setUser(user);
     };
     getUser();
@@ -405,7 +424,7 @@ export default function Page() {
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, router]);
 
   const handleLogout = async () => {
     if (!supabase) return;
