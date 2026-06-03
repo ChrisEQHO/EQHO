@@ -46,3 +46,25 @@ export function getStatusLabel(status: SubscriptionStatus): string {
       return 'Free'
   }
 }
+
+export function getTrialDaysRemaining(trialEnd: string | null): number | null {
+  if (!trialEnd) return null
+  
+  const trialEndDate = new Date(trialEnd)
+  const now = new Date()
+  const diffTime = trialEndDate.getTime() - now.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  return diffDays > 0 ? diffDays : 0
+}
+
+export function formatTrialEndDate(trialEnd: string | null): string | null {
+  if (!trialEnd) return null
+  
+  const date = new Date(trialEnd)
+  return date.toLocaleDateString('en-GB', { 
+    day: 'numeric', 
+    month: 'short', 
+    year: 'numeric' 
+  })
+}

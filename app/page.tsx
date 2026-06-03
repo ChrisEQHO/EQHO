@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ProBadge, UpgradePrompt } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
+import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
 import Link from "next/link";
 import {
@@ -307,7 +308,7 @@ function DraggableTrackRow({
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
-  const { isPro, isLoading: isSubscriptionLoading } = useSubscription();
+  const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading } = useSubscription();
 
   // Sidebar navigation items (desktop only)
   const sidebarItems = [
@@ -4003,11 +4004,49 @@ export default function Page() {
                     </div>
                     <h2 className="text-lg font-bold">Subscription</h2>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
+                    {/* Current Plan Status */}
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Current Plan</span>
                       <ProBadge showLink={false} />
                     </div>
+                    
+                    {/* Trial or Active Subscription Info */}
+                    {isTrialing && profile?.trial_end && (
+                      <div className="rounded-xl bg-gradient-to-r from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/20 p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-white/70 text-xs">Trial ends</span>
+                          <span className="text-white text-xs font-medium">{formatTrialEndDate(profile.trial_end)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] rounded-full transition-all"
+                              style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
+                            />
+                          </div>
+                          <span className="text-[#ff8a00] text-sm font-bold whitespace-nowrap">
+                            {getTrialDaysRemaining(profile.trial_end)} days left
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {isPro && !isTrialing && (
+                      <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70 text-xs">Billing</span>
+                          <span className="text-white text-sm font-medium">£7.99/month</span>
+                        </div>
+                        {profile?.current_period_end && (
+                          <p className="text-white/50 text-xs mt-1">
+                            Next billing: {formatTrialEndDate(profile.current_period_end)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Action Button */}
                     {isPro ? (
                       <Link href="/billing">
                         <button className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors flex items-center justify-center gap-2">
@@ -4022,6 +4061,13 @@ export default function Page() {
                           Upgrade to Pro
                         </button>
                       </Link>
+                    )}
+                    
+                    {/* Small Print */}
+                    {isTrialing && (
+                      <p className="text-[10px] text-white/40 text-center leading-relaxed">
+                        Your subscription will automatically renew at £7.99/month when your free trial ends. Cancel anytime from the billing page.
+                      </p>
                     )}
                     {!isPro && (
                       <p className="text-xs text-white/50 text-center">
