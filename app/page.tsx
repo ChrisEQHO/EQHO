@@ -3995,79 +3995,62 @@ export default function Page() {
                 {/* Subscription Card */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
                       <Crown size={18} />
                     </div>
                     <h2 className="text-lg font-bold">Subscription</h2>
                   </div>
                   <div className="space-y-3">
-                    {/* Current Plan Status */}
+                    {/* Free Trial Badge */}
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Current Plan</span>
-                      <ProBadge showLink={false} />
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
+                        <Crown className="h-3.5 w-3.5" />
+                        Free 30-Day Trial
+                      </span>
                     </div>
                     
-                    {/* Pro Trial State */}
-                    {isTrialing && (
-                      <div className="rounded-xl bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 border border-cyan-500/20 p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                          <span className="text-cyan-300 text-sm font-semibold">30-Day Pro Trial Active</span>
-                        </div>
-                        {profile?.trial_end && (
-                          <>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full transition-all"
-                                  style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
-                                />
-                              </div>
-                              <span className="text-cyan-300 text-sm font-bold whitespace-nowrap">
-                                {getTrialDaysRemaining(profile.trial_end)} days left
-                              </span>
-                            </div>
-                            <p className="text-white/50 text-xs">
-                              Renews on {formatTrialEndDate(profile.trial_end)}
-                            </p>
-                          </>
-                        )}
+                    {/* Green Trial Status Bar */}
+                    <div className="rounded-xl bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-emerald-300 text-sm font-semibold">Your free trial is active</span>
                       </div>
-                    )}
-                    
-                    {/* Pro Active State */}
-                    {isPro && !isTrialing && (
-                      <div className="rounded-xl bg-gradient-to-r from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/20 p-3 space-y-2">
+                      
+                      {/* Days Remaining */}
+                      {profile?.trial_end && getTrialDaysRemaining(profile.trial_end) !== null && (
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-[#ff4fa3] animate-pulse" />
-                          <span className="text-[#ff8a00] text-sm font-semibold">EQHO Player Pro Active</span>
+                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
+                              style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
+                            />
+                          </div>
+                          <span className="text-emerald-300 text-sm font-bold whitespace-nowrap">
+                            {getTrialDaysRemaining(profile.trial_end)} days remaining
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-white/70 text-xs">Billing</span>
-                          <span className="text-white text-sm font-medium">£7.99/month</span>
-                        </div>
-                        {profile?.current_period_end && (
-                          <p className="text-white/50 text-xs">
-                            Next billing: {formatTrialEndDate(profile.current_period_end)}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Manage Subscription Button - Opens Stripe Customer Portal */}
-                    <Link href="/billing">
-                      <button className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors flex items-center justify-center gap-2">
-                        <CreditCard size={16} />
-                        Manage Subscription
-                      </button>
-                    </Link>
-                    
-                    {/* Small Print for Trial Users */}
-                    {isTrialing && (
-                      <p className="text-[10px] text-white/40 text-center leading-relaxed">
-                        Your subscription will automatically renew at £7.99/month when your trial ends. Cancel anytime.
+                      )}
+                      
+                      {/* Renews On Date */}
+                      {profile?.trial_end && (
+                        <p className="text-white/60 text-xs">
+                          Renews on {formatTrialEndDate(profile.trial_end)}
+                        </p>
+                      )}
+                      
+                      {/* Auto-renewal message */}
+                      <p className="text-white/50 text-[11px] leading-relaxed">
+                        Your subscription will automatically renew at £7.99 per month when your 30-day trial ends.
                       </p>
-                    )}
+                    </div>
+                    
+                    {/* Cancel Subscription Link */}
+                    <div className="text-center pt-1">
+                      <Link href="/billing" className="text-white/40 hover:text-white/60 text-xs underline underline-offset-2 transition-colors">
+                        Cancel subscription
+                      </Link>
+                    </div>
                   </div>
                 </div>
 
