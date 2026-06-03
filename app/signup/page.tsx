@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, Crown } from 'lucide-react'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -73,7 +72,15 @@ export default function SignupPage() {
         {/* Header */}
         <div className="flex flex-col items-center mb-6">
           <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
-          <p className="text-[#cbd5e1] text-sm mt-2">Create your account</p>
+          <p className="text-[#cbd5e1] text-sm mt-2">Start your 30-day free trial</p>
+        </div>
+
+        {/* Trial Badge */}
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/20 border border-[#ff4fa3]/30">
+            <Crown className="w-4 h-4 text-[#ff8a00]" />
+            <span className="text-sm font-medium text-white">30 Days Free, then £7.99/month</span>
+          </div>
         </div>
 
         {/* Signup Card */}
@@ -174,7 +181,7 @@ export default function SignupPage() {
               disabled={loading}
               className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? 'Creating account...' : 'Start Free Trial'}
             </button>
           </form>
 

@@ -22,11 +22,17 @@ import {
   syncPlaylistToCloud, 
   deleteCloudPlaylist,
   isCloudSyncAvailable,
+  checkProStatus,
   type CloudPlaylist,
   type SyncStatus 
 } from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
+import { ProBadge } from "@/components/pro-badge";
+import { useSubscription } from "@/lib/subscription-context";
+import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
+import { deleteAccount } from "@/app/actions/account";
+import Link from "next/link";
 import {
   Home,
   ListMusic,
@@ -72,6 +78,8 @@ import {
   Loader2,
   RotateCcw,
   Bell,
+  Crown,
+  CreditCard,
 } from "lucide-react";
 
 const uploads = [
@@ -300,6 +308,7 @@ function DraggableTrackRow({
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
+  const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading } = useSubscription();
 
   // Sidebar navigation items (desktop only)
   const sidebarItems = [
@@ -356,6 +365,8 @@ export default function Page() {
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
   const [showClearPlaylistConfirm, setShowClearPlaylistConfirm] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
   const [showRemoveTrackConfirm, setShowRemoveTrackConfirm] = useState<{ track: Track; originalIndex: number } | null>(null);
 
@@ -400,11 +411,67 @@ export default function Page() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
+  // Stripe Payment Link with 30-day free trial
+  const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/bJefZbeVz4nu9s32RT3F602';
+
+  // Check subscription status and redirect to Stripe if needed
+  useEffect(() => {
+    // Skip in V0 preview mode
+    if (isV0Preview) return;
+    
+    // Wait for user to be loaded
+    if (!supabase || !user) return;
+    
+    const checkSubscription = async () => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('user_id', user.id)
+        .single();
+      
+      console.log('[v0] Main app - Subscription check:', { userId: user.id, profile });
+      
+      // User needs subscription if subscription_status is not active/trialing/past_due
+      const hasActiveSubscription = profile?.subscription_status && 
+        ['active', 'trialing', 'past_due'].includes(profile.subscription_status);
+      
+      if (!hasActiveSubscription) {
+        console.log('[v0] Main app - No active subscription, redirecting to Stripe');
+        // Redirect to Stripe Payment Link for free trial
+        const paymentUrl = new URL(STRIPE_PAYMENT_LINK);
+        paymentUrl.searchParams.set('client_reference_id', user.id);
+        paymentUrl.searchParams.set('prefilled_email', user.email || '');
+        window.location.href = paymentUrl.toString();
+      }
+    };
+    
+    checkSubscription();
+  }, [supabase, user]);
+
   const handleLogout = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteAccountLoading(true);
+    try {
+      const result = await deleteAccount();
+      if (result.success) {
+        router.push('/login');
+        router.refresh();
+      } else {
+        alert(result.error || 'Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      alert('An error occurred while deleting your account');
+    } finally {
+      setDeleteAccountLoading(false);
+      setShowDeleteAccountConfirm(false);
+    }
   };
 
   // Keep currentTrack synced with playlist[currentIndex]
@@ -1920,6 +1987,43 @@ export default function Page() {
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Account Confirmation */}
+        {showDeleteAccountConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+              <h3 className="text-2xl font-bold text-white mb-2">Delete Account?</h3>
+              <p className="text-white/60 mb-6">This will permanently delete your account and all associated data including playlists, tracks, and subscription. This action cannot be undone.</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowDeleteAccountConfirm(false)}
+                  disabled={deleteAccountLoading}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteAccountLoading}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  {deleteAccountLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={18} />
+                      Delete Forever
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -3502,8 +3606,8 @@ export default function Page() {
                   </p>
                 </div>
                 
-                {/* Cloud Sync Status & Refresh */}
-                {user && isCloudSyncAvailable() && (
+{/* Cloud Sync Status & Refresh */}
+                    {user && isCloudSyncAvailable() && isPro && (
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 text-sm text-white/60">
                       <Cloud size={16} className="text-cyan-400" />
@@ -3906,11 +4010,14 @@ export default function Page() {
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
-                    EQHO System Settings
-                  </p>
-                  <h1 className="text-3xl font-black mt-1">Settings</h1>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
+                      EQHO System Settings
+                    </p>
+                    <h1 className="text-3xl font-black mt-1">Settings</h1>
+                  </div>
+                  <ProBadge />
                 </div>
                 <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 text-sm">
                   <Save size={16} className="inline mr-2" />
@@ -3922,6 +4029,68 @@ export default function Page() {
             {/* Settings Grid */}
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Subscription Card */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+                      <Crown size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Subscription</h2>
+                  </div>
+                  <div className="space-y-3">
+                    {/* Free Trial Badge */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70 text-sm">Current Plan</span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
+                        <Crown className="h-3.5 w-3.5" />
+                        Free 30-Day Trial
+                      </span>
+                    </div>
+                    
+                    {/* Green Trial Status Bar */}
+                    <div className="rounded-xl bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-emerald-300 text-sm font-semibold">Your free trial is active</span>
+                      </div>
+                      
+                      {/* Days Remaining */}
+                      {profile?.trial_end && getTrialDaysRemaining(profile.trial_end) !== null && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
+                              style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
+                            />
+                          </div>
+                          <span className="text-emerald-300 text-sm font-bold whitespace-nowrap">
+                            {getTrialDaysRemaining(profile.trial_end)} days remaining
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Renews On Date */}
+                      {profile?.trial_end && (
+                        <p className="text-white/60 text-xs">
+                          Renews on {formatTrialEndDate(profile.trial_end)}
+                        </p>
+                      )}
+                      
+                      {/* Auto-renewal message */}
+                      <p className="text-white/50 text-[11px] leading-relaxed">
+                        Your subscription will automatically renew at £7.99 per month when your 30-day trial ends.
+                      </p>
+                    </div>
+                    
+                    {/* Cancel Subscription Link */}
+                    <div className="text-center pt-1">
+                      <Link href="/billing" className="text-white/40 hover:text-white/60 text-xs underline underline-offset-2 transition-colors">
+                        Cancel subscription
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Playback Settings */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
@@ -3977,6 +4146,26 @@ export default function Page() {
                     <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
                     <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
                   </div>
+                </div>
+
+                {/* Danger Zone - Delete Account */}
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-500 flex items-center justify-center">
+                      <Trash2 size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold text-red-400">Danger Zone</h2>
+                  </div>
+                  <p className="text-white/60 text-sm mb-4">
+                    Permanently delete your account and all associated data. This action cannot be undone.
+                  </p>
+                  <button
+                    onClick={() => setShowDeleteAccountConfirm(true)}
+                    className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    Delete Account
+                  </button>
                 </div>
               </div>
             </div>
@@ -4416,8 +4605,8 @@ export default function Page() {
                     </label>
                   </div>
 
-                  {/* Cloud Sync Status */}
-                  {user && isCloudSyncAvailable() && (
+{/* Cloud Sync Status */}
+                    {user && isCloudSyncAvailable() && isPro && (
                     <div className="shrink-0 flex items-center justify-between mb-2 p-2 rounded-lg bg-white/[0.03] border border-white/10">
                       <div className="flex items-center gap-2 text-[10px] text-white/60">
                         <Cloud size={12} className="text-cyan-400" />
@@ -4781,13 +4970,22 @@ export default function Page() {
                         <LogOut size={14} className="text-red-400" />
                         <span className="text-[10px] font-bold text-white">Account</span>
                       </div>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
-                      >
-                        <LogOut size={12} />
-                        Sign Out
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                        >
+                          <LogOut size={12} />
+                          Sign Out
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteAccountConfirm(true)}
+                          className="w-full py-2 rounded-lg bg-red-600/10 border border-red-600/30 text-red-500 text-[11px] font-semibold hover:bg-red-600/20 transition flex items-center justify-center gap-2"
+                        >
+                          <Trash2 size={12} />
+                          Delete Account
+                        </button>
+                      </div>
                     </div>
                     
                     </div>
