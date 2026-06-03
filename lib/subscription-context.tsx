@@ -2,12 +2,12 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { isPro as checkIsPro, type Subscription, type SubscriptionContextValue } from '@/lib/subscription-types'
+import { isPro as checkIsPro, type ProfileSubscription, type SubscriptionContextValue, type SubscriptionStatus } from '@/lib/subscription-types'
 
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null)
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [profile, setProfile] = useState<ProfileSubscription | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,39 +22,38 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        setSubscription(null)
+        setProfile(null)
         setIsLoading(false)
         return
       }
 
+      // Fetch from profiles table which has subscription fields
       const { data, error: fetchError } = await supabase
-        .from('subscriptions')
-        .select('*')
+        .from('profiles')
+        .select('id, user_id, stripe_customer_id, subscription_status, subscription_id, trial_end, current_period_end')
         .eq('user_id', user.id)
         .single()
 
       if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error fetching subscription:', fetchError)
+        console.error('Error fetching profile subscription:', fetchError)
         setError('Failed to load subscription status')
       }
 
       if (data) {
-        setSubscription(data as Subscription)
+        setProfile({
+          ...data,
+          subscription_status: (data.subscription_status as SubscriptionStatus) || 'free',
+        })
       } else {
-        // Default to free if no subscription record
-        setSubscription({
+        // Default to free if no profile record (shouldn't happen normally)
+        setProfile({
           id: '',
           user_id: user.id,
           stripe_customer_id: null,
-          stripe_subscription_id: null,
-          status: 'free',
-          price_id: null,
-          current_period_start: null,
-          current_period_end: null,
-          cancel_at_period_end: false,
+          subscription_status: 'free',
+          subscription_id: null,
           trial_end: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          current_period_end: null,
         })
       }
     } catch (err) {
@@ -77,7 +76,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           fetchSubscription()
         } else if (event === 'SIGNED_OUT') {
-          setSubscription(null)
+          setProfile(null)
         }
       }
     )
@@ -87,11 +86,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchSubscription])
 
-  const isPro = subscription ? checkIsPro(subscription.status) : false
-  const isTrialing = subscription?.status === 'trialing'
+  const isPro = profile ? checkIsPro(profile.subscription_status) : false
+  const isTrialing = profile?.subscription_status === 'trialing'
 
   const value: SubscriptionContextValue = {
-    subscription,
+    profile,
     isPro,
     isTrialing,
     isLoading,
@@ -112,7 +111,7 @@ export function useSubscription(): SubscriptionContextValue {
   if (!context) {
     // Return a default value if used outside provider (for SSR or pages without provider)
     return {
-      subscription: null,
+      profile: null,
       isPro: false,
       isTrialing: false,
       isLoading: true,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { 
@@ -20,7 +20,7 @@ import {
   cancelSubscription,
   resumeSubscription 
 } from '@/app/actions/subscription'
-import { isPro, getStatusLabel, type Subscription } from '@/lib/subscription-types'
+import { isPro, getStatusLabel, type ProfileSubscription } from '@/lib/subscription-types'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,20 +34,26 @@ import {
 } from '@/components/ui/alert-dialog'
 
 export default function BillingPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
   
-  const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [profile, setProfile] = useState<ProfileSubscription | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isCancelPending, setIsCancelPending] = useState(false)
 
   useEffect(() => {
     async function loadSubscription() {
       const data = await getSubscription()
-      setSubscription(data)
+      setProfile(data)
       setIsLoading(false)
+      
+      // Check cancel status from Stripe if we have a subscription
+      if (data?.subscription_id) {
+        // We'll track this client-side for now
+        // The webhook will update the DB when subscription changes
+      }
     }
     loadSubscription()
   }, [])
@@ -78,9 +84,10 @@ export default function BillingPage() {
     if (result.error) {
       setError(result.error)
     } else {
+      setIsCancelPending(true)
       // Refresh subscription data
       const data = await getSubscription()
-      setSubscription(data)
+      setProfile(data)
     }
     
     setActionLoading(null)
@@ -95,15 +102,16 @@ export default function BillingPage() {
     if (result.error) {
       setError(result.error)
     } else {
+      setIsCancelPending(false)
       // Refresh subscription data
       const data = await getSubscription()
-      setSubscription(data)
+      setProfile(data)
     }
     
     setActionLoading(null)
   }
 
-  const isUserPro = subscription ? isPro(subscription.status) : false
+  const isUserPro = profile ? isPro(profile.subscription_status) : false
 
   return (
     <div 
@@ -172,7 +180,7 @@ export default function BillingPage() {
                     >
                       {isUserPro ? 'EQHO Player Pro' : 'EQHO Player Free'}
                     </h2>
-                    <StatusBadge status={subscription?.status || 'free'} />
+                    <StatusBadge status={profile?.subscription_status || 'free'} />
                   </div>
                 </div>
                 
@@ -190,7 +198,7 @@ export default function BillingPage() {
                 )}
               </div>
 
-              {isUserPro && subscription && (
+              {isUserPro && profile && (
                 <div className="space-y-4">
                   {/* Pricing info */}
                   <div 
@@ -200,7 +208,7 @@ export default function BillingPage() {
                     <CreditCard className="h-5 w-5" style={{ color: 'var(--eqho-pink)' }} />
                     <div>
                       <p style={{ color: 'var(--eqho-text-primary)' }}>£7.99/month</p>
-                      {subscription.cancel_at_period_end && (
+                      {isCancelPending && (
                         <p 
                           className="text-sm"
                           style={{ color: 'var(--eqho-orange)' }}
@@ -212,7 +220,7 @@ export default function BillingPage() {
                   </div>
 
                   {/* Trial info */}
-                  {subscription.status === 'trialing' && subscription.trial_end && (
+                  {profile.subscription_status === 'trialing' && profile.trial_end && (
                     <div 
                       className="flex items-center gap-3 p-3 rounded-lg"
                       style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
@@ -224,14 +232,14 @@ export default function BillingPage() {
                           className="text-sm"
                           style={{ color: 'var(--eqho-text-secondary)' }}
                         >
-                          Ends {format(new Date(subscription.trial_end), 'MMMM d, yyyy')}
+                          Ends {format(new Date(profile.trial_end), 'MMMM d, yyyy')}
                         </p>
                       </div>
                     </div>
                   )}
 
                   {/* Next billing date */}
-                  {subscription.current_period_end && !subscription.cancel_at_period_end && (
+                  {profile.current_period_end && !isCancelPending && (
                     <div 
                       className="flex items-center gap-3 p-3 rounded-lg"
                       style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
@@ -243,14 +251,14 @@ export default function BillingPage() {
                           className="text-sm"
                           style={{ color: 'var(--eqho-text-secondary)' }}
                         >
-                          {format(new Date(subscription.current_period_end), 'MMMM d, yyyy')}
+                          {format(new Date(profile.current_period_end), 'MMMM d, yyyy')}
                         </p>
                       </div>
                     </div>
                   )}
 
                   {/* Access ends date (for canceled subscriptions) */}
-                  {subscription.cancel_at_period_end && subscription.current_period_end && (
+                  {isCancelPending && profile.current_period_end && (
                     <div 
                       className="flex items-center gap-3 p-3 rounded-lg"
                       style={{ backgroundColor: 'rgba(255, 138, 0, 0.1)' }}
@@ -262,7 +270,7 @@ export default function BillingPage() {
                           className="text-sm"
                           style={{ color: 'var(--eqho-text-secondary)' }}
                         >
-                          {format(new Date(subscription.current_period_end), 'MMMM d, yyyy')}
+                          {format(new Date(profile.current_period_end), 'MMMM d, yyyy')}
                         </p>
                       </div>
                     </div>
@@ -292,7 +300,7 @@ export default function BillingPage() {
             )}
 
             {/* Actions */}
-            {isUserPro && subscription?.stripe_customer_id && (
+            {isUserPro && profile?.stripe_customer_id && (
               <div 
                 className="rounded-2xl p-6"
                 style={{
@@ -336,7 +344,7 @@ export default function BillingPage() {
                     )}
                   </Button>
 
-                  {subscription.cancel_at_period_end ? (
+                  {isCancelPending ? (
                     <Button
                       variant="outline"
                       className="w-full justify-center border-white/10 hover:bg-white/5"

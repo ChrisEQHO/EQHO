@@ -6,23 +6,19 @@ export type SubscriptionStatus =
   | 'canceled'
   | 'incomplete'
 
-export interface Subscription {
+// Profile with subscription fields (matches existing profiles table)
+export interface ProfileSubscription {
   id: string
   user_id: string
   stripe_customer_id: string | null
-  stripe_subscription_id: string | null
-  status: SubscriptionStatus
-  price_id: string | null
-  current_period_start: string | null
-  current_period_end: string | null
-  cancel_at_period_end: boolean
+  subscription_status: SubscriptionStatus
+  subscription_id: string | null
   trial_end: string | null
-  created_at: string
-  updated_at: string
+  current_period_end: string | null
 }
 
 export interface SubscriptionContextValue {
-  subscription: Subscription | null
+  profile: ProfileSubscription | null
   isPro: boolean
   isTrialing: boolean
   isLoading: boolean

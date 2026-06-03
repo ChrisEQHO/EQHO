@@ -69,41 +69,35 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const userId = session.metadata?.supabase_user_id
+  // client_reference_id contains the Supabase user ID (passed from Payment Link)
+  const userId = session.client_reference_id || session.metadata?.supabase_user_id
   const customerId = session.customer as string
   const subscriptionId = session.subscription as string
 
   if (!userId) {
-    console.error('No user ID in checkout session metadata')
+    console.error('No user ID in checkout session (client_reference_id or metadata)')
     return
   }
 
   // Fetch the subscription details
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
-  const subscriptionData = {
-    user_id: userId,
-    stripe_customer_id: customerId,
-    stripe_subscription_id: subscriptionId,
-    status: mapStripeStatus(subscription.status),
-    price_id: subscription.items.data[0]?.price.id || null,
-    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-    cancel_at_period_end: subscription.cancel_at_period_end,
-    trial_end: subscription.trial_end 
-      ? new Date(subscription.trial_end * 1000).toISOString() 
-      : null,
-    updated_at: new Date().toISOString(),
-  }
-
+  // Update the profiles table with subscription data
   const { error } = await supabaseAdmin
-    .from('subscriptions')
-    .upsert(subscriptionData, {
-      onConflict: 'user_id',
+    .from('profiles')
+    .update({
+      stripe_customer_id: customerId,
+      subscription_id: subscriptionId,
+      subscription_status: mapStripeStatus(subscription.status),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      trial_end: subscription.trial_end 
+        ? new Date(subscription.trial_end * 1000).toISOString() 
+        : null,
     })
+    .eq('user_id', userId)
 
   if (error) {
-    console.error('Error upserting subscription after checkout:', error)
+    console.error('Error updating profile after checkout:', error)
     throw error
   }
 
@@ -113,40 +107,51 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string
 
-  // Find the user by customer ID
-  const { data: existingSubscription, error: fetchError } = await supabaseAdmin
-    .from('subscriptions')
+  // Find the user by customer ID in profiles table
+  const { data: profile, error: fetchError } = await supabaseAdmin
+    .from('profiles')
     .select('user_id')
     .eq('stripe_customer_id', customerId)
     .single()
 
-  if (fetchError || !existingSubscription) {
+  if (fetchError || !profile) {
     // Try to get user ID from subscription metadata
     const userId = subscription.metadata?.supabase_user_id
     if (!userId) {
       console.error('Could not find user for subscription update')
       return
     }
-  }
-
-  const userId = existingSubscription?.user_id || subscription.metadata?.supabase_user_id
-
-  const subscriptionData = {
-    stripe_subscription_id: subscription.id,
-    status: mapStripeStatus(subscription.status),
-    price_id: subscription.items.data[0]?.price.id || null,
-    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-    cancel_at_period_end: subscription.cancel_at_period_end,
-    trial_end: subscription.trial_end 
-      ? new Date(subscription.trial_end * 1000).toISOString() 
-      : null,
-    updated_at: new Date().toISOString(),
+    
+    // Update by user_id instead
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        subscription_id: subscription.id,
+        subscription_status: mapStripeStatus(subscription.status),
+        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        trial_end: subscription.trial_end 
+          ? new Date(subscription.trial_end * 1000).toISOString() 
+          : null,
+      })
+      .eq('user_id', userId)
+      
+    if (error) {
+      console.error('Error updating subscription by user_id:', error)
+      throw error
+    }
+    return
   }
 
   const { error } = await supabaseAdmin
-    .from('subscriptions')
-    .update(subscriptionData)
+    .from('profiles')
+    .update({
+      subscription_id: subscription.id,
+      subscription_status: mapStripeStatus(subscription.status),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      trial_end: subscription.trial_end 
+        ? new Date(subscription.trial_end * 1000).toISOString() 
+        : null,
+    })
     .eq('stripe_customer_id', customerId)
 
   if (error) {
@@ -161,12 +166,10 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string
 
   const { error } = await supabaseAdmin
-    .from('subscriptions')
+    .from('profiles')
     .update({
-      status: 'canceled',
-      stripe_subscription_id: null,
-      cancel_at_period_end: false,
-      updated_at: new Date().toISOString(),
+      subscription_status: 'canceled',
+      subscription_id: null,
     })
     .eq('stripe_customer_id', customerId)
 
@@ -182,10 +185,9 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   const customerId = invoice.customer as string
 
   const { error } = await supabaseAdmin
-    .from('subscriptions')
+    .from('profiles')
     .update({
-      status: 'past_due',
-      updated_at: new Date().toISOString(),
+      subscription_status: 'past_due',
     })
     .eq('stripe_customer_id', customerId)
 

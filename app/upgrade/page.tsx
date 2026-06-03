@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Check, Cloud, Zap, Shield, ArrowLeft, Loader2 } from 'lucide-react'
+import { Check, Cloud, Zap, Shield, ArrowLeft, Loader2, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { createCheckoutSession } from '@/app/actions/subscription'
+import { createClient } from '@/lib/supabase/client'
+
+// Stripe Payment Link with 30-day free trial
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_bIYeYb5lB1CS2LS145'
 
 const features = [
   {
@@ -36,27 +39,48 @@ const comparisonFeatures = [
 ]
 
 export default function UpgradePage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const canceled = searchParams.get('canceled')
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
-  const handleUpgrade = async () => {
+  // Get current user info to pass to Stripe
+  useEffect(() => {
+    const getUser = async () => {
+      const supabase = createClient()
+      if (!supabase) return
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+        setUserEmail(user.email || null)
+      }
+    }
+    getUser()
+  }, [])
+
+  const handleUpgrade = () => {
     setIsLoading(true)
-    setError(null)
-
-    const result = await createCheckoutSession()
-
-    if (result.error) {
-      setError(result.error)
-      setIsLoading(false)
-      return
+    
+    // Build the Payment Link URL with prefilled email and client reference
+    let paymentUrl = STRIPE_PAYMENT_LINK
+    const params = new URLSearchParams()
+    
+    if (userEmail) {
+      params.set('prefilled_email', userEmail)
     }
-
-    if (result.url) {
-      router.push(result.url)
+    if (userId) {
+      params.set('client_reference_id', userId)
     }
+    
+    const queryString = params.toString()
+    if (queryString) {
+      paymentUrl += `?${queryString}`
+    }
+    
+    // Redirect to Stripe Payment Link
+    window.location.href = paymentUrl
   }
 
   return (
@@ -155,7 +179,7 @@ export default function UpgradePage() {
               <Button
                 onClick={handleUpgrade}
                 disabled={isLoading}
-                className="h-12 px-8 text-base font-semibold text-white border-0"
+                className="h-12 px-8 text-base font-semibold text-white border-0 gap-2"
                 style={{
                   background: 'linear-gradient(135deg, var(--eqho-pink) 0%, var(--eqho-orange) 100%)',
                   boxShadow: 'var(--eqho-btn-shadow)',
@@ -164,15 +188,18 @@ export default function UpgradePage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Processing...
+                    Redirecting...
                   </>
                 ) : (
-                  'Start 30-Day Free Trial'
+                  <>
+                    Start 30-Day Free Trial
+                    <ExternalLink className="h-4 w-4" />
+                  </>
                 )}
               </Button>
-              {error && (
-                <p className="text-sm text-red-400 text-center">{error}</p>
-              )}
+              <p className="text-xs text-center" style={{ color: 'var(--eqho-text-muted)' }}>
+                You&apos;ll be redirected to Stripe for secure payment
+              </p>
             </div>
           </div>
         </div>

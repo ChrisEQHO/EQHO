@@ -56,13 +56,13 @@ export async function checkProStatus(): Promise<boolean> {
     if (!user) return false
 
     const { data } = await supabase
-      .from('subscriptions')
-      .select('status')
+      .from('profiles')
+      .select('subscription_status')
       .eq('user_id', user.id)
       .single()
 
     if (!data) return false
-    return data.status === 'active' || data.status === 'trialing'
+    return data.subscription_status === 'active' || data.subscription_status === 'trialing'
   } catch {
     return false
   }
