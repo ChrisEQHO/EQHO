@@ -411,6 +411,43 @@ export default function Page() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
+  // Stripe Payment Link with 30-day free trial
+  const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/bJefZbeVz4nu9s32RT3F602';
+
+  // Check subscription status and redirect to Stripe if needed
+  useEffect(() => {
+    // Skip in V0 preview mode
+    if (isV0Preview) return;
+    
+    // Wait for user to be loaded
+    if (!supabase || !user) return;
+    
+    const checkSubscription = async () => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('user_id', user.id)
+        .single();
+      
+      console.log('[v0] Main app - Subscription check:', { userId: user.id, profile });
+      
+      // User needs subscription if subscription_status is not active/trialing/past_due
+      const hasActiveSubscription = profile?.subscription_status && 
+        ['active', 'trialing', 'past_due'].includes(profile.subscription_status);
+      
+      if (!hasActiveSubscription) {
+        console.log('[v0] Main app - No active subscription, redirecting to Stripe');
+        // Redirect to Stripe Payment Link for free trial
+        const paymentUrl = new URL(STRIPE_PAYMENT_LINK);
+        paymentUrl.searchParams.set('client_reference_id', user.id);
+        paymentUrl.searchParams.set('prefilled_email', user.email || '');
+        window.location.href = paymentUrl.toString();
+      }
+    };
+    
+    checkSubscription();
+  }, [supabase, user]);
+
   const handleLogout = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
