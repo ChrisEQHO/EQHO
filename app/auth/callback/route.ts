@@ -38,19 +38,29 @@ export async function GET(request: NextRequest) {
       // Get the user to check subscription status
       const { data: { user } } = await supabase.auth.getUser()
       
+      console.log('[v0] Auth callback - User:', user?.id, user?.email)
+      
       if (user) {
         // Check if user has a subscription in the profiles table
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('subscription_status, stripe_customer_id')
           .eq('user_id', user.id)
           .single()
 
-        // If user has no profile or no subscription, redirect to start free trial
-        const hasSubscription = profile?.subscription_status && 
+        console.log('[v0] Auth callback - Profile query:', { profile, profileError })
+
+        // User needs subscription if:
+        // 1. No profile exists (profileError)
+        // 2. Profile exists but subscription_status is null/undefined
+        // 3. Profile exists but subscription_status is not active/trialing/past_due
+        const hasActiveSubscription = profile?.subscription_status && 
           ['active', 'trialing', 'past_due'].includes(profile.subscription_status)
         
-        if (!hasSubscription) {
+        console.log('[v0] Auth callback - Has active subscription:', hasActiveSubscription)
+        
+        if (!hasActiveSubscription) {
+          console.log('[v0] Auth callback - Redirecting to Stripe for free trial')
           // Redirect to Stripe Payment Link with user info for the free trial
           const paymentUrl = new URL(STRIPE_PAYMENT_LINK)
           paymentUrl.searchParams.set('client_reference_id', user.id)

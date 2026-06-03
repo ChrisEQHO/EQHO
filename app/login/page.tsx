@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -17,17 +17,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-
-  // V0 Preview bypass: redirect to main app
-  useEffect(() => {
-    const isPreviewMode =
-      process.env.NODE_ENV === "development" ||
-      process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
-    
-    if (isPreviewMode) {
-      router.replace("/")
-    }
-  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,17 +43,28 @@ export default function LoginPage() {
       // Check if user has an active subscription
       const { data: { user } } = await supabase.auth.getUser()
       
+      console.log('[v0] Login - User:', user?.id, user?.email)
+      
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('subscription_status')
           .eq('user_id', user.id)
           .single()
         
-        const hasSubscription = profile?.subscription_status && 
+        console.log('[v0] Login - Profile query result:', { profile, profileError })
+        
+        // User needs subscription if:
+        // 1. No profile exists (profileError)
+        // 2. Profile exists but subscription_status is null/undefined
+        // 3. Profile exists but subscription_status is not active/trialing/past_due
+        const hasActiveSubscription = profile?.subscription_status && 
           ['active', 'trialing', 'past_due'].includes(profile.subscription_status)
         
-        if (!hasSubscription) {
+        console.log('[v0] Login - Has active subscription:', hasActiveSubscription)
+        
+        if (!hasActiveSubscription) {
+          console.log('[v0] Login - Redirecting to Stripe for free trial')
           // Redirect to Stripe Payment Link for free trial
           const paymentUrl = new URL(STRIPE_PAYMENT_LINK)
           paymentUrl.searchParams.set('client_reference_id', user.id)
