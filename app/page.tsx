@@ -1324,19 +1324,32 @@ export default function Page() {
         });
       }
     } else {
-      // On last track - restart playlist from the first track
-      setCurrentIndex(0);
-      const firstTrack = playlist[0];
-      setCurrentTrack(firstTrack);
-      if (audioRef.current && firstTrack) {
-        audioRef.current.src = firstTrack.url;
-        // Autoplay when restarting playlist
-        audioRef.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch((err) => {
-          console.error('Autoplay failed:', err);
-          setIsPlaying(false);
-        });
+      // On last track - check if we need to repeat or end session
+      if (playlistRound < playlistRepeats) {
+        // More rounds to go - increment round and restart from first track
+        setPlaylistRound((r) => r + 1);
+        setCurrentIndex(0);
+        const firstTrack = playlist[0];
+        setCurrentTrack(firstTrack);
+        if (audioRef.current && firstTrack) {
+          audioRef.current.src = firstTrack.url;
+          audioRef.current.play().then(() => {
+            setIsPlaying(true);
+          }).catch((err) => {
+            console.error('Autoplay failed:', err);
+            setIsPlaying(false);
+          });
+        }
+      } else {
+        // All rounds complete - end session
+        setFinishedTracks(new Set(playlist.map((t) => t.id)));
+        setIsPlaying(false);
+        setSessionRunning(false);
+        setPlaylistRound(1);
+        setShowSessionFinished(true);
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
       }
     }
   };
