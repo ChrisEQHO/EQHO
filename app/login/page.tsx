@@ -331,11 +331,6 @@ export default function LoginPage() {
         </div>
 
         <div className="relative max-w-md">
-          {/* Crown Icon */}
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] shadow-[0_8px_32px_rgba(255,79,163,0.4)]">
-            <Crown className="h-10 w-10 text-white" />
-          </div>
-
           <h2 className="text-4xl font-bold mb-4 text-white">
             Get EQHO Player Pro
           </h2>
