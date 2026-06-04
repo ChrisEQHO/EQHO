@@ -3090,40 +3090,6 @@ export default function Page() {
                   </div>
                 )}
               </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] overflow-hidden">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">Uploaded Tracks</h2>
-                {uploadedTracks.length === 0 ? (
-                  <p className="text-white/40 text-center py-4 text-xs">No tracks uploaded</p>
-                ) : (
-                  <div className="space-y-2 max-h-[150px] overflow-y-auto">
-                    {uploadedTracks.map((track) => (
-                      <div
-                        key={track.id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("trackId", track.id);
-                          e.dataTransfer.setData("trackJson", JSON.stringify(track));
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        className="flex items-center gap-2 cursor-grab active:cursor-grabbing"
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUploadedTracks((prev) => prev.filter((t) => t.id !== track.id));
-                          }}
-                          className="grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-white/5 text-white/60 hover:border-red-500/60 hover:text-red-400"
-                        >
-                          <X size={10} />
-                        </button>
-                        <p className="truncate text-white text-[11px] flex-1">{track.title}</p>
-                        <PlayPauseButton track={track} onPlay={handleUploadedTrackPlayPause} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </aside>
 
             {/* MIDDLE: UP NEXT (IN ORDER) */}
