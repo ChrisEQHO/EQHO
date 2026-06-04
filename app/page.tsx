@@ -80,6 +80,13 @@ import {
   Bell,
   Crown,
   CreditCard,
+  HelpCircle,
+  BookOpen,
+  MousePointer,
+  Move,
+  Eye,
+  EyeOff,
+  Fullscreen,
 } from "lucide-react";
 
 const uploads = [
@@ -315,6 +322,7 @@ export default function Page() {
     { icon: Home, page: "player", color: "pink" },
     { icon: ListMusic, page: "playlists", color: "pink" },
     { icon: Settings, page: "settings", color: "pink" },
+    { icon: HelpCircle, page: "help", color: "pink" },
   ] as const;
 
   const activeColors: Record<string, string> = {
@@ -5073,7 +5081,327 @@ export default function Page() {
                                         ))}
                                         {cloudPlaylist.tracks.length > 2 && (
                                           <p className="text-[9px] text-white/25 pl-4">+{cloudPlaylist.tracks.length - 2} more tracks</p>
-                                        )}
+        )}
+
+        {activePage === "help" && (
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            {/* Header */}
+            <div className="px-8 pt-6 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                  <BookOpen size={24} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">Help & User Guide</h1>
+                  <p className="text-white/60 text-sm">Learn how to use EQHO Player</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Help Content */}
+            <div className="p-8 space-y-8">
+              
+              {/* Getting Started */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                    <Play size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Getting Started</h2>
+                </div>
+                <p className="text-white/70 mb-4">
+                  EQHO Player is designed for coaches and athletes to manage training music with precision timing controls. 
+                  The player allows you to create playlists, set gaps between routines, and use full-screen coach mode during training sessions.
+                </p>
+                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                  <p className="text-sm text-white/60">
+                    <strong className="text-white">Quick Start:</strong> Upload a folder of music files to create a playlist, 
+                    then load it into your session and press Start Session.
+                  </p>
+                </div>
+              </div>
+
+              {/* Uploading Playlists */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                    <UploadCloud size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Uploading Playlists</h2>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Folder size={16} className="text-[#ff8a00]" />
+                      Prepare Your Music on Your Computer
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Before uploading, organize your music files into folders on your computer. Each folder will become a separate playlist. 
+                      Name your folders clearly (e.g., &quot;Competition Day 1&quot;, &quot;Warm Up Routines&quot;). 
+                      Supported formats: MP3, WAV, M4A.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <MousePointer size={16} className="text-[#ff8a00]" />
+                      Click to Upload
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the &quot;Upload Files & Playlists&quot; area on the home screen to open a file picker. 
+                      Select multiple audio files to create a new playlist.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Move size={16} className="text-[#ff8a00]" />
+                      Drag & Drop Folders
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Drag a folder directly from your computer onto the upload area. The folder name becomes the playlist name, 
+                      and all audio files inside are added as tracks. This is the fastest way to create organized playlists.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Managing Playlists */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <ListMusic size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Managing Playlists</h2>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-white mb-2">Loading a Playlist</h3>
+                    <p className="text-white/70 text-sm">
+                      Click on any playlist in the Playlists section to load it into your current session. 
+                      The tracks will appear in the Session Queue on the right side of the screen.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <RotateCcw size={16} className="text-cyan-400" />
+                      Reset Playlist
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Use the Reset button (circular arrow icon) to restore the playlist to its original order 
+                      and mark all tracks as unplayed. This is useful when starting a new training session.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Trash2 size={16} className="text-red-400" />
+                      Deleting Playlists
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the trash icon on any playlist to delete it. This action cannot be undone, 
+                      so make sure you have backups of your music files on your computer.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reordering Routines */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                    <GripVertical size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Reordering Routines</h2>
+                </div>
+                <div className="space-y-4">
+                  <p className="text-white/70">
+                    You can reorder tracks in your session queue using drag and drop:
+                  </p>
+                  <ol className="list-decimal list-inside space-y-2 text-white/70 text-sm">
+                    <li>Look for the <strong className="text-white">grip handle</strong> (six dots icon) on the left side of each track</li>
+                    <li>Click and hold the grip handle</li>
+                    <li>Drag the track up or down to your desired position</li>
+                    <li>Release to drop the track in its new position</li>
+                  </ol>
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <p className="text-sm text-white/60">
+                      <strong className="text-yellow-400">Tip:</strong> Reorder your routines before starting a session 
+                      to match your competition or training schedule.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hiding Tracks */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-500 to-slate-500 flex items-center justify-center">
+                    <EyeOff size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Hiding & Showing Tracks</h2>
+                </div>
+                <div className="space-y-4">
+                  <p className="text-white/70">
+                    Sometimes you may want to skip certain tracks without deleting them from your playlist:
+                  </p>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <EyeOff size={16} className="text-gray-400" />
+                      Hide a Track
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the eye icon on any track to hide it from your session. Hidden tracks will be skipped during playback 
+                      but remain in your playlist for future use.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Eye size={16} className="text-white" />
+                      Show a Track
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the eye icon again to show a hidden track. It will be included in playback again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Bar Controls */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                    <SlidersHorizontal size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Bottom Bar Controls</h2>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users size={16} className="text-white" />
+                        <h3 className="font-semibold text-white">Gap Between Routines</h3>
+                      </div>
+                      <p className="text-white/60 text-sm">
+                        Set the pause time between each routine. Use the +/- buttons to adjust in 5-second increments. 
+                        This gives athletes time to reset before the next routine starts.
+                      </p>
+                    </div>
+                    <div className="bg-white/5 rounded-xl p-4 border border-pink-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <RefreshCw size={16} className="text-pink-500" />
+                        <h3 className="font-semibold text-white">Back to Back (B2B)</h3>
+                      </div>
+                      <p className="text-white/60 text-sm">
+                        When enabled, each routine plays twice in a row before moving to the next track. 
+                        Perfect for practice runs where athletes repeat their routine immediately.
+                      </p>
+                    </div>
+                    <div className="bg-white/5 rounded-xl p-4 border border-orange-400/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock size={16} className="text-orange-400" />
+                        <h3 className="font-semibold text-white">Total Session Time</h3>
+                      </div>
+                      <p className="text-white/60 text-sm">
+                        Shows the total estimated duration of your session based on all tracks, gaps, and repeat settings.
+                      </p>
+                    </div>
+                    <div className="bg-white/5 rounded-xl p-4 border border-cyan-400/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Repeat size={16} className="text-cyan-400" />
+                        <h3 className="font-semibold text-white">Repeat Playlist</h3>
+                      </div>
+                      <p className="text-white/60 text-sm">
+                        Set how many times the entire playlist should repeat. Useful for endurance training 
+                        or when running multiple rounds of a competition.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fullscreen Coach Mode */}
+              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
+                    <Fullscreen size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Fullscreen Coach Mode</h2>
+                </div>
+                <div className="space-y-4">
+                  <p className="text-white/70">
+                    Fullscreen mode provides a large, easy-to-read display perfect for use during training sessions or competitions.
+                  </p>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2">How to Enter Fullscreen</h3>
+                    <p className="text-white/70 text-sm">
+                      Click the fullscreen icon (expand arrows) in the Now Playing section to enter coach mode. 
+                      On mobile, tap the &quot;Coach&quot; button in the navigation tabs.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2">Best Practices for Training</h3>
+                    <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
+                      <li>Connect your device to a large screen or projector for visibility</li>
+                      <li>Position the display where both coach and athletes can see it</li>
+                      <li>Set appropriate gap times to allow athletes to prepare</li>
+                      <li>Use the countdown feature to give athletes a heads-up before their music starts</li>
+                      <li>The large timer display helps athletes track their routine timing</li>
+                    </ul>
+                  </div>
+                  <div className="bg-cyan-500/10 rounded-xl p-4 border border-cyan-500/20">
+                    <p className="text-sm text-cyan-300">
+                      <strong>Pro Tip:</strong> During competitions, use fullscreen mode on a tablet or laptop 
+                      positioned near the competition floor. Athletes can see their upcoming routine and countdown in real-time.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Keyboard Shortcuts */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                    <Monitor size={18} />
+                  </div>
+                  <h2 className="text-xl font-bold">Tips & Shortcuts</h2>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b border-white/10">
+                    <span className="text-white/70">Spacebar</span>
+                    <span className="text-white text-sm">Play / Pause</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-white/10">
+                    <span className="text-white/70">Arrow Keys</span>
+                    <span className="text-white text-sm">Skip Forward / Back</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-white/10">
+                    <span className="text-white/70">Escape</span>
+                    <span className="text-white text-sm">Exit Fullscreen</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-white/70">Click on track</span>
+                    <span className="text-white text-sm">Jump to that routine</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Need More Help */}
+              <div className="rounded-2xl border border-[#ff4fa3]/20 bg-gradient-to-br from-[#ff4fa3]/5 to-[#ff8a00]/5 p-6 text-center">
+                <HelpCircle size={32} className="mx-auto mb-3 text-[#ff4fa3]" />
+                <h2 className="text-xl font-bold mb-2">Need More Help?</h2>
+                <p className="text-white/60 text-sm mb-4">
+                  If you have questions or need assistance, feel free to reach out to our support team.
+                </p>
+                <a 
+                  href="mailto:support@eqho.app" 
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-semibold hover:opacity-90 transition"
+                >
+                  <ExternalLink size={16} />
+                  Contact Support
+                </a>
+              </div>
+
+            </div>
+          </div>
+        )}
                                       </div>
                                       
                                       {/* Action Buttons */}
