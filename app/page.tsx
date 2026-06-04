@@ -3187,6 +3187,7 @@ export default function Page() {
                   Upload Files & Playlists
                 </h2>
                 <label
+                  htmlFor="file-upload-input"
                   onDrop={handleDropUpload}
                   onDragOver={handleDragOverUpload}
                   onDragEnter={handleDragEnterUpload}
@@ -3198,6 +3199,7 @@ export default function Page() {
                   }`}
                 >
                   <input
+                    id="file-upload-input"
                     type="file"
                     accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                     multiple
