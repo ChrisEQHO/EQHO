@@ -1324,13 +1324,20 @@ export default function Page() {
         });
       }
     } else {
-      // On last track - stop playback and end session
-      if (audioRef.current) {
-        audioRef.current.pause();
+      // On last track - restart playlist from the first track
+      setCurrentIndex(0);
+      const firstTrack = playlist[0];
+      setCurrentTrack(firstTrack);
+      if (audioRef.current && firstTrack) {
+        audioRef.current.src = firstTrack.url;
+        // Autoplay when restarting playlist
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch((err) => {
+          console.error('Autoplay failed:', err);
+          setIsPlaying(false);
+        });
       }
-      setIsPlaying(false);
-      setCurrentTrack(null);
-      setCurrentIndex(-1);
     }
   };
 
