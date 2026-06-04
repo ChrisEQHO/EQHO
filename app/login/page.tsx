@@ -277,15 +277,15 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Pro Subscription CTA (Desktop only) */}
-      <div className="hidden lg:flex flex-1 flex-col justify-center px-16 py-12 relative overflow-hidden bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]">
-        {/* Background decoration */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-30" />
-        <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 rounded-full blur-3xl bg-white/10" />
-        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl bg-black/20" />
+      <div className="hidden lg:flex flex-1 flex-col justify-center px-16 py-12 relative overflow-hidden bg-[#0f172a]">
+        {/* Background decoration - subtle gradient orbs */}
+        <div className="absolute -top-1/4 -right-1/4 w-96 h-96 rounded-full blur-3xl bg-[#ff4fa3]/20" />
+        <div className="absolute -bottom-1/4 -left-1/4 w-96 h-96 rounded-full blur-3xl bg-[#ff8a00]/20" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,79,163,0.08)_0%,transparent_60%)]" />
 
         <div className="relative max-w-md">
           {/* Crown Icon */}
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 bg-white/20 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] shadow-[0_8px_32px_rgba(255,79,163,0.4)]">
             <Crown className="h-10 w-10 text-white" />
           </div>
 
@@ -293,21 +293,21 @@ export default function LoginPage() {
             Get EQHO Player Pro
           </h2>
 
-          <p className="text-lg mb-8 text-white/80">
+          <p className="text-lg mb-8 text-[#94a3b8]">
             Professional music session management for coaches and athletes. 
             Subscribe to unlock full access.
           </p>
 
           {/* Pricing */}
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 mb-8">
+          <div className="bg-gradient-to-br from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/30 rounded-2xl p-6 mb-8">
             <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-5xl font-black text-white">£3.99</span>
-              <span className="text-white/70">/month</span>
+              <span className="text-5xl font-black bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">£3.99</span>
+              <span className="text-[#94a3b8]">/month</span>
             </div>
-            <p className="text-sm mb-3 text-white/90">
+            <p className="text-sm mb-3 text-white">
               Billed annually at £47.90/year (save 58%)
             </p>
-            <p className="text-sm text-white/60">
+            <p className="text-sm text-[#64748b]">
               Or £7.99/month billed monthly
             </p>
           </div>
@@ -320,8 +320,8 @@ export default function LoginPage() {
               'Advanced session management',
               'Priority customer support',
             ].map((feature) => (
-              <li key={feature} className="flex items-center gap-3 text-white">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-white/20">
+              <li key={feature} className="flex items-center gap-3 text-[#e2e8f0]">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]">
                   <Check className="w-4 h-4 text-white" />
                 </div>
                 {feature}
@@ -332,14 +332,14 @@ export default function LoginPage() {
           {/* Subscribe Button */}
           <button
             onClick={handleSubscribe}
-            className="w-full h-14 rounded-xl font-bold transition-all hover:scale-[1.02] flex items-center justify-center gap-3 bg-white text-[#ff4fa3] shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.4)]"
+            className="w-full h-14 rounded-xl font-bold transition-all hover:scale-[1.02] flex items-center justify-center gap-3 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_8px_32px_rgba(255,79,163,0.4)] hover:shadow-[0_12px_40px_rgba(255,79,163,0.5)]"
           >
             <CreditCard className="h-5 w-5" />
             Subscribe Now
             <ArrowRight className="h-5 w-5" />
           </button>
 
-          <p className="text-center text-sm mt-4 text-white/60">
+          <p className="text-center text-sm mt-4 text-[#64748b]">
             Secure payment via Stripe
           </p>
         </div>
