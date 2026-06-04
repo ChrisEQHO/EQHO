@@ -863,10 +863,11 @@ export default function Page() {
 
   useEffect(() => {
     const preventBrowserFileOpen = (event: DragEvent) => {
+      // Only prevent default behavior, don't stop propagation
+      // so that our component's onDrop handlers still receive the event
       event.preventDefault();
-      event.stopPropagation();
     };
-
+    
     window.addEventListener("dragover", preventBrowserFileOpen);
     window.addEventListener("drop", preventBrowserFileOpen);
 
