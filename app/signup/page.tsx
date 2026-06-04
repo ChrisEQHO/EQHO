@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, Eye, EyeOff, User, AlertCircle, Info } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from 'lucide-react'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -71,43 +71,20 @@ export default function SignupPage() {
 
       <div className="relative w-full max-w-md">
         {/* Logo */}
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-6">
           <Image
             src="/images/eqho-logo.png"
             alt="EQHO Player"
-            width={180}
-            height={180}
+            width={220}
+            height={220}
             priority
           />
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex justify-center mb-6">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#22d3ee]/10 border border-[#22d3ee]/30">
-            <span className="w-6 h-6 rounded-full bg-[#22d3ee] text-white text-sm font-bold flex items-center justify-center">1</span>
-            <span className="text-sm font-medium text-[#22d3ee]">Create your EQHO account first</span>
-          </div>
-        </div>
-
-        {/* Important info box */}
-        <div className="bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-4 mb-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-[#ff8a00] shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-[#ff8a00] mb-1">
-                Use the same email for your free trial
-              </p>
-              <p className="text-xs text-[#94a3b8]">
-                After creating your account, you&apos;ll start your 30-day free trial. Your EQHO account email must match your Stripe payment email.
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Signup Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
-          <p className="text-sm text-[#94a3b8] mb-6">Then start your 30-day free trial</p>
+          <p className="text-sm text-[#94a3b8] mb-6">Create your EQHO account to access EQHO Player Pro.</p>
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
@@ -149,7 +126,6 @@ export default function SignupPage() {
                   className="w-full pl-11 pr-4 py-3 bg-[#0a1020] border border-white/10 rounded-xl text-white placeholder:text-[#7c8596] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
                 />
               </div>
-              <p className="text-xs text-[#64748b] mt-1">Use this same email when setting up Stripe payment</p>
             </div>
 
             <div>
@@ -205,7 +181,7 @@ export default function SignupPage() {
               disabled={loading}
               className="w-full py-3.5 mt-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Create Account & Continue'}
+              {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
@@ -217,16 +193,6 @@ export default function SignupPage() {
               </Link>
             </p>
           </div>
-        </div>
-
-        {/* Trial info */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-[#94a3b8]">
-            After creating your account, you&apos;ll set up your 30-day free trial.
-          </p>
-          <p className="text-xs text-[#64748b] mt-1">
-            Your card will be charged £7.99/month after 30 days unless cancelled.
-          </p>
         </div>
       </div>
     </div>

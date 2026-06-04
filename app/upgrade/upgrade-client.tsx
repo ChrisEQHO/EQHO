@@ -149,6 +149,12 @@ export default function UpgradeClient() {
             />
           </div>
 
+          {/* Welcome message */}
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-white mb-2">Welcome to EQHO Player Pro</h2>
+            <p className="text-[#94a3b8]">Your EQHO account has been created successfully.</p>
+          </div>
+
           {/* Canceled notice */}
           {canceled && (
             <div className="mb-6 p-4 rounded-xl border flex items-start gap-3 bg-[#ff8a00]/10 border-[#ff8a00]/30">
@@ -163,32 +169,21 @@ export default function UpgradeClient() {
           {/* Logged in as */}
           {user && (
             <div className="bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-4 mb-6">
-              <p className="text-sm text-[#22d3ee]">
-                <span className="font-semibold">Signed in as:</span> {user.email}
-              </p>
-              <p className="text-xs text-[#94a3b8] mt-1">
-                Your 30-day trial will be linked to this email address.
-              </p>
+              <p className="text-sm text-[#94a3b8] mb-1">Your subscription and trial will be linked to this email address:</p>
+              <p className="text-lg font-semibold text-[#22d3ee]">{user.email}</p>
             </div>
           )}
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8">
-            <h2 className="text-3xl font-bold mb-2 text-white">
-              Start Your Free Trial
-            </h2>
-            <p className="text-[#94a3b8] mb-6">
-              Get full access to EQHO Player Pro for 30 days.
-            </p>
-
             {/* 30 Days Free Banner */}
-            <div className="bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 mb-6">
+            <div className="bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-5 mb-6">
               <div className="flex items-center gap-3">
-                <Sparkles className="h-6 w-6 text-white" />
+                <Sparkles className="h-8 w-8 text-white" />
                 <div>
-                  <p className="font-bold text-white text-lg">30 Days FREE</p>
+                  <p className="font-bold text-white text-2xl">30 Days FREE</p>
                   <p className="text-sm text-white/90">
-                    No charge until your trial ends. Cancel anytime.
+                    Try all EQHO Player Pro features free for 30 days.
                   </p>
                 </div>
               </div>
@@ -196,13 +191,13 @@ export default function UpgradeClient() {
 
             {/* Pricing info */}
             <div className="bg-[#020617] border border-white/10 rounded-xl p-4 mb-6">
-              <p className="text-sm text-[#94a3b8] mb-1">After your free trial:</p>
+              <p className="text-sm text-[#94a3b8] mb-1">Then</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">£7.99</span>
+                <span className="text-4xl font-black text-white">£7.99</span>
                 <span className="text-[#94a3b8]">/month</span>
               </div>
-              <p className="text-xs text-[#64748b] mt-1">
-                Or save 58% with annual billing at £47.90/year (£3.99/month)
+              <p className="text-sm text-[#64748b] mt-2">
+                Cancel anytime before the trial ends.
               </p>
             </div>
 
@@ -227,7 +222,7 @@ export default function UpgradeClient() {
             <button
               onClick={handleStartTrial}
               disabled={redirectingToStripe || !user}
-              className="w-full h-14 rounded-xl font-bold text-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-3 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-[0_8px_32px_rgba(34,197,94,0.4)] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full h-16 rounded-xl font-bold text-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-3 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-[0_8px_32px_rgba(34,197,94,0.4)] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {redirectingToStripe ? (
                 <>
@@ -243,18 +238,10 @@ export default function UpgradeClient() {
               )}
             </button>
 
-            <p className="text-center text-sm mt-4 text-[#94a3b8]">
-              You&apos;ll be redirected to Stripe for secure payment setup.
-            </p>
-            <p className="text-center text-xs mt-2 text-[#64748b]">
-              Your card will be charged £7.99/month after 30 days unless cancelled.
+            <p className="text-center text-xs mt-4 text-[#64748b]">
+              You&apos;ll be redirected to Stripe. Your card won&apos;t be charged until the trial ends.
             </p>
           </div>
-
-          {/* Footer note */}
-          <p className="text-center text-xs text-[#64748b] mt-6">
-            Use the same email ({user?.email}) when completing Stripe checkout.
-          </p>
         </div>
       </main>
     </div>

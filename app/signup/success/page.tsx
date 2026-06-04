@@ -66,16 +66,9 @@ export default function SignupSuccessPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                Use the same email when setting up Stripe payment
+                Enjoy full access to EQHO Player Pro!
               </li>
             </ol>
-          </div>
-
-          {/* Trial info */}
-          <div className="bg-[#020617] border border-white/10 rounded-xl p-4 mb-6">
-            <p className="text-sm text-[#94a3b8]">
-              <span className="font-semibold text-white">30-day free trial</span> - Your card won&apos;t be charged until the trial ends. Cancel anytime.
-            </p>
           </div>
 
           <Link
