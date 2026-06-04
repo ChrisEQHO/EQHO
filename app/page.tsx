@@ -419,7 +419,7 @@ export default function Page() {
   }, [supabase]);
 
   // Stripe Payment Link with 30-day free trial
-  const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/bJefZbeVz4nu9s32RT3F602';
+  const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
 
   // Check subscription status and redirect to Stripe if needed
   useEffect(() => {

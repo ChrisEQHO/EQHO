@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
 // Stripe Payment Link with 30-day free trial
-const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_bIYeYb5lB1CS2LS145'
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603'
 
 const features = [
   {
