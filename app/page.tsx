@@ -5288,195 +5288,192 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar - Mobile 2x2 Layout */}
-      <div className="fixed bottom-0 left-0 right-0 min-h-[180px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-visible z-40 bg-[#050816]">
+      <div className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-4 md:px-4 py-3 md:py-2 overflow-visible">
-          {/* Mobile Layout - Compact Grid + Button */}
-          <div className="flex md:hidden flex-col gap-3">
-            {/* Controls Grid - Always 2 columns on mobile */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Gap Between Routines */}
-              <div className="flex flex-col items-center">
-                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">Gap</div>
-                <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
-                  <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Minus size={16} /></button>
-                  <span className="px-4 text-base font-bold text-white border-x border-white/15 min-w-[48px] text-center">{gapSeconds}s</span>
-                  <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Plus size={16} /></button>
-                </div>
+        {/* Mobile Layout - 2x2 Grid */}
+        <div className="flex md:hidden flex-col gap-4 px-4 py-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            {/* Gap Between Routines */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs font-semibold tracking-wide text-white/60 uppercase mb-2">Gap</div>
+              <div className="flex items-center rounded-xl border border-white/20 bg-white/5 overflow-hidden">
+                <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-5 py-3 text-white/80 active:bg-white/15 transition"><Minus size={18} /></button>
+                <span className="px-4 py-3 text-lg font-bold text-white border-x border-white/15 min-w-[56px] text-center bg-white/5">{gapSeconds}s</span>
+                <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-5 py-3 text-white/80 active:bg-white/15 transition"><Plus size={18} /></button>
               </div>
+            </div>
 
-              {/* Back to Back */}
-              <div className="flex flex-col items-center">
-                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">B2B</div>
+            {/* Back to Back */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs font-semibold tracking-wide text-white/60 uppercase mb-2">B2B</div>
+              <button 
+                onClick={() => updateBackToBack((v) => !v)}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 active:bg-white/10 transition"
+              >
+                <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 ${backToBack ? "border-pink-500 text-pink-500" : "border-white/30 text-white/40"}`}>
+                  <RefreshCw size={18} />
+                </div>
+                <div className={`h-8 w-14 rounded-full border-2 p-0.5 transition-colors ${
+                  backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"
+                }`}>
+                  <div className={`h-7 w-7 rounded-full transition-transform ${
+                    backToBack ? "translate-x-6 bg-pink-500" : "translate-x-0 bg-white/50"
+                  }`} />
+                </div>
+              </button>
+            </div>
+
+            {/* Total Session Time */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs font-semibold tracking-wide text-white/60 uppercase mb-2">Time</div>
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-cyan-400 text-cyan-400">
+                  <Clock size={18} />
+                </div>
+                <div className="text-white text-2xl font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+              </div>
+            </div>
+
+            {/* Repeats */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs font-semibold tracking-wide text-white/60 uppercase mb-2">Reps</div>
+              <div className="flex items-center rounded-xl border border-white/20 bg-white/5 overflow-hidden">
+                <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-5 py-3 text-white/80 active:bg-white/15 transition"><Minus size={18} /></button>
+                <span className="px-4 py-3 text-lg font-bold text-white border-x border-white/15 min-w-[48px] text-center bg-white/5">{playlistRepeats}x</span>
+                <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-5 py-3 text-white/80 active:bg-white/15 transition"><Plus size={18} /></button>
+              </div>
+            </div>
+          </div>
+
+          {/* Session Button */}
+          <button
+            onClick={handlePauseClick}
+            disabled={!currentTrack && playlist.length === 0}
+            className={`w-full py-5 text-lg font-bold rounded-2xl transition disabled:opacity-30 ${
+              isGapPaused
+                ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
+                : isPlaying
+                  ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
+                  : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/30"
+            }`}
+          >
+            {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
+          </button>
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden md:flex flex-wrap items-center justify-center gap-6 px-6 py-4">
+          {/* Gap Between Routines */}
+          <div className="flex items-center gap-4 px-4 py-3 rounded-xl border border-white/10 bg-white/5">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 border-white/50 text-white">
+              <Users size={22} />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold tracking-wide text-white/70 uppercase">Gap Between Routines</div>
+              <div className="mt-1 flex items-center rounded-lg border border-white/20 bg-white/5 overflow-hidden">
+                <button 
+                  onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))}
+                  className="px-4 py-2 text-white/90 hover:bg-white/10 transition"
+                >
+                  <Minus size={16} />
+                </button>
+                <div className="border-x border-white/15 px-5 py-2 text-lg font-bold text-white bg-white/5 min-w-[80px] text-center">{gapSeconds} sec</div>
+                <button 
+                  onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))}
+                  className="px-4 py-2 text-white/90 hover:bg-white/10 transition"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Back To Back */}
+          <div className="flex items-center gap-4 px-4 py-3 rounded-xl border border-pink-500/20 bg-pink-500/5">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 border-pink-500 text-pink-500">
+              <RefreshCw size={22} />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold tracking-wide text-white/70 uppercase">Back to Back</div>
+              <div className="mt-1 flex items-center gap-3">
                 <button 
                   onClick={() => updateBackToBack((v) => !v)}
-                  className="flex items-center gap-2.5 py-1"
+                  className="flex items-center gap-2"
                 >
-                  <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
-                    <RefreshCw size={16} />
-                  </div>
-                  <div className={`h-7 w-12 rounded-full border p-0.5 transition-colors ${
-                    backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"
+                  <span className="text-sm font-semibold text-white min-w-[28px]">{backToBack ? "On" : "Off"}</span>
+                  <div className={`h-7 w-14 rounded-full border-2 p-0.5 transition-colors duration-200 ${
+                    backToBack 
+                      ? "border-pink-500 bg-pink-500/30" 
+                      : "border-white/25 bg-white/15"
                   }`}>
-                    <div className={`h-6 w-6 rounded-full transition-transform ${
-                      backToBack ? "translate-x-5 bg-pink-500" : "translate-x-0 bg-white/40"
+                    <div className={`h-6 w-6 rounded-full transition-transform duration-200 ${
+                      backToBack 
+                        ? "translate-x-7 bg-pink-500" 
+                        : "translate-x-0 bg-white/50"
                     }`} />
                   </div>
                 </button>
               </div>
-
-              {/* Total Session Time */}
-              <div className="flex flex-col items-center">
-                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">Time</div>
-                <div className="flex items-center gap-2.5 py-1">
-                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                    <Clock size={16} />
-                  </div>
-                  <div className="text-white text-xl font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
-                </div>
-              </div>
-
-              {/* Repeats */}
-              <div className="flex flex-col items-center">
-                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">Reps</div>
-                <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
-                  <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Minus size={16} /></button>
-                  <span className="px-4 text-base font-bold text-white border-x border-white/15 min-w-[40px] text-center">{playlistRepeats}x</span>
-                  <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Plus size={16} /></button>
-                </div>
-              </div>
             </div>
-
-            {/* Session Button */}
-            <button
-              onClick={handlePauseClick}
-              disabled={!currentTrack && playlist.length === 0}
-              className={`w-full py-4 text-base font-bold rounded-xl transition disabled:opacity-30 ${
-                isGapPaused
-                  ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
-                  : isPlaying
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
-                    : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/30"
-              }`}
-            >
-              {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
-            </button>
           </div>
 
-          {/* Desktop Layout */}
-          <div className="hidden md:flex flex-wrap items-center justify-start gap-4">
-            {/* Gap Between Routines */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white text-white">
-                <Users size={18} />
-              </div>
-              <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">GAP BETWEEN ROUTINES</div>
-                <div className="mt-0.5 flex items-center rounded border border-white/20 bg-white/5">
-                  <button 
-                    onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))}
-                    className="px-2.5 py-1 text-white/90 hover:text-white"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <div className="border-x border-white/15 px-4 py-1 text-base font-semibold text-white">{gapSeconds} sec</div>
-                  <button 
-                    onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))}
-                    className="px-2.5 py-1 text-white/90 hover:text-white"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
+          {/* Total Session Time */}
+          <div className="flex items-center gap-4 px-4 py-3 rounded-xl border border-orange-400/20 bg-orange-400/5">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 border-orange-400 text-orange-400">
+              <Clock size={24} />
             </div>
-
-            {/* Back To Back */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-pink-500 text-pink-500">
-                <RefreshCw size={18} />
-              </div>
-              <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">BACK TO BACK</div>
-                <div className="mt-0.5 flex items-center gap-2">
-                  <button 
-                    onClick={() => updateBackToBack((v) => !v)}
-                    className="flex items-center gap-1.5"
-                  >
-                    <span className="text-xs font-medium text-white">{backToBack ? "On" : "Off"}</span>
-                    <div className={`h-5 w-10 rounded-full border p-0.5 transition-colors duration-200 ${
-                      backToBack 
-                        ? "border-pink-500 bg-pink-500/30" 
-                        : "border-white/25 bg-white/15"
-                    }`}>
-                      <div className={`h-4 w-4 rounded-full transition-transform duration-200 ${
-                        backToBack 
-                          ? "translate-x-5 bg-pink-500" 
-                          : "translate-x-0 bg-white/50"
-                      }`} />
-                    </div>
-                  </button>
-                </div>
-              </div>
+            <div>
+              <div className="text-[11px] font-semibold tracking-wide text-white/70 uppercase">Total Session Time</div>
+              <div className="text-white text-2xl font-bold leading-tight">{formatSessionTime(totalSessionSeconds)}</div>
             </div>
-
-            {/* Total Session Time */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
-                <Clock size={20} />
-              </div>
-              <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">TOTAL SESSION TIME</div>
-                <div className="text-white text-xl font-bold leading-tight">{formatSessionTime(totalSessionSeconds)}</div>
-              </div>
-            </div>
-
-            {/* Repeat Playlist */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                <Repeat size={18} />
-              </div>
-              <div>
-                <div className="text-[10px] font-medium tracking-wide text-white/80">REPEAT PLAYLIST</div>
-                <div className="mt-0.5 flex items-center rounded border border-cyan-400/30 bg-cyan-400/5">
-                  <button
-                    onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))}
-                    className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <div className="border-x border-cyan-400/20 px-4 py-1 text-base font-semibold text-white">
-                    {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
-                  </div>
-                  <button
-                    onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))}
-                    className="px-2.5 py-1 text-cyan-300 hover:text-cyan-100 transition"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Start Session */}
-            <button 
-              onClick={toggleSession}
-              disabled={!currentTrack && playlist.length === 0}
-              className={`h-[52px] min-w-[160px] rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                isGapPaused
-                  ? "bg-white/10 border border-white/30 text-white animate-pulse"
-                  : isPlaying
-                    ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
-                    : sessionRunning && !isPlaying
-                      ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
-                      : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90 shadow-[0_0_20px_rgba(255,79,179,0.25)]"
-              }`}
-            >
-              {isGapPaused ? (
-                <span className="text-sm font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
-              ) : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
-            </button>
           </div>
+
+          {/* Repeat Playlist */}
+          <div className="flex items-center gap-4 px-4 py-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 border-cyan-400 text-cyan-400">
+              <Repeat size={22} />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold tracking-wide text-white/70 uppercase">Repeat Playlist</div>
+              <div className="mt-1 flex items-center rounded-lg border border-cyan-400/30 bg-cyan-400/5 overflow-hidden">
+                <button
+                  onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))}
+                  className="px-4 py-2 text-cyan-300 hover:bg-cyan-400/10 transition"
+                >
+                  <Minus size={16} />
+                </button>
+                <div className="border-x border-cyan-400/20 px-5 py-2 text-lg font-bold text-white bg-cyan-400/5 min-w-[60px] text-center">
+                  {playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}
+                </div>
+                <button
+                  onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))}
+                  className="px-4 py-2 text-cyan-300 hover:bg-cyan-400/10 transition"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Start Session */}
+          <button 
+            onClick={toggleSession}
+            disabled={!currentTrack && playlist.length === 0}
+            className={`h-[60px] min-w-[180px] rounded-xl text-base font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+              isGapPaused
+                ? "bg-white/10 border-2 border-white/30 text-white animate-pulse"
+                : isPlaying
+                  ? "bg-[#ff8a00]/15 border-2 border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
+                  : sessionRunning && !isPlaying
+                    ? "bg-cyan-500/15 border-2 border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
+                    : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90 shadow-[0_0_25px_rgba(255,79,179,0.3)]"
+            }`}
+          >
+            {isGapPaused ? (
+              <span className="text-lg font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+            ) : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
+          </button>
         </div>
       </div>
 
