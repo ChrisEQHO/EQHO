@@ -307,11 +307,25 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Pro Subscription CTA (Desktop only) */}
-      <div className="hidden lg:flex flex-1 flex-col justify-center px-16 py-12 relative overflow-hidden bg-[#0f172a]">
-        {/* Background decoration - subtle gradient orbs */}
-        <div className="absolute -top-1/4 -right-1/4 w-96 h-96 rounded-full blur-3xl bg-[#ff4fa3]/20" />
-        <div className="absolute -bottom-1/4 -left-1/4 w-96 h-96 rounded-full blur-3xl bg-[#ff8a00]/20" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,79,163,0.08)_0%,transparent_60%)]" />
+      <div className="hidden lg:flex flex-1 flex-col justify-center px-16 py-12 relative overflow-hidden bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f0f1a]">
+        {/* Animated mesh gradient background */}
+        <div className="absolute inset-0">
+          {/* Large gradient orbs */}
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-[120px] bg-gradient-to-br from-[#ff4fa3]/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-[100px] bg-gradient-to-tr from-[#ff8a00]/25 to-transparent" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full blur-[80px] bg-[#22c55e]/10" />
+          
+          {/* Grid pattern overlay */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundSize: '50px 50px'
+          }} />
+          
+          {/* Floating shapes */}
+          <div className="absolute top-20 right-20 w-32 h-32 border border-[#ff4fa3]/20 rounded-2xl rotate-12" />
+          <div className="absolute bottom-32 left-16 w-24 h-24 border border-[#ff8a00]/20 rounded-full" />
+          <div className="absolute top-1/3 right-1/4 w-16 h-16 bg-gradient-to-br from-[#ff4fa3]/10 to-[#ff8a00]/10 rounded-xl rotate-45" />
+        </div>
 
         <div className="relative max-w-md">
           {/* Important Notice */}
