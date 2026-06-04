@@ -2636,6 +2636,7 @@ export default function Page() {
                     const isActiveTrack = currentTrack?.id === track.id;
                     const isCompleted = originalIndex < currentIndex;
                     const isDropTarget = dropTargetIndex === originalIndex && draggedTrackIndex !== null;
+                    const isHidden = hiddenTrackIds.has(track.id);
 
                     return (
                       <div key={track.id} className="relative">
@@ -2701,42 +2702,61 @@ export default function Page() {
                             dropPositionRef.current = "below";
                           }}
                           className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
-                            isActiveTrack
+                            isHidden
+                              ? "opacity-40 bg-white/[0.01] border border-dashed border-white/10"
+                              : isActiveTrack
                               ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
                               : isCompleted
                               ? "opacity-50 bg-white/[0.02]"
                               : "bg-white/[0.03] hover:bg-white/[0.06]"
                           } ${draggedTrackIndex === originalIndex ? "opacity-50 scale-95" : ""}`}
                           onClick={() => {
+                            if (isHidden) return; // Don't allow clicking hidden tracks
                             setCurrentIndex(originalIndex);
                             togglePlayPause(track);
                           }}
                         >
-                          <span className={`text-sm font-black w-6 ${colour}`}>{originalIndex + 1}</span>
+                          <span className={`text-sm font-black w-6 ${isHidden ? "text-white/20" : colour}`}>{originalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-semibold truncate ${isActiveTrack ? colour : "text-white"}`}>
+                            <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
                               {track.title}
                             </p>
-                            <p className="text-[10px] text-white/50">{formatDuration(track.durationSeconds)}</p>
+                            <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>{isHidden ? "Hidden" : formatDuration(track.durationSeconds)}</p>
                           </div>
-                          {isActiveTrack && isPlaying && (
+                          {!isHidden && isActiveTrack && isPlaying && (
                             <div className="flex gap-0.5">
                               {[1, 2, 3].map((i) => (
                                 <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
                               ))}
                             </div>
                           )}
-                          {isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              hideTrackFromSession(track.id);
-                            }}
-                            className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
-                            title="Hide from this session"
-                          >
-                            <X size={14} />
-                          </button>
+                          {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
+                          {isHidden ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHiddenTrackIds(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(track.id);
+                                  return next;
+                                });
+                              }}
+                              className="ml-1 px-2 py-1 rounded-lg text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
+                            >
+                              Unhide
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                hideTrackFromSession(track.id);
+                              }}
+                              className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
+                              title="Hide from this session"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
                         {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
                           <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
@@ -2977,18 +2997,26 @@ export default function Page() {
                   </div>
                 ) : (
                   <div className="space-y-1 p-2">
-                    {visiblePlaylist.map((track, idx) => {
+                    {playlist.map((track, idx) => {
                       const isCurrent = currentTrack?.id === track.id;
                       const isFinished = finishedTracks.has(track.id);
+                      const isHidden = hiddenTrackIds.has(track.id);
                       return (
-                        <div key={track.id} onClick={() => handleTrackSelect(track)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition ${isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
-                          <span className={`text-[10px] font-bold w-5 text-center ${isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
-                          <p className={`text-xs truncate flex-1 ${isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
-                          {isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
-                          {isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                          <button onClick={(e) => { e.stopPropagation(); if (sessionRunning || isPlaying) { setShowRemoveTrackConfirm({ track, originalIndex: idx }); } else { setPlaylist(prev => prev.filter(t => t.id !== track.id)); } }} className="p-1 rounded hover:bg-white/10">
-                            <X size={12} className="text-white/40" />
-                          </button>
+                        <div key={track.id} onClick={() => { if (!isHidden) handleTrackSelect(track); }} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                          <span className={`text-[10px] font-bold w-5 text-center ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
+                          <p className={`text-xs truncate flex-1 ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
+                          {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
+                          {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
+                          {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
+                          {isHidden ? (
+                            <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
+                              Unhide
+                            </button>
+                          ) : (
+                            <button onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }} className="p-1 rounded hover:bg-white/10">
+                              <X size={12} className="text-white/40" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -3293,23 +3321,24 @@ export default function Page() {
                 </div>
 
                 <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[calc(100vh-200px)] overflow-y-auto">
-                  {visiblePlaylist.length === 0 ? (
+                  {playlist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
                       <p className="mt-2 text-sm text-white/35">Upload tracks and add them to your playlist</p>
                     </div>
                   ) : (
                     (() => {
-                      return visiblePlaylist.map((track, visibleIndex) => {
-                        const originalIndex = playlist.findIndex(t => t.id === track.id);
+                      return playlist.map((track, originalIndex) => {
+                        const visibleIndex = getVisibleIndex(track.id);
                         const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                        const colour = colours[visibleIndex % colours.length];
+                        const colour = colours[originalIndex % colours.length];
                         const isActiveTrack = currentTrack?.id === track.id;
                         const isFinished = finishedTracks.has(track.id);
                         const isCompleted = !isFinished && originalIndex < currentIndex;
                         const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
                         const isDragging = draggedTrackIndex === originalIndex;
                         const isDropTarget = dropTargetIndex === originalIndex;
+                        const isHidden = hiddenTrackIds.has(track.id);
                       
                         return (
                           <div key={track.id} className="relative">
@@ -3384,13 +3413,16 @@ export default function Page() {
                                 dropPositionRef.current = "below";
                               }}
                               onClick={() => {
+                                if (isHidden) return; // Don't allow clicking hidden tracks
                                 setCurrentIndex(originalIndex);
                                 togglePlayPause(track);
                               }}
                               className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_44px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
                                 isDragging ? "opacity-40 bg-cyan-500/10" : ""
                               } ${
-                                isActiveTrack 
+                                isHidden
+                                  ? "border-white/5 opacity-40 border-dashed"
+                                  : isActiveTrack 
                                   ? "border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
                                   : isFinished
                                     ? "border-white/5 opacity-30"
@@ -3400,27 +3432,43 @@ export default function Page() {
                               <div className="cursor-grab active:cursor-grabbing">
                                 <GripVertical size={15} className="text-white/75 hover:text-white" />
                               </div>
-                              <div className={`text-[34px] font-black ${isFinished ? "text-white/20" : colour}`}>{visibleIndex + 1}</div>
+                              <div className={`text-[34px] font-black ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div>
-                                <div className={`text-base font-semibold ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
-                                <div className="text-xs text-white/85">
-                                  {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
+                                <div className={`text-base font-semibold ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                                <div className={`text-xs ${isHidden ? "text-white/20" : "text-white/85"}`}>
+                                  {isHidden ? "Hidden from session" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
                               </div>
                               <div className="flex flex-col items-end pr-2">
                                 <div className="text-[10px]">Duration</div>
-                                <div className={`text-base font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
+                                <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  hideTrackFromSession(track.id);
-                                }}
-                                className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
-                                title="Hide from this session (does not delete from playlist)"
-                              >
-                                <X size={18} className="md:w-4 md:h-4" />
-                              </button>
+                              {isHidden ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setHiddenTrackIds(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(track.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className="ml-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
+                                >
+                                  Unhide
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    hideTrackFromSession(track.id);
+                                  }}
+                                  className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
+                                  title="Hide from this session (does not delete from playlist)"
+                                >
+                                  <X size={18} className="md:w-4 md:h-4" />
+                                </button>
+                              )}
                             </div>
                             {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
                               <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
@@ -4509,7 +4557,7 @@ export default function Page() {
 
                     {/* Track List - Revolves to show current track at top */}
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                      {visiblePlaylist.length === 0 ? (
+                      {playlist.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-center py-8">
                           <p className="text-white/40 text-sm">No tracks queued</p>
                           <p className="text-white/25 text-xs mt-1">Go to Playlists tab to add music</p>
@@ -4517,34 +4565,37 @@ export default function Page() {
                       ) : (
                         <div className="space-y-1">
                           {(() => {
-                            // Find current track index in visible playlist
-                            const currentVisibleIndex = visiblePlaylist.findIndex(t => t.id === currentTrack?.id);
+                            // Find current track index in playlist
+                            const currentPlaylistIndex = playlist.findIndex(t => t.id === currentTrack?.id);
                             // Reorder: current track first, then remaining tracks after it, then tracks before it
-                            const reorderedPlaylist = currentVisibleIndex >= 0
+                            const reorderedPlaylist = currentPlaylistIndex >= 0
                               ? [
-                                  ...visiblePlaylist.slice(currentVisibleIndex),
-                                  ...visiblePlaylist.slice(0, currentVisibleIndex)
+                                  ...playlist.slice(currentPlaylistIndex),
+                                  ...playlist.slice(0, currentPlaylistIndex)
                                 ]
-                              : visiblePlaylist;
+                              : playlist;
                             
                             return reorderedPlaylist.map((track, displayIndex) => {
                               // Get original position for numbering
-                              const originalVisibleIndex = visiblePlaylist.findIndex(t => t.id === track.id);
                               const originalIndex = playlist.findIndex(t => t.id === track.id);
                               const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                              const colour = colours[originalVisibleIndex % colours.length];
+                              const colour = colours[originalIndex % colours.length];
                               const isActiveTrack = currentTrack?.id === track.id;
                               const isFinished = finishedTracks.has(track.id);
+                              const isHidden = hiddenTrackIds.has(track.id);
                               
                               return (
                                 <div
                                   key={track.id}
                                   onClick={() => {
+                                    if (isHidden) return; // Don't allow clicking hidden tracks
                                     setCurrentIndex(originalIndex);
                                     togglePlayPause(track);
                                   }}
                                   className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
-                                    isActiveTrack 
+                                    isHidden
+                                      ? "opacity-40 border border-dashed border-white/10"
+                                      : isActiveTrack 
                                       ? "bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
                                       : isFinished
                                         ? "opacity-40"
@@ -4552,36 +4603,52 @@ export default function Page() {
                                   }`}
                                 >
                                   {/* Track Number - shows original playlist position */}
-                                  <div className={`text-xl font-black w-6 text-center ${isFinished ? "text-white/20" : colour}`}>
-                                    {originalVisibleIndex + 1}
+                                  <div className={`text-xl font-black w-6 text-center ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>
+                                    {originalIndex + 1}
                                   </div>
                                   
                                   {/* Track Info */}
                                   <div className="flex-1 min-w-0">
-                                    <p className={`text-sm font-semibold truncate ${isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                    <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
                                       {track.title}
                                     </p>
-                                    <p className="text-[10px] text-white/50">
-                                      {isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
+                                    <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>
+                                      {isHidden ? "Hidden" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
                                     </p>
                                   </div>
                                   
                                   {/* Duration */}
                                   <div className="text-right shrink-0">
                                     <p className="text-[9px] text-white/40">Duration</p>
-                                    <p className={`text-sm font-bold ${isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
+                                    <p className={`text-sm font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
                                   </div>
                                   
-                                  {/* Remove Button */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      hideTrackFromSession(track.id);
-                                    }}
-                                    className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
-                                  >
-                                    <X size={14} />
-                                  </button>
+                                  {/* Remove/Unhide Button */}
+                                  {isHidden ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setHiddenTrackIds(prev => {
+                                          const next = new Set(prev);
+                                          next.delete(track.id);
+                                          return next;
+                                        });
+                                      }}
+                                      className="px-2 py-1 rounded-md text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
+                                    >
+                                      Unhide
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        hideTrackFromSession(track.id);
+                                      }}
+                                      className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  )}
                                 </div>
                               );
                             });
