@@ -1329,14 +1329,31 @@ export default function Page() {
   const goToPreviousTrack = () => {
     if (playlist.length === 0 || !audioRef.current) return;
     
-    // Reset current track to beginning and autoplay
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().then(() => {
-      setIsPlaying(true);
-    }).catch((err) => {
-      console.error('Autoplay failed:', err);
-      setIsPlaying(false);
-    });
+    // If within first 2 seconds and not on first track, go to previous track
+    if (audioRef.current.currentTime < 2 && currentIndex > 0) {
+      const prevIdx = currentIndex - 1;
+      setCurrentIndex(prevIdx);
+      const prevTrack = playlist[prevIdx];
+      setCurrentTrack(prevTrack);
+      if (prevTrack) {
+        audioRef.current.src = prevTrack.url;
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch((err) => {
+          console.error('Autoplay failed:', err);
+          setIsPlaying(false);
+        });
+      }
+    } else {
+      // Otherwise, reset current track to beginning and autoplay
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch((err) => {
+        console.error('Autoplay failed:', err);
+        setIsPlaying(false);
+      });
+    }
   };
 
   // Refs to hold latest values for the audio ended handler (avoids stale closures)
