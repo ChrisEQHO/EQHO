@@ -1244,7 +1244,10 @@ export default function Page() {
   };
 
   const resetPlaylist = () => {
-    if (originalPlaylistOrder.length === 0) return;
+    if (playlist.length === 0) return;
+    
+    // Use original order if available, otherwise reset current playlist state
+    const orderToRestore = originalPlaylistOrder.length > 0 ? originalPlaylistOrder : playlist;
     
     // Stop current playback
     if (audioRef.current) {
@@ -1252,11 +1255,11 @@ export default function Page() {
       audioRef.current.currentTime = 0;
     }
     
-    // Reset playlist to original order
-    setPlaylist([...originalPlaylistOrder]);
+    // Reset playlist to original order (or current order if no original stored)
+    setPlaylist([...orderToRestore]);
     setHiddenTrackIds(new Set());
     setCurrentIndex(0);
-    setCurrentTrack(originalPlaylistOrder[0]);
+    setCurrentTrack(orderToRestore[0]);
     setIsPlaying(false);
     setSessionRunning(false);
     setFinishedTracks(new Set());
@@ -1264,6 +1267,11 @@ export default function Page() {
     setBackToBackPlayed(false);
     setIsGapPaused(false);
     setGapCountdown(0);
+    
+    // Store as original if not already stored
+    if (originalPlaylistOrder.length === 0) {
+      setOriginalPlaylistOrder([...orderToRestore]);
+    }
   };
 
   const addTrackToPlaylist = (track: Track) => {
@@ -2496,7 +2504,7 @@ export default function Page() {
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-1.5">
-                {originalPlaylistOrder.length > 0 && (
+                {playlist.length > 0 && (
                   <button
                     onClick={resetPlaylist}
                     className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold hover:bg-cyan-500/20 transition"
@@ -2874,7 +2882,7 @@ export default function Page() {
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
                 <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
                 <div className="flex items-center gap-2">
-                  {originalPlaylistOrder.length > 0 && (
+                  {playlist.length > 0 && (
                     <button onClick={resetPlaylist} className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold flex items-center gap-1">
                       <RotateCcw size={10} />
                       Reset
@@ -3167,7 +3175,7 @@ export default function Page() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
                   <div className="flex items-center gap-2">
-                    {originalPlaylistOrder.length > 0 && (
+                    {playlist.length > 0 && (
                       <button
                         onClick={resetPlaylist}
                         disabled={playlist.length === 0}
@@ -4395,7 +4403,7 @@ export default function Page() {
                     <div className="flex items-center justify-between mb-2 shrink-0">
                       <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
                       <div className="flex items-center gap-2">
-                        {originalPlaylistOrder.length > 0 && (
+                        {playlist.length > 0 && (
                           <button
                             onClick={resetPlaylist}
                             disabled={playlist.length === 0}
