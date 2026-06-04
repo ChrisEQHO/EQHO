@@ -337,6 +337,7 @@ export default function Page() {
   const [dropMessage, setDropMessage] = useState("");
   const [uploadedTracks, setUploadedTracks] = useState<Track[]>([]);
   const [playlist, setPlaylist] = useState<Track[]>([]);
+  const [originalPlaylistOrder, setOriginalPlaylistOrder] = useState<Track[]>([]); // Store original order when first loaded
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(80);
@@ -1242,6 +1243,29 @@ export default function Page() {
     await clearCachedPlaylist();
   };
 
+  const resetPlaylist = () => {
+    if (originalPlaylistOrder.length === 0) return;
+    
+    // Stop current playback
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    
+    // Reset playlist to original order
+    setPlaylist([...originalPlaylistOrder]);
+    setHiddenTrackIds(new Set());
+    setCurrentIndex(0);
+    setCurrentTrack(originalPlaylistOrder[0]);
+    setIsPlaying(false);
+    setSessionRunning(false);
+    setFinishedTracks(new Set());
+    setPlaylistRound(1);
+    setBackToBackPlayed(false);
+    setIsGapPaused(false);
+    setGapCountdown(0);
+  };
+
   const addTrackToPlaylist = (track: Track) => {
     if (!track) return;
     
@@ -2096,6 +2120,7 @@ export default function Page() {
   setIsPlaying(false);
   }
   setPlaylist(tracks);
+  setOriginalPlaylistOrder([...tracks]); // Store original order
   setHiddenTrackIds(new Set()); // Clear hidden tracks when loading new playlist
   setCurrentPlaylistName(name);
                     setCurrentIndex(0);
@@ -2471,6 +2496,15 @@ export default function Page() {
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
               <div className="flex items-center gap-1.5">
+                {originalPlaylistOrder.length > 0 && (
+                  <button
+                    onClick={resetPlaylist}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold hover:bg-cyan-500/20 transition"
+                  >
+                    <RotateCcw size={10} />
+                    Reset
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     if (sessionRunning || isPlaying) {
@@ -2840,6 +2874,12 @@ export default function Page() {
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
                 <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
                 <div className="flex items-center gap-2">
+                  {originalPlaylistOrder.length > 0 && (
+                    <button onClick={resetPlaylist} className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold flex items-center gap-1">
+                      <RotateCcw size={10} />
+                      Reset
+                    </button>
+                  )}
                   <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
                 </div>
               </div>
@@ -2908,6 +2948,7 @@ export default function Page() {
                     setIsPlaying(false);
                   }
                   setPlaylist(tracks);
+                  setOriginalPlaylistOrder([...tracks]); // Store original order
                   setHiddenTrackIds(new Set());
                   setCurrentPlaylistName(name);
                   setCurrentIndex(0);
@@ -3126,6 +3167,16 @@ export default function Page() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
                   <div className="flex items-center gap-2">
+                    {originalPlaylistOrder.length > 0 && (
+                      <button
+                        onClick={resetPlaylist}
+                        disabled={playlist.length === 0}
+                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-md hover:bg-cyan-500/20 transition flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <RotateCcw size={12} />
+                        Reset
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);
@@ -4343,19 +4394,31 @@ export default function Page() {
                   <div className="flex-1 min-h-0 bg-white/[0.02] rounded-lg p-2 flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between mb-2 shrink-0">
                       <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
-                      <button
-                        onClick={() => {
-                          if (sessionRunning || isPlaying) {
-                            setShowClearPlaylistConfirm(true);
-                          } else {
-                            clearPlaylist();
-                          }
-                        }}
-                        disabled={playlist.length === 0}
-                        className="px-2 py-1 text-[9px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 transition disabled:opacity-30"
-                      >
-                        Clear
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {originalPlaylistOrder.length > 0 && (
+                          <button
+                            onClick={resetPlaylist}
+                            disabled={playlist.length === 0}
+                            className="px-2 py-1 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-md hover:bg-cyan-500/20 transition flex items-center gap-1 disabled:opacity-30"
+                          >
+                            <RotateCcw size={10} />
+                            Reset
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (sessionRunning || isPlaying) {
+                              setShowClearPlaylistConfirm(true);
+                            } else {
+                              clearPlaylist();
+                            }
+                          }}
+                          disabled={playlist.length === 0}
+                          className="px-2 py-1 text-[9px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 transition disabled:opacity-30"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     </div>
 
                     {/* Track List - Revolves to show current track at top */}
