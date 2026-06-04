@@ -5288,38 +5288,38 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[calc(160px+env(safe-area-inset-bottom))] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816]">
+      <div className="fixed bottom-0 left-0 right-0 min-h-[180px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-visible z-40 bg-[#050816]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-3 sm:px-4 md:px-4 py-2 landscape:py-1 md:py-2 overflow-hidden">
+        <div className="w-full max-w-full px-4 md:px-4 py-3 md:py-2 overflow-visible">
           {/* Mobile Layout - Compact Grid + Button */}
-          <div className="flex md:hidden flex-col gap-2 landscape:gap-1">
-            {/* Controls Grid - 2 columns stacked 2x2, 4 columns on wider screens */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 sm:gap-y-0.5">
+          <div className="flex md:hidden flex-col gap-3">
+            {/* Controls Grid - Always 2 columns on mobile */}
+            <div className="grid grid-cols-2 gap-4">
               {/* Gap Between Routines */}
               <div className="flex flex-col items-center">
-                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">Gap</div>
+                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">Gap</div>
                 <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
-                  <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-3 py-2 text-white/70"><Minus size={14} /></button>
-                  <span className="px-3 text-sm font-bold text-white border-x border-white/15 min-w-[40px] text-center">{gapSeconds}s</span>
-                  <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-3 py-2 text-white/70"><Plus size={14} /></button>
+                  <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Minus size={16} /></button>
+                  <span className="px-4 text-base font-bold text-white border-x border-white/15 min-w-[48px] text-center">{gapSeconds}s</span>
+                  <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Plus size={16} /></button>
                 </div>
               </div>
 
               {/* Back to Back */}
               <div className="flex flex-col items-center">
-                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">B2B</div>
+                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">B2B</div>
                 <button 
                   onClick={() => updateBackToBack((v) => !v)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2.5 py-1"
                 >
-                  <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
-                    <RefreshCw size={14} />
+                  <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
+                    <RefreshCw size={16} />
                   </div>
-                  <div className={`h-6 w-11 rounded-full border p-0.5 transition-colors ${
+                  <div className={`h-7 w-12 rounded-full border p-0.5 transition-colors ${
                     backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"
                   }`}>
-                    <div className={`h-5 w-5 rounded-full transition-transform ${
+                    <div className={`h-6 w-6 rounded-full transition-transform ${
                       backToBack ? "translate-x-5 bg-pink-500" : "translate-x-0 bg-white/40"
                     }`} />
                   </div>
@@ -5328,22 +5328,22 @@ export default function Page() {
 
               {/* Total Session Time */}
               <div className="flex flex-col items-center">
-                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">Time</div>
-                <div className="flex items-center gap-2">
-                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                    <Clock size={14} />
+                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">Time</div>
+                <div className="flex items-center gap-2.5 py-1">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                    <Clock size={16} />
                   </div>
-                  <div className="text-white text-lg font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                  <div className="text-white text-xl font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
                 </div>
               </div>
 
               {/* Repeats */}
               <div className="flex flex-col items-center">
-                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">Reps</div>
+                <div className="text-[11px] font-medium tracking-wide text-white/50 uppercase mb-1.5">Reps</div>
                 <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
-                  <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-3 py-2 text-white/70"><Minus size={14} /></button>
-                  <span className="px-3 text-sm font-bold text-white border-x border-white/15 min-w-[32px] text-center">{playlistRepeats}x</span>
-                  <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-3 py-2 text-white/70"><Plus size={14} /></button>
+                  <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Minus size={16} /></button>
+                  <span className="px-4 text-base font-bold text-white border-x border-white/15 min-w-[40px] text-center">{playlistRepeats}x</span>
+                  <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-4 py-2.5 text-white/70 active:bg-white/10"><Plus size={16} /></button>
                 </div>
               </div>
             </div>
@@ -5352,7 +5352,7 @@ export default function Page() {
             <button
               onClick={handlePauseClick}
               disabled={!currentTrack && playlist.length === 0}
-              className={`w-full py-3 pb-[calc(12px+env(safe-area-inset-bottom))] landscape:py-1.5 landscape:pb-1.5 md:py-2 md:pb-2 text-sm font-bold rounded-lg rounded-b-none transition disabled:opacity-30 ${
+              className={`w-full py-4 text-base font-bold rounded-xl transition disabled:opacity-30 ${
                 isGapPaused
                   ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                   : isPlaying
