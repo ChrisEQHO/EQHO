@@ -48,24 +48,8 @@ const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
 // Pro subscription check for cloud sync gating
 export async function checkProStatus(): Promise<boolean> {
-  const supabase = createClient()
-  if (!supabase) return false
-
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return false
-
-    const { data } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!data) return false
-    return data.subscription_status === 'active' || data.subscription_status === 'trialing'
-  } catch {
-    return false
-  }
+  // STRIPE TEMPORARILY DISABLED - Always return true to allow access
+  return true
 }
 
 // =====================
