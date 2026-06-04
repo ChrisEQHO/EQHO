@@ -5287,7 +5287,7 @@ export default function Page() {
         )}
       </div>
 
-      {/* Fixed Bottom Control Bar */}
+      {/* Fixed Bottom Control Bar - Mobile 2x2 Layout */}
       <div className="fixed bottom-0 left-0 right-0 min-h-[180px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-visible z-40 bg-[#050816]">
         <div className="session-bottom-divider" />
 
