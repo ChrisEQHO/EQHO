@@ -153,11 +153,11 @@ export default function LoginPage() {
           </div>
 
           {/* Important Notice - Subscription Required */}
-          <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 mb-6">
+          <div className="bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-4 mb-6">
             <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-[#22c55e] shrink-0 mt-0.5" />
+              <Shield className="h-5 w-5 text-[#22d3ee] shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-[#22c55e] mb-1">
+                <p className="text-sm font-semibold text-[#22d3ee] mb-1">
                   EQHO Pro Subscription Required
                 </p>
                 <p className="text-xs text-[#94a3b8]">
