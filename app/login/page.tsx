@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, Crown, CreditCard, ArrowRight, Check } from 'lucide-react'
 
@@ -137,11 +138,16 @@ export default function LoginPage() {
 
         <div className="relative w-full max-w-md mx-auto">
           {/* Logo */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-black tracking-tight text-white">
-              EQHO Player
-            </h1>
-            <p className="mt-2 text-sm text-[#94a3b8]">
+          <div className="mb-8 flex flex-col items-center">
+            <Image
+              src="/images/eqho-logo.png"
+              alt="EQHO Player"
+              width={200}
+              height={200}
+              className="mb-4"
+              priority
+            />
+            <p className="text-sm text-[#94a3b8]">
               Welcome back to your session
             </p>
           </div>
