@@ -1307,7 +1307,7 @@ export default function Page() {
         setIsPlaying(false);
       }
       
-      // Find next visible track after current index
+      // Find next visible track after current index (excluding the one being hidden)
       const currentIdx = playlist.findIndex(t => t.id === trackId);
       let nextVisibleIdx = -1;
       for (let i = currentIdx + 1; i < playlist.length; i++) {
@@ -1319,11 +1319,44 @@ export default function Page() {
       
       if (nextVisibleIdx >= 0) {
         setCurrentIndex(nextVisibleIdx);
-        setCurrentTrack(playlist[nextVisibleIdx]);
+        const nextTrack = playlist[nextVisibleIdx];
+        setCurrentTrack(nextTrack);
+        // Auto-play the next track
+        if (audioRef.current && nextTrack) {
+          audioRef.current.src = nextTrack.url;
+          audioRef.current.play().then(() => {
+            setIsPlaying(true);
+          }).catch(() => {
+            setIsPlaying(false);
+          });
+        }
       } else {
-        // No more visible tracks, stop session
-        setCurrentTrack(null);
-        setSessionRunning(false);
+        // No more visible tracks after, try from beginning
+        let firstVisibleIdx = -1;
+        for (let i = 0; i < currentIdx; i++) {
+          if (!hiddenTrackIds.has(playlist[i].id) && playlist[i].id !== trackId) {
+            firstVisibleIdx = i;
+            break;
+          }
+        }
+        
+        if (firstVisibleIdx >= 0) {
+          setCurrentIndex(firstVisibleIdx);
+          const firstTrack = playlist[firstVisibleIdx];
+          setCurrentTrack(firstTrack);
+          if (audioRef.current && firstTrack) {
+            audioRef.current.src = firstTrack.url;
+            audioRef.current.play().then(() => {
+              setIsPlaying(true);
+            }).catch(() => {
+              setIsPlaying(false);
+            });
+          }
+        } else {
+          // No visible tracks left, stop session
+          setCurrentTrack(null);
+          setSessionRunning(false);
+        }
       }
     }
     
@@ -1339,7 +1372,11 @@ export default function Page() {
   const goToNextTrack = () => {
     if (playlist.length === 0) return;
     
-    const nextIdx = currentIndex + 1;
+    // Find next non-hidden track
+    let nextIdx = currentIndex + 1;
+    while (nextIdx < playlist.length && hiddenTrackIds.has(playlist[nextIdx].id)) {
+      nextIdx++;
+    }
     
     if (nextIdx < playlist.length) {
       setCurrentIndex(nextIdx);
@@ -1356,21 +1393,40 @@ export default function Page() {
         });
       }
     } else {
-      // On last track - check if we need to repeat or end session
+      // On last visible track - check if we need to repeat or end session
       if (playlistRound < playlistRepeats) {
-        // More rounds to go - increment round and restart from first track
+        // More rounds to go - increment round and restart from first visible track
         setPlaylistRound((r) => r + 1);
-        setCurrentIndex(0);
-        const firstTrack = playlist[0];
-        setCurrentTrack(firstTrack);
-        if (audioRef.current && firstTrack) {
-          audioRef.current.src = firstTrack.url;
-          audioRef.current.play().then(() => {
-            setIsPlaying(true);
-          }).catch((err) => {
-            console.error('Autoplay failed:', err);
-            setIsPlaying(false);
-          });
+        
+        // Find first non-hidden track
+        let firstVisibleIdx = 0;
+        while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
+          firstVisibleIdx++;
+        }
+        
+        if (firstVisibleIdx < playlist.length) {
+          setCurrentIndex(firstVisibleIdx);
+          const firstTrack = playlist[firstVisibleIdx];
+          setCurrentTrack(firstTrack);
+          if (audioRef.current && firstTrack) {
+            audioRef.current.src = firstTrack.url;
+            audioRef.current.play().then(() => {
+              setIsPlaying(true);
+            }).catch((err) => {
+              console.error('Autoplay failed:', err);
+              setIsPlaying(false);
+            });
+          }
+        } else {
+          // All tracks hidden, end session
+          setFinishedTracks(new Set(playlist.map((t) => t.id)));
+          setIsPlaying(false);
+          setSessionRunning(false);
+          setPlaylistRound(1);
+          setShowSessionFinished(true);
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
         }
       } else {
         // All rounds complete - end session
@@ -1431,6 +1487,8 @@ export default function Page() {
   currentIndexRef.current = currentIndex;
   const playlistRef = useRef(playlist);
   playlistRef.current = playlist;
+  const hiddenTrackIdsRef = useRef(hiddenTrackIds);
+  hiddenTrackIdsRef.current = hiddenTrackIds;
 
   // Wire up audio element events for real-time tracking and auto-advance
   useEffect(() => {
@@ -1453,6 +1511,7 @@ export default function Page() {
       const _playlistRound = playlistRoundRef.current;
       const _currentIndex = currentIndexRef.current;
       const _playlist = playlistRef.current;
+      const _hiddenTrackIds = hiddenTrackIdsRef.current;
 
       const playAfterGap = (playFn: () => void) => {
         if (_gapSeconds > 0) {
@@ -1481,9 +1540,13 @@ export default function Page() {
       }
       setBackToBackPlayed(false);
 
-      const nextIdx = _currentIndex + 1;
+      // Find next non-hidden track
+      let nextIdx = _currentIndex + 1;
+      while (nextIdx < _playlist.length && _hiddenTrackIds.has(_playlist[nextIdx].id)) {
+        nextIdx++;
+      }
 
-      // There's a next track in the playlist
+      // There's a next visible track in the playlist
       if (nextIdx < _playlist.length) {
         playAfterGap(() => {
           const nextTrack = _playlist[nextIdx];
@@ -1503,19 +1566,34 @@ export default function Page() {
         if (_playlistRound < _playlistRepeats) {
           setPlaylistRound((r) => r + 1);
 
-          playAfterGap(() => {
-            const firstTrack = _playlist[0];
-            setCurrentIndex(0);
-            setCurrentTrack(firstTrack);
-            if (firstTrack?.url) {
-              audio.src = firstTrack.url;
-              audio.play().then(() => {
-                setIsPlaying(true);
-              }).catch(() => {
-                setIsPlaying(false);
-              });
-            }
-          });
+          // Find first non-hidden track for repeat
+          let firstVisibleIdx = 0;
+          while (firstVisibleIdx < _playlist.length && _hiddenTrackIds.has(_playlist[firstVisibleIdx].id)) {
+            firstVisibleIdx++;
+          }
+
+          if (firstVisibleIdx < _playlist.length) {
+            playAfterGap(() => {
+              const firstTrack = _playlist[firstVisibleIdx];
+              setCurrentIndex(firstVisibleIdx);
+              setCurrentTrack(firstTrack);
+              if (firstTrack?.url) {
+                audio.src = firstTrack.url;
+                audio.play().then(() => {
+                  setIsPlaying(true);
+                }).catch(() => {
+                  setIsPlaying(false);
+                });
+              }
+            });
+          } else {
+            // All tracks are hidden, end session
+            setFinishedTracks(new Set(_playlist.map((t) => t.id)));
+            setIsPlaying(false);
+            setSessionRunning(false);
+            setPlaylistRound(1);
+            setShowSessionFinished(true);
+          }
         } else {
           // All repeats done - mark all tracks as finished
           setFinishedTracks(new Set(_playlist.map((t) => t.id)));
