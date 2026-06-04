@@ -84,8 +84,6 @@ import {
   BookOpen,
   MousePointer,
   Move,
-  Eye,
-  EyeOff,
   Fullscreen,
 } from "lucide-react";
 
@@ -4542,17 +4540,27 @@ export default function Page() {
                       Reset Playlist
                     </h3>
                     <p className="text-white/70 text-sm">
-                      Use the Reset button (circular arrow icon) to restore the playlist to its original order 
+                      Click the <strong className="text-cyan-400">Reset</strong> button (with circular arrow icon) to restore the playlist to its original order 
                       and mark all tracks as unplayed. This is useful when starting a new training session.
                     </p>
                   </div>
                   <div>
                     <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Trash2 size={16} className="text-red-400" />
-                      Deleting Playlists
+                      <X size={16} className="text-[#ff8a00]" />
+                      Clear Playlist
                     </h3>
                     <p className="text-white/70 text-sm">
-                      Click the trash icon on any playlist to delete it. This action cannot be undone, 
+                      Click the <strong className="text-[#ff8a00]">Clear Playlist</strong> button to remove all tracks from your current session. 
+                      If a session is running, you&apos;ll be asked to confirm before clearing.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Trash2 size={16} className="text-red-400" />
+                      Deleting Saved Playlists
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the trash icon on any saved playlist to permanently delete it. This action cannot be undone, 
                       so make sure you have backups of your music files on your computer.
                     </p>
                   </div>
@@ -4572,9 +4580,9 @@ export default function Page() {
                     You can reorder tracks in your session queue using drag and drop:
                   </p>
                   <ol className="list-decimal list-inside space-y-2 text-white/70 text-sm">
-                    <li>Look for the <strong className="text-white">grip handle</strong> (six dots icon) on the left side of each track</li>
-                    <li>Click and hold the grip handle</li>
+                    <li>Click and hold anywhere on the track row you want to move</li>
                     <li>Drag the track up or down to your desired position</li>
+                    <li>A <strong className="text-cyan-400">cyan indicator line</strong> shows where the track will be placed</li>
                     <li>Release to drop the track in its new position</li>
                   </ol>
                   <div className="bg-white/5 rounded-xl p-4 border border-white/10">
@@ -4589,32 +4597,41 @@ export default function Page() {
               {/* Hiding Tracks */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-500 to-slate-500 flex items-center justify-center">
-                    <EyeOff size={18} />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+                    <X size={18} />
                   </div>
                   <h2 className="text-xl font-bold">Hiding & Showing Tracks</h2>
                 </div>
                 <div className="space-y-4">
                   <p className="text-white/70">
-                    Sometimes you may want to skip certain tracks without deleting them from your playlist:
+                    Sometimes you may want to skip certain tracks without removing them from your playlist:
                   </p>
                   <div>
                     <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <EyeOff size={16} className="text-gray-400" />
+                      <X size={16} className="text-orange-400" />
                       Hide a Track
                     </h3>
                     <p className="text-white/70 text-sm">
-                      Click the eye icon on any track to hide it from your session. Hidden tracks will be skipped during playback 
-                      but remain in your playlist for future use.
+                      Click the <strong className="text-orange-400">X button</strong> on any track to hide it from your session. Hidden tracks will be skipped during playback 
+                      but remain in your playlist for future use. The track will appear grayed out with strikethrough text.
                     </p>
                   </div>
                   <div>
                     <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Eye size={16} className="text-white" />
-                      Show a Track
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 bg-cyan-500/20 border border-cyan-500/30">Unhide</span>
+                      Show a Hidden Track
                     </h3>
                     <p className="text-white/70 text-sm">
-                      Click the eye icon again to show a hidden track. It will be included in playback again.
+                      Click the <strong className="text-cyan-400">Unhide</strong> button on a hidden track to restore it to your session. It will be included in playback again.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <RotateCcw size={16} className="text-blue-400" />
+                      Restore All Hidden Tracks
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      If you&apos;ve hidden multiple tracks, click the <strong className="text-blue-400">Restore</strong> button in the queue header to unhide all tracks at once.
                     </p>
                   </div>
                 </div>
