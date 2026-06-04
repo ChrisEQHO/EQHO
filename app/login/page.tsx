@@ -358,10 +358,10 @@ export default function LoginPage() {
           </div>
 
           {/* Pricing */}
-          <div className="bg-[#0a1628] border border-white/10 rounded-2xl p-6 mb-6">
+          <div className="bg-[#020617] border border-white/10 rounded-2xl p-6 mb-6">
             <p className="text-sm text-[#94a3b8] mb-2">After your free trial:</p>
             <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-5xl font-black bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">£3.99</span>
+              <span className="text-5xl font-black text-white">£3.99</span>
               <span className="text-[#94a3b8]">/month</span>
             </div>
             <p className="text-sm mb-3 text-white">
