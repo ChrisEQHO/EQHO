@@ -1315,8 +1315,13 @@ export default function Page() {
       setCurrentTrack(nextTrack);
       if (audioRef.current && nextTrack) {
         audioRef.current.src = nextTrack.url;
-        audioRef.current.pause();
-        setIsPlaying(false);
+        // Autoplay when skipping forward
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch((err) => {
+          console.error('Autoplay failed:', err);
+          setIsPlaying(false);
+        });
       }
     }
   };
