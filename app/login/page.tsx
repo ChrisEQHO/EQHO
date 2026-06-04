@@ -138,18 +138,33 @@ export default function LoginPage() {
 
         <div className="relative w-full max-w-md mx-auto">
           {/* Logo */}
-          <div className="mb-8 flex flex-col items-center">
+          <div className="mb-6 flex flex-col items-center">
             <Image
               src="/images/eqho-logo.png"
               alt="EQHO Player"
               width={280}
               height={280}
-              className="mb-4"
+              className="mb-2"
               priority
             />
             <p className="text-sm text-[#94a3b8]">
               Welcome back to your session
             </p>
+          </div>
+
+          {/* Important Notice - Subscription Required */}
+          <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Shield className="h-5 w-5 text-[#22c55e] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-[#22c55e] mb-1">
+                  EQHO Pro Subscription Required
+                </p>
+                <p className="text-xs text-[#94a3b8]">
+                  Sign up for a 30-day free trial to access the player. No charge until trial ends.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Login Form */}
@@ -316,21 +331,6 @@ export default function LoginPage() {
         </div>
 
         <div className="relative max-w-md">
-          {/* Important Notice */}
-          <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-[#22c55e] shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-[#22c55e] mb-1">
-                  Subscription Required
-                </p>
-                <p className="text-sm text-[#94a3b8]">
-                  You need an active EQHO Pro subscription to access the player. Sign up below to get started!
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Crown Icon */}
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] shadow-[0_8px_32px_rgba(255,79,163,0.4)]">
             <Crown className="h-10 w-10 text-white" />
@@ -358,7 +358,7 @@ export default function LoginPage() {
           </div>
 
           {/* Pricing */}
-          <div className="bg-gradient-to-br from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/30 rounded-2xl p-6 mb-6">
+          <div className="bg-[#0a1628] border border-white/10 rounded-2xl p-6 mb-6">
             <p className="text-sm text-[#94a3b8] mb-2">After your free trial:</p>
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-5xl font-black bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">£3.99</span>
