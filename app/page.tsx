@@ -3204,7 +3204,46 @@ export default function Page() {
                     accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
                     multiple
                     onChange={(event) => {
-                      handleFiles(event.target.files);
+                      const files = Array.from(event.target.files || []).filter((file) =>
+                        file.type.startsWith("audio/") || 
+                        file.name.endsWith(".mp3") || 
+                        file.name.endsWith(".wav") || 
+                        file.name.endsWith(".m4a")
+                      );
+                      if (files.length > 0) {
+                        const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                        const newPlaylistId = crypto.randomUUID();
+                        const newTracks: Track[] = [];
+                        
+                        let processed = 0;
+                        files.forEach((file) => {
+                          const url = URL.createObjectURL(file);
+                          const audio = new Audio(url);
+                          audio.onloadedmetadata = async () => {
+                            const newTrack: Track = {
+                              id: crypto.randomUUID(),
+                              title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
+                              fileName: file.name,
+                              url,
+                              durationSeconds: Math.round(audio.duration),
+                              uploadedAt: new Date().toISOString(),
+                              file,
+                            };
+                            newTracks.push(newTrack);
+                            processed++;
+                            
+                            if (processed === files.length) {
+                              setSavedPlaylists(prev => [...prev, {
+                                id: newPlaylistId,
+                                name: playlistName,
+                                tracks: newTracks,
+                              }]);
+                            }
+                          };
+                        });
+                      }
                       event.target.value = "";
                     }}
                     className="hidden"
