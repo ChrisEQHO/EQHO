@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 // Stripe Payment Link with 30-day free trial
-const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/bJefZbeVz4nu9s32RT3F602'
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
