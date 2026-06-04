@@ -5288,39 +5288,39 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-[calc(110px+env(safe-area-inset-bottom))] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816]">
+      <div className="fixed bottom-0 left-0 right-0 h-[calc(160px+env(safe-area-inset-bottom))] landscape:h-[70px] md:h-[80px] lg:h-[calc(80px+env(safe-area-inset-bottom))] w-full max-w-[100vw] overflow-hidden z-40 bg-[#050816]">
         <div className="session-bottom-divider" />
 
-        <div className="w-full max-w-full px-3 sm:px-4 md:px-4 py-1 landscape:py-1 md:py-2 overflow-hidden">
+        <div className="w-full max-w-full px-3 sm:px-4 md:px-4 py-2 landscape:py-1 md:py-2 overflow-hidden">
           {/* Mobile Layout - Compact Grid + Button */}
-          <div className="flex md:hidden flex-col gap-1 landscape:gap-1">
-            {/* Controls Grid - 2 columns in portrait, 4 columns in landscape */}
-            <div className="grid grid-cols-4 gap-x-2 gap-y-0.5">
+          <div className="flex md:hidden flex-col gap-2 landscape:gap-1">
+            {/* Controls Grid - 2 columns stacked 2x2 in portrait, 4 columns in landscape */}
+            <div className="grid grid-cols-2 landscape:grid-cols-4 gap-x-4 gap-y-3 landscape:gap-y-0.5">
               {/* Gap Between Routines */}
               <div className="flex flex-col items-center">
-                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Gap</div>
-                <div className="flex items-center rounded border border-white/20 bg-white/5">
-                  <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-1.5 py-1 text-white/70"><Minus size={10} /></button>
-                  <span className="px-2 text-[11px] font-bold text-white border-x border-white/15 min-w-[28px] text-center">{gapSeconds}s</span>
-                  <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-1.5 py-1 text-white/70"><Plus size={10} /></button>
+                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">Gap</div>
+                <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
+                  <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-3 py-2 text-white/70"><Minus size={14} /></button>
+                  <span className="px-3 text-sm font-bold text-white border-x border-white/15 min-w-[40px] text-center">{gapSeconds}s</span>
+                  <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-3 py-2 text-white/70"><Plus size={14} /></button>
                 </div>
               </div>
 
               {/* Back to Back */}
               <div className="flex flex-col items-center">
-                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">B2B</div>
+                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">B2B</div>
                 <button 
                   onClick={() => updateBackToBack((v) => !v)}
-                  className="flex items-center gap-1.5"
+                  className="flex items-center gap-2"
                 >
-                  <div className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
-                    <RefreshCw size={10} />
+                  <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
+                    <RefreshCw size={14} />
                   </div>
-                  <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${
+                  <div className={`h-6 w-11 rounded-full border p-0.5 transition-colors ${
                     backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"
                   }`}>
-                    <div className={`h-3 w-3 rounded-full transition-transform ${
-                      backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/40"
+                    <div className={`h-5 w-5 rounded-full transition-transform ${
+                      backToBack ? "translate-x-5 bg-pink-500" : "translate-x-0 bg-white/40"
                     }`} />
                   </div>
                 </button>
@@ -5328,22 +5328,22 @@ export default function Page() {
 
               {/* Total Session Time */}
               <div className="flex flex-col items-center">
-                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Time</div>
-                <div className="flex items-center gap-1.5">
-                  <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                    <Clock size={10} />
+                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">Time</div>
+                <div className="flex items-center gap-2">
+                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                    <Clock size={14} />
                   </div>
-                  <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                  <div className="text-white text-lg font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
                 </div>
               </div>
 
               {/* Repeats */}
               <div className="flex flex-col items-center">
-                <div className="text-[8px] font-medium tracking-wide text-white/50 uppercase mb-0.5">Reps</div>
-                <div className="flex items-center rounded border border-white/20 bg-white/5">
-                  <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-1.5 py-1 text-white/70"><Minus size={10} /></button>
-                  <span className="px-2 text-[11px] font-bold text-white border-x border-white/15 min-w-[24px] text-center">{playlistRepeats}x</span>
-                  <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-1.5 py-1 text-white/70"><Plus size={10} /></button>
+                <div className="text-[10px] font-medium tracking-wide text-white/50 uppercase mb-1">Reps</div>
+                <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
+                  <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-3 py-2 text-white/70"><Minus size={14} /></button>
+                  <span className="px-3 text-sm font-bold text-white border-x border-white/15 min-w-[32px] text-center">{playlistRepeats}x</span>
+                  <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-3 py-2 text-white/70"><Plus size={14} /></button>
                 </div>
               </div>
             </div>
