@@ -1323,6 +1323,14 @@ export default function Page() {
           setIsPlaying(false);
         });
       }
+    } else {
+      // On last track - stop playback and end session
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsPlaying(false);
+      setCurrentTrack(null);
+      setCurrentIndex(-1);
     }
   };
 
