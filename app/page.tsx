@@ -1327,23 +1327,16 @@ export default function Page() {
   };
 
   const goToPreviousTrack = () => {
-    if (playlist.length === 0) return;
+    if (playlist.length === 0 || !audioRef.current) return;
     
-    const prevIdx = currentIndex - 1;
-    
-    if (prevIdx >= 0) {
-      setCurrentIndex(prevIdx);
-      const prevTrack = playlist[prevIdx];
-      setCurrentTrack(prevTrack);
-      if (audioRef.current && prevTrack) {
-        audioRef.current.src = prevTrack.url;
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    } else if (audioRef.current) {
-      // If at first track, restart it
-      audioRef.current.currentTime = 0;
-    }
+    // Reset current track to beginning and autoplay
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().then(() => {
+      setIsPlaying(true);
+    }).catch((err) => {
+      console.error('Autoplay failed:', err);
+      setIsPlaying(false);
+    });
   };
 
   // Refs to hold latest values for the audio ended handler (avoids stale closures)
