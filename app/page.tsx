@@ -882,7 +882,21 @@ export default function Page() {
     setIsDraggingUpload(false);
     
     const items = event.dataTransfer?.items;
-    if (!items || items.length === 0) return;
+    const files = event.dataTransfer?.files;
+    
+    if (!items || items.length === 0) {
+      // Fallback to files if items not available
+      if (files && files.length > 0) {
+        const audioFiles = Array.from(files).filter(file => 
+          file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)
+        );
+        if (audioFiles.length > 0) {
+          const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+          await createPlaylistFromFiles(playlistName, audioFiles);
+        }
+      }
+      return;
+    }
 
     // Check if any item is a directory (folder/playlist)
     const entries: FileSystemEntry[] = [];
@@ -3190,7 +3204,7 @@ export default function Page() {
             <aside className="relative col-start-2 h-full overflow-hidden flex flex-col gap-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
                 <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
-                  Upload Files & Playlists
+Upload Folders & Playlists
                 </h2>
                 <label
                   htmlFor="file-upload-input"
@@ -3255,7 +3269,7 @@ export default function Page() {
                     className="hidden"
                   />
                   <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
-                  <p className="text-white font-bold text-xs">Drop files and playlists</p>
+                  <p className="text-white font-bold text-xs">Drop folders and playlists</p>
                   <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
                   <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
                 </label>
