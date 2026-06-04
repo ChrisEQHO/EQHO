@@ -4491,7 +4491,7 @@ export default function Page() {
                     </h3>
                     <p className="text-white/70 text-sm">
                       Before uploading, organize your music files into folders on your computer. Each folder will become a separate playlist. 
-                      Name your folders clearly (e.g., &quot;Competition Day 1&quot;, &quot;Warm Up Routines&quot;). 
+                      Name your folders clearly (e.g., &quot;Training Day 1&quot;, &quot;Warm Up Routines&quot;). 
                       Supported formats: MP3, WAV, M4A.
                     </p>
                   </div>
@@ -4588,7 +4588,7 @@ export default function Page() {
                   <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                     <p className="text-sm text-white/60">
                       <strong className="text-yellow-400">Tip:</strong> Reorder your routines before starting a session 
-                      to match your competition or training schedule.
+                      to match your training schedule.
                     </p>
                   </div>
                 </div>
@@ -4683,7 +4683,7 @@ export default function Page() {
                       </div>
                       <p className="text-white/60 text-sm">
                         Set how many times the entire playlist should repeat. Useful for endurance training 
-                        or when running multiple rounds of a competition.
+                        or when running multiple rounds of training.
                       </p>
                     </div>
                   </div>
@@ -4700,7 +4700,7 @@ export default function Page() {
                 </div>
                 <div className="space-y-4">
                   <p className="text-white/70">
-                    Fullscreen mode provides a large, easy-to-read display perfect for use during training sessions or competitions.
+                    Fullscreen mode provides a large, easy-to-read display perfect for use during training sessions.
                   </p>
                   <div>
                     <h3 className="font-semibold text-white mb-2">How to Enter Fullscreen</h3>
@@ -4721,8 +4721,8 @@ export default function Page() {
                   </div>
                   <div className="bg-cyan-500/10 rounded-xl p-4 border border-cyan-500/20">
                     <p className="text-sm text-cyan-300">
-                      <strong>Pro Tip:</strong> During competitions, use fullscreen mode on a tablet or laptop 
-                      positioned near the competition floor. Athletes can see their upcoming routine and countdown in real-time.
+                      <strong>Pro Tip:</strong> During training, use fullscreen mode on a tablet or laptop 
+                      positioned near the training floor. Athletes can see their upcoming routine and countdown in real-time.
                     </p>
                   </div>
                 </div>
