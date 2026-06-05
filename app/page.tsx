@@ -324,6 +324,7 @@ export default function Page() {
   const sidebarItems = [
     { icon: Home, page: "player", color: "pink" },
     { icon: ListMusic, page: "playlists", color: "pink" },
+    { icon: Cloud, page: "cloud", color: "pink" },
     { icon: Settings, page: "settings", color: "pink" },
     { icon: HelpCircle, page: "help", color: "pink" },
   ] as const;
@@ -4373,12 +4374,131 @@ Upload Folders & Playlists
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
+                </div>
+                )}
+                </div>
+                )}
+                
+                {/* EQHO Cloud Page */}
+                {activePage === "cloud" && (
+                <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+                  {/* Header */}
+                  <div className="px-8 pt-6 pb-4 border-b border-white/10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                        <Cloud size={24} />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-bold">EQHO Cloud</h1>
+                        <p className="text-white/60 text-sm">Sync and backup your playlists</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="p-8 space-y-6">
+                    {/* Cloud Status Message */}
+                    {cloudSaveMessage && (
+                      <div className="px-4 py-3 rounded-xl bg-[#ff4fa3]/10 border border-[#ff4fa3]/30">
+                        <p className="text-sm text-[#ff4fa3] font-medium flex items-center gap-2">
+                          {(isExporting || isPushingToApps) && <Loader2 size={16} className="animate-spin" />}
+                          {cloudSaveMessage}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Download Playlists Section */}
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                          <FileDown size={18} />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold">Download Playlists</h2>
+                          <p className="text-white/50 text-sm">Save a local backup</p>
+                        </div>
+                      </div>
+                      <p className="text-white/70 text-sm mb-4">
+                        Export all your EQHO playlists, routine details, and coach settings as a JSON file. 
+                        Use this backup before competitions or when preparing for offline use.
+                      </p>
+                      <button
+                        onClick={handleDownloadAllPlaylists}
+                        disabled={isExporting}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-semibold hover:shadow-[0_0_20px_rgba(255,79,163,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isExporting ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <FileDown size={18} />
+                        )}
+                        Download Playlists
+                      </button>
+                    </div>
+                    
+                    {/* Push to Apps Section - Desktop Only */}
+                    {!isMobileBuild && (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+                            <Send size={18} />
+                          </div>
+                          <div>
+                            <h2 className="text-lg font-bold">Push to Apps</h2>
+                            <p className="text-white/50 text-sm">Sync to mobile and tablet</p>
+                          </div>
+                        </div>
+                        <p className="text-white/70 text-sm mb-4">
+                          Send your latest desktop playlists to your EQHO mobile and tablet apps. 
+                          Make sure all devices are logged into the same EQHO account.
+                        </p>
+                        <button
+                          onClick={handlePushToApps}
+                          disabled={isPushingToApps}
+                          className="w-full py-3 rounded-xl bg-white/5 border border-white/20 text-white font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isPushingToApps ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <Send size={18} />
+                          )}
+                          Push to Apps
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Cloud Sync Info */}
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                          <CloudUpload size={18} className="text-[#ff8a00]" />
+                        </div>
+                        <h2 className="text-lg font-bold">How Cloud Sync Works</h2>
+                      </div>
+                      <ul className="space-y-3 text-white/70 text-sm">
+                        <li className="flex items-start gap-2">
+                          <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
+                          <span>Changes are saved automatically when logged in</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
+                          <span>Pro users can access saved data across web, desktop, mobile, and tablet</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
+                          <span>Use the same email on all devices and Stripe billing</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <AlertCircle size={16} className="text-yellow-400 mt-0.5 shrink-0" />
+                          <span>If playlists do not appear, log out and log back in</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                )}
 
-        {activePage === "settings" && (
+                {activePage === "settings" && (
           <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
