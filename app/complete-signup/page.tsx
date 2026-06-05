@@ -101,9 +101,8 @@ function CompleteSignupContent() {
         // Check their subscription status
         const subData = await checkSubscriptionStatus(session.user.email || '')
         if (subData) {
-          console.log('[v0] Active subscription found, showing success')
-          setSubscriptionData(subData)
-          setViewState('success')
+          console.log('[v0] Active subscription found, redirecting to player')
+          router.push('/')
           return
         }
       }
@@ -113,9 +112,8 @@ function CompleteSignupContent() {
         const decodedEmail = decodeURIComponent(emailParam)
         const subData = await checkSubscriptionStatus(decodedEmail)
         if (subData) {
-          console.log('[v0] Subscription found for checkout email, showing success')
-          setSubscriptionData(subData)
-          setViewState('success')
+          console.log('[v0] Subscription found for checkout email, redirecting to player')
+          router.push('/')
           return
         }
       }
@@ -137,10 +135,9 @@ function CompleteSignupContent() {
       
       const subData = await checkSubscriptionStatus(checkoutEmail)
       if (subData) {
-        console.log('[v0] Subscription activated via webhook!')
-        setSubscriptionData(subData)
-        setViewState('success')
+        console.log('[v0] Subscription activated via webhook, redirecting to player!')
         clearInterval(pollInterval)
+        router.push('/')
         return
       }
       
@@ -148,7 +145,7 @@ function CompleteSignupContent() {
     }, 2000)
 
     return () => clearInterval(pollInterval)
-  }, [viewState, checkoutEmail, pollCount, checkSubscriptionStatus])
+  }, [viewState, checkoutEmail, pollCount, checkSubscriptionStatus, router])
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -310,8 +307,10 @@ function CompleteSignupContent() {
         })
       }
 
-      console.log('[v0] Profile setup complete, showing success')
-      setViewState('success')
+      console.log('[v0] Profile setup complete, redirecting to player')
+      
+      // Redirect directly to the player - don't show success screen
+      router.push('/')
     }
   }
 
