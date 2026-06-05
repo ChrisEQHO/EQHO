@@ -23,8 +23,6 @@ import {
   deleteCloudPlaylist,
   isCloudSyncAvailable,
   checkProStatus,
-  exportAllData,
-  downloadExportAsJSON,
   pushToApps,
   type CloudPlaylist,
   type SyncStatus 
@@ -847,15 +845,46 @@ export default function Page() {
     setCloudSaveMessage('Exporting playlists...');
     
     try {
-      const data = await exportAllData();
-      if (data) {
-        downloadExportAsJSON(data);
-        setCloudSaveMessage('Playlists exported!');
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-      } else {
-        setCloudSaveMessage('Export failed');
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-      }
+      // Export local playlists directly (works offline and with local data)
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        version: '1.0',
+        playlists: savedPlaylists.map(playlist => ({
+          id: playlist.id,
+          name: playlist.name,
+          trackCount: playlist.tracks.length,
+          tracks: playlist.tracks.map(track => ({
+            id: track.id,
+            title: track.title,
+            fileName: track.fileName,
+            durationSeconds: track.durationSeconds,
+          })),
+        })),
+        coachSettings: {
+          gapSeconds: settings.gapSeconds,
+          countdownEnabled: settings.showCountdown,
+          countdownSeconds: settings.countdownSeconds,
+          autoplayNext: settings.autoplayNext,
+          backToBackDefault: settings.backToBack,
+          showPauseWarning: settings.showPauseWarning,
+          showSkipWarning: settings.showSkipWarning,
+          playlistRepeats: settings.playlistRepeats,
+        },
+      };
+      
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `eqho-playlists-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setCloudSaveMessage('Playlists exported!');
+      setTimeout(() => setCloudSaveMessage(null), 3000);
     } catch (error) {
       console.error("Export failed:", error);
       setCloudSaveMessage('Export failed');
@@ -870,24 +899,49 @@ export default function Page() {
     if (isPushingToApps || isMobileBuild) return;
     
     setIsPushingToApps(true);
-    setCloudSaveMessage('Syncing...');
+    setCloudSaveMessage('Syncing playlists...');
     
     try {
-      // First sync all local playlists to cloud
+      // Convert and sync all local playlists to cloud
+      let syncedCount = 0;
       for (const localPlaylist of savedPlaylists) {
-        await syncPlaylistToCloud(localPlaylist);
+        // Convert to LocalPlaylist format expected by cloud-sync
+        // Only include tracks that have file blobs for upload
+        const tracksWithFiles = localPlaylist.tracks
+          .filter(t => t.file)
+          .map(t => ({
+            id: t.id,
+            title: t.title,
+            fileName: t.fileName,
+            durationSeconds: t.durationSeconds,
+            uploadedAt: t.uploadedAt,
+            file: t.file as File,
+          }));
+        
+        if (tracksWithFiles.length > 0) {
+          const cloudPlaylist = {
+            id: localPlaylist.id,
+            name: localPlaylist.name,
+            tracks: tracksWithFiles,
+          };
+          
+          const result = await syncPlaylistToCloud(cloudPlaylist);
+          if (result.success) {
+            syncedCount++;
+          }
+        }
       }
       
-      // Then update the push timestamp
+      // Update the push timestamp
       const success = await pushToApps();
       
-      if (success) {
-        setCloudSaveMessage('Playlists pushed to your EQHO apps');
+      if (success || syncedCount > 0) {
+        setCloudSaveMessage(`${syncedCount} playlist${syncedCount !== 1 ? 's' : ''} pushed to your EQHO apps`);
         // Refresh cloud playlists
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
       } else {
-        setCloudSaveMessage('Unable to push playlists. Check your internet connection and try again.');
+        setCloudSaveMessage('No playlists to sync. Add tracks with audio files first.');
       }
       
       setTimeout(() => setCloudSaveMessage(null), 4000);
