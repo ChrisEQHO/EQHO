@@ -124,7 +124,7 @@ export default function SubscriptionSuccessPage() {
             <div className="flex items-center justify-center gap-2 text-[#94a3b8]">
               <CreditCard className="h-4 w-4" />
               <span className="text-sm">
-                Renews at <span className="text-white font-semibold">£7.99/month</span> after the trial period unless cancelled.
+                Renews at <span className="text-white font-semibold">£3.99/month</span> after the trial period unless cancelled.
               </span>
             </div>
           </div>

@@ -206,7 +206,7 @@ export default function UpgradeClient() {
             <div className="bg-[#020617] border border-white/10 rounded-xl p-4 mb-6">
               <p className="text-sm text-[#94a3b8] mb-1">Then</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-white">£7.99</span>
+                <span className="text-4xl font-black text-white">£3.99</span>
                 <span className="text-[#94a3b8]">/month</span>
               </div>
               <p className="text-sm text-[#64748b] mt-2">
