@@ -21,7 +21,7 @@ export default function SubscriptionSuccessPage() {
       try {
         const supabase = createClient();
         if (!supabase) {
-          setError("Unable to connect");
+          // No Supabase connection - still show success UI
           setIsLoading(false);
           return;
         }
@@ -46,6 +46,7 @@ export default function SubscriptionSuccessPage() {
         setIsLoading(false);
       } catch (err) {
         console.error("Error verifying subscription:", err);
+        // Still show success - don't block the user
         setIsLoading(false);
       }
     }
