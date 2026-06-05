@@ -177,7 +177,7 @@ export default function UpgradeClient() {
               </div>
               <div className="bg-[#020617] border border-white/10 rounded-xl px-5 py-3 text-center flex flex-col justify-center">
                 <p className="text-xs text-[#94a3b8]">Then</p>
-                <p className="text-2xl font-black text-white leading-tight">£47.88</p>
+                <p className="text-2xl font-black text-white leading-tight">£47.90</p>
                 <p className="text-xs text-[#64748b]">/year</p>
                 <p className="text-[10px] text-[#22c55e] mt-0.5">Just £3.99/mo avg</p>
               </div>
