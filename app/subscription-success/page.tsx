@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { PartyPopper, Check, Calendar, CreditCard, Settings } from 'lucide-react'
+import { PartyPopper, Check, Calendar, CreditCard, Settings, Mail, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // Check if running in v0 preview
@@ -18,6 +18,7 @@ export default function SubscriptionSuccessPage() {
     status: string
     trialEnd: Date | null
     daysRemaining: number
+    email: string
   } | null>(null)
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function SubscriptionSuccessPage() {
         status: 'trialing',
         trialEnd,
         daysRemaining: 30,
+        email: 'user@example.com',
       })
       return
     }
@@ -39,6 +41,8 @@ export default function SubscriptionSuccessPage() {
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
+
+      const userEmail = session.user.email || ''
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -56,6 +60,7 @@ export default function SubscriptionSuccessPage() {
           status: profile.subscription_status || 'trialing',
           trialEnd,
           daysRemaining,
+          email: userEmail,
         })
       }
     }
@@ -115,12 +120,32 @@ export default function SubscriptionSuccessPage() {
           </div>
 
           {/* Renewal Info */}
-          <div className="bg-[#020617] border border-white/10 rounded-xl p-4 mb-6">
+          <div className="bg-[#020617] border border-white/10 rounded-xl p-4 mb-4">
             <div className="flex items-center justify-center gap-2 text-[#94a3b8]">
               <CreditCard className="h-4 w-4" />
               <span className="text-sm">
                 Renews at <span className="text-white font-semibold">£7.99/month</span> after the trial period unless cancelled.
               </span>
+            </div>
+          </div>
+
+          {/* Email Info */}
+          <div className="bg-[#020617] border border-white/10 rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-center gap-2 text-[#94a3b8]">
+              <Mail className="h-4 w-4" />
+              <span className="text-sm">
+                Email: <span className="text-white font-semibold">{subscriptionData?.email || 'Loading...'}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Subscription Linked Notice */}
+          <div className="bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-[#22d3ee] shrink-0 mt-0.5" />
+              <p className="text-xs text-[#94a3b8]">
+                This subscription is linked to your EQHO account email. Use this email when logging in to access your Pro features.
+              </p>
             </div>
           </div>
 
@@ -160,8 +185,18 @@ export default function SubscriptionSuccessPage() {
               <Settings className="h-4 w-4" />
               Manage Subscription
             </Link>
+            <p className="text-xs text-[#64748b] mt-2">
+              You can cancel anytime during your trial. Your access will continue until the end of the trial period.
+            </p>
           </div>
         </div>
+
+        {/* Trial End Date */}
+        {subscriptionData?.trialEnd && (
+          <p className="text-sm text-[#94a3b8] mb-2">
+            Trial Ends: <span className="text-white font-semibold">{subscriptionData.trialEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          </p>
+        )}
 
         {/* Subscription Status */}
         <p className="text-sm text-[#64748b]">

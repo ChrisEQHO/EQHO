@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, AlertCircle, Info } from 'lucide-react'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -85,6 +85,18 @@ export default function SignupPage() {
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
           <p className="text-sm text-[#94a3b8] mb-6">Create your EQHO account to access EQHO Player Pro.</p>
+
+          {/* Email Notice */}
+          <div className="bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-[#ff8a00] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-[#e2e8f0]">
+                  Your EQHO account email will be used for your subscription. The email used for login and Stripe billing must match.
+                </p>
+              </div>
+            </div>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">

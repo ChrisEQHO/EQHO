@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
@@ -168,11 +168,24 @@ export default function UpgradeClient() {
 
           {/* Logged in as */}
           {user && (
-            <div className="bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-4 mb-6">
+            <div className="bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-4 mb-4">
               <p className="text-sm text-[#94a3b8] mb-1">Your subscription and trial will be linked to this email address:</p>
               <p className="text-lg font-semibold text-[#22d3ee]">{user.email}</p>
             </div>
           )}
+
+          {/* Security Notice */}
+          <div className="bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-[#ff8a00] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-[#ff8a00] mb-1">Important</p>
+                <p className="text-xs text-[#94a3b8]">
+                  For security and account management, the email used for Stripe checkout must match your EQHO account email. The email address cannot be changed during checkout.
+                </p>
+              </div>
+            </div>
+          </div>
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8">
