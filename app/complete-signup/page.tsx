@@ -5,9 +5,20 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Check, Loader2, CreditCard, Settings, Sparkles, Play } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Check, Loader2, CreditCard, Settings, Sparkles, Play, Bug } from 'lucide-react'
 
-type ViewState = 'loading' | 'signup' | 'success'
+type ViewState = 'loading' | 'finalizing' | 'signup' | 'success'
+
+interface DebugInfo {
+  userEmail: string | null
+  userId: string | null
+  profileExists: boolean
+  subscriptionStatus: string | null
+  trialEnd: string | null
+  accessAllowed: boolean
+  sessionIdFound: boolean
+  lastChecked: string
+}
 
 function CompleteSignupContent() {
   const [viewState, setViewState] = useState<ViewState>('loading')
@@ -18,126 +29,137 @@ function CompleteSignupContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [checkoutEmail, setCheckoutEmail] = useState<string | null>(null)
+  const [pollCount, setPollCount] = useState(0)
+  const [showDebug, setShowDebug] = useState(true) // Show debug panel by default
+  const [debugInfo, setDebugInfo] = useState<DebugInfo>({
+    userEmail: null,
+    userId: null,
+    profileExists: false,
+    subscriptionStatus: null,
+    trialEnd: null,
+    accessAllowed: false,
+    sessionIdFound: false,
+    lastChecked: new Date().toISOString(),
+  })
   const [subscriptionData, setSubscriptionData] = useState<{
     status: string
     daysRemaining: number
     email: string
   } | null>(null)
-  const [pollCount, setPollCount] = useState(0)
+  
   const router = useRouter()
   const searchParams = useSearchParams()
+  const sessionId = searchParams.get('session_id')
 
-  // Check subscription status - used for initial check and polling
-  const checkSubscriptionStatus = useCallback(async (userEmail: string) => {
+  // Update debug info helper
+  const updateDebug = useCallback((updates: Partial<DebugInfo>) => {
+    setDebugInfo(prev => ({
+      ...prev,
+      ...updates,
+      lastChecked: new Date().toISOString(),
+    }))
+  }, [])
+
+  // Check subscription status - used for polling
+  const checkSubscriptionStatus = useCallback(async () => {
     const supabase = createClient()
     if (!supabase) return null
 
-    console.log('[v0] Checking subscription status for email:', userEmail)
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      console.log('[v0] No logged in user')
+      updateDebug({ userEmail: null, userId: null, profileExists: false })
+      return null
+    }
 
-    // Try to find profile by email
+    console.log('[v0] Checking subscription for user:', user.id, user.email)
+    updateDebug({ userEmail: user.email || null, userId: user.id })
+
+    // Check profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, subscription_status, plan, trial_end')
-      .ilike('email', userEmail)
+      .select('id, email, subscription_status, plan, trial_end, trial_active')
+      .eq('id', user.id)
       .single()
 
     if (profileError) {
       console.log('[v0] Profile lookup error:', profileError.message)
+      updateDebug({ profileExists: false, subscriptionStatus: null, trialEnd: null, accessAllowed: false })
       return null
     }
 
     if (profile) {
-      console.log('[v0] Profile found:', {
-        id: profile.id,
-        email: profile.email,
-        subscription_status: profile.subscription_status,
-        plan: profile.plan
+      console.log('[v0] Profile found:', profile)
+      
+      const accessAllowed = profile.subscription_status === 'trialing' || profile.subscription_status === 'active'
+      
+      updateDebug({
+        profileExists: true,
+        subscriptionStatus: profile.subscription_status,
+        trialEnd: profile.trial_end,
+        accessAllowed,
       })
 
-      if (profile.subscription_status === 'trialing' || profile.subscription_status === 'active') {
+      if (accessAllowed) {
         const trialEnd = profile.trial_end ? new Date(profile.trial_end) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-        const daysRemaining = Math.max(0, Math.min(14, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
+        const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         
         return {
           status: profile.subscription_status,
           daysRemaining,
-          email: profile.email
+          email: profile.email || user.email || ''
         }
       }
     }
 
     return null
-  }, [])
+  }, [updateDebug])
 
-  // Initial check - see if user is logged in and has active subscription
+  // Initial check
   useEffect(() => {
-    const emailParam = searchParams.get('email')
-    const sessionId = searchParams.get('session_id')
-    
     console.log('[v0] /complete-signup loaded')
-    console.log('[v0] URL email param:', emailParam)
-    console.log('[v0] URL session_id param:', sessionId)
+    console.log('[v0] session_id:', sessionId)
     
-    if (emailParam) {
-      const decodedEmail = decodeURIComponent(emailParam)
-      setCheckoutEmail(decodedEmail)
-      setEmail(decodedEmail)
-    }
+    updateDebug({ sessionIdFound: !!sessionId })
 
     const initializeCheck = async () => {
-      const supabase = createClient()
-      if (!supabase) {
-        setViewState('signup')
+      // If we have a session_id, we came from Stripe checkout
+      // Show "Finalizing" and start polling for webhook to complete
+      if (sessionId) {
+        setViewState('finalizing')
         return
       }
 
-      // Check if user is already logged in
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        console.log('[v0] User already logged in:', session.user.email)
-        
-        // Check their subscription status
-        const subData = await checkSubscriptionStatus(session.user.email || '')
-        if (subData) {
-          console.log('[v0] Active subscription found, redirecting to player')
-          router.push('/')
-          return
-        }
+      // No session_id - check if user is already logged in with subscription
+      const subData = await checkSubscriptionStatus()
+      if (subData) {
+        setSubscriptionData(subData)
+        setViewState('success')
+        return
       }
 
-      // If we have checkout email, check if subscription was activated by webhook
-      if (emailParam) {
-        const decodedEmail = decodeURIComponent(emailParam)
-        const subData = await checkSubscriptionStatus(decodedEmail)
-        if (subData) {
-          console.log('[v0] Subscription found for checkout email, redirecting to player')
-          router.push('/')
-          return
-        }
-      }
-
-      // No active subscription found, show signup form
-      console.log('[v0] No active subscription, showing signup form')
+      // No subscription - show signup form (shouldn't happen normally)
       setViewState('signup')
     }
 
     initializeCheck()
-  }, [searchParams, checkSubscriptionStatus])
+  }, [sessionId, checkSubscriptionStatus, updateDebug])
 
-  // Polling - retry checking subscription status every 2 seconds for 20 seconds
+  // Polling - check subscription status every 2 seconds for up to 20 seconds
   useEffect(() => {
-    if (viewState !== 'signup' || !checkoutEmail || pollCount >= 10) return
+    if (viewState !== 'finalizing' || pollCount >= 10) return
 
     const pollInterval = setInterval(async () => {
       console.log('[v0] Polling for subscription status, attempt:', pollCount + 1)
       
-      const subData = await checkSubscriptionStatus(checkoutEmail)
+      const subData = await checkSubscriptionStatus()
       if (subData) {
-        console.log('[v0] Subscription activated via webhook, redirecting to player!')
+        console.log('[v0] Subscription activated! Showing success.')
+        setSubscriptionData(subData)
+        setViewState('success')
         clearInterval(pollInterval)
-        router.push('/')
         return
       }
       
@@ -145,7 +167,15 @@ function CompleteSignupContent() {
     }, 2000)
 
     return () => clearInterval(pollInterval)
-  }, [viewState, checkoutEmail, pollCount, checkSubscriptionStatus, router])
+  }, [viewState, pollCount, checkSubscriptionStatus])
+
+  // Handle when polling times out
+  useEffect(() => {
+    if (viewState === 'finalizing' && pollCount >= 10) {
+      console.log('[v0] Polling timed out, showing signup form as fallback')
+      setViewState('signup')
+    }
+  }, [viewState, pollCount])
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -158,12 +188,6 @@ function CompleteSignupContent() {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters')
-      return
-    }
-
-    // Verify email matches checkout email if provided
-    if (checkoutEmail && email.toLowerCase() !== checkoutEmail.toLowerCase()) {
-      setError('Please use the same email address you used during checkout')
       return
     }
 
@@ -195,132 +219,152 @@ function CompleteSignupContent() {
     if (data.user) {
       console.log('[v0] User created:', data.user.id, data.user.email)
       
-      // Calculate trial dates
-      const trialStart = new Date()
-      const trialEnd = new Date()
-      trialEnd.setDate(trialEnd.getDate() + 14)
-      
-      // Check if profile already exists by email (webhook may have created it)
-      const { data: existingProfileByEmail } = await supabase
-        .from('profiles')
-        .select('id, subscription_status, stripe_customer_id, stripe_subscription_id, trial_end')
-        .ilike('email', data.user.email || email)
-        .single()
-
-      if (existingProfileByEmail) {
-        console.log('[v0] Profile exists by email, updating to link to auth user:', existingProfileByEmail.id)
-        
-        // If this profile was created by webhook with a temp ID, we need to update it
-        // to use the real auth user ID. First, delete the old row and insert new one.
-        if (existingProfileByEmail.id !== data.user.id) {
-          console.log('[v0] Profile has temp ID, migrating to auth user ID')
-          
-          // Delete the temp profile
-          await supabase
-            .from('profiles')
-            .delete()
-            .eq('id', existingProfileByEmail.id)
-          
-          // Create profile with correct auth user ID
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              email: data.user.email,
-              full_name: '',
-              plan: 'pro',
-              subscription_status: existingProfileByEmail.subscription_status || 'trialing',
-              stripe_customer_id: existingProfileByEmail.stripe_customer_id,
-              stripe_subscription_id: existingProfileByEmail.stripe_subscription_id,
-              trial_start: trialStart.toISOString(),
-              trial_end: existingProfileByEmail.trial_end || trialEnd.toISOString(),
-              created_at: new Date().toISOString(),
-            })
-
-          if (insertError) {
-            console.log('[v0] Insert with migrated ID failed:', insertError.message)
-          }
-        } else {
-          // Profile ID matches auth user ID, just update
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_status: existingProfileByEmail.subscription_status || 'trialing',
-              plan: 'pro',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', data.user.id)
-        }
-        
-        // Use subscription data from webhook if available
-        setSubscriptionData({
-          status: existingProfileByEmail.subscription_status || 'trialing',
-          daysRemaining: existingProfileByEmail.trial_end 
-            ? Math.max(0, Math.min(14, Math.ceil((new Date(existingProfileByEmail.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
-            : 14,
-          email: data.user.email || email
+      // Create profile via API
+      try {
+        const response = await fetch('/api/create-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: data.user.email || email,
+          }),
         })
-      } else {
-        // Check if profile exists by auth user ID
-        const { data: existingProfileById } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', data.user.id)
-          .single()
 
-        if (existingProfileById) {
-          console.log('[v0] Profile exists by ID, updating...')
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_status: 'trialing',
-              plan: 'pro',
-              trial_start: trialStart.toISOString(),
-              trial_end: trialEnd.toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', data.user.id)
-        } else {
-          console.log('[v0] Creating new profile...')
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              email: data.user.email,
-              full_name: '',
-              plan: 'pro',
-              subscription_status: 'trialing',
-              trial_start: trialStart.toISOString(),
-              trial_end: trialEnd.toISOString(),
-              created_at: new Date().toISOString(),
-            })
+        const result = await response.json()
+        console.log('[v0] Create profile API result:', result)
 
-          if (insertError) {
-            console.log('[v0] Insert error:', insertError.message)
-          }
+        if (!response.ok) {
+          console.error('[v0] Failed to create profile:', result.error)
         }
-
-        setSubscriptionData({
-          status: 'trialing',
-          daysRemaining: 14,
-          email: data.user.email || email
-        })
+      } catch (apiError) {
+        console.error('[v0] API call error:', apiError)
       }
 
-      console.log('[v0] Profile setup complete, redirecting to player')
-      
-      // Redirect directly to the player - don't show success screen
-      router.push('/')
+      // Redirect to upgrade page to start subscription
+      router.push('/upgrade')
     }
   }
+
+  // Debug Panel Component
+  const DebugPanel = () => (
+    <div className="fixed bottom-4 right-4 z-50">
+      <button
+        onClick={() => setShowDebug(!showDebug)}
+        className="mb-2 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg text-yellow-400 hover:bg-yellow-500/30 transition"
+      >
+        <Bug className="w-5 h-5" />
+      </button>
+      
+      {showDebug && (
+        <div className="bg-[#0a1020] border border-yellow-500/30 rounded-lg p-4 w-80 text-xs font-mono">
+          <h3 className="text-yellow-400 font-bold mb-2 flex items-center gap-2">
+            <Bug className="w-4 h-4" /> Debug Panel
+          </h3>
+          <div className="space-y-1 text-white/80">
+            <div className="flex justify-between">
+              <span className="text-white/50">User Email:</span>
+              <span className={debugInfo.userEmail ? 'text-green-400' : 'text-red-400'}>
+                {debugInfo.userEmail || 'Not logged in'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">User ID:</span>
+              <span className="text-white/70 truncate max-w-[150px]">
+                {debugInfo.userId || 'N/A'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Profile Exists:</span>
+              <span className={debugInfo.profileExists ? 'text-green-400' : 'text-red-400'}>
+                {debugInfo.profileExists ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Subscription:</span>
+              <span className={
+                debugInfo.subscriptionStatus === 'trialing' || debugInfo.subscriptionStatus === 'active'
+                  ? 'text-green-400'
+                  : 'text-red-400'
+              }>
+                {debugInfo.subscriptionStatus || 'none'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Trial End:</span>
+              <span className="text-white/70">
+                {debugInfo.trialEnd ? new Date(debugInfo.trialEnd).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Access Allowed:</span>
+              <span className={debugInfo.accessAllowed ? 'text-green-400' : 'text-red-400'}>
+                {debugInfo.accessAllowed ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Session ID:</span>
+              <span className={debugInfo.sessionIdFound ? 'text-green-400' : 'text-yellow-400'}>
+                {debugInfo.sessionIdFound ? 'Found' : 'Not found'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Poll Count:</span>
+              <span className="text-white/70">{pollCount}/10</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">View State:</span>
+              <span className="text-cyan-400">{viewState}</span>
+            </div>
+            <div className="mt-2 pt-2 border-t border-white/10 text-white/40">
+              Last checked: {new Date(debugInfo.lastChecked).toLocaleTimeString()}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   // Loading state
   if (viewState === 'loading') {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <DebugPanel />
         <div className="text-center">
           <Loader2 className="w-10 h-10 text-[#ff4fa3] animate-spin mx-auto mb-3" />
-          <p className="text-white/70 text-sm">Checking subscription status...</p>
+          <p className="text-white/70 text-sm">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Finalizing state - waiting for webhook
+  if (viewState === 'finalizing') {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
+        <DebugPanel />
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#22c55e]/10 to-transparent rounded-full blur-3xl" />
+          <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative w-full max-w-md text-center">
+          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={100} height={100} priority className="mx-auto mb-4" />
+          
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-[#22c55e]/20 border-4 border-[#22c55e] flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-[#22c55e] animate-spin" />
+            </div>
+          </div>
+
+          <h1 className="text-2xl font-bold text-white mb-2">Finalizing Subscription...</h1>
+          <p className="text-[#94a3b8] text-sm mb-4">Please wait while we activate your trial.</p>
+          
+          <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-xl p-4">
+            <div className="flex items-center justify-center gap-2 text-[#94a3b8]">
+              <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
+              <span className="text-sm">Checking status... ({pollCount}/10)</span>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -330,19 +374,17 @@ function CompleteSignupContent() {
   if (viewState === 'success' && subscriptionData) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-        {/* Background gradient effects */}
+        <DebugPanel />
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#22c55e]/10 to-transparent rounded-full blur-3xl" />
           <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
         </div>
 
         <div className="relative w-full max-w-md">
-          {/* Logo */}
           <div className="flex justify-center mb-3">
             <Image src="/images/eqho-logo.png" alt="EQHO Player" width={80} height={80} priority />
           </div>
 
-          {/* Success Icon */}
           <div className="flex justify-center mb-3">
             <div className="w-16 h-16 rounded-full bg-[#22c55e] flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-white" />
@@ -351,9 +393,7 @@ function CompleteSignupContent() {
 
           <h1 className="text-2xl font-bold text-white text-center mb-5">Welcome to EQHO Player Pro!</h1>
 
-          {/* Status Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
-            {/* Status Badge + Days */}
             <div className="flex items-center justify-center gap-4 mb-4">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#22c55e]/20 border border-[#22c55e]/30">
                 <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
@@ -365,12 +405,11 @@ function CompleteSignupContent() {
               </div>
             </div>
 
-            {/* Info row */}
             <div className="flex gap-2 mb-4">
               <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
                 <div className="flex items-center gap-1.5 text-[#94a3b8]">
                   <CreditCard className="h-3 w-3" />
-                  <span className="text-xs">Then £3.99/mo</span>
+                  <span className="text-xs">Then £47.90/yr</span>
                 </div>
               </div>
               <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
@@ -381,7 +420,6 @@ function CompleteSignupContent() {
               </div>
             </div>
 
-            {/* Features */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               {['Unlimited playlists', 'Cloud sync', 'Advanced sessions', 'Priority support'].map((feature) => (
                 <div key={feature} className="flex items-center gap-1.5 text-sm text-[#e2e8f0]">
@@ -393,7 +431,6 @@ function CompleteSignupContent() {
               ))}
             </div>
 
-            {/* CTA Buttons */}
             <Link
               href="/"
               className="w-full h-11 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-2 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_6px_24px_rgba(255,79,163,0.3)] mb-2"
@@ -419,55 +456,23 @@ function CompleteSignupContent() {
     )
   }
 
-  // Signup form state
+  // Signup form state (fallback)
   return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-      {/* Background gradient effects */}
+      <DebugPanel />
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
         <div className="flex justify-center mb-4">
-          <Image
-            src="/images/eqho-logo.png"
-            alt="EQHO Player"
-            width={120}
-            height={120}
-            priority
-          />
+          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={120} height={120} priority />
         </div>
 
-        {/* Success Badge */}
-        <div className="flex justify-center mb-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#22c55e]/20 border border-[#22c55e]/30">
-            <Check className="w-4 h-4 text-[#22c55e]" />
-            <span className="text-[#22c55e] font-semibold text-sm">Payment Successful</span>
-          </div>
-        </div>
-
-        {/* Signup Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
-          <h2 className="text-xl font-bold text-white mb-1 text-center">Complete Your Account</h2>
-          <p className="text-sm text-[#94a3b8] mb-5 text-center">Create a password to access EQHO Player Pro</p>
-
-          {/* Email Notice */}
-          {checkoutEmail && (
-            <div className="bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-3 mb-4">
-              <p className="text-xs text-[#94a3b8] mb-0.5">Your subscription email:</p>
-              <p className="text-sm font-semibold text-[#22d3ee]">{checkoutEmail}</p>
-            </div>
-          )}
-
-          {/* Polling indicator */}
-          {pollCount > 0 && pollCount < 10 && (
-            <div className="bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-2 mb-4 flex items-center gap-2">
-              <Loader2 className="w-3 h-3 text-[#ff8a00] animate-spin" />
-              <span className="text-xs text-[#ff8a00]">Activating subscription... ({pollCount}/10)</span>
-            </div>
-          )}
+          <h2 className="text-xl font-bold text-white mb-1 text-center">Create Your Account</h2>
+          <p className="text-sm text-[#94a3b8] mb-5 text-center">Sign up to start your free trial</p>
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
@@ -478,9 +483,7 @@ function CompleteSignupContent() {
 
           <form onSubmit={handleCreateAccount} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7c8596]" />
                 <input
@@ -489,19 +492,13 @@ function CompleteSignupContent() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
-                  readOnly={!!checkoutEmail}
-                  className={`w-full pl-10 pr-4 py-2.5 bg-[#0a1020] border border-white/10 rounded-xl text-white placeholder:text-[#7c8596] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition text-sm ${checkoutEmail ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#0a1020] border border-white/10 rounded-xl text-white placeholder:text-[#7c8596] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition text-sm"
                 />
               </div>
-              {checkoutEmail && (
-                <p className="text-xs text-[#64748b] mt-1">Use the same email from checkout</p>
-              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7c8596]" />
                 <input
@@ -523,9 +520,7 @@ function CompleteSignupContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">
-                Confirm Password
-              </label>
+              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">Confirm Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7c8596]" />
                 <input
@@ -557,14 +552,10 @@ function CompleteSignupContent() {
                   Creating Account...
                 </>
               ) : (
-                'Create Account & Start Trial'
+                'Create Account'
               )}
             </button>
           </form>
-
-          <p className="text-center text-xs mt-4 text-[#64748b]">
-            Your 14-day free trial starts now. You won&apos;t be charged until it ends.
-          </p>
         </div>
       </div>
     </div>
