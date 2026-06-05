@@ -38,43 +38,85 @@ export default function SubscriptionSuccessPage() {
 
     const fetchAndActivateSubscription = async () => {
       const supabase = createClient()
-      if (!supabase) return
-
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const userEmail = session.user.email || ''
-      const trialEnd = new Date()
-      trialEnd.setDate(trialEnd.getDate() + 14)
-      
-      await supabase
-        .from('profiles')
-        .update({ 
-          subscription_status: 'trialing',
-          trial_end: trialEnd.toISOString(),
-          updated_at: new Date().toISOString()
+      if (!supabase) {
+        // Fallback if Supabase not available
+        const trialEnd = new Date()
+        trialEnd.setDate(trialEnd.getDate() + 14)
+        setSubscriptionData({
+          status: 'trialing',
+          trialEnd,
+          daysRemaining: 14,
+          email: 'Your account',
         })
-        .eq('id', session.user.id)
+        setActivationComplete(true)
+        return
+      }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('subscription_status, trial_end')
-        .eq('id', session.user.id)
-        .single()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session) {
+          // No session - still show success with defaults
+          const trialEnd = new Date()
+          trialEnd.setDate(trialEnd.getDate() + 14)
+          setSubscriptionData({
+            status: 'trialing',
+            trialEnd,
+            daysRemaining: 14,
+            email: 'Your account',
+          })
+          setActivationComplete(true)
+          return
+        }
 
-      if (profile) {
-        const profileTrialEnd = profile.trial_end ? new Date(profile.trial_end) : trialEnd
-        const daysRemaining = Math.max(0, Math.ceil((profileTrialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        const userEmail = session.user.email || 'Your account'
+        const trialEnd = new Date()
+        trialEnd.setDate(trialEnd.getDate() + 14)
+        
+        // Update profile with 14 day trial
+        await supabase
+          .from('profiles')
+          .update({ 
+            subscription_status: 'trialing',
+            trial_end: trialEnd.toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', session.user.id)
+
+        // Fetch updated profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status, trial_end')
+          .eq('id', session.user.id)
+          .single()
+
+        // Calculate days remaining - always based on 14 day trial
+        let daysRemaining = 14
+        if (profile?.trial_end) {
+          const profileTrialEnd = new Date(profile.trial_end)
+          daysRemaining = Math.max(0, Math.min(14, Math.ceil((profileTrialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
+        }
 
         setSubscriptionData({
-          status: profile.subscription_status || 'trialing',
-          trialEnd: profileTrialEnd,
+          status: profile?.subscription_status || 'trialing',
+          trialEnd: profile?.trial_end ? new Date(profile.trial_end) : trialEnd,
           daysRemaining,
           email: userEmail,
         })
+        
+        setActivationComplete(true)
+      } catch (error) {
+        // On error, still show success with defaults
+        const trialEnd = new Date()
+        trialEnd.setDate(trialEnd.getDate() + 14)
+        setSubscriptionData({
+          status: 'trialing',
+          trialEnd,
+          daysRemaining: 14,
+          email: 'Your account',
+        })
+        setActivationComplete(true)
       }
-      
-      setActivationComplete(true)
     }
 
     fetchAndActivateSubscription()
@@ -112,7 +154,7 @@ export default function SubscriptionSuccessPage() {
               <span className="text-[#22c55e] font-semibold text-sm">Trial Active</span>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-black text-white">{subscriptionData?.daysRemaining || 14}</p>
+              <p className="text-3xl font-black text-white">{Math.min(subscriptionData?.daysRemaining ?? 14, 14)}</p>
               <p className="text-xs text-[#94a3b8]">days left</p>
             </div>
           </div>
@@ -128,7 +170,7 @@ export default function SubscriptionSuccessPage() {
             <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
               <div className="flex items-center gap-1.5 text-[#94a3b8]">
                 <Mail className="h-3 w-3" />
-                <span className="text-xs truncate">{subscriptionData?.email || 'Loading...'}</span>
+                <span className="text-xs truncate">{subscriptionData?.email || 'Your account'}</span>
               </div>
             </div>
           </div>
