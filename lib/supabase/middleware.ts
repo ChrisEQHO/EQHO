@@ -70,30 +70,32 @@ export async function updateSession(request: NextRequest) {
       let profile = null
       const { data: profileById } = await supabase
         .from('profiles')
-        .select('subscription_status')
+        .select('subscription_status, plan')
         .eq('id', user.id)
         .single()
       
       if (profileById) {
         profile = profileById
-        console.log('[v0] Middleware: Profile found by id, status:', profile.subscription_status)
+        console.log('[v0] Middleware: Profile found by id, status:', profile.subscription_status, 'plan:', profile.plan)
       } else if (user.email) {
         // Try by email as fallback
         const { data: profileByEmail } = await supabase
           .from('profiles')
-          .select('subscription_status')
+          .select('subscription_status, plan')
           .ilike('email', user.email)
           .single()
         profile = profileByEmail
-        console.log('[v0] Middleware: Profile found by email, status:', profile?.subscription_status)
+        console.log('[v0] Middleware: Profile found by email, status:', profile?.subscription_status, 'plan:', profile?.plan)
       }
       
       if (!profile) {
         console.log('[v0] Middleware: No profile found for user, redirecting to upgrade')
       }
       
-      const hasActiveSubscription = profile?.subscription_status === 'active' || 
-                                     profile?.subscription_status === 'trialing'
+      // Allow access if: (plan='pro') AND (subscription_status='active' OR 'trialing')
+      const hasActiveSubscription = profile?.plan === 'pro' && 
+                                    (profile?.subscription_status === 'active' || 
+                                     profile?.subscription_status === 'trialing')
       
       console.log('[v0] Middleware: Has active subscription:', hasActiveSubscription)
       
@@ -111,7 +113,7 @@ export async function updateSession(request: NextRequest) {
       let profile = null
       const { data: profileById } = await supabase
         .from('profiles')
-        .select('subscription_status')
+        .select('subscription_status, plan')
         .eq('id', user.id)
         .single()
       
@@ -120,14 +122,16 @@ export async function updateSession(request: NextRequest) {
       } else if (user.email) {
         const { data: profileByEmail } = await supabase
           .from('profiles')
-          .select('subscription_status')
+          .select('subscription_status, plan')
           .ilike('email', user.email)
           .single()
         profile = profileByEmail
       }
       
-      const hasActiveSubscription = profile?.subscription_status === 'active' || 
-                                     profile?.subscription_status === 'trialing'
+      // Allow access if: (plan='pro') AND (subscription_status='active' OR 'trialing')
+      const hasActiveSubscription = profile?.plan === 'pro' && 
+                                    (profile?.subscription_status === 'active' || 
+                                     profile?.subscription_status === 'trialing')
       
       const url = request.nextUrl.clone()
       // Redirect to player if subscribed, upgrade if not
