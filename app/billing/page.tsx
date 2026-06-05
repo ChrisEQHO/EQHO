@@ -188,7 +188,7 @@ function BillingContent() {
                 >
                   <CreditCard className="h-5 w-5" style={{ color: 'var(--eqho-pink)' }} />
                   <div>
-                    <p style={{ color: 'var(--eqho-text-primary)' }}>£7.99/month</p>
+                    <p style={{ color: 'var(--eqho-text-primary)' }}>£3.99/month</p>
                     {isCancelPending && (
                       <p 
                         className="text-sm"

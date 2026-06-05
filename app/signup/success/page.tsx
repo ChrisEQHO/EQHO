@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Mail, Crown } from 'lucide-react'
+import Image from 'next/image'
+import { Mail, ArrowRight, CheckCircle } from 'lucide-react'
 
 export default function SignupSuccessPage() {
   return (
@@ -11,9 +12,33 @@ export default function SignupSuccessPage() {
       </div>
 
       <div className="relative w-full max-w-md text-center">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-6">
-          <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/images/eqho-logo.png"
+            alt="EQHO Player"
+            width={150}
+            height={150}
+            priority
+          />
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex justify-center gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-[#22c55e] text-white text-sm font-bold flex items-center justify-center">
+              <CheckCircle className="w-4 h-4" />
+            </span>
+            <span className="text-sm text-[#22c55e]">Account Created</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-[#ff4fa3] text-white text-sm font-bold flex items-center justify-center">2</span>
+            <span className="text-sm text-[#ff4fa3]">Verify Email</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-[#64748b] text-white text-sm font-bold flex items-center justify-center">3</span>
+            <span className="text-sm text-[#64748b]">Start Trial</span>
+          </div>
         </div>
 
         {/* Success Card */}
@@ -22,34 +47,42 @@ export default function SignupSuccessPage() {
             <Mail className="w-8 h-8 text-white" />
           </div>
 
-          <h2 className="text-2xl font-bold text-white mb-4">Check your email</h2>
-          
-          <p className="text-[#cbd5e1] mb-4">
-            We&apos;ve sent you a confirmation link. Please check your email to verify your account.
+          <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
+          <p className="text-[#94a3b8] mb-6">
+            We&apos;ve sent you a confirmation link to verify your account.
           </p>
 
-          {/* Free Trial Info */}
-          <div className="bg-gradient-to-r from-[#ff4fa3]/10 to-[#ff8a00]/10 border border-[#ff4fa3]/20 rounded-xl p-4 mb-6">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Crown className="w-5 h-5 text-[#ff8a00]" />
-              <span className="font-bold text-white">30-Day Free Pro Trial</span>
-            </div>
-            <p className="text-sm text-[#cbd5e1]">
-              After confirming your email, you&apos;ll be redirected to start your free 30-day Pro trial with full access to cloud sync and all premium features.
-            </p>
+          {/* Next steps */}
+          <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 mb-6 text-left">
+            <p className="font-semibold text-[#22c55e] mb-3">What happens next:</p>
+            <ol className="space-y-2 text-sm text-[#cbd5e1]">
+              <li className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                Click the link in your email to verify your account
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                You&apos;ll be redirected to start your 30-day free trial
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                Enjoy full access to EQHO Player Pro!
+              </li>
+            </ol>
           </div>
 
           <Link
             href="/login"
-            className="inline-block px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition"
           >
             Back to Login
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[#7c8596] text-xs mt-6">
-          EQHO Player - Professional Music Session Management
+        <p className="text-center text-[#64748b] text-xs mt-6">
+          Didn&apos;t receive the email? Check your spam folder or try signing up again.
         </p>
       </div>
     </div>

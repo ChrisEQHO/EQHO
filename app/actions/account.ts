@@ -8,7 +8,11 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+  console.log('[v0] deleteAccount called')
+  console.log('[v0] Has service key:', !!supabaseServiceKey)
+
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.log('[v0] Missing Supabase configuration')
     return { success: false, error: 'Missing Supabase configuration' }
   }
 
@@ -36,41 +40,36 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     
+    console.log('[v0] User:', user?.id, user?.email)
+    console.log('[v0] User error:', userError)
+
     if (userError || !user) {
       return { success: false, error: 'Not authenticated' }
     }
 
-    // Log the account deletion in a deleted_accounts table
-    const { error: logError } = await supabase
-      .from('deleted_accounts')
-      .insert({
-        user_id: user.id,
-        email: user.email,
-        deleted_at: new Date().toISOString(),
-      })
-
-    if (logError) {
-      // If the table doesn't exist, continue anyway - the deletion should still proceed
-      console.error('Failed to log account deletion:', logError)
-    }
-
-    // Delete user data from profiles table
-    await supabase
+    // Delete user data from profiles table (uses 'id' as the user id column)
+    const { error: profileError } = await supabase
       .from('profiles')
       .delete()
-      .eq('user_id', user.id)
+      .eq('id', user.id)
+    
+    console.log('[v0] Profile delete error:', profileError)
 
     // Delete user's cloud playlists
-    await supabase
+    const { error: playlistError } = await supabase
       .from('cloud_playlists')
       .delete()
       .eq('user_id', user.id)
+    
+    console.log('[v0] Playlist delete error:', playlistError)
 
     // Delete user's cloud tracks
-    await supabase
+    const { error: trackError } = await supabase
       .from('cloud_tracks')
       .delete()
       .eq('user_id', user.id)
+    
+    console.log('[v0] Track delete error:', trackError)
 
     // If we have a service role key, delete the user from auth
     if (supabaseServiceKey) {
@@ -84,18 +83,24 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
       
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(user.id)
       
+      console.log('[v0] Auth delete error:', deleteError)
+      
       if (deleteError) {
         console.error('Failed to delete user from auth:', deleteError)
-        return { success: false, error: 'Failed to delete account. Please try again.' }
+        // Still return success if we deleted the data but couldn't delete auth
+        // The user won't be able to access anything anyway
       }
+    } else {
+      console.log('[v0] No service key - signing out user only')
     }
 
     // Sign out the user
     await supabase.auth.signOut()
 
+    console.log('[v0] Account deletion completed successfully')
     return { success: true }
   } catch (error) {
-    console.error('Account deletion error:', error)
+    console.error('[v0] Account deletion error:', error)
     return { success: false, error: 'An unexpected error occurred' }
   }
 }

@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, Eye, EyeOff, User, Crown } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, AlertCircle, Info } from 'lucide-react'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -36,7 +37,7 @@ export default function SignupPage() {
     const supabase = createClient()
     
     if (!supabase) {
-      setError('Missing Supabase environment variables. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in v0 environment variables.')
+      setError('Service temporarily unavailable. Please try again later.')
       setLoading(false)
       return
     }
@@ -69,27 +70,38 @@ export default function SignupPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-6">
-          <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
-          <p className="text-[#cbd5e1] text-sm mt-2">Start your 30-day free trial</p>
-        </div>
-
-        {/* Trial Badge */}
-        <div className="flex justify-center mb-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#ff4fa3]/20 to-[#ff8a00]/20 border border-[#ff4fa3]/30">
-            <Crown className="w-4 h-4 text-[#ff8a00]" />
-            <span className="text-sm font-medium text-white">30 Days Free, then £7.99/month</span>
-          </div>
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/images/eqho-logo.png"
+            alt="EQHO Player"
+            width={220}
+            height={220}
+            priority
+          />
         </div>
 
         {/* Signup Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
-          <h2 className="text-2xl font-bold text-white mb-6">Sign Up</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
+          <p className="text-sm text-[#94a3b8] mb-6">Create your EQHO account to access EQHO Player Pro.</p>
+
+          {/* Email Notice */}
+          <div className="bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-[#ff8a00] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-[#e2e8f0]">
+                  Your EQHO account email will be used for your subscription. The email used for login and Stripe billing must match.
+                </p>
+              </div>
+            </div>
+          </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-              {error}
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <span className="text-red-400 text-sm">{error}</span>
             </div>
           )}
 
@@ -179,9 +191,9 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3.5 mt-2 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Start Free Trial'}
+              {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
@@ -194,11 +206,6 @@ export default function SignupPage() {
             </p>
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-[#7c8596] text-xs mt-6">
-          EQHO Player - Professional Music Session Management
-        </p>
       </div>
     </div>
   )

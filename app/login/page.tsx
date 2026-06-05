@@ -1,13 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
-// STRIPE TEMPORARILY DISABLED
-// const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603'
+// Check if running in v0 preview
+const isV0Preview = typeof window !== 'undefined' && (
+  window.location.hostname.includes('vusercontent.net') ||
+  window.location.hostname.includes('v0.dev') ||
+  window.location.hostname.includes('localhost')
+)
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -17,122 +22,223 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  // Check if user is already logged in
+  useEffect(() => {
+    if (isV0Preview) return
+    
+    const checkSession = async () => {
+      const supabase = createClient()
+      if (!supabase) return
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // Check subscription status
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', session.user.id)
+          .single()
+
+        const hasAccess = profile?.subscription_status && 
+          ['active', 'trialing'].includes(profile.subscription_status)
+
+        if (hasAccess) {
+          router.replace('/')
+        } else {
+          router.replace('/upgrade')
+        }
+      }
+    }
+    checkSession()
+  }, [router])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
+    // In v0 preview mode, just redirect to player
+    if (isV0Preview) {
+      router.replace('/')
+      return
+    }
+
     const supabase = createClient()
     
     if (!supabase) {
-      setError('Missing Supabase environment variables. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in v0 environment variables.')
+      setError('Service temporarily unavailable. Please try again later.')
       setLoading(false)
       return
     }
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    // Sign in with Supabase
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (authError) {
-      setError(authError.message)
+      if (authError.message.includes('Invalid login')) {
+        setError('Invalid email or password. Please try again.')
+      } else if (authError.message.includes('Email not confirmed')) {
+        setError('Please verify your email before logging in.')
+      } else {
+        setError(authError.message)
+      }
       setLoading(false)
-    } else {
-      // STRIPE TEMPORARILY DISABLED - Just redirect to player after login
+      return
+    }
+
+    if (!data.user) {
+      setError('Login failed. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    // Check subscription status
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_status')
+      .eq('user_id', data.user.id)
+      .single()
+
+    const hasAccess = profile?.subscription_status && 
+      ['active', 'trialing'].includes(profile.subscription_status)
+
+    if (hasAccess) {
       router.replace('/')
+    } else {
+      router.replace('/upgrade')
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-      {/* Background gradient effects */}
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#020617] p-4">
+      {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/10 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/10 to-transparent rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-4">
-          <h1 className="text-3xl font-bold text-white">EQHO Player</h1>
-          <p className="text-[#cbd5e1] text-sm mt-2">Welcome back to your session</p>
+        {/* Logo */}
+        <div className="mb-8 flex flex-col items-center">
+          <Image
+            src="/images/eqho-logo.png"
+            alt="EQHO Player"
+            width={280}
+            height={280}
+            className="mb-2"
+            priority
+          />
+          <p className="text-sm text-[#94a3b8]">
+            Welcome back to your session
+          </p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
-          <h2 className="text-2xl font-bold text-white mb-4">Login</h2>
-
-          {error && (
-            <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-3">
+        {/* Login Form Card */}
+        <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
+          <form onSubmit={handleLogin} className="space-y-4">
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium mb-2 text-[#94a3b8]">
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#7c8596]" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#64748b]" />
                 <input
+                  id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  placeholder="you@example.com"
                   required
-                  className="w-full pl-11 pr-4 py-2.5 bg-[#0a1020] border border-white/10 rounded-xl text-white placeholder:text-[#7c8596] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
+                  className="w-full h-12 pl-12 pr-4 rounded-xl bg-[#0a1020] border border-white/10 text-white placeholder:text-[#64748b] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
                 />
               </div>
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-[#cbd5e1] mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium mb-2 text-[#94a3b8]">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#7c8596]" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#64748b]" />
                 <input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  className="w-full pl-11 pr-11 py-2.5 bg-[#0a1020] border border-white/10 rounded-xl text-white placeholder:text-[#7c8596] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
+                  className="w-full h-12 pl-12 pr-12 rounded-xl bg-[#0a1020] border border-white/10 text-white placeholder:text-[#64748b] focus:outline-none focus:border-[#ff4fa3]/50 focus:ring-1 focus:ring-[#ff4fa3]/50 transition"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7c8596] hover:text-[#cbd5e1] transition"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="p-4 rounded-xl text-sm bg-red-500/10 border border-red-500/30 text-red-400">
+                {error}
+              </div>
+            )}
+
+            {/* Login Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 mt-1 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 rounded-xl font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] shadow-[0_4px_20px_rgba(255,79,163,0.3)]"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Login'
+              )}
             </button>
+
+            {/* Forgot Password */}
+            <div className="text-center">
+              <Link href="/forgot-password" className="text-sm text-[#22d3ee] hover:underline transition-colors">
+                Forgot your password?
+              </Link>
+            </div>
           </form>
 
-          <div className="mt-4 text-center">
-            <p className="text-[#7c8596]">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup" className="text-[#ff4fa3] hover:text-[#ff8a00] font-medium transition">
-                Sign up
-              </Link>
-            </p>
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-[rgba(9,15,28,0.96)] text-[#64748b]">
+                New to EQHO Player?
+              </span>
+            </div>
           </div>
+
+          {/* Sign Up Link */}
+          <Link 
+            href="/signup"
+            className="block w-full h-12 rounded-xl font-semibold text-center leading-[48px] border border-white/20 text-white hover:bg-white/10 transition-all"
+          >
+            Create an account
+          </Link>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-[#7c8596] text-xs mt-4">
-          EQHO Player - Professional Music Session Management
+        {/* Footer text */}
+        <p className="text-center text-xs text-[#64748b] mt-6">
+          Create your EQHO account to access EQHO Player Pro.
         </p>
       </div>
     </div>

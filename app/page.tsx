@@ -4324,7 +4324,7 @@ Upload Folders & Playlists
                       
                       {/* Auto-renewal message */}
                       <p className="text-white/50 text-[11px] leading-relaxed">
-                        Your subscription will automatically renew at £7.99 per month when your 30-day trial ends.
+                        Your subscription will automatically renew at £3.99 per month when your 30-day trial ends.
                       </p>
                     </div>
                     
