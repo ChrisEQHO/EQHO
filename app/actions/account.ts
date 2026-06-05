@@ -104,3 +104,41 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
+
+export async function signOutUser(): Promise<{ success: boolean; error?: string }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return { success: false, error: 'Missing Supabase configuration' }
+  }
+
+  try {
+    const cookieStore = await cookies()
+    
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // Ignore cookie setting errors
+          }
+        },
+      },
+    })
+
+    await supabase.auth.signOut()
+    
+    console.log('[v0] User signed out successfully')
+    return { success: true }
+  } catch (error) {
+    console.error('[v0] Sign out error:', error)
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}

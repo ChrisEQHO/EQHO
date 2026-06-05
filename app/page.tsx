@@ -441,6 +441,19 @@ export default function Page() {
 
   const handleLogout = async () => {
     if (!supabase) return;
+    
+    // Clear all auth-related localStorage values
+    if (typeof window !== 'undefined') {
+      const keysToRemove = [
+        'userEmail', 'email', 'user_email', 'user', 'profile', 
+        'subscription', 'stripe', 'trial', 'account', 'session'
+      ]
+      keysToRemove.forEach(key => {
+        try { localStorage.removeItem(key) } catch {}
+        try { sessionStorage.removeItem(key) } catch {}
+      })
+    }
+    
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
