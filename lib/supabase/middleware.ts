@@ -62,9 +62,11 @@ export async function updateSession(request: NextRequest) {
 
   // If user is logged in
   if (user) {
+    console.log('[v0] Middleware: User logged in:', user.email, 'id:', user.id)
+    
     // Check subscription status for protected routes (player)
     if (pathname === '/') {
-      // Try fetching profile by 'id' first, then 'user_id'
+      // Try fetching profile by 'id' first, then by email as fallback
       let profile = null
       const { data: profileById } = await supabase
         .from('profiles')
@@ -74,17 +76,26 @@ export async function updateSession(request: NextRequest) {
       
       if (profileById) {
         profile = profileById
-      } else {
-        const { data: profileByUserId } = await supabase
+        console.log('[v0] Middleware: Profile found by id, status:', profile.subscription_status)
+      } else if (user.email) {
+        // Try by email as fallback
+        const { data: profileByEmail } = await supabase
           .from('profiles')
           .select('subscription_status')
-          .eq('user_id', user.id)
+          .ilike('email', user.email)
           .single()
-        profile = profileByUserId
+        profile = profileByEmail
+        console.log('[v0] Middleware: Profile found by email, status:', profile?.subscription_status)
+      }
+      
+      if (!profile) {
+        console.log('[v0] Middleware: No profile found for user, redirecting to upgrade')
       }
       
       const hasActiveSubscription = profile?.subscription_status === 'active' || 
                                      profile?.subscription_status === 'trialing'
+      
+      console.log('[v0] Middleware: Has active subscription:', hasActiveSubscription)
       
       // If no active subscription, redirect to upgrade page
       if (!hasActiveSubscription) {
@@ -96,7 +107,7 @@ export async function updateSession(request: NextRequest) {
 
     // If user is logged in and trying to access login/signup, check subscription
     if (pathname === '/login' || pathname === '/signup') {
-      // Try fetching profile by 'id' first, then 'user_id'
+      // Try fetching profile by 'id' first, then by email
       let profile = null
       const { data: profileById } = await supabase
         .from('profiles')
@@ -106,13 +117,13 @@ export async function updateSession(request: NextRequest) {
       
       if (profileById) {
         profile = profileById
-      } else {
-        const { data: profileByUserId } = await supabase
+      } else if (user.email) {
+        const { data: profileByEmail } = await supabase
           .from('profiles')
           .select('subscription_status')
-          .eq('user_id', user.id)
+          .ilike('email', user.email)
           .single()
-        profile = profileByUserId
+        profile = profileByEmail
       }
       
       const hasActiveSubscription = profile?.subscription_status === 'active' || 
