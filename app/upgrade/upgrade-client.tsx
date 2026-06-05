@@ -51,11 +51,24 @@ export default function UpgradeClient() {
 
       setUser({ id: session.user.id, email: session.user.email || '' })
 
-      const { data: profile } = await supabase
+      // Try fetching profile by 'id' first, then 'user_id'
+      let profile = null
+      const { data: profileById } = await supabase
         .from('profiles')
         .select('subscription_status')
-        .eq('user_id', session.user.id)
+        .eq('id', session.user.id)
         .single()
+      
+      if (profileById) {
+        profile = profileById
+      } else {
+        const { data: profileByUserId } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', session.user.id)
+          .single()
+        profile = profileByUserId
+      }
 
       if (profile?.subscription_status && ['active', 'trialing'].includes(profile.subscription_status)) {
         setHasSubscription(true)
