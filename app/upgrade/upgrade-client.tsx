@@ -127,22 +127,18 @@ export default function UpgradeClient() {
         <h1 className="text-base font-semibold text-white">EQHO Player</h1>
       </header>
 
-      <main className="relative flex-1 flex items-center justify-center p-3 overflow-hidden">
-        <div className="max-w-md w-full space-y-4">
-          {/* Logo */}
-          <div className="flex justify-center">
-            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={80} height={80} priority />
-          </div>
-
-          {/* Welcome message */}
+      <main className="relative flex-1 flex items-center justify-center p-6 overflow-hidden">
+        <div className="max-w-lg w-full space-y-5">
+          {/* Logo + Welcome */}
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white">Welcome to EQHO Player Pro</h2>
-            <p className="text-[#94a3b8] text-sm">Your account has been created successfully.</p>
+            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={90} height={90} priority className="mx-auto mb-3" />
+            <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player Pro</h2>
+            <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
           </div>
 
           {/* Canceled notice */}
           {canceled && (
-            <div className="p-2.5 rounded-xl border flex items-start gap-2 bg-[#ff8a00]/10 border-[#ff8a00]/30">
+            <div className="p-3 rounded-xl border flex items-start gap-2 bg-[#ff8a00]/10 border-[#ff8a00]/30">
               <AlertCircle className="h-4 w-4 text-[#ff8a00] shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-sm text-[#ff8a00]">Checkout Canceled</p>
@@ -151,52 +147,53 @@ export default function UpgradeClient() {
             </div>
           )}
 
-          {/* Email & Security Notice combined */}
-          <div className="flex gap-2">
+          {/* Email & Security Notice */}
+          <div className="flex gap-3">
             {user && (
-              <div className="flex-1 bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-2.5">
-                <p className="text-[10px] text-[#94a3b8] uppercase tracking-wide">Linked to</p>
+              <div className="flex-1 bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-3">
+                <p className="text-xs text-[#94a3b8] mb-0.5">Linked to</p>
                 <p className="text-sm font-semibold text-[#22d3ee] truncate">{user.email}</p>
               </div>
             )}
-            <div className="flex-1 bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-2.5">
-              <div className="flex items-center gap-1">
+            <div className="flex-1 bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-0.5">
                 <Lock className="h-3 w-3 text-[#ff8a00]" />
-                <p className="text-[10px] font-semibold text-[#ff8a00] uppercase tracking-wide">Important</p>
+                <p className="text-xs font-semibold text-[#ff8a00]">Important</p>
               </div>
               <p className="text-xs text-[#94a3b8]">Email must match EQHO account</p>
             </div>
           </div>
 
           {/* Main Card */}
-          <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-4">
-            {/* 14 Days Free Banner + Pricing side by side */}
-            <div className="flex gap-2 mb-3">
-              <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-3 flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-white shrink-0" />
+          <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
+            {/* 14 Days Free Banner + Yearly Pricing */}
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
-                  <p className="font-bold text-white text-base leading-tight">14 Days FREE</p>
-                  <p className="text-[11px] text-white/90">Try all Pro features</p>
+                  <p className="font-bold text-white text-lg leading-tight">14 Days FREE</p>
+                  <p className="text-xs text-white/90">Try all Pro features free</p>
                 </div>
               </div>
-              <div className="bg-[#020617] border border-white/10 rounded-xl px-4 py-2 text-center flex flex-col justify-center">
-                <p className="text-[10px] text-[#94a3b8]">Then</p>
-                <p className="text-xl font-black text-white leading-tight">£3.99</p>
-                <p className="text-[10px] text-[#64748b]">/month</p>
+              <div className="bg-[#020617] border border-white/10 rounded-xl px-5 py-3 text-center flex flex-col justify-center">
+                <p className="text-xs text-[#94a3b8]">Then</p>
+                <p className="text-2xl font-black text-white leading-tight">£47.88</p>
+                <p className="text-xs text-[#64748b]">/year</p>
+                <p className="text-[10px] text-[#22c55e] mt-0.5">Just £3.99/mo avg</p>
               </div>
             </div>
 
             {/* Features - 2 columns */}
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
               {[
                 'Unlimited playlists',
                 'Cloud sync',
                 'Advanced sessions',
                 'Priority support',
               ].map((feature) => (
-                <div key={feature} className="flex items-center gap-1.5 text-sm text-[#e2e8f0]">
-                  <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
-                    <Check className="w-2.5 h-2.5 text-white" />
+                <div key={feature} className="flex items-center gap-2 text-sm text-[#e2e8f0]">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
+                    <Check className="w-3 h-3 text-white" />
                   </div>
                   {feature}
                 </div>
@@ -207,23 +204,23 @@ export default function UpgradeClient() {
             <button
               onClick={handleStartTrial}
               disabled={redirectingToStripe || !user}
-              className="w-full h-11 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-2 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-[0_4px_20px_rgba(34,197,94,0.4)] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full h-12 rounded-xl font-bold text-base transition-all hover:scale-[1.02] flex items-center justify-center gap-2 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-[0_6px_24px_rgba(34,197,94,0.4)] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {redirectingToStripe ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   Redirecting to Stripe...
                 </>
               ) : (
                 <>
-                  <CreditCard className="h-4 w-4" />
+                  <CreditCard className="h-5 w-5" />
                   Start 14-Day Free Trial
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-5 w-5" />
                 </>
               )}
             </button>
 
-            <p className="text-center text-[11px] mt-1.5 text-[#64748b]">
+            <p className="text-center text-xs mt-2 text-[#64748b]">
               Redirects to Stripe. Card won&apos;t be charged until trial ends.
             </p>
           </div>
