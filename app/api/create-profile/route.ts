@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { userId, email } = body
+    const { userId, email, fullName } = body
 
     console.log('[v0] API create-profile called for:', email, 'userId:', userId)
 
@@ -18,52 +18,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing userId or email' }, { status: 400 })
     }
 
-    // Calculate trial dates
-    const trialStart = new Date()
-    const trialEnd = new Date()
-    trialEnd.setDate(trialEnd.getDate() + 14)
-
     // First check if profile already exists
-    const { data: existingProfile, error: fetchError } = await supabaseAdmin
+    const { data: existingProfile } = await supabaseAdmin
       .from('profiles')
-      .select('id, subscription_status')
+      .select('id, subscription_status, plan')
       .eq('id', userId)
       .single()
 
     if (existingProfile) {
-      console.log('[v0] Profile already exists, updating subscription_status to trialing')
-      
-      // Update existing profile
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          subscription_status: 'trialing',
-          plan: 'pro',
-          trial_start: trialStart.toISOString(),
-          trial_end: trialEnd.toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId)
-
-      if (updateError) {
-        console.log('[v0] Update error:', updateError.message)
-        return NextResponse.json({ error: updateError.message }, { status: 500 })
-      }
-
-      return NextResponse.json({ success: true, action: 'updated' })
+      console.log('[v0] Profile already exists:', existingProfile)
+      // Don't modify existing profile - return as is
+      return NextResponse.json({ success: true, action: 'exists', profile: existingProfile })
     }
 
-    // Check if profile exists by email (might have different ID from webhook)
+    // Check if profile exists by email (might have been created by webhook with temp ID)
     const { data: profileByEmail } = await supabaseAdmin
       .from('profiles')
-      .select('id, subscription_status, stripe_customer_id, stripe_subscription_id')
+      .select('id, subscription_status, plan, stripe_customer_id, stripe_subscription_id, trial_end')
       .ilike('email', email)
       .single()
 
     if (profileByEmail && profileByEmail.id !== userId) {
-      console.log('[v0] Profile exists by email with different ID, migrating...')
+      console.log('[v0] Profile exists by email with different ID, migrating to auth user ID...')
       
-      // Delete old profile and create new one with correct ID
+      // Delete old profile and create new one with correct ID, preserving subscription data
       await supabaseAdmin
         .from('profiles')
         .delete()
@@ -74,13 +52,13 @@ export async function POST(request: Request) {
         .insert({
           id: userId,
           email: email.toLowerCase(),
-          full_name: '',
-          plan: 'pro',
-          subscription_status: profileByEmail.subscription_status || 'trialing',
+          full_name: fullName || '',
+          plan: profileByEmail.plan || 'none',
+          subscription_status: profileByEmail.subscription_status || 'none',
+          trial_active: profileByEmail.subscription_status === 'trialing',
           stripe_customer_id: profileByEmail.stripe_customer_id,
           stripe_subscription_id: profileByEmail.stripe_subscription_id,
-          trial_start: trialStart.toISOString(),
-          trial_end: trialEnd.toISOString(),
+          trial_end: profileByEmail.trial_end,
           created_at: new Date().toISOString(),
         })
 
@@ -92,18 +70,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, action: 'migrated' })
     }
 
-    // Create new profile
+    // Create new profile with initial values (no subscription yet)
     console.log('[v0] Creating new profile for user:', userId)
     const { error: insertError } = await supabaseAdmin
       .from('profiles')
       .insert({
         id: userId,
         email: email.toLowerCase(),
-        full_name: '',
-        plan: 'pro',
-        subscription_status: 'trialing',
-        trial_start: trialStart.toISOString(),
-        trial_end: trialEnd.toISOString(),
+        full_name: fullName || '',
+        plan: 'none',
+        subscription_status: 'none',
+        trial_active: false,
         created_at: new Date().toISOString(),
       })
 
@@ -112,7 +89,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
-    console.log('[v0] Profile created successfully')
+    console.log('[v0] Profile created successfully with plan=none, subscription_status=none')
     return NextResponse.json({ success: true, action: 'created' })
 
   } catch (error) {

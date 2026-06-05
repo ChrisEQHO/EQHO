@@ -8,9 +8,6 @@ import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircl
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
-// Stripe Payment Link for subscription
-const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/fZu4gt5kZdY447JgIJ3F604'
-
 // Check if running in v0 preview
 const isV0Preview = typeof window !== 'undefined' && (
   window.location.hostname.includes('vusercontent.net') ||
@@ -26,6 +23,7 @@ export default function UpgradeClient() {
   const [redirectingToStripe, setRedirectingToStripe] = useState(false)
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [hasSubscription, setHasSubscription] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   // Check session on mount
   useEffect(() => {
@@ -80,16 +78,36 @@ export default function UpgradeClient() {
     checkSession()
   }, [router])
 
-  const handleStartTrial = () => {
+  const handleStartTrial = async () => {
     if (!user) return
     
     setRedirectingToStripe(true)
+    setCheckoutError(null)
     
-    const paymentUrl = new URL(STRIPE_PAYMENT_LINK)
-    paymentUrl.searchParams.set('client_reference_id', user.id)
-    paymentUrl.searchParams.set('prefilled_email', user.email)
-    
-    window.location.href = paymentUrl.toString()
+    try {
+      // Call our API to create a Stripe Checkout Session
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      if (data.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = data.url
+      } else {
+        throw new Error('No checkout URL returned')
+      }
+    } catch (error) {
+      console.error('[v0] Checkout error:', error)
+      setCheckoutError(error instanceof Error ? error.message : 'Failed to start checkout')
+      setRedirectingToStripe(false)
+    }
   }
 
   if (loading) {
@@ -148,6 +166,17 @@ export default function UpgradeClient() {
             <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player Pro</h2>
             <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
           </div>
+
+          {/* Checkout Error */}
+          {checkoutError && (
+            <div className="p-3 rounded-xl border flex items-start gap-2 bg-red-500/10 border-red-500/30">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm text-red-400">Checkout Failed</p>
+                <p className="text-xs text-[#94a3b8]">{checkoutError}</p>
+              </div>
+            </div>
+          )}
 
           {/* Canceled notice */}
           {canceled && (

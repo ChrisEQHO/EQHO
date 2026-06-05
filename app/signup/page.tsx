@@ -62,22 +62,22 @@ export default function SignupPage() {
     if (data.user) {
       console.log('[v0] User created via signup:', data.user.id, data.user.email)
       
-      // CREATE the profile row immediately after signup
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          full_name: fullName,
-          plan: 'none',
-          subscription_status: 'none',
-          created_at: new Date().toISOString(),
+      // Create the profile via API (uses service role key to bypass RLS)
+      try {
+        const response = await fetch('/api/create-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: data.user.email || email,
+            fullName: fullName,
+          }),
         })
 
-      if (insertError) {
-        console.log('[v0] Profile insert error (may already exist):', insertError.message)
-      } else {
-        console.log('[v0] Profile created successfully')
+        const result = await response.json()
+        console.log('[v0] Create profile API result:', result)
+      } catch (apiError) {
+        console.error('[v0] Profile creation API error:', apiError)
       }
       
       router.push('/signup/success')

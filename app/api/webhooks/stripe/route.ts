@@ -26,9 +26,11 @@ export async function POST(request: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET!
     )
   } catch (err) {
-    console.error('Webhook signature verification failed:', err)
+    console.error('[v0] Webhook signature verification failed:', err)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
+
+  console.log('[v0] Webhook received:', event.type)
 
   try {
     switch (event.type) {
@@ -57,185 +59,149 @@ export async function POST(request: NextRequest) {
         break
       }
 
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice
+        await handlePaymentSucceeded(invoice)
+        break
+      }
+
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        console.log(`[v0] Unhandled event type: ${event.type}`)
     }
 
     return NextResponse.json({ received: true })
   } catch (err) {
-    console.error('Webhook handler error:', err)
+    console.error('[v0] Webhook handler error:', err)
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  console.log('[v0] Stripe webhook: checkout.session.completed received')
+  console.log('[v0] ========== CHECKOUT.SESSION.COMPLETED ==========')
   
+  // Get the Supabase user ID from client_reference_id
+  const userId = session.client_reference_id
   const customerId = session.customer as string
   const subscriptionId = session.subscription as string
   const customerEmail = session.customer_details?.email || session.customer_email
   
-  console.log('[v0] Stripe customer email:', customerEmail)
-  console.log('[v0] Stripe customer ID:', customerId)
-  console.log('[v0] Stripe subscription ID:', subscriptionId)
+  console.log('[v0] client_reference_id (user_id):', userId)
+  console.log('[v0] customer_id:', customerId)
+  console.log('[v0] subscription_id:', subscriptionId)
+  console.log('[v0] customer_email:', customerEmail)
 
-  if (!customerEmail) {
-    console.error('[v0] No customer email in checkout session')
+  if (!userId) {
+    console.error('[v0] No client_reference_id in checkout session!')
     return
   }
 
-  // Fetch the subscription details
+  // Fetch the subscription details from Stripe
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
   
+  console.log('[v0] Subscription status:', subscription.status)
+  console.log('[v0] Trial start:', subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : 'none')
+  console.log('[v0] Trial end:', subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : 'none')
+
+  // Calculate trial dates
+  const trialStart = subscription.trial_start 
+    ? new Date(subscription.trial_start * 1000)
+    : new Date()
   const trialEnd = subscription.trial_end 
     ? new Date(subscription.trial_end * 1000)
-    : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days default
+    : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
 
   // Profile data to upsert
   const profileData = {
-    email: customerEmail.toLowerCase(),
+    email: customerEmail?.toLowerCase(),
+    plan: 'pro',
+    subscription_status: subscription.status, // 'trialing' or 'active'
+    trial_active: subscription.status === 'trialing',
+    trial_start: trialStart.toISOString(),
+    trial_end: trialEnd.toISOString(),
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,
-    subscription_status: mapStripeStatus(subscription.status),
-    plan: 'pro',
-    trial_end: trialEnd.toISOString(),
     current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   }
 
-  console.log('[v0] Profile data to upsert:', profileData)
+  console.log('[v0] Profile data to write:', profileData)
 
-  // First, check if a Supabase auth user exists with this email
-  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-  const matchingAuthUser = authUsers?.users?.find(
-    u => u.email?.toLowerCase() === customerEmail.toLowerCase()
-  )
+  // Check if profile exists for this user
+  const { data: existingProfile, error: fetchError } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .single()
 
-  if (matchingAuthUser) {
-    console.log('[v0] Found matching Supabase auth user:', matchingAuthUser.id)
-    
-    // Check if profile exists for this user
-    const { data: existingProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .eq('id', matchingAuthUser.id)
-      .single()
-
-    if (existingProfile) {
-      // UPDATE existing profile
-      console.log('[v0] Updating existing profile for user:', matchingAuthUser.id)
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update(profileData)
-        .eq('id', matchingAuthUser.id)
-
-      if (updateError) {
-        console.error('[v0] Error updating profile:', updateError)
-        throw updateError
-      }
-    } else {
-      // CREATE new profile linked to auth user
-      console.log('[v0] Creating new profile for auth user:', matchingAuthUser.id)
-      const { error: insertError } = await supabaseAdmin
-        .from('profiles')
-        .insert({
-          id: matchingAuthUser.id,
-          ...profileData,
-          created_at: new Date().toISOString(),
-        })
-
-      if (insertError) {
-        console.error('[v0] Error creating profile:', insertError)
-        throw insertError
-      }
-    }
-  } else {
-    // No auth user yet - check if profile exists by email
-    const { data: existingProfileByEmail } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .ilike('email', customerEmail)
-      .single()
-
-    if (existingProfileByEmail) {
-      // UPDATE existing profile by email
-      console.log('[v0] Updating existing profile by email')
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update(profileData)
-        .eq('id', existingProfileByEmail.id)
-
-      if (updateError) {
-        console.error('[v0] Error updating profile by email:', updateError)
-        throw updateError
-      }
-    } else {
-      // CREATE new profile with email as temporary ID
-      // This will be linked to auth user when they sign up
-      console.log('[v0] Creating new profile for email (no auth user yet):', customerEmail)
-      const { error: insertError } = await supabaseAdmin
-        .from('profiles')
-        .insert({
-          id: crypto.randomUUID(), // Temporary ID until user signs up
-          ...profileData,
-          created_at: new Date().toISOString(),
-        })
-
-      if (insertError) {
-        console.error('[v0] Error creating profile for email:', insertError)
-        throw insertError
-      }
-    }
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    console.log('[v0] Error checking for existing profile:', fetchError)
   }
 
-  console.log(`[v0] Checkout completed for ${customerEmail}, status: ${subscription.status}`)
+  if (existingProfile) {
+    // UPDATE existing profile
+    console.log('[v0] Updating existing profile for user:', userId)
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update(profileData)
+      .eq('id', userId)
+
+    if (updateError) {
+      console.error('[v0] Error updating profile:', updateError)
+      throw updateError
+    }
+    console.log('[v0] Profile updated successfully')
+  } else {
+    // CREATE new profile
+    console.log('[v0] Creating new profile for user:', userId)
+    const { error: insertError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        id: userId,
+        ...profileData,
+        full_name: '',
+        created_at: new Date().toISOString(),
+      })
+
+    if (insertError) {
+      console.error('[v0] Error creating profile:', insertError)
+      throw insertError
+    }
+    console.log('[v0] Profile created successfully')
+  }
+
+  console.log('[v0] ========== CHECKOUT COMPLETE ==========')
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  console.log('[v0] Stripe webhook: subscription updated')
+  console.log('[v0] Subscription updated:', subscription.id, 'Status:', subscription.status)
   
   const customerId = subscription.customer as string
 
-  // Get customer email from Stripe
-  const customer = await stripe.customers.retrieve(customerId)
-  const customerEmail = (customer as Stripe.Customer).email
-  
-  console.log('[v0] Subscription update for customer email:', customerEmail)
-
-  const updateData = {
-    stripe_subscription_id: subscription.id,
-    subscription_status: mapStripeStatus(subscription.status),
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-    trial_end: subscription.trial_end 
-      ? new Date(subscription.trial_end * 1000).toISOString() 
-      : null,
-  }
-
-  // Try to find by stripe_customer_id first
-  let { data: profile } = await supabaseAdmin
+  // Try to find profile by stripe_customer_id
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('id')
     .eq('stripe_customer_id', customerId)
     .single()
 
-  // If not found, try by email
-  if (!profile && customerEmail) {
-    const { data: profileByEmail } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .ilike('email', customerEmail)
-      .single()
-    profile = profileByEmail
-  }
-
   if (!profile) {
-    console.log('[v0] No profile found for subscription update')
+    console.log('[v0] No profile found for customer:', customerId)
     return
   }
 
+  const trialEnd = subscription.trial_end 
+    ? new Date(subscription.trial_end * 1000).toISOString()
+    : null
+
   const { error } = await supabaseAdmin
     .from('profiles')
-    .update(updateData)
+    .update({
+      subscription_status: subscription.status,
+      trial_active: subscription.status === 'trialing',
+      trial_end: trialEnd,
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', profile.id)
 
   if (error) {
@@ -243,61 +209,69 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     throw error
   }
 
-  console.log(`[v0] Subscription updated for profile ${profile.id}: ${subscription.status}`)
+  console.log('[v0] Subscription updated for profile:', profile.id)
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  console.log('[v0] Subscription deleted:', subscription.id)
+  
   const customerId = subscription.customer as string
 
   const { error } = await supabaseAdmin
     .from('profiles')
     .update({
       subscription_status: 'canceled',
-      subscription_id: null,
+      trial_active: false,
+      plan: 'none',
+      updated_at: new Date().toISOString(),
     })
     .eq('stripe_customer_id', customerId)
 
   if (error) {
-    console.error('Error handling subscription deletion:', error)
+    console.error('[v0] Error handling subscription deletion:', error)
     throw error
   }
 
-  console.log(`Subscription canceled for customer ${customerId}`)
+  console.log('[v0] Subscription canceled for customer:', customerId)
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
+  console.log('[v0] Payment failed for invoice:', invoice.id)
+  
   const customerId = invoice.customer as string
 
   const { error } = await supabaseAdmin
     .from('profiles')
     .update({
       subscription_status: 'past_due',
+      updated_at: new Date().toISOString(),
     })
     .eq('stripe_customer_id', customerId)
 
   if (error) {
-    console.error('Error handling payment failure:', error)
+    console.error('[v0] Error handling payment failure:', error)
     throw error
   }
-
-  console.log(`Payment failed for customer ${customerId}`)
 }
 
-function mapStripeStatus(stripeStatus: Stripe.Subscription.Status): string {
-  switch (stripeStatus) {
-    case 'active':
-      return 'active'
-    case 'trialing':
-      return 'trialing'
-    case 'past_due':
-      return 'past_due'
-    case 'canceled':
-    case 'unpaid':
-      return 'canceled'
-    case 'incomplete':
-    case 'incomplete_expired':
-      return 'incomplete'
-    default:
-      return 'free'
+async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
+  console.log('[v0] Payment succeeded for invoice:', invoice.id)
+  
+  const customerId = invoice.customer as string
+
+  // Only update if this is for an active subscription
+  if (invoice.subscription) {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        subscription_status: 'active',
+        trial_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_customer_id', customerId)
+
+    if (error) {
+      console.error('[v0] Error handling payment success:', error)
+    }
   }
 }
