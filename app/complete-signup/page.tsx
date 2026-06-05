@@ -126,9 +126,52 @@ function CompleteSignupContent() {
 
     const initializeCheck = async () => {
       // If we have a session_id, we came from Stripe checkout
-      // Show "Finalizing" and start polling for webhook to complete
+      // Call our API to verify and update the profile directly
       if (sessionId) {
         setViewState('finalizing')
+        
+        console.log('[v0] Calling /api/verify-checkout with session_id:', sessionId)
+        
+        try {
+          const response = await fetch('/api/verify-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+          })
+
+          const result = await response.json()
+          console.log('[v0] verify-checkout result:', result)
+
+          if (result.success && result.profile) {
+            // Profile updated successfully!
+            const trialEnd = result.subscription?.trialEnd 
+              ? new Date(result.subscription.trialEnd)
+              : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+            const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+            
+            setSubscriptionData({
+              status: result.subscription?.status || 'trialing',
+              daysRemaining,
+              email: result.profile.email || ''
+            })
+            
+            updateDebug({
+              profileExists: true,
+              subscriptionStatus: result.profile.subscription_status,
+              trialEnd: result.profile.trial_end,
+              accessAllowed: true,
+            })
+            
+            setViewState('success')
+            return
+          } else {
+            console.log('[v0] verify-checkout failed, falling back to polling:', result.error)
+          }
+        } catch (err) {
+          console.error('[v0] verify-checkout API error:', err)
+        }
+        
+        // Fall back to polling if the direct verification failed
         return
       }
 
