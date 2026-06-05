@@ -195,121 +195,36 @@ function CompleteSignupContent() {
     if (data.user) {
       console.log('[v0] User created:', data.user.id, data.user.email)
       
-      // Calculate trial dates
-      const trialStart = new Date()
-      const trialEnd = new Date()
-      trialEnd.setDate(trialEnd.getDate() + 14)
-      
-      // Check if profile already exists by email (webhook may have created it)
-      const { data: existingProfileByEmail } = await supabase
-        .from('profiles')
-        .select('id, subscription_status, stripe_customer_id, stripe_subscription_id, trial_end')
-        .ilike('email', data.user.email || email)
-        .single()
-
-      if (existingProfileByEmail) {
-        console.log('[v0] Profile exists by email, updating to link to auth user:', existingProfileByEmail.id)
-        
-        // If this profile was created by webhook with a temp ID, we need to update it
-        // to use the real auth user ID. First, delete the old row and insert new one.
-        if (existingProfileByEmail.id !== data.user.id) {
-          console.log('[v0] Profile has temp ID, migrating to auth user ID')
-          
-          // Delete the temp profile
-          await supabase
-            .from('profiles')
-            .delete()
-            .eq('id', existingProfileByEmail.id)
-          
-          // Create profile with correct auth user ID
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              email: data.user.email,
-              full_name: '',
-              plan: 'pro',
-              subscription_status: existingProfileByEmail.subscription_status || 'trialing',
-              stripe_customer_id: existingProfileByEmail.stripe_customer_id,
-              stripe_subscription_id: existingProfileByEmail.stripe_subscription_id,
-              trial_start: trialStart.toISOString(),
-              trial_end: existingProfileByEmail.trial_end || trialEnd.toISOString(),
-              created_at: new Date().toISOString(),
-            })
-
-          if (insertError) {
-            console.log('[v0] Insert with migrated ID failed:', insertError.message)
-          }
-        } else {
-          // Profile ID matches auth user ID, just update
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_status: existingProfileByEmail.subscription_status || 'trialing',
-              plan: 'pro',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', data.user.id)
-        }
-        
-        // Use subscription data from webhook if available
-        setSubscriptionData({
-          status: existingProfileByEmail.subscription_status || 'trialing',
-          daysRemaining: existingProfileByEmail.trial_end 
-            ? Math.max(0, Math.min(14, Math.ceil((new Date(existingProfileByEmail.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
-            : 14,
-          email: data.user.email || email
+      // Use API route to create profile (uses service role key to bypass RLS)
+      try {
+        const response = await fetch('/api/create-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: data.user.email || email,
+          }),
         })
-      } else {
-        // Check if profile exists by auth user ID
-        const { data: existingProfileById } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', data.user.id)
-          .single()
 
-        if (existingProfileById) {
-          console.log('[v0] Profile exists by ID, updating...')
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_status: 'trialing',
-              plan: 'pro',
-              trial_start: trialStart.toISOString(),
-              trial_end: trialEnd.toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', data.user.id)
-        } else {
-          console.log('[v0] Creating new profile...')
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              email: data.user.email,
-              full_name: '',
-              plan: 'pro',
-              subscription_status: 'trialing',
-              trial_start: trialStart.toISOString(),
-              trial_end: trialEnd.toISOString(),
-              created_at: new Date().toISOString(),
-            })
+        const result = await response.json()
+        console.log('[v0] Create profile API result:', result)
 
-          if (insertError) {
-            console.log('[v0] Insert error:', insertError.message)
-          }
+        if (!response.ok) {
+          console.error('[v0] Failed to create profile:', result.error)
+          setError('Failed to create profile. Please try again.')
+          setLoading(false)
+          return
         }
-
-        setSubscriptionData({
-          status: 'trialing',
-          daysRemaining: 14,
-          email: data.user.email || email
-        })
+      } catch (apiError) {
+        console.error('[v0] API call error:', apiError)
+        setError('Failed to create profile. Please try again.')
+        setLoading(false)
+        return
       }
 
       console.log('[v0] Profile setup complete, redirecting to player')
       
-      // Redirect directly to the player - don't show success screen
+      // Redirect directly to the player
       router.push('/')
     }
   }

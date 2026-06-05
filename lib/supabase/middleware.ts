@@ -68,36 +68,51 @@ export async function updateSession(request: NextRequest) {
     if (pathname === '/') {
       // Try fetching profile by 'id' first, then by email as fallback
       let profile = null
-      const { data: profileById } = await supabase
+      let profileError = null
+      
+      const { data: profileById, error: err1 } = await supabase
         .from('profiles')
-        .select('subscription_status, plan')
+        .select('subscription_status, plan, email')
         .eq('id', user.id)
         .single()
       
       if (profileById) {
         profile = profileById
-        console.log('[v0] Middleware: Profile found by id, status:', profile.subscription_status, 'plan:', profile.plan)
-      } else if (user.email) {
-        // Try by email as fallback
-        const { data: profileByEmail } = await supabase
-          .from('profiles')
-          .select('subscription_status, plan')
-          .ilike('email', user.email)
-          .single()
-        profile = profileByEmail
-        console.log('[v0] Middleware: Profile found by email, status:', profile?.subscription_status, 'plan:', profile?.plan)
+        console.log('[v0] Middleware: Profile found by id:', JSON.stringify(profile))
+      } else {
+        profileError = err1
+        console.log('[v0] Middleware: No profile by id, error:', err1?.message)
+        
+        if (user.email) {
+          // Try by email as fallback
+          const { data: profileByEmail, error: err2 } = await supabase
+            .from('profiles')
+            .select('subscription_status, plan, email')
+            .ilike('email', user.email)
+            .single()
+          
+          if (profileByEmail) {
+            profile = profileByEmail
+            console.log('[v0] Middleware: Profile found by email:', JSON.stringify(profile))
+          } else {
+            console.log('[v0] Middleware: No profile by email, error:', err2?.message)
+          }
+        }
       }
       
       if (!profile) {
         console.log('[v0] Middleware: No profile found for user, redirecting to upgrade')
+        const url = request.nextUrl.clone()
+        url.pathname = '/upgrade'
+        return NextResponse.redirect(url)
       }
       
-      // Allow access if: (plan='pro') AND (subscription_status='active' OR 'trialing')
-      const hasActiveSubscription = profile?.plan === 'pro' && 
-                                    (profile?.subscription_status === 'active' || 
-                                     profile?.subscription_status === 'trialing')
+      // Allow access if subscription_status is 'active' OR 'trialing'
+      // Remove plan check - just check subscription status
+      const hasActiveSubscription = profile.subscription_status === 'active' || 
+                                    profile.subscription_status === 'trialing'
       
-      console.log('[v0] Middleware: Has active subscription:', hasActiveSubscription)
+      console.log('[v0] Middleware: subscription_status:', profile.subscription_status, 'hasActiveSubscription:', hasActiveSubscription)
       
       // If no active subscription, redirect to upgrade page
       if (!hasActiveSubscription) {
@@ -109,11 +124,10 @@ export async function updateSession(request: NextRequest) {
 
     // If user is logged in and trying to access login/signup, check subscription
     if (pathname === '/login' || pathname === '/signup') {
-      // Try fetching profile by 'id' first, then by email
       let profile = null
       const { data: profileById } = await supabase
         .from('profiles')
-        .select('subscription_status, plan')
+        .select('subscription_status')
         .eq('id', user.id)
         .single()
       
@@ -122,19 +136,16 @@ export async function updateSession(request: NextRequest) {
       } else if (user.email) {
         const { data: profileByEmail } = await supabase
           .from('profiles')
-          .select('subscription_status, plan')
+          .select('subscription_status')
           .ilike('email', user.email)
           .single()
         profile = profileByEmail
       }
       
-      // Allow access if: (plan='pro') AND (subscription_status='active' OR 'trialing')
-      const hasActiveSubscription = profile?.plan === 'pro' && 
-                                    (profile?.subscription_status === 'active' || 
-                                     profile?.subscription_status === 'trialing')
+      const hasActiveSubscription = profile?.subscription_status === 'active' || 
+                                    profile?.subscription_status === 'trialing'
       
       const url = request.nextUrl.clone()
-      // Redirect to player if subscribed, upgrade if not
       url.pathname = hasActiveSubscription ? '/' : '/upgrade'
       return NextResponse.redirect(url)
     }
