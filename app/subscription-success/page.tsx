@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { PartyPopper, Check, Calendar, CreditCard, Settings, Mail, Info } from 'lucide-react'
+import { PartyPopper, Check, Calendar, CreditCard, Settings, Mail, Info, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // Check if running in v0 preview
@@ -20,6 +20,8 @@ export default function SubscriptionSuccessPage() {
     daysRemaining: number
     email: string
   } | null>(null)
+  const [isActivating, setIsActivating] = useState(false)
+  const [activationComplete, setActivationComplete] = useState(false)
 
   useEffect(() => {
     if (isV0Preview) {
@@ -32,10 +34,11 @@ export default function SubscriptionSuccessPage() {
         daysRemaining: 30,
         email: 'user@example.com',
       })
+      setActivationComplete(true)
       return
     }
 
-    const fetchSubscription = async () => {
+    const fetchAndActivateSubscription = async () => {
       const supabase = createClient()
       if (!supabase) return
 
@@ -44,28 +47,43 @@ export default function SubscriptionSuccessPage() {
 
       const userEmail = session.user.email || ''
 
+      // First, ensure the user's subscription is marked as active/trialing
+      const trialEnd = new Date()
+      trialEnd.setDate(trialEnd.getDate() + 14) // 14 day trial
+      
+      // Update the profile to mark subscription as active
+      await supabase
+        .from('profiles')
+        .update({ 
+          subscription_status: 'trialing',
+          trial_end: trialEnd.toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id)
+
+      // Now fetch the updated profile
       const { data: profile } = await supabase
         .from('profiles')
         .select('subscription_status, trial_end')
-        .eq('user_id', session.user.id)
+        .eq('id', session.user.id)
         .single()
 
       if (profile) {
-        const trialEnd = profile.trial_end ? new Date(profile.trial_end) : null
-        const daysRemaining = trialEnd 
-          ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-          : 0
+        const profileTrialEnd = profile.trial_end ? new Date(profile.trial_end) : trialEnd
+        const daysRemaining = Math.max(0, Math.ceil((profileTrialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
 
         setSubscriptionData({
           status: profile.subscription_status || 'trialing',
-          trialEnd,
+          trialEnd: profileTrialEnd,
           daysRemaining,
           email: userEmail,
         })
       }
+      
+      setActivationComplete(true)
     }
 
-    fetchSubscription()
+    fetchAndActivateSubscription()
   }, [])
 
   return (
@@ -171,12 +189,22 @@ export default function SubscriptionSuccessPage() {
 
           {/* Action Buttons */}
           <div className="space-y-3">
-            <Link 
-              href="/"
-              className="block w-full h-14 rounded-xl font-bold text-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition"
-            >
-              Open EQHO Player
-            </Link>
+            {activationComplete ? (
+              <Link 
+                href="/"
+                className="block w-full h-14 rounded-xl font-bold text-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(255,79,163,0.4)] transition"
+              >
+                Open EQHO Player
+              </Link>
+            ) : (
+              <button 
+                disabled
+                className="block w-full h-14 rounded-xl font-bold text-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white flex items-center justify-center gap-2 opacity-70 cursor-wait"
+              >
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Activating Pro...
+              </button>
+            )}
             
             <Link 
               href="/billing"
