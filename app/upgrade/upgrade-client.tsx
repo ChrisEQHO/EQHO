@@ -131,7 +131,7 @@ export default function UpgradeClient() {
         <div className="max-w-lg w-full space-y-5">
           {/* Logo + Welcome */}
           <div className="text-center">
-            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={90} height={90} priority className="mx-auto mb-3" />
+            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={140} height={140} priority className="mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player Pro</h2>
             <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
           </div>
