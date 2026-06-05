@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
 // Stripe Payment Link for subscription
-const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603'
+const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/fZu4gt5kZdY447JgIJ3F604'
 
 // Check if running in v0 preview
 const isV0Preview = typeof window !== 'undefined' && (
