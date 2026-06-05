@@ -83,25 +83,38 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
   // Update the profiles table with subscription data
-  const { error } = await supabaseAdmin
+  // Try both 'id' and 'user_id' columns for compatibility
+  const updateData = {
+    stripe_customer_id: customerId,
+    subscription_id: subscriptionId,
+    subscription_status: mapStripeStatus(subscription.status),
+    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    trial_end: subscription.trial_end 
+      ? new Date(subscription.trial_end * 1000).toISOString() 
+      : null,
+  }
+
+  // First try with 'id' column (primary key approach)
+  let { error } = await supabaseAdmin
     .from('profiles')
-    .update({
-      stripe_customer_id: customerId,
-      subscription_id: subscriptionId,
-      subscription_status: mapStripeStatus(subscription.status),
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      trial_end: subscription.trial_end 
-        ? new Date(subscription.trial_end * 1000).toISOString() 
-        : null,
-    })
-    .eq('user_id', userId)
+    .update(updateData)
+    .eq('id', userId)
+
+  // If that fails, try with 'user_id' column
+  if (error) {
+    const result = await supabaseAdmin
+      .from('profiles')
+      .update(updateData)
+      .eq('user_id', userId)
+    error = result.error
+  }
 
   if (error) {
     console.error('Error updating profile after checkout:', error)
     throw error
   }
 
-  console.log(`Subscription created for user ${userId}`)
+  console.log(`Subscription created for user ${userId}, status: ${subscription.status}`)
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
