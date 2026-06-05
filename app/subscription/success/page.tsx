@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Check, Crown, Loader2, Music, Sparkles, CloudUpload, Headphones, Clock } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
-export default function SubscriptionSuccessPage() {
+function SubscriptionSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
@@ -187,5 +187,26 @@ export default function SubscriptionSuccessPage() {
         <div className="absolute bottom-8 -right-2 w-3 h-3 bg-[#ff4fa3] rounded-full opacity-60 animate-bounce" style={{ animationDelay: "0.1s" }} />
       </div>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-12 h-12 text-[#ff4fa3] animate-spin mx-auto mb-4" />
+        <p className="text-white/70">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+// Wrap in Suspense for useSearchParams
+export default function SubscriptionSuccessPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <SubscriptionSuccessContent />
+    </Suspense>
   );
 }
