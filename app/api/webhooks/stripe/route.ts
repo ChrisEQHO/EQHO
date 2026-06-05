@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
 
   console.log('[WEBHOOK] Event type:', event.type)
   console.log('[WEBHOOK] Event id:', event.id)
+  console.log('[WEBHOOK] Event livemode:', event.livemode)
+  console.log('[WEBHOOK] STRIPE_SECRET_KEY starts with:', process.env.STRIPE_SECRET_KEY?.substring(0, 7))
 
   try {
     switch (event.type) {
@@ -124,35 +126,53 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log('[WEBHOOK]   subscriptionId:', subscriptionId)
   console.log('[WEBHOOK]   customerEmail:', customerEmail)
 
-  // Fetch the subscription details from Stripe
-  console.log('[WEBHOOK] Fetching subscription from Stripe...')
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-  
-  console.log('[WEBHOOK] Subscription details:')
-  console.log('[WEBHOOK]   status:', subscription.status)
-  console.log('[WEBHOOK]   trial_start:', subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : 'none')
-  console.log('[WEBHOOK]   trial_end:', subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : 'none')
-  console.log('[WEBHOOK]   current_period_end:', new Date(subscription.current_period_end * 1000).toISOString())
+  // Initialize subscription data with defaults
+  let subscriptionStatus = 'trialing'
+  let trialStart = new Date()
+  let trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  let currentPeriodEnd = trialEnd
 
-  // Calculate trial dates
-  const trialStart = subscription.trial_start 
-    ? new Date(subscription.trial_start * 1000)
-    : new Date()
-  const trialEnd = subscription.trial_end 
-    ? new Date(subscription.trial_end * 1000)
-    : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  // Try to fetch subscription details from Stripe (if subscription exists)
+  if (subscriptionId) {
+    console.log('[WEBHOOK] Fetching subscription from Stripe:', subscriptionId)
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+      
+      console.log('[WEBHOOK] Subscription details:')
+      console.log('[WEBHOOK]   status:', subscription.status)
+      console.log('[WEBHOOK]   trial_start:', subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : 'none')
+      console.log('[WEBHOOK]   trial_end:', subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : 'none')
+      console.log('[WEBHOOK]   current_period_end:', new Date(subscription.current_period_end * 1000).toISOString())
+
+      // Use actual subscription data
+      subscriptionStatus = subscription.status
+      trialStart = subscription.trial_start 
+        ? new Date(subscription.trial_start * 1000)
+        : new Date()
+      trialEnd = subscription.trial_end 
+        ? new Date(subscription.trial_end * 1000)
+        : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+      currentPeriodEnd = new Date(subscription.current_period_end * 1000)
+    } catch (subError) {
+      console.log('[WEBHOOK] WARNING: Could not retrieve subscription:', subError instanceof Error ? subError.message : subError)
+      console.log('[WEBHOOK] Using default trial values instead')
+      // Continue with default values - don't throw
+    }
+  } else {
+    console.log('[WEBHOOK] No subscription ID in checkout session, using default trial values')
+  }
 
   // Profile data to upsert
   const profileData = {
     email: customerEmail?.toLowerCase(),
     plan: 'pro',
-    subscription_status: subscription.status, // 'trialing' or 'active'
-    trial_active: subscription.status === 'trialing',
+    subscription_status: subscriptionStatus,
+    trial_active: subscriptionStatus === 'trialing',
     trial_start: trialStart.toISOString(),
     trial_end: trialEnd.toISOString(),
     stripe_customer_id: customerId,
-    stripe_subscription_id: subscriptionId,
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    stripe_subscription_id: subscriptionId || null,
+    current_period_end: currentPeriodEnd.toISOString(),
     updated_at: new Date().toISOString(),
   }
 

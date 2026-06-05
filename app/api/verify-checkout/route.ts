@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     })
 
     console.log('[VERIFY-CHECKOUT] Session retrieved:')
+    console.log('[VERIFY-CHECKOUT]   livemode:', session.livemode)
     console.log('[VERIFY-CHECKOUT]   payment_status:', session.payment_status)
     console.log('[VERIFY-CHECKOUT]   status:', session.status)
     console.log('[VERIFY-CHECKOUT]   client_reference_id:', session.client_reference_id)
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     console.log('[VERIFY-CHECKOUT]   customer_email:', session.customer_email)
     console.log('[VERIFY-CHECKOUT]   customer_details?.email:', session.customer_details?.email)
     console.log('[VERIFY-CHECKOUT]   subscription:', session.subscription)
+    console.log('[VERIFY-CHECKOUT]   STRIPE_SECRET_KEY starts with:', process.env.STRIPE_SECRET_KEY?.substring(0, 7))
 
     // Check if payment was successful
     if (session.status !== 'complete') {

@@ -1,11 +1,7 @@
 import { updateSession } from "@/lib/supabase/middleware"
-import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/webhooks/stripe")) {
-    return NextResponse.next()
-  }
-
   return await updateSession(request)
 }
 
