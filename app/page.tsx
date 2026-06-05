@@ -1871,25 +1871,57 @@ export default function Page() {
     }
   }, [volume, isMuted]);
 
-  // Futuristic beep sound for countdown
+  // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
-  const playBeep = useCallback((frequency: number = 880, duration: number = 100) => {
+  const playBeep = useCallback((frequency: number = 880, duration: number = 100, isFinalBeep: boolean = false) => {
     try {
       const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // Primary oscillator - square wave for sharper, more noticeable sound
+      const oscillator1 = audioContext.createOscillator();
+      const gainNode1 = audioContext.createGain();
+      oscillator1.connect(gainNode1);
+      gainNode1.connect(audioContext.destination);
+      oscillator1.frequency.value = frequency;
+      oscillator1.type = "square";
       
-      oscillator.frequency.value = frequency;
-      oscillator.type = "sine";
+      // Secondary oscillator - adds richness with slight detune
+      const oscillator2 = audioContext.createOscillator();
+      const gainNode2 = audioContext.createGain();
+      oscillator2.connect(gainNode2);
+      gainNode2.connect(audioContext.destination);
+      oscillator2.frequency.value = frequency * 1.5; // Fifth harmonic
+      oscillator2.type = "sine";
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+      // Louder volume for distinctiveness
+      const baseVolume = isFinalBeep ? 0.7 : 0.5;
+      const secondaryVolume = isFinalBeep ? 0.4 : 0.25;
+      const actualDuration = isFinalBeep ? duration * 1.5 : duration;
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + duration / 1000);
+      gainNode1.gain.setValueAtTime(baseVolume, audioContext.currentTime);
+      gainNode1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + actualDuration / 1000);
+      
+      gainNode2.gain.setValueAtTime(secondaryVolume, audioContext.currentTime);
+      gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + actualDuration / 1000);
+      
+      oscillator1.start(audioContext.currentTime);
+      oscillator1.stop(audioContext.currentTime + actualDuration / 1000);
+      oscillator2.start(audioContext.currentTime);
+      oscillator2.stop(audioContext.currentTime + actualDuration / 1000);
+      
+      // For final beep, add a third higher-pitched ping for extra emphasis
+      if (isFinalBeep) {
+        const oscillator3 = audioContext.createOscillator();
+        const gainNode3 = audioContext.createGain();
+        oscillator3.connect(gainNode3);
+        gainNode3.connect(audioContext.destination);
+        oscillator3.frequency.value = frequency * 2;
+        oscillator3.type = "sine";
+        gainNode3.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode3.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + actualDuration / 1000);
+        oscillator3.start(audioContext.currentTime);
+        oscillator3.stop(audioContext.currentTime + actualDuration / 1000);
+      }
     } catch (e) {
       // Audio context not supported
     }
@@ -1912,7 +1944,8 @@ export default function Page() {
     if (gapCountdown <= 3 && gapCountdown > 0 && lastBeepedCountdown.current !== gapCountdown) {
       lastBeepedCountdown.current = gapCountdown;
       const freq = gapCountdown === 3 ? 660 : gapCountdown === 2 ? 880 : 1100;
-      playBeep(freq, 150);
+      const isFinal = gapCountdown === 1;
+      playBeep(freq, 200, isFinal);
     }
     
     const timer = setTimeout(() => {
@@ -4744,7 +4777,7 @@ Upload Folders & Playlists
                           <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
-                              style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
+                                style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 14) * 100))}%` }}
                             />
                           </div>
                           <span className="text-emerald-300 text-sm font-bold whitespace-nowrap">
