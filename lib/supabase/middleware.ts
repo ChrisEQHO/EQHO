@@ -64,11 +64,24 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     // Check subscription status for protected routes (player)
     if (pathname === '/') {
-      const { data: profile } = await supabase
+      // Try fetching profile by 'id' first, then 'user_id'
+      let profile = null
+      const { data: profileById } = await supabase
         .from('profiles')
         .select('subscription_status')
         .eq('id', user.id)
         .single()
+      
+      if (profileById) {
+        profile = profileById
+      } else {
+        const { data: profileByUserId } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', user.id)
+          .single()
+        profile = profileByUserId
+      }
       
       const hasActiveSubscription = profile?.subscription_status === 'active' || 
                                      profile?.subscription_status === 'trialing'
@@ -83,11 +96,24 @@ export async function updateSession(request: NextRequest) {
 
     // If user is logged in and trying to access login/signup, check subscription
     if (pathname === '/login' || pathname === '/signup') {
-      const { data: profile } = await supabase
+      // Try fetching profile by 'id' first, then 'user_id'
+      let profile = null
+      const { data: profileById } = await supabase
         .from('profiles')
         .select('subscription_status')
         .eq('id', user.id)
         .single()
+      
+      if (profileById) {
+        profile = profileById
+      } else {
+        const { data: profileByUserId } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', user.id)
+          .single()
+        profile = profileByUserId
+      }
       
       const hasActiveSubscription = profile?.subscription_status === 'active' || 
                                      profile?.subscription_status === 'trialing'
