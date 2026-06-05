@@ -4777,7 +4777,7 @@ Upload Folders & Playlists
                           <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
-                              style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 30) * 100))}%` }}
+                                style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 14) * 100))}%` }}
                             />
                           </div>
                           <span className="text-emerald-300 text-sm font-bold whitespace-nowrap">

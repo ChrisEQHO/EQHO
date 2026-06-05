@@ -27,11 +27,11 @@ export default function SubscriptionSuccessPage() {
     if (isV0Preview) {
       // Mock data for preview
       const trialEnd = new Date()
-      trialEnd.setDate(trialEnd.getDate() + 30)
+      trialEnd.setDate(trialEnd.getDate() + 14)
       setSubscriptionData({
         status: 'trialing',
         trialEnd,
-        daysRemaining: 30,
+        daysRemaining: 14,
         email: 'user@example.com',
       })
       setActivationComplete(true)
@@ -132,7 +132,7 @@ export default function SubscriptionSuccessPage() {
               <span className="text-[#94a3b8]">Trial Period</span>
             </div>
             <p className="text-5xl font-black text-white">
-              {subscriptionData?.daysRemaining || 30}
+              {subscriptionData?.daysRemaining || 14}
             </p>
             <p className="text-[#94a3b8]">days remaining</p>
           </div>
