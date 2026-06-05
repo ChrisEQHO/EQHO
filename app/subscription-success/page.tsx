@@ -73,8 +73,8 @@ export default function SubscriptionSuccessPage() {
         const trialEnd = new Date()
         trialEnd.setDate(trialEnd.getDate() + 14)
         
-        // Update profile with 14 day trial
-        await supabase
+        // Update profile with 14 day trial - try both id and user_id for compatibility
+        const { error: updateError1 } = await supabase
           .from('profiles')
           .update({ 
             subscription_status: 'trialing',
@@ -82,13 +82,37 @@ export default function SubscriptionSuccessPage() {
             updated_at: new Date().toISOString()
           })
           .eq('id', session.user.id)
+        
+        // If first update fails (no rows matched), try user_id column
+        if (updateError1) {
+          await supabase
+            .from('profiles')
+            .update({ 
+              subscription_status: 'trialing',
+              trial_end: trialEnd.toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', session.user.id)
+        }
 
-        // Fetch updated profile
-        const { data: profile } = await supabase
+        // Fetch updated profile - try both columns
+        let profile = null
+        const { data: profileById } = await supabase
           .from('profiles')
           .select('subscription_status, trial_end')
           .eq('id', session.user.id)
           .single()
+        
+        if (profileById) {
+          profile = profileById
+        } else {
+          const { data: profileByUserId } = await supabase
+            .from('profiles')
+            .select('subscription_status, trial_end')
+            .eq('user_id', session.user.id)
+            .single()
+          profile = profileByUserId
+        }
 
         // Calculate days remaining - always based on 14 day trial
         let daysRemaining = 14

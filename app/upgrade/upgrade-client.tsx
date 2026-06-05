@@ -51,11 +51,24 @@ export default function UpgradeClient() {
 
       setUser({ id: session.user.id, email: session.user.email || '' })
 
-      const { data: profile } = await supabase
+      // Try fetching profile by 'id' first, then 'user_id'
+      let profile = null
+      const { data: profileById } = await supabase
         .from('profiles')
         .select('subscription_status')
-        .eq('user_id', session.user.id)
+        .eq('id', session.user.id)
         .single()
+      
+      if (profileById) {
+        profile = profileById
+      } else {
+        const { data: profileByUserId } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('user_id', session.user.id)
+          .single()
+        profile = profileByUserId
+      }
 
       if (profile?.subscription_status && ['active', 'trialing'].includes(profile.subscription_status)) {
         setHasSubscription(true)
@@ -127,35 +140,31 @@ export default function UpgradeClient() {
         <h1 className="text-base font-semibold text-white">EQHO Player</h1>
       </header>
 
-      <main className="relative flex-1 flex items-center justify-center p-4 overflow-hidden">
-        <div className="max-w-md w-full">
-          {/* Logo */}
-          <div className="flex justify-center mb-3">
-            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={100} height={100} priority />
-          </div>
-
-          {/* Welcome message */}
-          <div className="text-center mb-3">
-            <h2 className="text-xl font-bold text-white mb-1">Welcome to EQHO Player Pro</h2>
-            <p className="text-[#94a3b8] text-sm">Your EQHO account has been created successfully.</p>
+      <main className="relative flex-1 flex items-center justify-center p-6 overflow-hidden">
+        <div className="max-w-lg w-full space-y-5">
+          {/* Logo + Welcome */}
+          <div className="text-center">
+            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={140} height={140} priority className="mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player Pro</h2>
+            <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
           </div>
 
           {/* Canceled notice */}
           {canceled && (
-            <div className="mb-3 p-3 rounded-xl border flex items-start gap-2 bg-[#ff8a00]/10 border-[#ff8a00]/30">
+            <div className="p-3 rounded-xl border flex items-start gap-2 bg-[#ff8a00]/10 border-[#ff8a00]/30">
               <AlertCircle className="h-4 w-4 text-[#ff8a00] shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-sm text-[#ff8a00]">Checkout Canceled</p>
-                <p className="text-xs text-[#94a3b8]">No worries! You can try again whenever you&apos;re ready.</p>
+                <p className="text-xs text-[#94a3b8]">No worries! Try again when ready.</p>
               </div>
             </div>
           )}
 
-          {/* Email & Security Notice combined */}
-          <div className="flex gap-2 mb-3">
+          {/* Email & Security Notice */}
+          <div className="flex gap-3">
             {user && (
               <div className="flex-1 bg-[#22d3ee]/10 border border-[#22d3ee]/30 rounded-xl p-3">
-                <p className="text-xs text-[#94a3b8] mb-0.5">Linked to:</p>
+                <p className="text-xs text-[#94a3b8] mb-0.5">Linked to</p>
                 <p className="text-sm font-semibold text-[#22d3ee] truncate">{user.email}</p>
               </div>
             )}
@@ -164,32 +173,31 @@ export default function UpgradeClient() {
                 <Lock className="h-3 w-3 text-[#ff8a00]" />
                 <p className="text-xs font-semibold text-[#ff8a00]">Important</p>
               </div>
-              <p className="text-xs text-[#94a3b8]">Email must match your EQHO account</p>
+              <p className="text-xs text-[#94a3b8]">Email must match EQHO account</p>
             </div>
           </div>
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
-            {/* 14 Days Free Banner + Pricing side by side */}
+            {/* 14 Days Free Banner + Yearly Pricing */}
             <div className="flex gap-3 mb-4">
-              <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-white shrink-0" />
-                  <div>
-                    <p className="font-bold text-white text-lg leading-tight">14 Days FREE</p>
-                    <p className="text-xs text-white/90">Try all Pro features</p>
-                  </div>
+              <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-white shrink-0" />
+                <div>
+                  <p className="font-bold text-white text-lg leading-tight">14 Days FREE</p>
+                  <p className="text-xs text-white/90">Try all Pro features free</p>
                 </div>
               </div>
-              <div className="bg-[#020617] border border-white/10 rounded-xl p-3 text-center">
+              <div className="bg-[#020617] border border-white/10 rounded-xl px-5 py-3 text-center flex flex-col justify-center">
                 <p className="text-xs text-[#94a3b8]">Then</p>
-                <p className="text-2xl font-black text-white">£3.99</p>
-                <p className="text-xs text-[#64748b]">/month</p>
+                <p className="text-2xl font-black text-white leading-tight">£47.90</p>
+                <p className="text-xs text-[#64748b]">/year</p>
+                <p className="text-[10px] text-[#22c55e] mt-0.5">Just £3.99/mo avg</p>
               </div>
             </div>
 
             {/* Features - 2 columns */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
               {[
                 'Unlimited playlists',
                 'Cloud sync',
@@ -197,8 +205,8 @@ export default function UpgradeClient() {
                 'Priority support',
               ].map((feature) => (
                 <div key={feature} className="flex items-center gap-2 text-sm text-[#e2e8f0]">
-                  <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
-                    <Check className="w-2.5 h-2.5 text-white" />
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
+                    <Check className="w-3 h-3 text-white" />
                   </div>
                   {feature}
                 </div>
@@ -213,14 +221,14 @@ export default function UpgradeClient() {
             >
               {redirectingToStripe ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   Redirecting to Stripe...
                 </>
               ) : (
                 <>
-                  <CreditCard className="h-4 w-4" />
+                  <CreditCard className="h-5 w-5" />
                   Start 14-Day Free Trial
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-5 w-5" />
                 </>
               )}
             </button>
