@@ -81,33 +81,49 @@ function CompleteSignupContent() {
     }
 
     if (data.user) {
-      // Update the profile with subscription status (trialing)
+      console.log('[v0] User created:', data.user.id, data.user.email)
+      
+      // Calculate trial dates
+      const trialStart = new Date()
       const trialEnd = new Date()
       trialEnd.setDate(trialEnd.getDate() + 14)
       
-      // Try updating with id first, then user_id
-      const { error: profileError } = await supabase
+      // CREATE the profile row (not update - it doesn't exist yet!)
+      const { error: insertError } = await supabase
         .from('profiles')
-        .update({
+        .insert({
+          id: data.user.id,
+          email: data.user.email,
+          full_name: '',
+          plan: 'pro',
           subscription_status: 'trialing',
+          trial_start: trialStart.toISOString(),
           trial_end: trialEnd.toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
         })
-        .eq('id', data.user.id)
 
-      if (profileError) {
-        // Try with user_id column
-        await supabase
+      if (insertError) {
+        console.log('[v0] Insert error (may be duplicate):', insertError.message)
+        // If insert fails (maybe row exists), try update instead
+        const { error: updateError } = await supabase
           .from('profiles')
           .update({
             subscription_status: 'trialing',
+            plan: 'pro',
+            trial_start: trialStart.toISOString(),
             trial_end: trialEnd.toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq('user_id', data.user.id)
+          .eq('id', data.user.id)
+        
+        if (updateError) {
+          console.log('[v0] Update also failed:', updateError.message)
+        }
+      } else {
+        console.log('[v0] Profile created successfully')
       }
 
-      // Redirect to success page or directly to player
+      // Redirect to success page
       router.push('/subscription-success')
     }
   }

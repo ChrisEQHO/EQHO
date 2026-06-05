@@ -42,7 +42,7 @@ export default function SignupPage() {
       return
     }
 
-    const { error: authError } = await supabase.auth.signUp({
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -56,7 +56,30 @@ export default function SignupPage() {
     if (authError) {
       setError(authError.message)
       setLoading(false)
-    } else {
+      return
+    }
+    
+    if (data.user) {
+      console.log('[v0] User created via signup:', data.user.id, data.user.email)
+      
+      // CREATE the profile row immediately after signup
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          email: data.user.email,
+          full_name: fullName,
+          plan: 'none',
+          subscription_status: 'none',
+          created_at: new Date().toISOString(),
+        })
+
+      if (insertError) {
+        console.log('[v0] Profile insert error (may already exist):', insertError.message)
+      } else {
+        console.log('[v0] Profile created successfully')
+      }
+      
       router.push('/signup/success')
     }
   }
