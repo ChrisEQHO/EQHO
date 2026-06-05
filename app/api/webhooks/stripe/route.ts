@@ -87,49 +87,105 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // Fetch the subscription details
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
   
-  const trialStart = new Date()
   const trialEnd = subscription.trial_end 
     ? new Date(subscription.trial_end * 1000)
     : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days default
 
-  // Update data for the profile
-  const updateData = {
+  // Profile data to upsert
+  const profileData = {
+    email: customerEmail.toLowerCase(),
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,
     subscription_status: mapStripeStatus(subscription.status),
     plan: 'pro',
-    trial_start: trialStart.toISOString(),
     trial_end: trialEnd.toISOString(),
     current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
   }
 
-  console.log('[v0] Attempting to update profile by email:', customerEmail)
+  console.log('[v0] Profile data to upsert:', profileData)
 
-  // Match by EMAIL (case-insensitive) - this is the key fix
-  const { data: existingProfile, error: fetchError } = await supabaseAdmin
-    .from('profiles')
-    .select('id, email')
-    .ilike('email', customerEmail)
-    .single()
+  // First, check if a Supabase auth user exists with this email
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+  const matchingAuthUser = authUsers?.users?.find(
+    u => u.email?.toLowerCase() === customerEmail.toLowerCase()
+  )
 
-  if (existingProfile) {
-    console.log('[v0] Found existing profile:', existingProfile.id)
+  if (matchingAuthUser) {
+    console.log('[v0] Found matching Supabase auth user:', matchingAuthUser.id)
     
-    const { error: updateError } = await supabaseAdmin
+    // Check if profile exists for this user
+    const { data: existingProfile } = await supabaseAdmin
       .from('profiles')
-      .update(updateData)
-      .eq('id', existingProfile.id)
+      .select('id')
+      .eq('id', matchingAuthUser.id)
+      .single()
 
-    if (updateError) {
-      console.error('[v0] Error updating profile:', updateError)
-      throw updateError
+    if (existingProfile) {
+      // UPDATE existing profile
+      console.log('[v0] Updating existing profile for user:', matchingAuthUser.id)
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(profileData)
+        .eq('id', matchingAuthUser.id)
+
+      if (updateError) {
+        console.error('[v0] Error updating profile:', updateError)
+        throw updateError
+      }
+    } else {
+      // CREATE new profile linked to auth user
+      console.log('[v0] Creating new profile for auth user:', matchingAuthUser.id)
+      const { error: insertError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          id: matchingAuthUser.id,
+          ...profileData,
+          created_at: new Date().toISOString(),
+        })
+
+      if (insertError) {
+        console.error('[v0] Error creating profile:', insertError)
+        throw insertError
+      }
     }
-    
-    console.log('[v0] Profile updated successfully')
   } else {
-    console.log('[v0] No profile found for email, will be created on signup')
-    // Profile doesn't exist yet - user hasn't created account
-    // The profile will be created when they complete signup
+    // No auth user yet - check if profile exists by email
+    const { data: existingProfileByEmail } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .ilike('email', customerEmail)
+      .single()
+
+    if (existingProfileByEmail) {
+      // UPDATE existing profile by email
+      console.log('[v0] Updating existing profile by email')
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(profileData)
+        .eq('id', existingProfileByEmail.id)
+
+      if (updateError) {
+        console.error('[v0] Error updating profile by email:', updateError)
+        throw updateError
+      }
+    } else {
+      // CREATE new profile with email as temporary ID
+      // This will be linked to auth user when they sign up
+      console.log('[v0] Creating new profile for email (no auth user yet):', customerEmail)
+      const { error: insertError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          id: crypto.randomUUID(), // Temporary ID until user signs up
+          ...profileData,
+          created_at: new Date().toISOString(),
+        })
+
+      if (insertError) {
+        console.error('[v0] Error creating profile for email:', insertError)
+        throw insertError
+      }
+    }
   }
 
   console.log(`[v0] Checkout completed for ${customerEmail}, status: ${subscription.status}`)
