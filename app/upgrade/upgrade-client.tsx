@@ -189,14 +189,14 @@ export default function UpgradeClient() {
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8">
-            {/* 30 Days Free Banner */}
+            {/* 14 Days Free Banner */}
             <div className="bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-5 mb-6">
               <div className="flex items-center gap-3">
                 <Sparkles className="h-8 w-8 text-white" />
                 <div>
-                  <p className="font-bold text-white text-2xl">30 Days FREE</p>
+                  <p className="font-bold text-white text-2xl">14 Days FREE</p>
                   <p className="text-sm text-white/90">
-                    Try all EQHO Player Pro features free for 30 days.
+                    Try all EQHO Player Pro features free for 14 days.
                   </p>
                 </div>
               </div>
@@ -245,7 +245,7 @@ export default function UpgradeClient() {
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
-                  Start 30-Day Free Trial
+                  Start 14-Day Free Trial
                   <ArrowRight className="h-5 w-5" />
                 </>
               )}

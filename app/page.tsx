@@ -4289,7 +4289,7 @@ Upload Folders & Playlists
                       <span className="text-white/70 text-sm">Current Plan</span>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
                         <Crown className="h-3.5 w-3.5" />
-                        Free 30-Day Trial
+                        Free 14-Day Trial
                       </span>
                     </div>
                     
@@ -4324,7 +4324,7 @@ Upload Folders & Playlists
                       
                       {/* Auto-renewal message */}
                       <p className="text-white/50 text-[11px] leading-relaxed">
-                        Your subscription will automatically renew at £3.99 per month when your 30-day trial ends.
+                        Your subscription will automatically renew at £3.99 per month when your 14-day trial ends.
                       </p>
                     </div>
                     
