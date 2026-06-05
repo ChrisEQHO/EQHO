@@ -7,14 +7,15 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   typescript: true,
 })
 
-// Pro subscription price - £3.99/month
-// This should match the Price ID created in your Stripe Dashboard
-export const PRO_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID || 'price_pro_monthly'
+// Pro subscription price - £47.90/year (EQHO Player Pro)
+// Set STRIPE_PRICE_ID in your Vercel environment variables
+// This must be a real Stripe price ID starting with "price_"
+export const PRO_PRICE_ID = process.env.STRIPE_PRICE_ID || ''
 
 export const SUBSCRIPTION_CONFIG = {
   name: 'EQHO Player Pro',
-  price: 399, // £3.99 in pence
+  price: 4790, // £47.90 in pence
   currency: 'gbp',
-  interval: 'month' as const,
+  interval: 'year' as const,
   trialDays: 14,
 }

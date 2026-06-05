@@ -36,9 +36,22 @@ export async function POST(request: NextRequest) {
     // Determine the base URL for redirects
     const origin = request.headers.get('origin') || 'https://www.eqho-player.com'
     
-    // Use the annual price ID from environment or fallback
+    // Use the annual price ID from environment
     const priceId = process.env.STRIPE_PRICE_ID || PRO_PRICE_ID
-    console.log('[v0] Using price ID:', priceId)
+    
+    console.log('[v0] Environment check:')
+    console.log('[v0]   STRIPE_PRICE_ID:', process.env.STRIPE_PRICE_ID ? 'SET' : 'NOT SET')
+    console.log('[v0]   PRO_PRICE_ID fallback:', PRO_PRICE_ID || 'EMPTY')
+    console.log('[v0]   Using price ID:', priceId)
+    console.log('[v0]   STRIPE_SECRET_KEY starts with:', process.env.STRIPE_SECRET_KEY?.substring(0, 7))
+    
+    if (!priceId || !priceId.startsWith('price_')) {
+      console.error('[v0] ERROR: Invalid or missing STRIPE_PRICE_ID')
+      return NextResponse.json(
+        { error: 'Stripe price not configured. Please set STRIPE_PRICE_ID in environment variables.' },
+        { status: 500 }
+      )
+    }
     
     // Create the Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
