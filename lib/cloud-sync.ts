@@ -1,4 +1,17 @@
 import { createClient } from '@/lib/supabase/client'
+import {
+  uploadTrackToR2,
+  downloadTrackFromR2,
+  deleteTrackFromR2,
+  deletePlaylistFromR2,
+  getTrackStorageKey,
+  isR2Configured,
+  uploadPlaylistMetadataToR2,
+  getPlaylistMetadataFromR2,
+  listUserPlaylistsFromR2,
+  listPlaylistTracksFromR2,
+  getSignedDownloadUrl,
+} from '@/lib/r2-storage'
 
 // Types matching the Supabase schema
 export interface CloudPlaylist {
@@ -152,17 +165,11 @@ export async function deleteCloudPlaylist(playlistId: string): Promise<boolean> 
   const supabase = createClient()
   if (!supabase) return false
 
-  // First delete all tracks in the playlist (and their audio files)
-  const { data: tracks } = await supabase
-    .from('tracks')
-    .select('storage_path')
-    .eq('playlist_id', playlistId)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
 
-  if (tracks && tracks.length > 0) {
-    // Delete audio files from storage
-    const paths = tracks.map(t => t.storage_path)
-    await supabase.storage.from('audio-tracks').remove(paths)
-  }
+  // Delete all files from R2 for this playlist
+  await deletePlaylistFromR2(user.id, playlistId)
 
   // Delete tracks from database
   await supabase.from('tracks').delete().eq('playlist_id', playlistId)
@@ -197,22 +204,23 @@ export async function uploadTrackToCloud(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Upload file to storage
-  const storagePath = `${user.id}/${playlistId}/${track.id}-${track.fileName}`
+  // Upload file to R2 storage
+  const r2Key = getTrackStorageKey(user.id, playlistId, track.id, track.fileName)
   
-  const { error: uploadError } = await supabase.storage
-    .from('audio-tracks')
-    .upload(storagePath, track.file, {
-      cacheControl: '3600',
-      upsert: false
-    })
+  const r2Result = await uploadTrackToR2(
+    user.id,
+    playlistId,
+    track.id,
+    track.file,
+    { title: track.title, duration: track.durationSeconds }
+  )
 
-  if (uploadError) {
-    console.error('Error uploading track file:', uploadError)
+  if (!r2Result.success) {
+    console.error('Error uploading track to R2:', r2Result.error)
     return null
   }
 
-  // Create track record
+  // Store metadata in Supabase (not the file itself)
   const { data, error } = await supabase
     .from('tracks')
     .insert({
@@ -221,7 +229,7 @@ export async function uploadTrackToCloud(
       playlist_id: playlistId,
       title: track.title,
       duration: track.durationSeconds,
-      storage_path: storagePath,
+      storage_path: r2Key, // R2 object key
       file_size: track.file.size,
       mime_type: track.file.type || 'audio/mpeg'
     })
@@ -230,8 +238,8 @@ export async function uploadTrackToCloud(
 
   if (error) {
     console.error('Error creating track record:', error)
-    // Clean up uploaded file
-    await supabase.storage.from('audio-tracks').remove([storagePath])
+    // Clean up R2 file
+    await deleteTrackFromR2(r2Key)
     return null
   }
 
@@ -244,7 +252,7 @@ export async function deleteTrackFromCloud(trackId: string): Promise<boolean> {
   const supabase = createClient()
   if (!supabase) return false
 
-  // Get track to find storage path
+  // Get track to find storage path (R2 key)
   const { data: track } = await supabase
     .from('tracks')
     .select('storage_path')
@@ -252,8 +260,8 @@ export async function deleteTrackFromCloud(trackId: string): Promise<boolean> {
     .single()
 
   if (track) {
-    // Delete from storage
-    await supabase.storage.from('audio-tracks').remove([track.storage_path])
+    // Delete from R2 storage
+    await deleteTrackFromR2(track.storage_path)
   }
 
   // Delete from database
@@ -271,22 +279,16 @@ export async function deleteTrackFromCloud(trackId: string): Promise<boolean> {
 }
 
 export async function downloadTrackFile(storagePath: string): Promise<File | null> {
-  const supabase = createClient()
-  if (!supabase) return null
+  // Download from R2 using signed URL
+  const file = await downloadTrackFromR2(storagePath)
+  return file
+}
 
-  const { data, error } = await supabase.storage
-    .from('audio-tracks')
-    .download(storagePath)
-
-  if (error) {
-    console.error('Error downloading track:', error)
-    return null
-  }
-
-  // Extract filename from path
-  const fileName = storagePath.split('/').pop() || 'track.mp3'
-  
-  return new File([data], fileName, { type: data.type || 'audio/mpeg' })
+/**
+ * Get a signed URL for streaming a track (valid for 1 hour)
+ */
+export async function getTrackStreamUrl(storagePath: string): Promise<string | null> {
+  return getSignedDownloadUrl(storagePath, 3600)
 }
 
 // =====================
@@ -635,4 +637,265 @@ export function downloadExportAsJSON(data: ExportData): void {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+// =====================
+// UPLOAD TO CLOUD (Full Sync)
+// =====================
+
+/**
+ * Upload a single playlist with all tracks to the cloud (R2 + Supabase metadata)
+ */
+export async function uploadPlaylistToCloud(
+  localPlaylist: {
+    id: string
+    name: string
+    tracks: Array<{
+      id: string
+      title: string
+      fileName: string
+      durationSeconds: number
+      uploadedAt?: string
+      file?: File
+    }>
+  },
+  coachSettings?: {
+    gapSeconds: number
+    countdownEnabled: boolean
+    countdownSeconds: number
+    autoplayNext: boolean
+    backToBackDefault: boolean
+    showPauseWarning: boolean
+    showSkipWarning: boolean
+    playlistRepeats: number
+  }
+): Promise<{
+  success: boolean
+  uploadedTracks: number
+  skippedTracks: number
+  error?: string
+}> {
+  if (isMobileBuild) return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Read-only on mobile' }
+
+  const supabase = createClient()
+  if (!supabase) return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Supabase not configured' }
+  
+  if (!isR2Configured()) {
+    return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'R2 storage not configured' }
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Not authenticated' }
+
+  try {
+    // Check if playlist exists, create if not
+    let { data: existingPlaylist } = await supabase
+      .from('playlists')
+      .select('*')
+      .eq('id', localPlaylist.id)
+      .single()
+
+    if (!existingPlaylist) {
+      const { data: newPlaylist, error } = await supabase
+        .from('playlists')
+        .insert({
+          id: localPlaylist.id,
+          user_id: user.id,
+          name: localPlaylist.name,
+          track_order: [],
+          gap_seconds: coachSettings?.gapSeconds || 3,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, uploadedTracks: 0, skippedTracks: 0, error: `Failed to create playlist: ${error.message}` }
+      }
+      existingPlaylist = newPlaylist
+    }
+
+    // Upload tracks
+    let uploadedCount = 0
+    let skippedCount = 0
+    const trackOrder: string[] = []
+
+    for (const track of localPlaylist.tracks) {
+      // Check if track already exists in cloud
+      const { data: existingTrack } = await supabase
+        .from('tracks')
+        .select('id')
+        .eq('id', track.id)
+        .single()
+
+      if (existingTrack) {
+        // Track already uploaded
+        trackOrder.push(existingTrack.id)
+        skippedCount++
+        continue
+      }
+
+      // Skip tracks without files (can't upload)
+      if (!track.file) {
+        skippedCount++
+        continue
+      }
+
+      // Upload to R2 and create metadata in Supabase
+      const localTrack: LocalTrack = {
+        id: track.id,
+        title: track.title,
+        fileName: track.fileName,
+        durationSeconds: track.durationSeconds,
+        uploadedAt: track.uploadedAt || new Date().toISOString(),
+        file: track.file,
+      }
+
+      const uploaded = await uploadTrackToCloud(existingPlaylist.id, localTrack)
+      if (uploaded) {
+        uploadedCount++
+        trackOrder.push(uploaded.id)
+      }
+    }
+
+    // Update track order on playlist
+    await updateCloudPlaylist(existingPlaylist.id, {
+      track_order: trackOrder,
+      name: localPlaylist.name,
+    })
+
+    // Save coach settings to Supabase if provided
+    if (coachSettings) {
+      await saveCoachSettings({
+        default_gap_seconds: coachSettings.gapSeconds,
+        countdown_enabled: coachSettings.countdownEnabled,
+        countdown_seconds: coachSettings.countdownSeconds,
+        autoplay_next: coachSettings.autoplayNext,
+        back_to_back_default: coachSettings.backToBackDefault,
+        show_pause_warning: coachSettings.showPauseWarning,
+        show_skip_warning: coachSettings.showSkipWarning,
+        playlist_repeats: coachSettings.playlistRepeats,
+        default_volume: 1,
+      })
+    }
+
+    // Update sync timestamp
+    await supabase
+      .from('profiles')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('id', user.id)
+
+    return { success: true, uploadedTracks: uploadedCount, skippedTracks: skippedCount }
+  } catch (error) {
+    console.error('Error uploading playlist to cloud:', error)
+    return { 
+      success: false, 
+      uploadedTracks: 0, 
+      skippedTracks: 0,
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }
+  }
+}
+
+/**
+ * Sync all local playlists to the cloud
+ */
+export async function syncAllPlaylistsToCloud(
+  localPlaylists: Array<{
+    id: string
+    name: string
+    tracks: Array<{
+      id: string
+      title: string
+      fileName: string
+      durationSeconds: number
+      uploadedAt?: string
+      file?: File
+    }>
+  }>,
+  coachSettings?: {
+    gapSeconds: number
+    countdownEnabled: boolean
+    countdownSeconds: number
+    autoplayNext: boolean
+    backToBackDefault: boolean
+    showPauseWarning: boolean
+    showSkipWarning: boolean
+    playlistRepeats: number
+  }
+): Promise<{
+  success: boolean
+  syncedPlaylists: number
+  totalUploaded: number
+  errors: string[]
+}> {
+  const errors: string[] = []
+  let syncedPlaylists = 0
+  let totalUploaded = 0
+
+  for (const playlist of localPlaylists) {
+    const result = await uploadPlaylistToCloud(playlist, coachSettings)
+    if (result.success) {
+      syncedPlaylists++
+      totalUploaded += result.uploadedTracks
+    } else if (result.error) {
+      errors.push(`${playlist.name}: ${result.error}`)
+    }
+  }
+
+  // Update push timestamp after all syncs
+  await pushToApps()
+
+  return {
+    success: errors.length === 0,
+    syncedPlaylists,
+    totalUploaded,
+    errors,
+  }
+}
+
+/**
+ * Download all playlists from cloud for the current user
+ */
+export async function downloadAllPlaylistsFromCloud(): Promise<{
+  playlists: LocalPlaylist[]
+  coachSettings: CoachSettings | null
+  error?: string
+}> {
+  const supabase = createClient()
+  if (!supabase) return { playlists: [], coachSettings: null, error: 'Supabase not configured' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { playlists: [], coachSettings: null, error: 'Not authenticated' }
+
+  try {
+    // Fetch all playlists
+    const cloudPlaylists = await fetchCloudPlaylists()
+    const localPlaylists: LocalPlaylist[] = []
+
+    for (const cloudPlaylist of cloudPlaylists) {
+      const localPlaylist = await fetchPlaylistWithFiles(cloudPlaylist.id)
+      if (localPlaylist) {
+        localPlaylists.push(localPlaylist)
+      }
+    }
+
+    // Fetch coach settings
+    const coachSettings = await fetchCoachSettings()
+
+    return { playlists: localPlaylists, coachSettings }
+  } catch (error) {
+    console.error('Error downloading playlists from cloud:', error)
+    return { 
+      playlists: [], 
+      coachSettings: null, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }
+  }
+}
+
+/**
+ * Check if cloud storage is available (R2 + Supabase configured)
+ */
+export function isCloudStorageAvailable(): boolean {
+  return isCloudSyncAvailable() && isR2Configured()
 }

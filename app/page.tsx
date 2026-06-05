@@ -24,6 +24,10 @@ import {
   isCloudSyncAvailable,
   checkProStatus,
   pushToApps,
+  uploadPlaylistToCloud,
+  syncAllPlaylistsToCloud,
+  downloadAllPlaylistsFromCloud,
+  isCloudStorageAvailable,
   type CloudPlaylist,
   type SyncStatus 
 } from "@/lib/cloud-sync";
@@ -89,6 +93,7 @@ import {
   Smartphone,
   Send,
   CloudUpload,
+  CloudDownload,
   FileDown,
 } from "lucide-react";
 
@@ -395,6 +400,8 @@ export default function Page() {
   // Cloud sync state
   const [isExporting, setIsExporting] = useState(false);
   const [isPushingToApps, setIsPushingToApps] = useState(false);
+  const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
+  const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
 
   // Session-only hidden tracks (does not affect saved playlists or cloud)
@@ -895,50 +902,176 @@ export default function Page() {
     }
   };
 
-  // Handler for Push to Apps button (Desktop only)
+  // Handler for Upload to Cloud button - uploads playlists to R2 storage
+  const handleUploadToCloud = async () => {
+    if (isUploadingToCloud) return;
+    
+    setIsUploadingToCloud(true);
+    setCloudSaveMessage('Uploading to cloud...');
+    
+    try {
+      if (!isCloudStorageAvailable()) {
+        setCloudSaveMessage('Cloud storage not configured');
+        setTimeout(() => setCloudSaveMessage(null), 3000);
+        return;
+      }
+
+      // Prepare playlists with files for upload
+      const playlistsToSync = savedPlaylists.map(playlist => ({
+        id: playlist.id,
+        name: playlist.name,
+        tracks: playlist.tracks.map(track => ({
+          id: track.id,
+          title: track.title,
+          fileName: track.fileName,
+          durationSeconds: track.durationSeconds,
+          uploadedAt: track.uploadedAt,
+          file: track.file,
+        })),
+      }));
+
+      const coachSettingsToSync = {
+        gapSeconds: settings.gapSeconds,
+        countdownEnabled: settings.showCountdown,
+        countdownSeconds: settings.countdownSeconds,
+        autoplayNext: settings.autoplayNext,
+        backToBackDefault: settings.backToBack,
+        showPauseWarning: settings.showPauseWarning,
+        showSkipWarning: settings.showSkipWarning,
+        playlistRepeats: settings.playlistRepeats,
+      };
+
+      const result = await syncAllPlaylistsToCloud(playlistsToSync, coachSettingsToSync);
+      
+      if (result.success) {
+        setCloudSaveMessage(`Uploaded ${result.totalUploaded} tracks from ${result.syncedPlaylists} playlists`);
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } else {
+        setCloudSaveMessage('Upload completed with some errors');
+      }
+      
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+    } catch (error) {
+      console.error("Upload to cloud failed:", error);
+      setCloudSaveMessage('Upload failed. Check your connection.');
+      setTimeout(() => setCloudSaveMessage(null), 3000);
+    } finally {
+      setIsUploadingToCloud(false);
+    }
+  };
+
+  // Handler for Download from Cloud button - downloads all playlists from R2
+  const handleDownloadFromCloud = async () => {
+    if (isDownloadingFromCloud) return;
+    
+    setIsDownloadingFromCloud(true);
+    setCloudSaveMessage('Downloading from cloud...');
+    
+    try {
+      if (!isCloudStorageAvailable()) {
+        setCloudSaveMessage('Cloud storage not configured');
+        setTimeout(() => setCloudSaveMessage(null), 3000);
+        return;
+      }
+
+      const result = await downloadAllPlaylistsFromCloud();
+      
+      if (result.error) {
+        setCloudSaveMessage(result.error);
+        setTimeout(() => setCloudSaveMessage(null), 3000);
+        return;
+      }
+
+      if (result.playlists.length > 0) {
+        // Merge cloud playlists with local playlists
+        const existingIds = new Set(savedPlaylists.map(p => p.id));
+        const newPlaylists = result.playlists
+          .filter(p => !existingIds.has(p.id))
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            tracks: p.tracks.map(t => ({
+              id: t.id,
+              title: t.title,
+              fileName: t.fileName,
+              durationSeconds: t.durationSeconds,
+              uploadedAt: t.uploadedAt,
+              file: t.file,
+            })),
+          }));
+
+        if (newPlaylists.length > 0) {
+          setSavedPlaylists(prev => [...prev, ...newPlaylists]);
+          setCloudSaveMessage(`Downloaded ${newPlaylists.length} playlists from cloud`);
+        } else {
+          setCloudSaveMessage('All cloud playlists already synced locally');
+        }
+      } else {
+        setCloudSaveMessage('No playlists found in cloud');
+      }
+      
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+    } catch (error) {
+      console.error("Download from cloud failed:", error);
+      setCloudSaveMessage('Download failed. Check your connection.');
+      setTimeout(() => setCloudSaveMessage(null), 3000);
+    } finally {
+      setIsDownloadingFromCloud(false);
+    }
+  };
+
+  // Handler for Push to Apps button (Desktop only) - Uses R2 + Supabase
   const handlePushToApps = async () => {
     if (isPushingToApps || isMobileBuild) return;
     
     setIsPushingToApps(true);
-    setCloudSaveMessage('Syncing playlists...');
+    setCloudSaveMessage('Uploading playlists to cloud...');
     
     try {
-      // Convert and sync all local playlists to cloud
-      let syncedCount = 0;
-      for (const localPlaylist of savedPlaylists) {
-        // Convert to LocalPlaylist format expected by cloud-sync
-        // Only include tracks that have file blobs for upload
-        const tracksWithFiles = localPlaylist.tracks
-          .filter(t => t.file)
-          .map(t => ({
-            id: t.id,
-            title: t.title,
-            fileName: t.fileName,
-            durationSeconds: t.durationSeconds,
-            uploadedAt: t.uploadedAt,
-            file: t.file as File,
-          }));
-        
-        if (tracksWithFiles.length > 0) {
-          const cloudPlaylist = {
-            id: localPlaylist.id,
-            name: localPlaylist.name,
-            tracks: tracksWithFiles,
-          };
-          
-          const result = await syncPlaylistToCloud(cloudPlaylist);
-          if (result.success) {
-            syncedCount++;
-          }
-        }
+      // Check if cloud storage is available
+      if (!isCloudStorageAvailable()) {
+        setCloudSaveMessage('Cloud storage not configured. Please check your R2 settings.');
+        setTimeout(() => setCloudSaveMessage(null), 4000);
+        return;
       }
+
+      // Prepare playlists for sync (include tracks with files)
+      const playlistsToSync = savedPlaylists.map(playlist => ({
+        id: playlist.id,
+        name: playlist.name,
+        tracks: playlist.tracks.map(track => ({
+          id: track.id,
+          title: track.title,
+          fileName: track.fileName,
+          durationSeconds: track.durationSeconds,
+          uploadedAt: track.uploadedAt,
+          file: track.file,
+        })),
+      }));
+
+      // Prepare coach settings
+      const coachSettingsToSync = {
+        gapSeconds: settings.gapSeconds,
+        countdownEnabled: settings.showCountdown,
+        countdownSeconds: settings.countdownSeconds,
+        autoplayNext: settings.autoplayNext,
+        backToBackDefault: settings.backToBack,
+        showPauseWarning: settings.showPauseWarning,
+        showSkipWarning: settings.showSkipWarning,
+        playlistRepeats: settings.playlistRepeats,
+      };
+
+      // Sync all playlists to cloud (R2 for files, Supabase for metadata)
+      const result = await syncAllPlaylistsToCloud(playlistsToSync, coachSettingsToSync);
       
-      // Update the push timestamp
-      const success = await pushToApps();
-      
-      if (success || syncedCount > 0) {
-        setCloudSaveMessage(`${syncedCount} playlist${syncedCount !== 1 ? 's' : ''} pushed to your EQHO apps`);
+      if (result.success) {
+        setCloudSaveMessage(`${result.syncedPlaylists} playlist${result.syncedPlaylists !== 1 ? 's' : ''} synced (${result.totalUploaded} new tracks uploaded)`);
         // Refresh cloud playlists
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } else if (result.syncedPlaylists > 0) {
+        setCloudSaveMessage(`${result.syncedPlaylists} playlist${result.syncedPlaylists !== 1 ? 's' : ''} synced with some errors`);
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
       } else {
@@ -4401,13 +4534,71 @@ Upload Folders & Playlists
                     {cloudSaveMessage && (
                       <div className="px-4 py-3 rounded-xl bg-[#ff4fa3]/10 border border-[#ff4fa3]/30">
                         <p className="text-sm text-[#ff4fa3] font-medium flex items-center gap-2">
-                          {(isExporting || isPushingToApps) && <Loader2 size={16} className="animate-spin" />}
+                          {(isExporting || isPushingToApps || isUploadingToCloud || isDownloadingFromCloud) && <Loader2 size={16} className="animate-spin" />}
                           {cloudSaveMessage}
                         </p>
                       </div>
                     )}
                     
-                    {/* Download Playlists Section */}
+                    {/* Upload to Cloud Section */}
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-400 flex items-center justify-center">
+                          <CloudUpload size={18} />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold">Upload to Cloud</h2>
+                          <p className="text-white/50 text-sm">Sync playlists to R2 storage</p>
+                        </div>
+                      </div>
+                      <p className="text-white/70 text-sm mb-4">
+                        Upload all your playlists and audio files to secure cloud storage. 
+                        Your files are stored in Cloudflare R2 with signed URLs for privacy.
+                      </p>
+                      <button
+                        onClick={handleUploadToCloud}
+                        disabled={isUploadingToCloud}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isUploadingToCloud ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <CloudUpload size={18} />
+                        )}
+                        Upload to Cloud
+                      </button>
+                    </div>
+                    
+                    {/* Download from Cloud Section */}
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-400 flex items-center justify-center">
+                          <CloudDownload size={18} />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold">Download from Cloud</h2>
+                          <p className="text-white/50 text-sm">Restore playlists from R2 storage</p>
+                        </div>
+                      </div>
+                      <p className="text-white/70 text-sm mb-4">
+                        Download and restore all your playlists from the cloud. 
+                        Use this when setting up a new device or after reinstalling.
+                      </p>
+                      <button
+                        onClick={handleDownloadFromCloud}
+                        disabled={isDownloadingFromCloud}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isDownloadingFromCloud ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <CloudDownload size={18} />
+                        )}
+                        Download from Cloud
+                      </button>
+                    </div>
+                    
+                    {/* Download Playlists Section (Local Export) */}
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
