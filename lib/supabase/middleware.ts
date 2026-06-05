@@ -60,11 +60,43 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is logged in and trying to access login/signup, redirect to home
-  if (user && (pathname === '/login' || pathname === '/signup')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
+  // If user is logged in
+  if (user) {
+    // Check subscription status for protected routes (player)
+    if (pathname === '/') {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('id', user.id)
+        .single()
+      
+      const hasActiveSubscription = profile?.subscription_status === 'active' || 
+                                     profile?.subscription_status === 'trialing'
+      
+      // If no active subscription, redirect to upgrade page
+      if (!hasActiveSubscription) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/upgrade'
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // If user is logged in and trying to access login/signup, check subscription
+    if (pathname === '/login' || pathname === '/signup') {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('id', user.id)
+        .single()
+      
+      const hasActiveSubscription = profile?.subscription_status === 'active' || 
+                                     profile?.subscription_status === 'trialing'
+      
+      const url = request.nextUrl.clone()
+      // Redirect to player if subscribed, upgrade if not
+      url.pathname = hasActiveSubscription ? '/' : '/upgrade'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

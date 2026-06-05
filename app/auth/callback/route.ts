@@ -2,13 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Stripe Payment Link with 30-day free trial (temporarily disabled)
-// const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603'
-
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -35,9 +31,31 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // TEMPORARILY DISABLED: Skip subscription check and allow direct access
-      // Just redirect to the player after successful authentication
-      return NextResponse.redirect(`${origin}${next}`)
+      // Get the user's session
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        // Check if user has an active subscription
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('id', session.user.id)
+          .single()
+        
+        const hasActiveSubscription = profile?.subscription_status === 'active' || 
+                                       profile?.subscription_status === 'trialing'
+        
+        if (hasActiveSubscription) {
+          // User has subscription, go to player
+          return NextResponse.redirect(`${origin}/`)
+        } else {
+          // User needs to subscribe, go to upgrade page
+          return NextResponse.redirect(`${origin}/upgrade`)
+        }
+      }
+      
+      // Fallback to upgrade if no session (shouldn't happen)
+      return NextResponse.redirect(`${origin}/upgrade`)
     }
   }
 
