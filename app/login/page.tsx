@@ -22,31 +22,43 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  // Check if user is already logged in
+  // Clear stale localStorage on mount and check if user is already logged in
   useEffect(() => {
+    // Clear any stale auth-related localStorage values
+    if (typeof window !== 'undefined') {
+      const keysToRemove = [
+        'userEmail', 'email', 'user_email', 'user', 'profile', 
+        'subscription', 'stripe', 'trial', 'account', 'session'
+      ]
+      keysToRemove.forEach(key => {
+        try { localStorage.removeItem(key) } catch {}
+      })
+    }
+    
     if (isV0Preview) return
     
     const checkSession = async () => {
       const supabase = createClient()
       if (!supabase) return
       
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        // Check subscription status
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('subscription_status')
-          .eq('user_id', session.user.id)
-          .single()
+      // ALWAYS use getUser() for fresh auth data
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error || !user) return
+      
+      // Check subscription status using 'id' column
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('id', user.id)
+        .single()
 
-        const hasAccess = profile?.subscription_status && 
-          ['active', 'trialing'].includes(profile.subscription_status)
+      const hasAccess = profile?.subscription_status && 
+        ['active', 'trialing'].includes(profile.subscription_status)
 
-        if (hasAccess) {
-          router.replace('/')
-        } else {
-          router.replace('/upgrade')
-        }
+      if (hasAccess) {
+        router.replace('/')
+      } else {
+        router.replace('/upgrade')
       }
     }
     checkSession()
@@ -95,11 +107,11 @@ export default function LoginPage() {
       return
     }
 
-    // Check subscription status
+    // Check subscription status using 'id' column
     const { data: profile } = await supabase
       .from('profiles')
       .select('subscription_status')
-      .eq('user_id', data.user.id)
+      .eq('id', data.user.id)
       .single()
 
     const hasAccess = profile?.subscription_status && 

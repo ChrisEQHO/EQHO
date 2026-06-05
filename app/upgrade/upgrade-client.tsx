@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock } from 'lucide-react'
+import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock, Bug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
@@ -15,6 +15,15 @@ const isV0Preview = typeof window !== 'undefined' && (
   window.location.hostname.includes('localhost')
 )
 
+interface DebugInfo {
+  authEmail: string | null
+  authUserId: string | null
+  displayedEmail: string | null
+  profileEmail: string | null
+  localStorageEmail: string | null
+  emailMismatch: boolean
+}
+
 export default function UpgradeClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -24,8 +33,18 @@ export default function UpgradeClient() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [hasSubscription, setHasSubscription] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [showDebug, setShowDebug] = useState(true)
+  const [debugInfo, setDebugInfo] = useState<DebugInfo>({
+    authEmail: null,
+    authUserId: null,
+    displayedEmail: null,
+    profileEmail: null,
+    localStorageEmail: null,
+    emailMismatch: false,
+  })
+  const [emailMismatch, setEmailMismatch] = useState(false)
 
-  // Check session on mount
+  // Check session on mount - ALWAYS use getUser() for fresh auth data
   useEffect(() => {
     if (isV0Preview) {
       setLoading(false)
@@ -40,33 +59,61 @@ export default function UpgradeClient() {
         return
       }
 
-      const { data: { session } } = await supabase.auth.getSession()
+      // ALWAYS use getUser() - this fetches fresh data from the server
+      // DO NOT use getSession() as it can return stale/cached data
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
       
-      if (!session) {
+      if (authError || !authUser) {
+        console.log('[v0] No authenticated user, redirecting to login')
         router.replace('/login')
         return
       }
 
-      setUser({ id: session.user.id, email: session.user.email || '' })
+      console.log('[v0] Fresh auth user:', authUser.id, authUser.email)
+      
+      // Check localStorage for any stale email
+      const localStorageEmail = typeof window !== 'undefined' 
+        ? localStorage.getItem('userEmail') || localStorage.getItem('email') || localStorage.getItem('user_email')
+        : null
 
-      // Try fetching profile by 'id' first, then 'user_id'
+      // Set user from fresh auth data
+      const freshEmail = authUser.email || ''
+      setUser({ id: authUser.id, email: freshEmail })
+
+      // Check profile for subscription status
       let profile = null
+      let profileEmail = null
+      
       const { data: profileById } = await supabase
         .from('profiles')
-        .select('subscription_status')
-        .eq('id', session.user.id)
+        .select('subscription_status, email')
+        .eq('id', authUser.id)
         .single()
       
       if (profileById) {
         profile = profileById
+        profileEmail = profileById.email
       } else {
         const { data: profileByUserId } = await supabase
           .from('profiles')
-          .select('subscription_status')
-          .eq('user_id', session.user.id)
+          .select('subscription_status, email')
+          .eq('user_id', authUser.id)
           .single()
-        profile = profileByUserId
+        if (profileByUserId) {
+          profile = profileByUserId
+          profileEmail = profileByUserId.email
+        }
       }
+
+      // Update debug info
+      setDebugInfo({
+        authEmail: freshEmail,
+        authUserId: authUser.id,
+        displayedEmail: freshEmail,
+        profileEmail: profileEmail,
+        localStorageEmail: localStorageEmail,
+        emailMismatch: false,
+      })
 
       if (profile?.subscription_status && ['active', 'trialing'].includes(profile.subscription_status)) {
         setHasSubscription(true)
@@ -80,6 +127,12 @@ export default function UpgradeClient() {
 
   const handleStartTrial = async () => {
     if (!user) return
+    
+    // Block checkout if email mismatch detected
+    if (emailMismatch) {
+      setCheckoutError('Account session mismatch. Please log out and log back in.')
+      return
+    }
     
     setRedirectingToStripe(true)
     setCheckoutError(null)
@@ -166,6 +219,17 @@ export default function UpgradeClient() {
             <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player Pro</h2>
             <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
           </div>
+
+          {/* Email Mismatch Error */}
+          {emailMismatch && (
+            <div className="p-3 rounded-xl border flex items-start gap-2 bg-red-500/10 border-red-500/30">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm text-red-400">Account Session Mismatch</p>
+                <p className="text-xs text-[#94a3b8]">Please log out and log back in to continue.</p>
+              </div>
+            </div>
+          )}
 
           {/* Checkout Error */}
           {checkoutError && (
@@ -266,6 +330,70 @@ export default function UpgradeClient() {
               Redirects to Stripe. Card won&apos;t be charged until trial ends.
             </p>
           </div>
+
+          {/* Debug Panel */}
+          {showDebug && (
+            <div className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 text-xs font-mono">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Bug className="h-4 w-4 text-[#fbbf24]" />
+                  <span className="font-semibold text-[#fbbf24]">Debug Panel</span>
+                </div>
+                <button 
+                  onClick={() => setShowDebug(false)}
+                  className="text-[#64748b] hover:text-white text-xs"
+                >
+                  Hide
+                </button>
+              </div>
+              <div className="space-y-1.5 text-[#94a3b8]">
+                <div className="flex justify-between">
+                  <span>Auth Email:</span>
+                  <span className="text-[#22d3ee]">{debugInfo.authEmail || 'null'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Auth User ID:</span>
+                  <span className="text-[#22d3ee] truncate max-w-[200px]">{debugInfo.authUserId || 'null'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Displayed Email:</span>
+                  <span className="text-[#22d3ee]">{debugInfo.displayedEmail || 'null'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Profile Email:</span>
+                  <span className="text-[#22d3ee]">{debugInfo.profileEmail || 'null'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>LocalStorage Email:</span>
+                  <span className="text-[#22d3ee]">{debugInfo.localStorageEmail || 'null'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Email Mismatch:</span>
+                  <span className={emailMismatch ? 'text-red-400' : 'text-green-400'}>
+                    {emailMismatch ? 'YES - ERROR' : 'No'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Checkout Email:</span>
+                  <span className="text-[#22d3ee]">{user?.email || 'null'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Client Ref ID:</span>
+                  <span className="text-[#22d3ee] truncate max-w-[200px]">{user?.id || 'null'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {!showDebug && (
+            <button 
+              onClick={() => setShowDebug(true)}
+              className="text-[#64748b] hover:text-[#94a3b8] text-xs flex items-center gap-1 mx-auto"
+            >
+              <Bug className="h-3 w-3" />
+              Show Debug
+            </button>
+          )}
         </div>
       </main>
     </div>
