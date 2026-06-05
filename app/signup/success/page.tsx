@@ -62,7 +62,7 @@ export default function SignupSuccessPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                You&apos;ll be redirected to start your 30-day free trial
+                You&apos;ll be redirected to start your 14-day free trial
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
