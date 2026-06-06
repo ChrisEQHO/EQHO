@@ -3492,7 +3492,7 @@ export default function Page() {
                       htmlFor="file-upload-input"
                       className="cursor-pointer text-[#ff8a00] font-bold text-xs hover:text-[#ffa733] transition"
                     >
-                      + Upload
+                      + Upload Folder
                     </label>
                     <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
                   </div>
@@ -3500,7 +3500,9 @@ export default function Page() {
                 <input
                   id="file-upload-input"
                   type="file"
-                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                  // @ts-expect-error - non-standard folder selection attributes
+                  webkitdirectory=""
+                  directory=""
                   multiple
                   onChange={(event) => {
                     const files = Array.from(event.target.files || []).filter((file) =>
@@ -3510,7 +3512,10 @@ export default function Page() {
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                      // Use the dropped folder's name as the playlist name
+                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
+                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
+                      const playlistName = folderName;
                       const newPlaylistId = crypto.randomUUID();
                       const newTracks: Track[] = [];
                       
@@ -3555,11 +3560,11 @@ export default function Page() {
                     }`}
                   >
                     <UploadCloud className={`mx-auto mb-3 ${isDraggingUpload ? "text-cyan-300" : "text-[#ff8a00]"}`} size={32} />
-                    <p className="text-white font-bold text-sm">Drag &amp; drop playlists here</p>
+                    <p className="text-white font-bold text-sm">Drag &amp; drop a folder here</p>
                     <p className="text-white/50 text-[11px] mt-1.5 leading-relaxed max-w-[200px]">
-                      Drop folders or audio files directly into this area. Folders become playlists.
+                      Drop an entire folder into this area &mdash; each folder becomes its own playlist.
                     </p>
-                    <p className="text-white/30 text-[9px] mt-2">MP3, WAV, M4A &bull; or click to browse</p>
+                    <p className="text-white/30 text-[9px] mt-2">MP3, WAV, M4A &bull; or click to choose a folder</p>
                   </label>
                 ) : (
                   <div className="space-y-2 flex-1 overflow-y-auto">
