@@ -3476,88 +3476,93 @@ export default function Page() {
           <>
             {/* UPLOAD/PLAYLISTS - col-start-2 */}
             <aside className="relative col-start-2 h-full overflow-hidden flex flex-col gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
-Upload Folders & Playlists
-                </h2>
-                <label
-                  htmlFor="file-upload-input"
-                  onDrop={handleDropUpload}
-                  onDragOver={handleDragOverUpload}
-                  onDragEnter={handleDragEnterUpload}
-                  onDragLeave={handleDragLeaveUpload}
-                  className={`block cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
-                    isDraggingUpload
-                      ? "border-cyan-300 bg-cyan-400/10"
-                      : "border-[#ff4fa3]/50 bg-white/[0.03]"
-                  }`}
-                >
-                  <input
-                    id="file-upload-input"
-                    type="file"
-                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
-                    multiple
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files || []).filter((file) =>
-                        file.type.startsWith("audio/") || 
-                        file.name.endsWith(".mp3") || 
-                        file.name.endsWith(".wav") || 
-                        file.name.endsWith(".m4a")
-                      );
-                      if (files.length > 0) {
-                        const playlistName = `Playlist ${savedPlaylists.length + 1}`;
-                        const newPlaylistId = crypto.randomUUID();
-                        const newTracks: Track[] = [];
-                        
-                        let processed = 0;
-                        files.forEach((file) => {
-                          const url = URL.createObjectURL(file);
-                          const audio = new Audio(url);
-                          audio.onloadedmetadata = async () => {
-                            const newTrack: Track = {
-                              id: crypto.randomUUID(),
-                              title: file.name.replace(/\.[^/.]+$/, ""),
-                              sub: "Uploaded Track",
-                              duration: formatDuration(Math.round(audio.duration)),
-                              fileName: file.name,
-                              url,
-                              durationSeconds: Math.round(audio.duration),
-                              uploadedAt: new Date().toISOString(),
-                              file,
-                            };
-                            newTracks.push(newTrack);
-                            processed++;
-                            
-                            if (processed === files.length) {
-                              setSavedPlaylists(prev => [...prev, {
-                                id: newPlaylistId,
-                                name: playlistName,
-                                tracks: newTracks,
-                              }]);
-                            }
-                          };
-                        });
-                      }
-                      event.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-                  <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
-                  <p className="text-white font-bold text-xs">Drop folders and playlists</p>
-                  <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
-                  <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
-                </label>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] flex-1 overflow-hidden">
+              <div
+                onDrop={handleDropUpload}
+                onDragOver={handleDragOverUpload}
+                onDragEnter={handleDragEnterUpload}
+                onDragLeave={handleDragLeaveUpload}
+                className={`rounded-2xl border bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] flex-1 overflow-hidden flex flex-col transition ${
+                  isDraggingUpload ? "border-cyan-300 bg-cyan-400/10" : "border-white/10"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
-                  <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="file-upload-input"
+                      className="cursor-pointer text-[#ff8a00] font-bold text-xs hover:text-[#ffa733] transition"
+                    >
+                      + Upload
+                    </label>
+                    <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
+                  </div>
                 </div>
+                <input
+                  id="file-upload-input"
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []).filter((file) =>
+                      file.type.startsWith("audio/") || 
+                      file.name.endsWith(".mp3") || 
+                      file.name.endsWith(".wav") || 
+                      file.name.endsWith(".m4a")
+                    );
+                    if (files.length > 0) {
+                      const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                      const newPlaylistId = crypto.randomUUID();
+                      const newTracks: Track[] = [];
+                      
+                      let processed = 0;
+                      files.forEach((file) => {
+                        const url = URL.createObjectURL(file);
+                        const audio = new Audio(url);
+                        audio.onloadedmetadata = async () => {
+                          const newTrack: Track = {
+                            id: crypto.randomUUID(),
+                            title: file.name.replace(/\.[^/.]+$/, ""),
+                            sub: "Uploaded Track",
+                            duration: formatDuration(Math.round(audio.duration)),
+                            fileName: file.name,
+                            url,
+                            durationSeconds: Math.round(audio.duration),
+                            uploadedAt: new Date().toISOString(),
+                            file,
+                          };
+                          newTracks.push(newTrack);
+                          processed++;
+                          
+                          if (processed === files.length) {
+                            setSavedPlaylists(prev => [...prev, {
+                              id: newPlaylistId,
+                              name: playlistName,
+                              tracks: newTracks,
+                            }]);
+                          }
+                        };
+                      });
+                    }
+                    event.target.value = "";
+                  }}
+                  className="hidden"
+                />
                 {savedPlaylists.length === 0 ? (
-                  <p className="text-white/40 text-center py-4 text-xs">No playlists yet</p>
+                  <label
+                    htmlFor="file-upload-input"
+                    className={`flex-1 flex flex-col items-center justify-center cursor-pointer rounded-xl border border-dashed p-6 text-center transition ${
+                      isDraggingUpload ? "border-cyan-300 bg-cyan-400/10" : "border-[#ff4fa3]/50"
+                    }`}
+                  >
+                    <UploadCloud className={`mx-auto mb-3 ${isDraggingUpload ? "text-cyan-300" : "text-[#ff8a00]"}`} size={32} />
+                    <p className="text-white font-bold text-sm">Drag &amp; drop playlists here</p>
+                    <p className="text-white/50 text-[11px] mt-1.5 leading-relaxed max-w-[200px]">
+                      Drop folders or audio files directly into this area. Folders become playlists.
+                    </p>
+                    <p className="text-white/30 text-[9px] mt-2">MP3, WAV, M4A &bull; or click to browse</p>
+                  </label>
                 ) : (
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  <div className="space-y-2 flex-1 overflow-y-auto">
                     {savedPlaylists.map((pl) => (
                       <div
                         key={pl.id}
