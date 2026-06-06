@@ -1,7 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// TEMPORARY: Set to true to allow direct access to the player without
+// login, signup, or Stripe subscription checks. Set back to false to
+// re-enable the full auth + subscription gating.
+const BYPASS_AUTH = true
+
 export async function updateSession(request: NextRequest) {
+  // TEMPORARY bypass: skip all auth/subscription gating entirely
+  if (BYPASS_AUTH) {
+    return NextResponse.next()
+  }
+
   // V0 Preview bypass: skip auth entirely in development
   if (
     process.env.NODE_ENV === "development" ||
@@ -16,7 +26,7 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/debug']
+  const publicRoutes = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/debug', '/debug']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   // If Supabase is not configured, redirect protected routes to login
