@@ -4116,7 +4116,7 @@ export default function Page() {
             </div>
 
             {/* Session Status */}
-            <div className="mt-4 flex-1 flex flex-col justify-end">
+            <div className="mt-4 flex-1 flex flex-col justify-end pb-28 md:pb-32">
               <div className="border-t border-white/10 pt-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] uppercase text-white/50">Session Status</span>
