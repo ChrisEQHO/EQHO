@@ -4319,6 +4319,14 @@ export default function Page() {
                   </p>
                 </div>
                 
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => document.getElementById("library-folder-upload-input")?.click()}
+                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    New
+                  </button>
 {/* Cloud Sync Status & Refresh */}
                     {user && isCloudSyncAvailable() && isPro && (
                   <div className="flex items-center gap-3">
@@ -4338,6 +4346,7 @@ export default function Page() {
                     </button>
                   </div>
                 )}
+                </div>
               </div>
 
               {/* Compact Upload Drop Zone */}
@@ -4419,51 +4428,8 @@ export default function Page() {
                           };
                         });
                       }
-                    } else if (entry?.isFile) {
-                      const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
-                        file.type.startsWith("audio/")
-                      );
-                      
-                      if (files.length > 0) {
-                        const firstFile = files[0];
-                        const pathParts = (firstFile as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/");
-                        const playlistName = pathParts && pathParts.length > 1 
-                          ? pathParts[0] 
-                          : `Playlist ${savedPlaylists.length + 1}`;
-                        
-                        const newPlaylistId = crypto.randomUUID();
-                        const newTracks: Track[] = [];
-                        
-                        let processed = 0;
-                        files.forEach((file) => {
-                          const url = URL.createObjectURL(file);
-                          const audio = new Audio(url);
-                          audio.onloadedmetadata = async () => {
-                            const newTrack: Track = {
-                              id: crypto.randomUUID(),
-                              title: file.name.replace(/\.[^/.]+$/, ""),
-                              sub: "Uploaded Track",
-                              duration: formatDuration(Math.round(audio.duration)),
-                              fileName: file.name,
-                              url,
-                              durationSeconds: Math.round(audio.duration),
-                              uploadedAt: new Date().toISOString(),
-                              file,
-                            };
-                            newTracks.push(newTrack);
-                            
-                            processed++;
-                            if (processed === files.length) {
-                              setSavedPlaylists((prev) => [
-                                ...prev,
-                                { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                              ]);
-                            }
-                          };
-                        });
-                      }
-                      break;
                     }
+                    // Only folders are accepted as playlists; loose files are ignored.
                   }
                 }}
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -4476,8 +4442,11 @@ export default function Page() {
                 }`}
               >
                 <input
+                  id="library-folder-upload-input"
                   type="file"
-                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                  // @ts-expect-error - non-standard folder selection attributes
+                  webkitdirectory=""
+                  directory=""
                   multiple
                   onChange={(event) => {
                     const files = Array.from(event.target.files || []).filter((file) =>
@@ -4487,7 +4456,10 @@ export default function Page() {
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                      // Use the selected folder's name as the playlist name
+                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
+                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
+                      const playlistName = folderName;
                       const newPlaylistId = crypto.randomUUID();
                       const newTracks: Track[] = [];
                       
@@ -4533,7 +4505,7 @@ export default function Page() {
                     <p className={`font-semibold ${isDraggingUpload ? "text-cyan-300" : "text-white"}`}>
                       Drop your playlist folder here
                     </p>
-                    <p className="text-white/40 text-sm">or click to browse audio files</p>
+                    <p className="text-white/40 text-sm">Folders become playlists, or click “New” to browse</p>
                   </div>
                 </div>
               </label>
