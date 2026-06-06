@@ -350,6 +350,10 @@ export default function Page() {
   const [isGapPaused, setIsGapPaused] = useState(false);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
+  // Title of the track that will actually play after the current gap.
+  // Captured at the moment the gap is scheduled so back-to-back repeats
+  // display the correct (same) track instead of skipping ahead.
+  const [nextUpTitle, setNextUpTitle] = useState<string | null>(null);
   const [currentPlaylistName, setCurrentPlaylistName] = useState("Untitled Playlist");
   const [dropMessage, setDropMessage] = useState("");
   const [uploadedTracks, setUploadedTracks] = useState<Track[]>([]);
@@ -1774,7 +1778,8 @@ export default function Page() {
       const _playlist = playlistRef.current;
       const _hiddenTrackIds = hiddenTrackIdsRef.current;
 
-      const playAfterGap = (playFn: () => void) => {
+      const playAfterGap = (playFn: () => void, upcomingTitle: string) => {
+        setNextUpTitle(upcomingTitle);
         if (_gapSeconds > 0) {
           setIsPlaying(false);
           setIsGapPaused(true);
@@ -1796,7 +1801,7 @@ export default function Page() {
           }).catch(() => {
             setIsPlaying(false);
           });
-        });
+        }, _playlist[_currentIndex]?.title || "");
         return;
       }
       setBackToBackPlayed(false);
@@ -1821,7 +1826,7 @@ export default function Page() {
               setIsPlaying(false);
             });
           }
-        });
+        }, _playlist[nextIdx]?.title || "");
       } else {
         // End of playlist - check if we need to repeat
         if (_playlistRound < _playlistRepeats) {
@@ -1846,7 +1851,7 @@ export default function Page() {
                   setIsPlaying(false);
                 });
               }
-            });
+            }, _playlist[firstVisibleIdx]?.title || "");
           } else {
             // All tracks are hidden, end session
             setFinishedTracks(new Set(_playlist.map((t) => t.id)));
@@ -2126,6 +2131,12 @@ export default function Page() {
   //  3. End of playlist but more rounds remain     -> first visible track
   //  4. End of playlist, no rounds remain          -> "End of Playlist"
   const getNextTrackTitle = () => {
+    // During a gap, use the title captured when the gap was scheduled.
+    // This is the source of truth for what plays next (handles back-to-back).
+    if (isGapPaused && nextUpTitle) {
+      return nextUpTitle;
+    }
+
     if (!currentTrack) {
       return visiblePlaylist[0]?.title || "End of Playlist";
     }
