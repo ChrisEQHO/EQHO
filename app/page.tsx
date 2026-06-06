@@ -3482,6 +3482,34 @@ export default function Page() {
         </div>
       )}
 
+      {/* Clear Playlist Confirmation - Desktop main screen (outside fullscreen container) */}
+      {showClearPlaylistConfirm && (
+        <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Clear Playlist?</h3>
+            <p className="text-white/60 mb-6">This will remove all tracks from your current session. The session will stop playing.</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowClearPlaylistConfirm(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearPlaylistConfirm(false);
+                  clearPlaylist();
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+              >
+                Yes, Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
       <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
