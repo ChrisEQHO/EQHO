@@ -2119,18 +2119,39 @@ export default function Page() {
   gapSeconds;
 
   // Determine the title of the track that will actually play next.
-  // With Back-to-Back enabled, the current track repeats once before
-  // advancing, so when its repeat hasn't played yet the "next" track is
-  // the SAME track that is currently playing.
+  // This mirrors the logic in the audio "ended" handler so the "Up Next"
+  // display always matches what will truly play:
+  //  1. Back-to-Back on + repeat not played yet  -> SAME current track
+  //  2. There is another visible track ahead      -> that next track
+  //  3. End of playlist but more rounds remain     -> first visible track
+  //  4. End of playlist, no rounds remain          -> "End of Playlist"
   const getNextTrackTitle = () => {
-    const currentVisibleIdx = currentTrack
-      ? visiblePlaylist.findIndex((t) => t.id === currentTrack.id)
-      : -1;
-    if (backToBack && !backToBackPlayed && currentTrack) {
+    if (!currentTrack) {
+      return visiblePlaylist[0]?.title || "End of Playlist";
+    }
+
+    // 1. Back-to-back: the same track plays again next
+    if (backToBack && !backToBackPlayed) {
       return currentTrack.title;
     }
+
+    const currentVisibleIdx = visiblePlaylist.findIndex(
+      (t) => t.id === currentTrack.id
+    );
+
+    // 2. Another track ahead in the current pass
     const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-    return nextTrack?.title || "End of Playlist";
+    if (nextTrack) {
+      return nextTrack.title;
+    }
+
+    // 3. End of playlist - wrap to first track if more rounds remain
+    if (playlistRound < playlistRepeats) {
+      return visiblePlaylist[0]?.title || "End of Playlist";
+    }
+
+    // 4. End of session
+    return "End of Playlist";
   };
   
   const decreaseRepeats = () => {
