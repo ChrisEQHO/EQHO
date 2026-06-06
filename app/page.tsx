@@ -3487,15 +3487,12 @@ export default function Page() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="file-upload-input"
-                      className="cursor-pointer text-[#ff8a00] font-bold text-xs hover:text-[#ffa733] transition"
-                    >
-                      + Upload Folder
-                    </label>
-                    <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
-                  </div>
+                  <label
+                    htmlFor="file-upload-input"
+                    className="cursor-pointer text-[#ff8a00] font-bold text-xs hover:text-[#ffa733] transition"
+                  >
+                    + Upload Folder
+                  </label>
                 </div>
                 <input
                   id="file-upload-input"
