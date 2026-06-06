@@ -2746,21 +2746,58 @@ export default function Page() {
                   {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
                 <div
-                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
-                  onClick={(e) => {
+                  className="group relative flex items-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                  onMouseDown={(e) => {
+                    const bar = e.currentTarget;
+                    const apply = (clientX: number) => {
+                      const rect = bar.getBoundingClientRect();
+                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+                      setVolume(pct);
+                      if (pct > 0 && isMuted) setIsMuted(false);
+                      if (pct === 0) setIsMuted(true);
+                    };
+                    apply(e.clientX);
+                    const handleMove = (ev: MouseEvent) => apply(ev.clientX);
+                    const handleUp = () => {
+                      document.removeEventListener("mousemove", handleMove);
+                      document.removeEventListener("mouseup", handleUp);
+                    };
+                    document.addEventListener("mousemove", handleMove);
+                    document.addEventListener("mouseup", handleUp);
+                  }}
+                  onTouchStart={(e) => {
+                    const bar = e.currentTarget;
+                    const apply = (clientX: number) => {
+                      const rect = bar.getBoundingClientRect();
+                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+                      setVolume(pct);
+                      if (pct > 0 && isMuted) setIsMuted(false);
+                      if (pct === 0) setIsMuted(true);
+                    };
+                    apply(e.touches[0].clientX);
+                  }}
+                  onTouchMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const pct = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)));
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
                     setVolume(pct);
                     if (pct > 0 && isMuted) setIsMuted(false);
                     if (pct === 0) setIsMuted(true);
                   }}
+                  role="slider"
+                  aria-label="Volume"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={isMuted ? 0 : volume}
                 >
                   <div
-                    className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30"
+                    className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
                     style={{ width: `${isMuted ? 0 : volume}%` }}
                   />
-                  <span className="relative z-10 text-xs font-bold text-white">{isMuted ? "Muted" : `${volume}%`}</span>
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_6px_rgba(0,0,0,0.4)] pointer-events-none transition-transform group-hover:scale-110"
+                    style={{ left: `${isMuted ? 0 : volume}%` }}
+                  />
+                  <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">{isMuted ? "Muted" : `${volume}%`}</span>
                 </div>
                 {/* Exit Fullscreen */}
                 <button
@@ -3967,25 +4004,18 @@ export default function Page() {
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const pct = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)));
-                    setVolume(pct);
-                    if (pct > 0 && isMuted) setIsMuted(false);
-                    if (pct === 0) setIsMuted(true);
-                  }}
+                  className="group relative flex items-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                   onMouseDown={(e) => {
                     const bar = e.currentTarget;
-                    const handleMove = (ev: MouseEvent) => {
+                    const apply = (clientX: number) => {
                       const rect = bar.getBoundingClientRect();
-                      const x = ev.clientX - rect.left;
-                      const pct = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)));
+                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
                       setVolume(pct);
                       if (pct > 0 && isMuted) setIsMuted(false);
                       if (pct === 0) setIsMuted(true);
                     };
+                    apply(e.clientX);
+                    const handleMove = (ev: MouseEvent) => apply(ev.clientX);
                     const handleUp = () => {
                       document.removeEventListener("mousemove", handleMove);
                       document.removeEventListener("mouseup", handleUp);
@@ -3993,6 +4023,25 @@ export default function Page() {
                     document.addEventListener("mousemove", handleMove);
                     document.addEventListener("mouseup", handleUp);
                   }}
+                  onTouchStart={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                    setVolume(pct);
+                    if (pct > 0 && isMuted) setIsMuted(false);
+                    if (pct === 0) setIsMuted(true);
+                  }}
+                  onTouchMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                    setVolume(pct);
+                    if (pct > 0 && isMuted) setIsMuted(false);
+                    if (pct === 0) setIsMuted(true);
+                  }}
+                  role="slider"
+                  aria-label="Volume"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={isMuted ? 0 : volume}
                 >
                   <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
                     <div
@@ -4000,7 +4049,11 @@ export default function Page() {
                       style={{ width: `${isMuted ? 0 : volume}%` }}
                     />
                   </div>
-                  <span className="relative z-10 text-xs font-bold text-white/80 tabular-nums pointer-events-none">
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_rgba(0,0,0,0.4)] pointer-events-none transition-transform group-hover:scale-110"
+                    style={{ left: `${isMuted ? 0 : volume}%` }}
+                  />
+                  <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white/80 tabular-nums pointer-events-none">
                     {isMuted ? "0" : volume}%
                   </span>
                 </div>
