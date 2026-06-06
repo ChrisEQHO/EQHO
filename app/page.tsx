@@ -350,6 +350,14 @@ export default function Page() {
   const [isGapPaused, setIsGapPaused] = useState(false);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
+  // Title of the track that will actually play after the current gap.
+  // Captured at the moment the gap is scheduled so back-to-back repeats
+  // display the correct (same) track instead of skipping ahead.
+  const [nextUpTitle, setNextUpTitle] = useState<string | null>(null);
+  // ID of the track that will actually play after the current gap. Captured
+  // at gap-scheduling time so the track number stays in sync with the title
+  // (critical for back-to-back, where the same track plays again).
+  const [nextUpTrackId, setNextUpTrackId] = useState<string | null>(null);
   const [currentPlaylistName, setCurrentPlaylistName] = useState("Untitled Playlist");
   const [dropMessage, setDropMessage] = useState("");
   const [uploadedTracks, setUploadedTracks] = useState<Track[]>([]);
@@ -383,6 +391,7 @@ export default function Page() {
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
   const [showClearPlaylistConfirm, setShowClearPlaylistConfirm] = useState(false);
+  const [showClearLibraryConfirm, setShowClearLibraryConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
@@ -1774,7 +1783,9 @@ export default function Page() {
       const _playlist = playlistRef.current;
       const _hiddenTrackIds = hiddenTrackIdsRef.current;
 
-      const playAfterGap = (playFn: () => void) => {
+      const playAfterGap = (playFn: () => void, upcomingTitle: string, upcomingId: string) => {
+        setNextUpTitle(upcomingTitle);
+        setNextUpTrackId(upcomingId);
         if (_gapSeconds > 0) {
           setIsPlaying(false);
           setIsGapPaused(true);
@@ -1796,7 +1807,7 @@ export default function Page() {
           }).catch(() => {
             setIsPlaying(false);
           });
-        });
+        }, _playlist[_currentIndex]?.title || "", _playlist[_currentIndex]?.id || "");
         return;
       }
       setBackToBackPlayed(false);
@@ -1821,7 +1832,7 @@ export default function Page() {
               setIsPlaying(false);
             });
           }
-        });
+        }, _playlist[nextIdx]?.title || "", _playlist[nextIdx]?.id || "");
       } else {
         // End of playlist - check if we need to repeat
         if (_playlistRound < _playlistRepeats) {
@@ -1846,7 +1857,7 @@ export default function Page() {
                   setIsPlaying(false);
                 });
               }
-            });
+            }, _playlist[firstVisibleIdx]?.title || "", _playlist[firstVisibleIdx]?.id || "");
           } else {
             // All tracks are hidden, end session
             setFinishedTracks(new Set(_playlist.map((t) => t.id)));
@@ -2117,6 +2128,48 @@ export default function Page() {
   visibleTrackTotalSeconds * playlistRepeats * (backToBack ? 2 : 1) +
   Math.max(0, visiblePlaylist.length * playlistRepeats * (backToBack ? 2 : 1) - 1) *
   gapSeconds;
+
+  // Determine the title of the track that will actually play next.
+  // This mirrors the logic in the audio "ended" handler so the "Up Next"
+  // display always matches what will truly play:
+  //  1. Back-to-Back on + repeat not played yet  -> SAME current track
+  //  2. There is another visible track ahead      -> that next track
+  //  3. End of playlist but more rounds remain     -> first visible track
+  //  4. End of playlist, no rounds remain          -> "End of Playlist"
+  const getNextTrackTitle = () => {
+    // During a gap, use the title captured when the gap was scheduled.
+    // This is the source of truth for what plays next (handles back-to-back).
+    if (isGapPaused && nextUpTitle) {
+      return nextUpTitle;
+    }
+
+    if (!currentTrack) {
+      return visiblePlaylist[0]?.title || "End of Playlist";
+    }
+
+    // 1. Back-to-back: the same track plays again next
+    if (backToBack && !backToBackPlayed) {
+      return currentTrack.title;
+    }
+
+    const currentVisibleIdx = visiblePlaylist.findIndex(
+      (t) => t.id === currentTrack.id
+    );
+
+    // 2. Another track ahead in the current pass
+    const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+    if (nextTrack) {
+      return nextTrack.title;
+    }
+
+    // 3. End of playlist - wrap to first track if more rounds remain
+    if (playlistRound < playlistRepeats) {
+      return visiblePlaylist[0]?.title || "End of Playlist";
+    }
+
+    // 4. End of session
+    return "End of Playlist";
+  };
   
   const decreaseRepeats = () => {
     setPlaylistRepeats((prev) => Math.max(1, prev - 1));
@@ -2694,21 +2747,54 @@ export default function Page() {
                   {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
                 <div
-                  className="relative flex items-center justify-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
-                  onClick={(e) => {
+                  className="group relative flex items-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                  onMouseDown={(e) => {
+                    const bar = e.currentTarget;
+                    const apply = (clientX: number) => {
+                      const rect = bar.getBoundingClientRect();
+                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+                      setVolume(pct);
+                      if (pct > 0 && isMuted) setIsMuted(false);
+                      if (pct === 0) setIsMuted(true);
+                    };
+                    apply(e.clientX);
+                    const handleMove = (ev: MouseEvent) => apply(ev.clientX);
+                    const handleUp = () => {
+                      document.removeEventListener("mousemove", handleMove);
+                      document.removeEventListener("mouseup", handleUp);
+                    };
+                    document.addEventListener("mousemove", handleMove);
+                    document.addEventListener("mouseup", handleUp);
+                  }}
+                  onTouchStart={(e) => {
+                    const bar = e.currentTarget;
+                    const apply = (clientX: number) => {
+                      const rect = bar.getBoundingClientRect();
+                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+                      setVolume(pct);
+                      if (pct > 0 && isMuted) setIsMuted(false);
+                      if (pct === 0) setIsMuted(true);
+                    };
+                    apply(e.touches[0].clientX);
+                  }}
+                  onTouchMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const pct = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)));
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
                     setVolume(pct);
                     if (pct > 0 && isMuted) setIsMuted(false);
                     if (pct === 0) setIsMuted(true);
                   }}
+                  role="slider"
+                  aria-label="Volume"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={isMuted ? 0 : volume}
                 >
                   <div
-                    className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30"
+                    className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
                     style={{ width: `${isMuted ? 0 : volume}%` }}
                   />
-                  <span className="relative z-10 text-xs font-bold text-white">{isMuted ? "Muted" : `${volume}%`}</span>
+                  <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">{isMuted ? "Muted" : `${volume}%`}</span>
                 </div>
                 {/* Exit Fullscreen */}
                 <button
@@ -2758,11 +2844,7 @@ export default function Page() {
               {/* Track Title */}
               <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
                 {isGapPaused 
-                  ? (() => {
-                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                      return nextTrack?.title || "End of Playlist";
-                    })()
+                  ? getNextTrackTitle()
                   : (currentTrack?.title || "No Track Selected")
                 }
               </h3>
@@ -2778,8 +2860,14 @@ export default function Page() {
   <p className="text-xl text-white/50 mb-6">
   {isGapPaused 
     ? (() => {
-        const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-        return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+        // Use the captured upcoming track ID so the number matches the
+        // title shown during the gap (back-to-back keeps the same track).
+        const upcomingIdx = nextUpTrackId
+          ? visiblePlaylist.findIndex(t => t.id === nextUpTrackId)
+          : -1;
+        return upcomingIdx >= 0
+          ? `Track ${upcomingIdx + 1} of ${visiblePlaylist.length}`
+          : `Track ${visiblePlaylist.length} of ${visiblePlaylist.length}`;
       })()
     : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
   }
@@ -3128,11 +3216,7 @@ export default function Page() {
               <div className="mt-4 text-center">
                 <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Up Next</p>
                 <p className="text-xl font-bold text-white px-4">
-                  {(() => {
-                    const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                    const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                    return nextTrack?.title || "End of Playlist";
-                  })()}
+                  {getNextTrackTitle()}
                 </p>
               </div>
               <style jsx>{`
@@ -3211,11 +3295,7 @@ export default function Page() {
             <div className="text-center mb-3">
               <h1 className="text-xl font-black text-white truncate px-2">
                 {isGapPaused 
-                  ? (() => {
-                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                      return nextTrack?.title || "End of Playlist";
-                    })()
+                  ? getNextTrackTitle()
                   : (currentTrack?.title || "No Track Selected")
                 }
               </h1>
@@ -3226,8 +3306,12 @@ export default function Page() {
               <p className="text-xs text-white/50">
                 {isGapPaused 
                   ? (() => {
-                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                      return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+                      const upcomingIdx = nextUpTrackId
+                        ? visiblePlaylist.findIndex(t => t.id === nextUpTrackId)
+                        : -1;
+                      return upcomingIdx >= 0
+                        ? `Track ${upcomingIdx + 1} of ${visiblePlaylist.length}`
+                        : `Track ${visiblePlaylist.length} of ${visiblePlaylist.length}`;
                     })()
                   : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
                 }
@@ -3432,6 +3516,63 @@ export default function Page() {
         </div>
       )}
 
+      {/* Clear Library Confirmation - removes all saved playlists */}
+      {showClearLibraryConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 px-4">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={44} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Clear all playlists?</h3>
+            <p className="text-white/60 mb-6">This will remove every saved playlist from your library. If a session is playing it will also stop. This cannot be undone.</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowClearLibraryConfirm(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearLibraryConfirm(false);
+                  setSavedPlaylists([]);
+                  clearPlaylist();
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+              >
+                Yes, Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Playlist Confirmation - Desktop main screen (outside fullscreen container) */}
+      {showClearPlaylistConfirm && (
+        <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Clear Playlist?</h3>
+            <p className="text-white/60 mb-6">This will remove all tracks from your current session. The session will stop playing.</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowClearPlaylistConfirm(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearPlaylistConfirm(false);
+                  clearPlaylist();
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+              >
+                Yes, Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
       <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
@@ -3476,88 +3617,95 @@ export default function Page() {
           <>
             {/* UPLOAD/PLAYLISTS - col-start-2 */}
             <aside className="relative col-start-2 h-full overflow-hidden flex flex-col gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-                <h2 className="text-[#ff8a00] uppercase tracking-[0.15em] text-[10px] font-black mb-2">
-Upload Folders & Playlists
-                </h2>
-                <label
-                  htmlFor="file-upload-input"
-                  onDrop={handleDropUpload}
-                  onDragOver={handleDragOverUpload}
-                  onDragEnter={handleDragEnterUpload}
-                  onDragLeave={handleDragLeaveUpload}
-                  className={`block cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
-                    isDraggingUpload
-                      ? "border-cyan-300 bg-cyan-400/10"
-                      : "border-[#ff4fa3]/50 bg-white/[0.03]"
-                  }`}
-                >
-                  <input
-                    id="file-upload-input"
-                    type="file"
-                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
-                    multiple
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files || []).filter((file) =>
-                        file.type.startsWith("audio/") || 
-                        file.name.endsWith(".mp3") || 
-                        file.name.endsWith(".wav") || 
-                        file.name.endsWith(".m4a")
-                      );
-                      if (files.length > 0) {
-                        const playlistName = `Playlist ${savedPlaylists.length + 1}`;
-                        const newPlaylistId = crypto.randomUUID();
-                        const newTracks: Track[] = [];
-                        
-                        let processed = 0;
-                        files.forEach((file) => {
-                          const url = URL.createObjectURL(file);
-                          const audio = new Audio(url);
-                          audio.onloadedmetadata = async () => {
-                            const newTrack: Track = {
-                              id: crypto.randomUUID(),
-                              title: file.name.replace(/\.[^/.]+$/, ""),
-                              sub: "Uploaded Track",
-                              duration: formatDuration(Math.round(audio.duration)),
-                              fileName: file.name,
-                              url,
-                              durationSeconds: Math.round(audio.duration),
-                              uploadedAt: new Date().toISOString(),
-                              file,
-                            };
-                            newTracks.push(newTrack);
-                            processed++;
-                            
-                            if (processed === files.length) {
-                              setSavedPlaylists(prev => [...prev, {
-                                id: newPlaylistId,
-                                name: playlistName,
-                                tracks: newTracks,
-                              }]);
-                            }
-                          };
-                        });
-                      }
-                      event.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-                  <UploadCloud className="mx-auto mb-2 text-[#ff8a00]" size={28} />
-                  <p className="text-white font-bold text-xs">Drop folders and playlists</p>
-                  <p className="text-white/50 text-[10px] mt-1">MP3, WAV, M4A</p>
-                  <p className="text-white/40 text-[9px] mt-1">Folders become playlists</p>
-                </label>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] flex-1 overflow-hidden">
+              <div
+                onDrop={handleDropUpload}
+                onDragOver={handleDragOverUpload}
+                onDragEnter={handleDragEnterUpload}
+                onDragLeave={handleDragLeaveUpload}
+                className={`rounded-2xl border bg-white/[0.03] backdrop-blur-sm p-3 shadow-[0_0_30px_rgba(0,0,0,0.2)] flex-1 overflow-hidden flex flex-col transition ${
+                  isDraggingUpload ? "border-cyan-300 bg-cyan-400/10" : "border-white/10"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
-                  <button onClick={() => setShowPlaylistModal(true)} className="text-[#ff4fa3] font-bold text-xs">+ New</button>
+                  <label
+                    htmlFor="file-upload-input"
+                    className="cursor-pointer text-[#ff8a00] font-bold text-xs hover:text-[#ffa733] transition"
+                  >
+                    + Upload Folder
+                  </label>
                 </div>
+                <input
+                  id="file-upload-input"
+                  type="file"
+                  // @ts-expect-error - non-standard folder selection attributes
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []).filter((file) =>
+                      file.type.startsWith("audio/") || 
+                      file.name.endsWith(".mp3") || 
+                      file.name.endsWith(".wav") || 
+                      file.name.endsWith(".m4a")
+                    );
+                    if (files.length > 0) {
+                      // Use the dropped folder's name as the playlist name
+                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
+                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
+                      const playlistName = folderName;
+                      const newPlaylistId = crypto.randomUUID();
+                      const newTracks: Track[] = [];
+                      
+                      let processed = 0;
+                      files.forEach((file) => {
+                        const url = URL.createObjectURL(file);
+                        const audio = new Audio(url);
+                        audio.onloadedmetadata = async () => {
+                          const newTrack: Track = {
+                            id: crypto.randomUUID(),
+                            title: file.name.replace(/\.[^/.]+$/, ""),
+                            sub: "Uploaded Track",
+                            duration: formatDuration(Math.round(audio.duration)),
+                            fileName: file.name,
+                            url,
+                            durationSeconds: Math.round(audio.duration),
+                            uploadedAt: new Date().toISOString(),
+                            file,
+                          };
+                          newTracks.push(newTrack);
+                          processed++;
+                          
+                          if (processed === files.length) {
+                            setSavedPlaylists(prev => [...prev, {
+                              id: newPlaylistId,
+                              name: playlistName,
+                              tracks: newTracks,
+                            }]);
+                          }
+                        };
+                      });
+                    }
+                    event.target.value = "";
+                  }}
+                  className="hidden"
+                />
                 {savedPlaylists.length === 0 ? (
-                  <p className="text-white/40 text-center py-4 text-xs">No playlists yet</p>
+                  <label
+                    htmlFor="file-upload-input"
+                    className={`flex-1 flex flex-col items-center justify-center cursor-pointer rounded-xl border border-dashed p-6 text-center transition ${
+                      isDraggingUpload ? "border-cyan-300 bg-cyan-400/10" : "border-[#ff4fa3]/50"
+                    }`}
+                  >
+                    <UploadCloud className={`mx-auto mb-3 ${isDraggingUpload ? "text-cyan-300" : "text-[#ff8a00]"}`} size={32} />
+                    <p className="text-white font-bold text-sm">Drag &amp; drop a folder here</p>
+                    <p className="text-white/50 text-[11px] mt-1.5 leading-relaxed max-w-[200px]">
+                      Drop an entire folder into this area &mdash; each folder becomes its own playlist.
+                    </p>
+                    <p className="text-white/30 text-[9px] mt-2">MP3, WAV, M4A &bull; or click to choose a folder</p>
+                  </label>
                 ) : (
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  <div className="space-y-2 flex-1 overflow-y-auto">
                     {savedPlaylists.map((pl) => (
                       <div
                         key={pl.id}
@@ -3882,25 +4030,18 @@ Upload Folders & Playlists
                 </button>
 
                 <div
-                  className="relative flex items-center justify-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden"
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const pct = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)));
-                    setVolume(pct);
-                    if (pct > 0 && isMuted) setIsMuted(false);
-                    if (pct === 0) setIsMuted(true);
-                  }}
+                  className="group relative flex items-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                   onMouseDown={(e) => {
                     const bar = e.currentTarget;
-                    const handleMove = (ev: MouseEvent) => {
+                    const apply = (clientX: number) => {
                       const rect = bar.getBoundingClientRect();
-                      const x = ev.clientX - rect.left;
-                      const pct = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)));
+                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
                       setVolume(pct);
                       if (pct > 0 && isMuted) setIsMuted(false);
                       if (pct === 0) setIsMuted(true);
                     };
+                    apply(e.clientX);
+                    const handleMove = (ev: MouseEvent) => apply(ev.clientX);
                     const handleUp = () => {
                       document.removeEventListener("mousemove", handleMove);
                       document.removeEventListener("mouseup", handleUp);
@@ -3908,6 +4049,25 @@ Upload Folders & Playlists
                     document.addEventListener("mousemove", handleMove);
                     document.addEventListener("mouseup", handleUp);
                   }}
+                  onTouchStart={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                    setVolume(pct);
+                    if (pct > 0 && isMuted) setIsMuted(false);
+                    if (pct === 0) setIsMuted(true);
+                  }}
+                  onTouchMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                    setVolume(pct);
+                    if (pct > 0 && isMuted) setIsMuted(false);
+                    if (pct === 0) setIsMuted(true);
+                  }}
+                  role="slider"
+                  aria-label="Volume"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={isMuted ? 0 : volume}
                 >
                   <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
                     <div
@@ -3915,7 +4075,7 @@ Upload Folders & Playlists
                       style={{ width: `${isMuted ? 0 : volume}%` }}
                     />
                   </div>
-                  <span className="relative z-10 text-xs font-bold text-white/80 tabular-nums pointer-events-none">
+                  <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white/80 tabular-nums pointer-events-none">
                     {isMuted ? "0" : volume}%
                   </span>
                 </div>
@@ -4109,7 +4269,7 @@ Upload Folders & Playlists
             </div>
 
             {/* Session Status */}
-            <div className="mt-4 flex-1 flex flex-col justify-end">
+            <div className="mt-4 flex-1 flex flex-col justify-end pb-28 md:pb-32">
               <div className="border-t border-white/10 pt-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] uppercase text-white/50">Session Status</span>
@@ -4159,6 +4319,14 @@ Upload Folders & Playlists
                   </p>
                 </div>
                 
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => document.getElementById("library-folder-upload-input")?.click()}
+                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    New
+                  </button>
 {/* Cloud Sync Status & Refresh */}
                     {user && isCloudSyncAvailable() && isPro && (
                   <div className="flex items-center gap-3">
@@ -4178,6 +4346,7 @@ Upload Folders & Playlists
                     </button>
                   </div>
                 )}
+                </div>
               </div>
 
               {/* Compact Upload Drop Zone */}
@@ -4259,51 +4428,8 @@ Upload Folders & Playlists
                           };
                         });
                       }
-                    } else if (entry?.isFile) {
-                      const files = Array.from(e.dataTransfer?.files || []).filter((file) =>
-                        file.type.startsWith("audio/")
-                      );
-                      
-                      if (files.length > 0) {
-                        const firstFile = files[0];
-                        const pathParts = (firstFile as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/");
-                        const playlistName = pathParts && pathParts.length > 1 
-                          ? pathParts[0] 
-                          : `Playlist ${savedPlaylists.length + 1}`;
-                        
-                        const newPlaylistId = crypto.randomUUID();
-                        const newTracks: Track[] = [];
-                        
-                        let processed = 0;
-                        files.forEach((file) => {
-                          const url = URL.createObjectURL(file);
-                          const audio = new Audio(url);
-                          audio.onloadedmetadata = async () => {
-                            const newTrack: Track = {
-                              id: crypto.randomUUID(),
-                              title: file.name.replace(/\.[^/.]+$/, ""),
-                              sub: "Uploaded Track",
-                              duration: formatDuration(Math.round(audio.duration)),
-                              fileName: file.name,
-                              url,
-                              durationSeconds: Math.round(audio.duration),
-                              uploadedAt: new Date().toISOString(),
-                              file,
-                            };
-                            newTracks.push(newTrack);
-                            
-                            processed++;
-                            if (processed === files.length) {
-                              setSavedPlaylists((prev) => [
-                                ...prev,
-                                { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                              ]);
-                            }
-                          };
-                        });
-                      }
-                      break;
                     }
+                    // Only folders are accepted as playlists; loose files are ignored.
                   }
                 }}
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -4316,8 +4442,11 @@ Upload Folders & Playlists
                 }`}
               >
                 <input
+                  id="library-folder-upload-input"
                   type="file"
-                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                  // @ts-expect-error - non-standard folder selection attributes
+                  webkitdirectory=""
+                  directory=""
                   multiple
                   onChange={(event) => {
                     const files = Array.from(event.target.files || []).filter((file) =>
@@ -4327,7 +4456,10 @@ Upload Folders & Playlists
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      const playlistName = `Playlist ${savedPlaylists.length + 1}`;
+                      // Use the selected folder's name as the playlist name
+                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
+                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
+                      const playlistName = folderName;
                       const newPlaylistId = crypto.randomUUID();
                       const newTracks: Track[] = [];
                       
@@ -4373,7 +4505,7 @@ Upload Folders & Playlists
                     <p className={`font-semibold ${isDraggingUpload ? "text-cyan-300" : "text-white"}`}>
                       Drop your playlist folder here
                     </p>
-                    <p className="text-white/40 text-sm">or click to browse audio files</p>
+                    <p className="text-white/40 text-sm">Folders become playlists, or click “New” to browse</p>
                   </div>
                 </div>
               </label>
@@ -4398,14 +4530,7 @@ Upload Folders & Playlists
                         <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
                       </h2>
                       <button
-                        onClick={() => {
-                          if (sessionRunning || isPlaying) {
-                            setShowClearPlaylistConfirm(true);
-                          } else {
-                            setSavedPlaylists([]);
-                            clearPlaylist();
-                          }
-                        }}
+                        onClick={() => setShowClearLibraryConfirm(true)}
                         className="px-2.5 py-1 text-xs font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-lg hover:bg-[#ff8a00]/20 transition"
                       >
                         Clear All
@@ -5888,14 +6013,7 @@ Upload Folders & Playlists
                                 <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
                               </h3>
                               <button
-                                onClick={() => {
-                                  if (sessionRunning || isPlaying) {
-                                    setShowClearPlaylistConfirm(true);
-                                  } else {
-                                    setSavedPlaylists([]);
-                                    clearPlaylist();
-                                  }
-                                }}
+                                onClick={() => setShowClearLibraryConfirm(true)}
                                 className="px-2 py-0.5 text-[9px] font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-md"
                               >
                                 Clear All
