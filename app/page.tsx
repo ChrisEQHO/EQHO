@@ -4097,15 +4097,16 @@ export default function Page() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3">
+            {/* Track Info Row - Icon + Title/Status/Timer */}
+            <div className="flex items-center gap-4">
               {/* Left - Album Icon */}
-              <div className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
-                <Music size={28} className="text-pink-400" />
+              <div className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/25 to-cyan-500/15 shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                <Music size={34} className="text-pink-400" />
               </div>
 
-              {/* Centre - Track Info & Progress */}
-              <div className="flex-1 min-w-0 text-center sm:text-left w-full">
-                <h3 className="truncate text-lg sm:text-xl font-bold leading-tight text-white">
+              {/* Centre - Track Info */}
+              <div className="flex-1 min-w-0">
+                <h3 className="truncate text-xl sm:text-2xl font-bold leading-tight text-white">
                   {currentTrack?.title || "No Track Selected"}
                 </h3>
                 <p className="mt-1 truncate text-sm text-white/60">
@@ -4113,13 +4114,13 @@ export default function Page() {
                 </p>
 
                 {/* Track Elapsed Timer */}
-                <div className="mt-3 text-center">
+                <div className="mt-2">
                   {isGapPaused ? (
-                    <div className="text-3xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                    <div className="text-3xl sm:text-4xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
                       {gapCountdown}
                     </div>
                   ) : (
-                    <div className="text-2xl font-black tracking-wider text-white tabular-nums">
+                    <div className="text-3xl sm:text-4xl font-black tracking-wider text-white tabular-nums">
                       {currentTime > 0 || isPlaying
                         ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}`
                         : "00:00"}
@@ -4127,37 +4128,37 @@ export default function Page() {
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Right - Playback Controls */}
-              <div className="flex items-center justify-center gap-2 shrink-0">
-                <button 
-                  onClick={goToPreviousTrack}
-                  className="grid h-[36px] w-[36px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
-                >
-                  <StepBack size={18} />
-                </button>
+            {/* Playback Controls - Centered underneath track info */}
+            <div className="mt-5 flex items-center justify-center gap-6">
+              <button 
+                onClick={goToPreviousTrack}
+                className="grid h-[44px] w-[44px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+              >
+                <StepBack size={20} />
+              </button>
 
-                <button
-                  onClick={toggleSession}
-                  disabled={!currentTrack && playlist.length === 0}
-                  className="w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
-                >
-                  {isGapPaused ? (
-                    <span className="text-lg font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
-                  ) : isPlaying ? (
-                    <Pause size={24} />
-                  ) : (
-                    <Play size={24} />
-                  )}
-                </button>
+              <button
+                onClick={toggleSession}
+                disabled={!currentTrack && playlist.length === 0}
+                className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+              >
+                {isGapPaused ? (
+                  <span className="text-xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                ) : isPlaying ? (
+                  <Pause size={28} />
+                ) : (
+                  <Play size={28} />
+                )}
+              </button>
 
-                <button 
-                  onClick={goToNextTrack}
-                  className="grid h-[36px] w-[36px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
-                >
-                  <StepForward size={18} />
-                </button>
-              </div>
+              <button 
+                onClick={goToNextTrack}
+                className="grid h-[44px] w-[44px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
+              >
+                <StepForward size={20} />
+              </button>
             </div>
 
             {/* Waveform Progress Bar */}
