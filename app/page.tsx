@@ -515,6 +515,11 @@ export default function Page() {
             file: t.file,
           }));
           setPlaylist(restored);
+          // Restore the saved playlist name so the session card shows the correct title
+          try {
+            const savedName = localStorage.getItem("currentPlaylistName");
+            if (savedName) setCurrentPlaylistName(savedName);
+          } catch {}
         }
       } catch (error) {
         console.error("Failed to load current playlist:", error);
@@ -545,6 +550,18 @@ export default function Page() {
       clearCachedPlaylist();
     }
   }, [playlist, playlistLoaded]);
+
+  // Persist the current playlist name so the session title survives reloads
+  useEffect(() => {
+    if (!playlistLoaded) return;
+    try {
+      if (playlist.length > 0) {
+        localStorage.setItem("currentPlaylistName", currentPlaylistName);
+      } else {
+        localStorage.removeItem("currentPlaylistName");
+      }
+    } catch {}
+  }, [currentPlaylistName, playlist.length, playlistLoaded]);
 
   // Fullscreen toggle function
   const toggleFullscreen = useCallback(async () => {
