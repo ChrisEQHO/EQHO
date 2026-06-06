@@ -391,6 +391,7 @@ export default function Page() {
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
   const [showClearPlaylistConfirm, setShowClearPlaylistConfirm] = useState(false);
+  const [showClearLibraryConfirm, setShowClearLibraryConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
@@ -3515,6 +3516,35 @@ export default function Page() {
         </div>
       )}
 
+      {/* Clear Library Confirmation - removes all saved playlists */}
+      {showClearLibraryConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 px-4">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={44} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Clear all playlists?</h3>
+            <p className="text-white/60 mb-6">This will remove every saved playlist from your library. If a session is playing it will also stop. This cannot be undone.</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowClearLibraryConfirm(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearLibraryConfirm(false);
+                  setSavedPlaylists([]);
+                  clearPlaylist();
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+              >
+                Yes, Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Clear Playlist Confirmation - Desktop main screen (outside fullscreen container) */}
       {showClearPlaylistConfirm && (
         <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
@@ -4528,14 +4558,7 @@ export default function Page() {
                         <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
                       </h2>
                       <button
-                        onClick={() => {
-                          if (sessionRunning || isPlaying) {
-                            setShowClearPlaylistConfirm(true);
-                          } else {
-                            setSavedPlaylists([]);
-                            clearPlaylist();
-                          }
-                        }}
+                        onClick={() => setShowClearLibraryConfirm(true)}
                         className="px-2.5 py-1 text-xs font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-lg hover:bg-[#ff8a00]/20 transition"
                       >
                         Clear All
@@ -6018,14 +6041,7 @@ export default function Page() {
                                 <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
                               </h3>
                               <button
-                                onClick={() => {
-                                  if (sessionRunning || isPlaying) {
-                                    setShowClearPlaylistConfirm(true);
-                                  } else {
-                                    setSavedPlaylists([]);
-                                    clearPlaylist();
-                                  }
-                                }}
+                                onClick={() => setShowClearLibraryConfirm(true)}
                                 className="px-2 py-0.5 text-[9px] font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-md"
                               >
                                 Clear All
