@@ -2793,10 +2793,6 @@ export default function Page() {
                     className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
                     style={{ width: `${isMuted ? 0 : volume}%` }}
                   />
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_6px_rgba(0,0,0,0.4)] pointer-events-none transition-transform group-hover:scale-110"
-                    style={{ left: `${isMuted ? 0 : volume}%` }}
-                  />
                   <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">{isMuted ? "Muted" : `${volume}%`}</span>
                 </div>
                 {/* Exit Fullscreen */}
@@ -4049,10 +4045,6 @@ export default function Page() {
                       style={{ width: `${isMuted ? 0 : volume}%` }}
                     />
                   </div>
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_rgba(0,0,0,0.4)] pointer-events-none transition-transform group-hover:scale-110"
-                    style={{ left: `${isMuted ? 0 : volume}%` }}
-                  />
                   <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white/80 tabular-nums pointer-events-none">
                     {isMuted ? "0" : volume}%
                   </span>
