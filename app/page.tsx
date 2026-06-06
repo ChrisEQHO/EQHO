@@ -354,6 +354,10 @@ export default function Page() {
   // Captured at the moment the gap is scheduled so back-to-back repeats
   // display the correct (same) track instead of skipping ahead.
   const [nextUpTitle, setNextUpTitle] = useState<string | null>(null);
+  // ID of the track that will actually play after the current gap. Captured
+  // at gap-scheduling time so the track number stays in sync with the title
+  // (critical for back-to-back, where the same track plays again).
+  const [nextUpTrackId, setNextUpTrackId] = useState<string | null>(null);
   const [currentPlaylistName, setCurrentPlaylistName] = useState("Untitled Playlist");
   const [dropMessage, setDropMessage] = useState("");
   const [uploadedTracks, setUploadedTracks] = useState<Track[]>([]);
@@ -1778,8 +1782,9 @@ export default function Page() {
       const _playlist = playlistRef.current;
       const _hiddenTrackIds = hiddenTrackIdsRef.current;
 
-      const playAfterGap = (playFn: () => void, upcomingTitle: string) => {
+      const playAfterGap = (playFn: () => void, upcomingTitle: string, upcomingId: string) => {
         setNextUpTitle(upcomingTitle);
+        setNextUpTrackId(upcomingId);
         if (_gapSeconds > 0) {
           setIsPlaying(false);
           setIsGapPaused(true);
@@ -1801,7 +1806,7 @@ export default function Page() {
           }).catch(() => {
             setIsPlaying(false);
           });
-        }, _playlist[_currentIndex]?.title || "");
+        }, _playlist[_currentIndex]?.title || "", _playlist[_currentIndex]?.id || "");
         return;
       }
       setBackToBackPlayed(false);
@@ -1826,7 +1831,7 @@ export default function Page() {
               setIsPlaying(false);
             });
           }
-        }, _playlist[nextIdx]?.title || "");
+        }, _playlist[nextIdx]?.title || "", _playlist[nextIdx]?.id || "");
       } else {
         // End of playlist - check if we need to repeat
         if (_playlistRound < _playlistRepeats) {
@@ -1851,7 +1856,7 @@ export default function Page() {
                   setIsPlaying(false);
                 });
               }
-            }, _playlist[firstVisibleIdx]?.title || "");
+            }, _playlist[firstVisibleIdx]?.title || "", _playlist[firstVisibleIdx]?.id || "");
           } else {
             // All tracks are hidden, end session
             setFinishedTracks(new Set(_playlist.map((t) => t.id)));
@@ -2821,8 +2826,14 @@ export default function Page() {
   <p className="text-xl text-white/50 mb-6">
   {isGapPaused 
     ? (() => {
-        const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-        return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+        // Use the captured upcoming track ID so the number matches the
+        // title shown during the gap (back-to-back keeps the same track).
+        const upcomingIdx = nextUpTrackId
+          ? visiblePlaylist.findIndex(t => t.id === nextUpTrackId)
+          : -1;
+        return upcomingIdx >= 0
+          ? `Track ${upcomingIdx + 1} of ${visiblePlaylist.length}`
+          : `Track ${visiblePlaylist.length} of ${visiblePlaylist.length}`;
       })()
     : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
   }
@@ -3261,8 +3272,12 @@ export default function Page() {
               <p className="text-xs text-white/50">
                 {isGapPaused 
                   ? (() => {
-                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                      return `Track ${currentVisibleIdx + 2} of ${visiblePlaylist.length}`;
+                      const upcomingIdx = nextUpTrackId
+                        ? visiblePlaylist.findIndex(t => t.id === nextUpTrackId)
+                        : -1;
+                      return upcomingIdx >= 0
+                        ? `Track ${upcomingIdx + 1} of ${visiblePlaylist.length}`
+                        : `Track ${visiblePlaylist.length} of ${visiblePlaylist.length}`;
                     })()
                   : (currentTrack ? `Track ${getVisibleIndex(currentTrack.id) + 1} of ${visiblePlaylist.length}` : "Upload tracks to begin")
                 }
