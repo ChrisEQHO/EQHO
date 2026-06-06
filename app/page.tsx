@@ -2117,6 +2117,21 @@ export default function Page() {
   visibleTrackTotalSeconds * playlistRepeats * (backToBack ? 2 : 1) +
   Math.max(0, visiblePlaylist.length * playlistRepeats * (backToBack ? 2 : 1) - 1) *
   gapSeconds;
+
+  // Determine the title of the track that will actually play next.
+  // With Back-to-Back enabled, the current track repeats once before
+  // advancing, so when its repeat hasn't played yet the "next" track is
+  // the SAME track that is currently playing.
+  const getNextTrackTitle = () => {
+    const currentVisibleIdx = currentTrack
+      ? visiblePlaylist.findIndex((t) => t.id === currentTrack.id)
+      : -1;
+    if (backToBack && !backToBackPlayed && currentTrack) {
+      return currentTrack.title;
+    }
+    const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
+    return nextTrack?.title || "End of Playlist";
+  };
   
   const decreaseRepeats = () => {
     setPlaylistRepeats((prev) => Math.max(1, prev - 1));
@@ -2758,11 +2773,7 @@ export default function Page() {
               {/* Track Title */}
               <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
                 {isGapPaused 
-                  ? (() => {
-                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                      return nextTrack?.title || "End of Playlist";
-                    })()
+                  ? getNextTrackTitle()
                   : (currentTrack?.title || "No Track Selected")
                 }
               </h3>
@@ -3128,11 +3139,7 @@ export default function Page() {
               <div className="mt-4 text-center">
                 <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Up Next</p>
                 <p className="text-xl font-bold text-white px-4">
-                  {(() => {
-                    const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                    const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                    return nextTrack?.title || "End of Playlist";
-                  })()}
+                  {getNextTrackTitle()}
                 </p>
               </div>
               <style jsx>{`
@@ -3211,11 +3218,7 @@ export default function Page() {
             <div className="text-center mb-3">
               <h1 className="text-xl font-black text-white truncate px-2">
                 {isGapPaused 
-                  ? (() => {
-                      const currentVisibleIdx = currentTrack ? visiblePlaylist.findIndex(t => t.id === currentTrack.id) : -1;
-                      const nextTrack = visiblePlaylist[currentVisibleIdx + 1];
-                      return nextTrack?.title || "End of Playlist";
-                    })()
+                  ? getNextTrackTitle()
                   : (currentTrack?.title || "No Track Selected")
                 }
               </h1>
