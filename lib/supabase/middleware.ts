@@ -1,7 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// TEMPORARY: Set to true to allow direct access to the player without
+// login, signup, or Stripe subscription checks. Set back to false to
+// re-enable the full auth + subscription gating.
+const BYPASS_AUTH = true
+
 export async function updateSession(request: NextRequest) {
+  // TEMPORARY bypass: skip all auth/subscription gating entirely
+  if (BYPASS_AUTH) {
+    return NextResponse.next()
+  }
+
   // V0 Preview bypass: skip auth entirely in development
   if (
     process.env.NODE_ENV === "development" ||
