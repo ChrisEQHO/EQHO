@@ -93,15 +93,16 @@ export default function UpgradeClient() {
       if (profileById) {
         profile = profileById
         profileEmail = profileById.email
-      } else {
-        const { data: profileByUserId } = await supabase
+      } else if (authUser.email) {
+        // Fallback: look up by email (profiles is keyed on id, there is no user_id column)
+        const { data: profileByEmail } = await supabase
           .from('profiles')
           .select('subscription_status, email')
-          .eq('user_id', authUser.id)
+          .ilike('email', authUser.email)
           .single()
-        if (profileByUserId) {
-          profile = profileByUserId
-          profileEmail = profileByUserId.email
+        if (profileByEmail) {
+          profile = profileByEmail
+          profileEmail = profileByEmail.email
         }
       }
 

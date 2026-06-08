@@ -312,11 +312,16 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     ? new Date(subscription.trial_end * 1000).toISOString()
     : null
 
+  // Mark the user as Pro whenever the subscription is trialing or active.
+  const isProStatus = subscription.status === 'trialing' || subscription.status === 'active'
+
   const { data: updateData, error } = await supabaseAdmin
     .from('profiles')
     .update({
+      plan: isProStatus ? 'pro' : 'none',
       subscription_status: subscription.status,
       trial_active: subscription.status === 'trialing',
+      stripe_subscription_id: subscription.id,
       trial_end: trialEnd,
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
       updated_at: new Date().toISOString(),
@@ -325,7 +330,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     .select()
 
   if (error) {
-    console.error('[WEBHOOK] ERROR updating subscription:', error.message)
+    console.error('[WEBHOOK] ERROR updating subscription:', error.message, error.details, error.hint)
     throw error
   }
 

@@ -6,13 +6,14 @@ export type SubscriptionStatus =
   | 'canceled'
   | 'incomplete'
 
-// Profile with subscription fields (matches existing profiles table)
+// Profile with subscription fields (matches the canonical profiles table).
+// The profiles table is keyed on `id` (= auth.users.id); there is no separate
+// `user_id` column, and the Stripe subscription column is `stripe_subscription_id`.
 export interface ProfileSubscription {
   id: string
-  user_id: string
   stripe_customer_id: string | null
   subscription_status: SubscriptionStatus
-  subscription_id: string | null
+  stripe_subscription_id: string | null
   trial_end: string | null
   current_period_end: string | null
 }

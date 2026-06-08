@@ -50,7 +50,7 @@ function BillingContent() {
       setIsLoading(false)
       
       // Check cancel status from Stripe if we have a subscription
-      if (data?.subscription_id) {
+      if (data?.stripe_subscription_id) {
         // We'll track this client-side for now
         // The webhook will update the DB when subscription changes
       }

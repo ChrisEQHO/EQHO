@@ -16,8 +16,8 @@ export async function getSubscription(): Promise<ProfileSubscription | null> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, user_id, stripe_customer_id, subscription_status, subscription_id, trial_end, current_period_end')
-    .eq('user_id', user.id)
+    .select('id, stripe_customer_id, subscription_status, stripe_subscription_id, trial_end, current_period_end')
+    .eq('id', user.id)
     .single()
 
   if (error && error.code !== 'PGRST116') {
@@ -28,11 +28,10 @@ export async function getSubscription(): Promise<ProfileSubscription | null> {
   // If no profile exists, return a default free subscription
   if (!data) {
     return {
-      id: '',
-      user_id: user.id,
+      id: user.id,
       stripe_customer_id: null,
       subscription_status: 'free',
-      subscription_id: null,
+      stripe_subscription_id: null,
       trial_end: null,
       current_period_end: null,
     }
@@ -62,7 +61,7 @@ export async function createCustomerPortalSession(): Promise<{ url: string | nul
     const { data: profile } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single()
 
     if (!profile?.stripe_customer_id) {
@@ -101,15 +100,15 @@ export async function cancelSubscription(): Promise<{ success: boolean; error: s
   try {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('subscription_id')
-      .eq('user_id', user.id)
+      .select('stripe_subscription_id')
+      .eq('id', user.id)
       .single()
 
-    if (!profile?.subscription_id) {
+    if (!profile?.stripe_subscription_id) {
       return { success: false, error: 'No active subscription found' }
     }
 
-    await stripe.subscriptions.update(profile.subscription_id, {
+    await stripe.subscriptions.update(profile.stripe_subscription_id, {
       cancel_at_period_end: true,
     })
 
@@ -137,15 +136,15 @@ export async function resumeSubscription(): Promise<{ success: boolean; error: s
   try {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('subscription_id')
-      .eq('user_id', user.id)
+      .select('stripe_subscription_id')
+      .eq('id', user.id)
       .single()
 
-    if (!profile?.subscription_id) {
+    if (!profile?.stripe_subscription_id) {
       return { success: false, error: 'No subscription found' }
     }
 
-    await stripe.subscriptions.update(profile.subscription_id, {
+    await stripe.subscriptions.update(profile.stripe_subscription_id, {
       cancel_at_period_end: false,
     })
 
