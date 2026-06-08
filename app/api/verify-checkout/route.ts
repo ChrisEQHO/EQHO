@@ -74,7 +74,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Profile data to update
+    // Profile data to write. ALWAYS include email so the row never has a null
+    // email after a Stripe checkout (this was the cause of "Profile Email: null").
     const profileData = {
       plan: 'pro',
       subscription_status: subscriptionStatus || 'trialing',
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
       stripe_customer_id: customerId,
       stripe_subscription_id: subscriptionId,
       updated_at: new Date().toISOString(),
+      ...(customerEmail ? { email: customerEmail.toLowerCase() } : {}),
     }
 
     console.log('[VERIFY-CHECKOUT] Profile data to write:', profileData)
@@ -90,56 +92,28 @@ export async function POST(request: NextRequest) {
     let profileUpdated = false
     let updatedProfile = null
 
-    // Try to find and update profile by userId first
+    // Upsert the profile keyed by the auth user id (profiles.id = auth.users.id).
     if (userId) {
-      console.log('[VERIFY-CHECKOUT] Looking up profile by userId:', userId)
-      
-      const { data: existingProfile } = await supabaseAdmin
+      console.log('[VERIFY-CHECKOUT] Upserting profile by id:', userId)
+
+      const { data, error } = await supabaseAdmin
         .from('profiles')
-        .select('id, email, subscription_status')
-        .eq('id', userId)
+        .upsert(
+          {
+            id: userId,
+            ...profileData,
+          },
+          { onConflict: 'id' }
+        )
+        .select()
         .single()
 
-      console.log('[VERIFY-CHECKOUT] Profile by userId:', existingProfile)
-
-      if (existingProfile) {
-        // Update existing profile
-        const { data, error } = await supabaseAdmin
-          .from('profiles')
-          .update(profileData)
-          .eq('id', userId)
-          .select()
-          .single()
-
-        if (error) {
-          console.error('[VERIFY-CHECKOUT] Update error:', error.message)
-        } else {
-          console.log('[VERIFY-CHECKOUT] Profile updated:', data)
-          profileUpdated = true
-          updatedProfile = data
-        }
+      if (error) {
+        console.error('[VERIFY-CHECKOUT] Upsert error:', error.message, error.details, error.hint)
       } else {
-        // Create new profile with userId
-        console.log('[VERIFY-CHECKOUT] Creating new profile with userId')
-        const { data, error } = await supabaseAdmin
-          .from('profiles')
-          .insert({
-            id: userId,
-            email: customerEmail?.toLowerCase(),
-            full_name: '',
-            ...profileData,
-            created_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
-
-        if (error) {
-          console.error('[VERIFY-CHECKOUT] Insert error:', error.message)
-        } else {
-          console.log('[VERIFY-CHECKOUT] Profile created:', data)
-          profileUpdated = true
-          updatedProfile = data
-        }
+        console.log('[VERIFY-CHECKOUT] Profile upserted:', data)
+        profileUpdated = true
+        updatedProfile = data
       }
     }
 
