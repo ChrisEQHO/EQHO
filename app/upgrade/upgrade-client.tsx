@@ -147,7 +147,16 @@ export default function UpgradeClient() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create checkout session')
+        // Build a detailed message from the server's structured error response
+        const parts: string[] = []
+        if (data.error) parts.push(data.error)
+        const meta: string[] = []
+        if (data.stripeType) meta.push(`type: ${data.stripeType}`)
+        if (data.stripeCode) meta.push(`code: ${data.stripeCode}`)
+        if (data.statusCode) meta.push(`status: ${data.statusCode}`)
+        if (meta.length) parts.push(`(${meta.join(', ')})`)
+        console.error('[v0] Checkout API error:', data)
+        throw new Error(parts.join(' ') || 'Failed to create checkout session')
       }
 
       if (data.url) {
