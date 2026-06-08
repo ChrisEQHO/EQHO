@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
+      // Require the customer to enter card details now, even during the trial.
+      // They will not be charged until the 14-day trial ends.
+      payment_method_collection: 'always',
       customer: customerId,
       customer_email: customerId ? undefined : user.email || undefined,
       client_reference_id: user.id, // This links the session to the Supabase user
