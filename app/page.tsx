@@ -5178,8 +5178,8 @@ export default function Page() {
                 </p>
                 <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                   <p className="text-sm text-white/60">
-                    <strong className="text-white">Quick Start:</strong> Upload a folder of music files to create a playlist, 
-                    then load it into your session and press Start Session.
+                    <strong className="text-white">Quick Start:</strong> Upload one or more folders of music files to create playlists, 
+                    then load a playlist (or add several together) into your session and press Start Session.
                   </p>
                 </div>
               </div>
@@ -5237,10 +5237,24 @@ export default function Page() {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <h3 className="font-semibold text-white mb-2">Loading a Playlist</h3>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-pink-400 bg-pink-500/20 border border-pink-500/30">Load</span>
+                      Loading a Playlist
+                    </h3>
                     <p className="text-white/70 text-sm">
-                      Click on any playlist in the Playlists section to load it into your current session. 
-                      The tracks will appear in the Session Queue on the right side of the screen.
+                      Click the <strong className="text-pink-400">Load</strong> button on any saved playlist to load it into your current session. 
+                      This <strong className="text-white">replaces</strong> whatever is currently in the Up Next queue, and the tracks appear in the Session Queue on the right side of the screen.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 bg-cyan-500/20 border border-cyan-500/30">Add</span>
+                      Combining Multiple Playlists
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the <strong className="text-cyan-400">Add</strong> button on a saved playlist to <strong className="text-white">append</strong> its tracks to the end of your current Up Next queue 
+                      instead of replacing it. Use this to stack several playlists together into one master playlist for a single session, all playing back-to-back in order. 
+                      If the queue is empty, Add simply starts a new queue with that playlist.
                     </p>
                   </div>
                   <div>
