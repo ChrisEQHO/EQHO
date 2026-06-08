@@ -487,12 +487,29 @@ export default function Page() {
     }
   };
 
-  // Keep currentTrack synced with playlist[currentIndex]
+  // Keep currentIndex in sync with the track that is ACTUALLY loaded/playing.
+  // currentTrack is the source of truth (it's what the <audio> element has loaded).
+  // When the playlist is reordered, the playing track moves to a new array slot,
+  // so we re-derive currentIndex from currentTrack rather than overwriting
+  // currentTrack from a possibly-stale currentIndex (which caused the title/audio desync).
   useEffect(() => {
-    if (playlist.length > 0 && currentIndex >= 0 && currentIndex < playlist.length) {
+    if (playlist.length === 0) return;
+    if (currentTrack) {
+      const realIndex = playlist.findIndex((t) => t.id === currentTrack.id);
+      if (realIndex >= 0) {
+        if (realIndex !== currentIndex) setCurrentIndex(realIndex);
+      } else {
+        // The playing track is no longer in the playlist (e.g. removed) -
+        // fall back to whatever currently sits at currentIndex.
+        if (currentIndex >= 0 && currentIndex < playlist.length) {
+          setCurrentTrack(playlist[currentIndex]);
+        }
+      }
+    } else if (currentIndex >= 0 && currentIndex < playlist.length) {
+      // No track selected yet - seed from the index.
       setCurrentTrack(playlist[currentIndex]);
     }
-  }, [currentIndex, playlist]);
+  }, [currentIndex, currentTrack, playlist]);
 
   // Track if initial load has completed
   const [playlistLoaded, setPlaylistLoaded] = useState(false);
