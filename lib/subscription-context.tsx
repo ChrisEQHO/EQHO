@@ -27,11 +27,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Fetch from profiles table which has subscription fields
+      // Fetch from profiles table which has subscription fields.
+      // profiles is keyed on `id` (= auth user id), not a separate user_id column.
       const { data, error: fetchError } = await supabase
         .from('profiles')
-        .select('id, user_id, stripe_customer_id, subscription_status, subscription_id, trial_end, current_period_end')
-        .eq('user_id', user.id)
+        .select('id, stripe_customer_id, subscription_status, stripe_subscription_id, trial_end, current_period_end')
+        .eq('id', user.id)
         .single()
 
       if (fetchError && fetchError.code !== 'PGRST116') {
@@ -47,11 +48,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       } else {
         // Default to free if no profile record (shouldn't happen normally)
         setProfile({
-          id: '',
-          user_id: user.id,
+          id: user.id,
           stripe_customer_id: null,
           subscription_status: 'free',
-          subscription_id: null,
+          stripe_subscription_id: null,
           trial_end: null,
           current_period_end: null,
         })

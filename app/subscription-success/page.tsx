@@ -73,7 +73,8 @@ export default function SubscriptionSuccessPage() {
         const trialEnd = new Date()
         trialEnd.setDate(trialEnd.getDate() + 14)
         
-        // Update profile with 14 day trial - try both id and user_id for compatibility
+        // Update profile with 14 day trial. profiles is keyed on `id`;
+        // fall back to email lookup if the id-based update matches no rows.
         const { error: updateError1 } = await supabase
           .from('profiles')
           .update({ 
@@ -83,8 +84,8 @@ export default function SubscriptionSuccessPage() {
           })
           .eq('id', session.user.id)
         
-        // If first update fails (no rows matched), try user_id column
-        if (updateError1) {
+        // If first update fails (no rows matched), try matching by email
+        if (updateError1 && session.user.email) {
           await supabase
             .from('profiles')
             .update({ 
@@ -92,10 +93,10 @@ export default function SubscriptionSuccessPage() {
               trial_end: trialEnd.toISOString(),
               updated_at: new Date().toISOString()
             })
-            .eq('user_id', session.user.id)
+            .ilike('email', session.user.email)
         }
 
-        // Fetch updated profile - try both columns
+        // Fetch updated profile - by id first, then by email
         let profile = null
         const { data: profileById } = await supabase
           .from('profiles')
@@ -105,13 +106,13 @@ export default function SubscriptionSuccessPage() {
         
         if (profileById) {
           profile = profileById
-        } else {
-          const { data: profileByUserId } = await supabase
+        } else if (session.user.email) {
+          const { data: profileByEmail } = await supabase
             .from('profiles')
             .select('subscription_status, trial_end')
-            .eq('user_id', session.user.id)
+            .ilike('email', session.user.email)
             .single()
-          profile = profileByUserId
+          profile = profileByEmail
         }
 
         // Calculate days remaining - always based on 14 day trial

@@ -1,5 +1,9 @@
 -- Add subscription columns to existing profiles table
 -- Run this in your Supabase SQL editor if columns don't already exist
+--
+-- NOTE: The canonical subscription column is `stripe_subscription_id`
+-- (see 000_ensure_profiles_schema.sql). This file previously added a
+-- conflicting `subscription_id` column; it now aligns with the canonical name.
 
 -- Add subscription columns if they don't exist
 DO $$
@@ -20,12 +24,22 @@ BEGIN
     ALTER TABLE profiles ADD COLUMN subscription_status text DEFAULT 'free';
   END IF;
 
-  -- subscription_id
+  -- stripe_subscription_id (canonical name)
   IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'profiles' AND column_name = 'stripe_subscription_id'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN stripe_subscription_id text;
+  END IF;
+
+  -- Migrate data from a legacy `subscription_id` column if it exists, then drop it
+  IF EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_name = 'profiles' AND column_name = 'subscription_id'
   ) THEN
-    ALTER TABLE profiles ADD COLUMN subscription_id text;
+    UPDATE profiles 
+      SET stripe_subscription_id = COALESCE(stripe_subscription_id, subscription_id);
+    ALTER TABLE profiles DROP COLUMN subscription_id;
   END IF;
 
   -- trial_end

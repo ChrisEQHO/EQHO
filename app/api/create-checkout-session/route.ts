@@ -52,11 +52,69 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Validate the secret key exists
+    const secretKey = process.env.STRIPE_SECRET_KEY
+    if (!secretKey) {
+      console.error('[v0] ERROR: STRIPE_SECRET_KEY is not set')
+      return NextResponse.json(
+        { error: 'Stripe secret key not configured. Please set STRIPE_SECRET_KEY in environment variables.' },
+        { status: 500 }
+      )
+    }
+
+    // Detect test/live mode mismatch between the secret key and the price ID
+    const keyMode = secretKey.startsWith('sk_live_') || secretKey.startsWith('rk_live_') ? 'live'
+      : secretKey.startsWith('sk_test_') || secretKey.startsWith('rk_test_') ? 'test'
+      : 'unknown'
+    console.log('[v0]   Secret key mode:', keyMode)
+
+    // Pre-flight: verify the price actually exists in this account/mode before creating the session.
+    // This turns the vague "Failed to create checkout session" into a precise message.
+    try {
+      const price = await stripe.prices.retrieve(priceId)
+      console.log('[v0]   Price retrieved OK:', price.id, 'livemode:', price.livemode, 'active:', price.active)
+      if (price.livemode && keyMode === 'test') {
+        return NextResponse.json(
+          { error: `Mode mismatch: STRIPE_PRICE_ID (${priceId}) is a LIVE price but STRIPE_SECRET_KEY is in TEST mode. Use matching keys.` },
+          { status: 500 }
+        )
+      }
+      if (!price.livemode && keyMode === 'live') {
+        return NextResponse.json(
+          { error: `Mode mismatch: STRIPE_PRICE_ID (${priceId}) is a TEST price but STRIPE_SECRET_KEY is in LIVE mode. Use matching keys.` },
+          { status: 500 }
+        )
+      }
+      if (!price.active) {
+        return NextResponse.json(
+          { error: `The Stripe price ${priceId} exists but is not active. Activate it in the Stripe dashboard.` },
+          { status: 500 }
+        )
+      }
+    } catch (priceError) {
+      const stripeErr = priceError as { type?: string; code?: string; statusCode?: number; message?: string }
+      console.error('[v0] ERROR retrieving price:', {
+        type: stripeErr.type,
+        code: stripeErr.code,
+        statusCode: stripeErr.statusCode,
+        message: stripeErr.message,
+      })
+      return NextResponse.json(
+        {
+          error: `Stripe could not find price "${priceId}" with the current secret key (${keyMode} mode). It may not belong to this account or mode. Stripe says: ${stripeErr.message || 'unknown error'}`,
+        },
+        { status: 500 }
+      )
+    }
     
     // Create the Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
+      // Require the customer to enter card details now, even during the trial.
+      // They will not be charged until the 14-day trial ends.
+      payment_method_collection: 'always',
       customer: customerId,
       customer_email: customerId ? undefined : user.email || undefined,
       client_reference_id: user.id, // This links the session to the Supabase user
@@ -83,9 +141,32 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (error) {
-    console.error('[v0] Error creating checkout session:', error)
+    const stripeErr = error as {
+      type?: string
+      code?: string
+      statusCode?: number
+      message?: string
+      param?: string
+      raw?: { message?: string }
+    }
+    console.error('[v0] Error creating checkout session:', {
+      type: stripeErr.type,
+      code: stripeErr.code,
+      statusCode: stripeErr.statusCode,
+      param: stripeErr.param,
+      message: stripeErr.message,
+      raw: stripeErr.raw?.message,
+    })
+
+    // Surface the precise Stripe error message to the client so it can be shown on the upgrade page.
+    const detail = stripeErr.message || stripeErr.raw?.message || 'Unknown error'
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      {
+        error: `Failed to create checkout session: ${detail}`,
+        stripeType: stripeErr.type || null,
+        stripeCode: stripeErr.code || null,
+        statusCode: stripeErr.statusCode || null,
+      },
       { status: 500 }
     )
   }

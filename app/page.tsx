@@ -487,12 +487,29 @@ export default function Page() {
     }
   };
 
-  // Keep currentTrack synced with playlist[currentIndex]
+  // Keep currentIndex in sync with the track that is ACTUALLY loaded/playing.
+  // currentTrack is the source of truth (it's what the <audio> element has loaded).
+  // When the playlist is reordered, the playing track moves to a new array slot,
+  // so we re-derive currentIndex from currentTrack rather than overwriting
+  // currentTrack from a possibly-stale currentIndex (which caused the title/audio desync).
   useEffect(() => {
-    if (playlist.length > 0 && currentIndex >= 0 && currentIndex < playlist.length) {
+    if (playlist.length === 0) return;
+    if (currentTrack) {
+      const realIndex = playlist.findIndex((t) => t.id === currentTrack.id);
+      if (realIndex >= 0) {
+        if (realIndex !== currentIndex) setCurrentIndex(realIndex);
+      } else {
+        // The playing track is no longer in the playlist (e.g. removed) -
+        // fall back to whatever currently sits at currentIndex.
+        if (currentIndex >= 0 && currentIndex < playlist.length) {
+          setCurrentTrack(playlist[currentIndex]);
+        }
+      }
+    } else if (currentIndex >= 0 && currentIndex < playlist.length) {
+      // No track selected yet - seed from the index.
       setCurrentTrack(playlist[currentIndex]);
     }
-  }, [currentIndex, playlist]);
+  }, [currentIndex, currentTrack, playlist]);
 
   // Track if initial load has completed
   const [playlistLoaded, setPlaylistLoaded] = useState(false);
@@ -3746,6 +3763,27 @@ export default function Page() {
                         <span className="flex-1 truncate text-white text-[11px]">{pl.name}</span>
                         <button
                           onClick={() => {
+                            if (pl.tracks.length === 0) return;
+                            // Append this playlist's tracks to the existing queue to build one master playlist
+                            setPlaylist((prev) => {
+                              const next = [...prev, ...pl.tracks];
+                              // If the queue was empty, start it on the first added track
+                              if (prev.length === 0) {
+                                setCurrentPlaylistName(pl.name);
+                                setCurrentIndex(0);
+                                setCurrentTrack(next[0]);
+                              }
+                              return next;
+                            });
+                          }}
+                          disabled={pl.tracks.length === 0}
+                          className="rounded border border-cyan-500/50 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-30"
+                          title="Add to the current Up Next queue"
+                        >
+                          Add
+                        </button>
+                        <button
+                          onClick={() => {
                             if (pl.tracks.length > 0) {
                               if (sessionRunning || isPlaying) {
                                 setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
@@ -3759,6 +3797,7 @@ export default function Page() {
                           }}
                           disabled={pl.tracks.length === 0}
                           className="rounded border border-pink-500/50 bg-pink-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-pink-400 hover:bg-pink-500/20 disabled:opacity-30"
+                          title="Replace the current queue with this playlist"
                         >
                           Load
                         </button>

@@ -93,15 +93,16 @@ export default function UpgradeClient() {
       if (profileById) {
         profile = profileById
         profileEmail = profileById.email
-      } else {
-        const { data: profileByUserId } = await supabase
+      } else if (authUser.email) {
+        // Fallback: look up by email (profiles is keyed on id, there is no user_id column)
+        const { data: profileByEmail } = await supabase
           .from('profiles')
           .select('subscription_status, email')
-          .eq('user_id', authUser.id)
+          .ilike('email', authUser.email)
           .single()
-        if (profileByUserId) {
-          profile = profileByUserId
-          profileEmail = profileByUserId.email
+        if (profileByEmail) {
+          profile = profileByEmail
+          profileEmail = profileByEmail.email
         }
       }
 
@@ -147,7 +148,16 @@ export default function UpgradeClient() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create checkout session')
+        // Build a detailed message from the server's structured error response
+        const parts: string[] = []
+        if (data.error) parts.push(data.error)
+        const meta: string[] = []
+        if (data.stripeType) meta.push(`type: ${data.stripeType}`)
+        if (data.stripeCode) meta.push(`code: ${data.stripeCode}`)
+        if (data.statusCode) meta.push(`status: ${data.statusCode}`)
+        if (meta.length) parts.push(`(${meta.join(', ')})`)
+        console.error('[v0] Checkout API error:', data)
+        throw new Error(parts.join(' ') || 'Failed to create checkout session')
       }
 
       if (data.url) {
