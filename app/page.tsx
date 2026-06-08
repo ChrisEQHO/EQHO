@@ -5278,8 +5278,7 @@ export default function Page() {
                     </p>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Trash2 size={16} className="text-red-400" />
+                    <h3 className="font-semibold text-white mb-2">
                       Deleting Saved Playlists
                     </h3>
                     <p className="text-white/70 text-sm">
