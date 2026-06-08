@@ -901,54 +901,130 @@ export default function Page() {
     }
   };
 
-  // Handler for Download Playlists button - exports all data as JSON
+  // Handler for Download Playlists button - downloads the actual audio files as a ZIP
   const handleDownloadAllPlaylists = async () => {
     if (isExporting) return;
-    
+
+    if (savedPlaylists.length === 0) {
+      setCloudSaveMessage('No playlists to download');
+      setTimeout(() => setCloudSaveMessage(null), 3000);
+      return;
+    }
+
     setIsExporting(true);
-    setCloudSaveMessage('Exporting playlists...');
-    
+    setCloudSaveMessage('Preparing playlist...');
+
     try {
-      // Export local playlists directly (works offline and with local data)
-      const exportData = {
-        exportedAt: new Date().toISOString(),
-        version: '1.0',
-        playlists: savedPlaylists.map(playlist => ({
-          id: playlist.id,
-          name: playlist.name,
-          trackCount: playlist.tracks.length,
-          tracks: playlist.tracks.map(track => ({
-            id: track.id,
-            title: track.title,
-            fileName: track.fileName,
-            durationSeconds: track.durationSeconds,
-          })),
-        })),
-        coachSettings: {
-          gapSeconds: settings.gapSeconds,
-          countdownEnabled: settings.showCountdown,
-          countdownSeconds: settings.countdownSeconds,
-          autoplayNext: settings.autoplayNext,
-          backToBackDefault: settings.backToBack,
-          showPauseWarning: settings.showPauseWarning,
-          showSkipWarning: settings.showSkipWarning,
-          playlistRepeats: settings.playlistRepeats,
-        },
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+
+      // Sanitize a string so it is safe to use as a file/folder name in the ZIP
+      const sanitize = (name: string) =>
+        (name || 'Untitled').replace(/[\/\\?%*:|"<>]/g, '-').trim();
+
+      // Derive a file extension from the original fileName (default to mp3)
+      const getExt = (fileName: string) => {
+        const match = /\.([a-zA-Z0-9]+)$/.exec(fileName || '');
+        return match ? match[1].toLowerCase() : 'mp3';
       };
-      
-      // Download as JSON file
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+
+      // When there is more than one saved playlist, nest each in its own folder.
+      const multiple = savedPlaylists.length > 1;
+
+      // Count total tracks for progress reporting
+      const totalTracks = savedPlaylists.reduce((sum, pl) => sum + pl.tracks.length, 0);
+      let processed = 0;
+      const missingTracks: string[] = [];
+
+      for (const playlist of savedPlaylists) {
+        const folder = multiple ? zip.folder(sanitize(playlist.name)) : zip;
+        if (!folder) continue;
+
+        // playlist_info.json (metadata only) inside each playlist
+        folder.file(
+          'playlist_info.json',
+          JSON.stringify(
+            {
+              name: playlist.name,
+              trackCount: playlist.tracks.length,
+              exportedAt: new Date().toISOString(),
+              tracks: playlist.tracks.map((t, i) => ({
+                order: i + 1,
+                title: t.title,
+                fileName: t.fileName,
+                durationSeconds: t.durationSeconds,
+              })),
+            },
+            null,
+            2
+          )
+        );
+
+        for (let i = 0; i < playlist.tracks.length; i++) {
+          const track = playlist.tracks[i];
+          processed++;
+          setCloudSaveMessage(`Adding ${processed} of ${totalTracks} tracks...`);
+
+          let blob: Blob | null = null;
+
+          // 1) Prefer the locally stored File/Blob reference if available
+          if (track.file instanceof Blob) {
+            blob = track.file;
+          } else if (track.url) {
+            // 2) Otherwise fetch from its storage URL (cloud or object URL) and convert to Blob
+            try {
+              const res = await fetch(track.url);
+              if (res.ok) {
+                blob = await res.blob();
+              }
+            } catch (err) {
+              console.log('[v0] Failed to fetch track for ZIP:', track.title, err);
+            }
+          }
+
+          if (!blob) {
+            missingTracks.push(track.title || track.fileName);
+            continue;
+          }
+
+          const order = String(i + 1).padStart(2, '0');
+          const ext = getExt(track.fileName);
+          folder.file(`${order} - ${sanitize(track.title)}.${ext}`, blob);
+        }
+      }
+
+      // If nothing could be added, stop and warn
+      if (processed > 0 && missingTracks.length === totalTracks) {
+        setCloudSaveMessage('Some audio files could not be found. Please re-upload missing tracks before downloading.');
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+        setIsExporting(false);
+        return;
+      }
+
+      setCloudSaveMessage('Creating ZIP...');
+      const content = await zip.generateAsync({ type: 'blob' });
+
+      const date = new Date().toISOString().split('T')[0];
+      const zipName = multiple
+        ? `EQHO-Playlists-${date}.zip`
+        : `EQHO-Playlist-${sanitize(savedPlaylists[0].name)}-${date}.zip`;
+
+      const url = URL.createObjectURL(content);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `eqho-playlists-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = zipName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
-      setCloudSaveMessage('Playlists exported!');
-      setTimeout(() => setCloudSaveMessage(null), 3000);
+
+      if (missingTracks.length > 0) {
+        setCloudSaveMessage('Some audio files could not be found. Please re-upload missing tracks before downloading.');
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+      } else {
+        setCloudSaveMessage('Download ready');
+        setTimeout(() => setCloudSaveMessage(null), 3000);
+      }
     } catch (error) {
       console.error("Export failed:", error);
       setCloudSaveMessage('Export failed');
@@ -4838,8 +4914,7 @@ export default function Page() {
                         </div>
                       </div>
                       <p className="text-white/70 text-sm mb-4">
-                        Export all your EQHO playlists, routine details, and coach settings as a JSON file. 
-                        Use this backup before competitions or when preparing for offline use.
+                        Download your playlist music files as a ZIP folder for local backup or competition preparation.
                       </p>
                       <button
                         onClick={handleDownloadAllPlaylists}
