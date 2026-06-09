@@ -901,54 +901,130 @@ export default function Page() {
     }
   };
 
-  // Handler for Download Playlists button - exports all data as JSON
+  // Handler for Download Playlists button - downloads the actual audio files as a ZIP
   const handleDownloadAllPlaylists = async () => {
     if (isExporting) return;
-    
+
+    if (savedPlaylists.length === 0) {
+      setCloudSaveMessage('No playlists to download');
+      setTimeout(() => setCloudSaveMessage(null), 3000);
+      return;
+    }
+
     setIsExporting(true);
-    setCloudSaveMessage('Exporting playlists...');
-    
+    setCloudSaveMessage('Preparing playlist...');
+
     try {
-      // Export local playlists directly (works offline and with local data)
-      const exportData = {
-        exportedAt: new Date().toISOString(),
-        version: '1.0',
-        playlists: savedPlaylists.map(playlist => ({
-          id: playlist.id,
-          name: playlist.name,
-          trackCount: playlist.tracks.length,
-          tracks: playlist.tracks.map(track => ({
-            id: track.id,
-            title: track.title,
-            fileName: track.fileName,
-            durationSeconds: track.durationSeconds,
-          })),
-        })),
-        coachSettings: {
-          gapSeconds: settings.gapSeconds,
-          countdownEnabled: settings.showCountdown,
-          countdownSeconds: settings.countdownSeconds,
-          autoplayNext: settings.autoplayNext,
-          backToBackDefault: settings.backToBack,
-          showPauseWarning: settings.showPauseWarning,
-          showSkipWarning: settings.showSkipWarning,
-          playlistRepeats: settings.playlistRepeats,
-        },
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+
+      // Sanitize a string so it is safe to use as a file/folder name in the ZIP
+      const sanitize = (name: string) =>
+        (name || 'Untitled').replace(/[\/\\?%*:|"<>]/g, '-').trim();
+
+      // Derive a file extension from the original fileName (default to mp3)
+      const getExt = (fileName: string) => {
+        const match = /\.([a-zA-Z0-9]+)$/.exec(fileName || '');
+        return match ? match[1].toLowerCase() : 'mp3';
       };
-      
-      // Download as JSON file
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+
+      // When there is more than one saved playlist, nest each in its own folder.
+      const multiple = savedPlaylists.length > 1;
+
+      // Count total tracks for progress reporting
+      const totalTracks = savedPlaylists.reduce((sum, pl) => sum + pl.tracks.length, 0);
+      let processed = 0;
+      const missingTracks: string[] = [];
+
+      for (const playlist of savedPlaylists) {
+        const folder = multiple ? zip.folder(sanitize(playlist.name)) : zip;
+        if (!folder) continue;
+
+        // playlist_info.json (metadata only) inside each playlist
+        folder.file(
+          'playlist_info.json',
+          JSON.stringify(
+            {
+              name: playlist.name,
+              trackCount: playlist.tracks.length,
+              exportedAt: new Date().toISOString(),
+              tracks: playlist.tracks.map((t, i) => ({
+                order: i + 1,
+                title: t.title,
+                fileName: t.fileName,
+                durationSeconds: t.durationSeconds,
+              })),
+            },
+            null,
+            2
+          )
+        );
+
+        for (let i = 0; i < playlist.tracks.length; i++) {
+          const track = playlist.tracks[i];
+          processed++;
+          setCloudSaveMessage(`Adding ${processed} of ${totalTracks} tracks...`);
+
+          let blob: Blob | null = null;
+
+          // 1) Prefer the locally stored File/Blob reference if available
+          if (track.file instanceof Blob) {
+            blob = track.file;
+          } else if (track.url) {
+            // 2) Otherwise fetch from its storage URL (cloud or object URL) and convert to Blob
+            try {
+              const res = await fetch(track.url);
+              if (res.ok) {
+                blob = await res.blob();
+              }
+            } catch (err) {
+              console.log('[v0] Failed to fetch track for ZIP:', track.title, err);
+            }
+          }
+
+          if (!blob) {
+            missingTracks.push(track.title || track.fileName);
+            continue;
+          }
+
+          const order = String(i + 1).padStart(2, '0');
+          const ext = getExt(track.fileName);
+          folder.file(`${order} - ${sanitize(track.title)}.${ext}`, blob);
+        }
+      }
+
+      // If nothing could be added, stop and warn
+      if (processed > 0 && missingTracks.length === totalTracks) {
+        setCloudSaveMessage('Some audio files could not be found. Please re-upload missing tracks before downloading.');
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+        setIsExporting(false);
+        return;
+      }
+
+      setCloudSaveMessage('Creating ZIP...');
+      const content = await zip.generateAsync({ type: 'blob' });
+
+      const date = new Date().toISOString().split('T')[0];
+      const zipName = multiple
+        ? `EQHO-Playlists-${date}.zip`
+        : `EQHO-Playlist-${sanitize(savedPlaylists[0].name)}-${date}.zip`;
+
+      const url = URL.createObjectURL(content);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `eqho-playlists-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = zipName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
-      setCloudSaveMessage('Playlists exported!');
-      setTimeout(() => setCloudSaveMessage(null), 3000);
+
+      if (missingTracks.length > 0) {
+        setCloudSaveMessage('Some audio files could not be found. Please re-upload missing tracks before downloading.');
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+      } else {
+        setCloudSaveMessage('Download ready');
+        setTimeout(() => setCloudSaveMessage(null), 3000);
+      }
     } catch (error) {
       console.error("Export failed:", error);
       setCloudSaveMessage('Export failed');
@@ -4838,8 +4914,7 @@ export default function Page() {
                         </div>
                       </div>
                       <p className="text-white/70 text-sm mb-4">
-                        Export all your EQHO playlists, routine details, and coach settings as a JSON file. 
-                        Use this backup before competitions or when preparing for offline use.
+                        Download your playlist music files as a ZIP folder for local backup or competition preparation.
                       </p>
                       <button
                         onClick={handleDownloadAllPlaylists}
@@ -5178,8 +5253,8 @@ export default function Page() {
                 </p>
                 <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                   <p className="text-sm text-white/60">
-                    <strong className="text-white">Quick Start:</strong> Upload a folder of music files to create a playlist, 
-                    then load it into your session and press Start Session.
+                    <strong className="text-white">Quick Start:</strong> Upload one or more folders of music files to create playlists, 
+                    then load a playlist (or add several together) into your session and press Start Session.
                   </p>
                 </div>
               </div>
@@ -5237,10 +5312,24 @@ export default function Page() {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <h3 className="font-semibold text-white mb-2">Loading a Playlist</h3>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-pink-400 bg-pink-500/20 border border-pink-500/30">Load</span>
+                      Loading a Playlist
+                    </h3>
                     <p className="text-white/70 text-sm">
-                      Click on any playlist in the Playlists section to load it into your current session. 
-                      The tracks will appear in the Session Queue on the right side of the screen.
+                      Click the <strong className="text-pink-400">Load</strong> button on any saved playlist to load it into your current session. 
+                      This <strong className="text-white">replaces</strong> whatever is currently in the Up Next queue, and the tracks appear in the Session Queue on the right side of the screen.
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 bg-cyan-500/20 border border-cyan-500/30">Add</span>
+                      Combining Multiple Playlists
+                    </h3>
+                    <p className="text-white/70 text-sm">
+                      Click the <strong className="text-cyan-400">Add</strong> button on a saved playlist to <strong className="text-white">append</strong> its tracks to the end of your current Up Next queue 
+                      instead of replacing it. Use this to stack several playlists together into one master playlist for a single session, all playing back-to-back in order. 
+                      If the queue is empty, Add simply starts a new queue with that playlist.
                     </p>
                   </div>
                   <div>
@@ -5264,8 +5353,7 @@ export default function Page() {
                     </p>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Trash2 size={16} className="text-red-400" />
+                    <h3 className="font-semibold text-white mb-2">
                       Deleting Saved Playlists
                     </h3>
                     <p className="text-white/70 text-sm">
@@ -5624,10 +5712,68 @@ export default function Page() {
                   <div className="shrink-0 bg-white/[0.02] rounded-lg p-2 mb-1">
                     {currentTrack ? (
                       <div className="flex flex-col gap-3">
+                        {/* Volume Control & Fullscreen Row */}
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setIsMuted((m) => !m)}
+                              className={`grid h-[28px] w-[28px] place-items-center rounded-lg border transition ${
+                                isMuted
+                                  ? "border-red-500/60 bg-red-500/15 text-red-400"
+                                  : "border-pink-500/40 bg-pink-500/10 text-white"
+                              }`}
+                            >
+                              {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                            </button>
+                            <div
+                              className="relative flex items-center w-[64px] h-[28px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                              onTouchStart={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                                setVolume(pct);
+                                if (pct > 0 && isMuted) setIsMuted(false);
+                                if (pct === 0) setIsMuted(true);
+                              }}
+                              onTouchMove={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                                setVolume(pct);
+                                if (pct > 0 && isMuted) setIsMuted(false);
+                                if (pct === 0) setIsMuted(true);
+                              }}
+                              onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const pct = Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+                                setVolume(pct);
+                                if (pct > 0 && isMuted) setIsMuted(false);
+                                if (pct === 0) setIsMuted(true);
+                              }}
+                              role="slider"
+                              aria-label="Volume"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={isMuted ? 0 : volume}
+                            >
+                              <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
+                                <div className="h-full bg-gradient-to-r from-[#ff4fa3]/25 to-[#ff8a00]/25 transition-all duration-150" style={{ width: `${isMuted ? 0 : volume}%` }} />
+                              </div>
+                              <span className="absolute inset-0 grid place-items-center z-10 text-[10px] font-bold text-white/80 tabular-nums pointer-events-none">
+                                {isMuted ? "0" : volume}%
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setShowFullscreenMobilePlayer(true)}
+                              className="grid h-[28px] w-[28px] place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white transition"
+                              title="Enter fullscreen mode"
+                            >
+                              <Maximize2 size={13} />
+                            </button>
+                          </div>
+                        </div>
                         {/* Track Info & Controls Row */}
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
                             <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
                             <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
                           </div>
@@ -5691,6 +5837,55 @@ export default function Page() {
                             {trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}
                           </div>
                         </div>
+
+                        {/* Session Overview Stats */}
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
+                          {[
+                            [Music, visibleTrackCount, "ROUTINES", "in playlist", "text-purple-400"],
+                            [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
+                            [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
+                            [Timer, estimatedSessionLabel, "EST. SESSION", "(incl. gaps)", "text-purple-400"],
+                          ].map(([Icon, value, a, b, colour]: any, idx) => (
+                            <div key={idx} className="flex items-start gap-1.5">
+                              <Icon className={`${colour} shrink-0`} size={16} />
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold truncate">{value}</div>
+                                <div className="text-[8px] text-white/70 truncate">{a}</div>
+                                <div className="text-[8px] text-white/70 truncate">{b}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Session Status */}
+                        <div className="border-t border-white/10 pt-2">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[9px] uppercase text-white/50">Session Status</span>
+                            <span className={`text-[9px] font-bold ${sessionRunning ? "text-green-400" : "text-white/40"}`}>
+                              {sessionRunning ? "In Progress" : "Ready"}
+                            </span>
+                          </div>
+                          {sessionRunning ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[9px]">
+                                <span className="text-white/50">Current Track</span>
+                                <span className="text-pink-400 font-medium truncate max-w-[150px]">{currentTrack?.title || "-"}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[9px]">
+                                <span className="text-white/50">Progress</span>
+                                <span className="text-cyan-400 font-medium">{completedTracks} of {visibleTrackCount} completed</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[9px]">
+                                <span className="text-white/50">Time Remaining</span>
+                                <span className="text-orange-400 font-medium">{remainingTimeLabel}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            playlist.length > 0 && (
+                              <p className="text-[9px] text-white/40">Press play to start your session</p>
+                            )
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2 py-4">
@@ -5705,6 +5900,15 @@ export default function Page() {
                     <div className="flex items-center justify-between mb-2 shrink-0">
                       <h2 className="text-[10px] font-bold tracking-widest text-[#ff8a00] uppercase">Up Next ({visiblePlaylist.length})</h2>
                       <div className="flex items-center gap-2">
+                        {hiddenTrackIds.size > 0 && (
+                          <button
+                            onClick={() => setHiddenTrackIds(new Set())}
+                            className="px-2 py-1 text-[9px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md hover:bg-blue-500/20 transition flex items-center gap-1"
+                          >
+                            <RotateCcw size={10} />
+                            Restore ({hiddenTrackIds.size})
+                          </button>
+                        )}
                         {playlist.length > 0 && (
                           <button
                             onClick={resetPlaylist}
@@ -6140,16 +6344,41 @@ export default function Page() {
                                       )}
                                     </div>
                                     
-                                    {/* Send to Session Button */}
-                                    <button
-                                      onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
-                                      disabled={localPlaylist.tracks.length === 0}
-                                      className="w-full py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
-                                                 border border-pink-500/25 text-pink-400 text-[11px] font-semibold
-                                                 hover:from-pink-500/25 hover:to-orange-500/25 transition disabled:opacity-30"
-                                    >
-                                      Send to Session
-                                    </button>
+                                    {/* Send to Session / Add Buttons */}
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
+                                        disabled={localPlaylist.tracks.length === 0}
+                                        className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                                                   border border-pink-500/25 text-pink-400 text-[11px] font-semibold
+                                                   hover:from-pink-500/25 hover:to-orange-500/25 transition disabled:opacity-30"
+                                        title="Replace the current queue with this playlist"
+                                      >
+                                        Send to Session
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (localPlaylist.tracks.length === 0) return;
+                                          // Append this playlist's tracks to the existing queue to build one master playlist
+                                          setPlaylist((prev) => {
+                                            const next = [...prev, ...localPlaylist.tracks];
+                                            if (prev.length === 0) {
+                                              setCurrentPlaylistName(localPlaylist.name);
+                                              setCurrentIndex(0);
+                                              setCurrentTrack(next[0]);
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                        disabled={localPlaylist.tracks.length === 0}
+                                        className="py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500/15 to-blue-500/15 
+                                                   border border-cyan-500/25 text-cyan-400 text-[11px] font-semibold
+                                                   hover:from-cyan-500/25 hover:to-blue-500/25 transition disabled:opacity-30"
+                                        title="Add to the current Up Next queue"
+                                      >
+                                        Add
+                                      </button>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -6211,16 +6440,39 @@ export default function Page() {
                                           className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
                                                      border border-pink-500/25 text-pink-400 text-[11px] font-semibold
                                                      hover:from-pink-500/25 hover:to-orange-500/25 transition"
+                                          title="Replace the current queue with this playlist"
                                         >
                                           Send to Session
                                         </button>
                                         <button
                                           onClick={() => {
-                                            setSavedPlaylists(prev => [...prev, cloudPlaylist]);
+                                            if (cloudPlaylist.tracks.length === 0) return;
+                                            // Append this playlist's tracks to the existing queue to build one master playlist
+                                            setPlaylist((prev) => {
+                                              const next = [...prev, ...cloudPlaylist.tracks];
+                                              if (prev.length === 0) {
+                                                setCurrentPlaylistName(cloudPlaylist.name);
+                                                setCurrentIndex(0);
+                                                setCurrentTrack(next[0]);
+                                              }
+                                              return next;
+                                            });
                                           }}
                                           className="py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500/15 to-blue-500/15 
                                                      border border-cyan-500/25 text-cyan-400 text-[11px] font-semibold
                                                      hover:from-cyan-500/25 hover:to-blue-500/25 transition"
+                                          title="Add to the current Up Next queue"
+                                        >
+                                          Add
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setSavedPlaylists(prev => [...prev, cloudPlaylist]);
+                                          }}
+                                          className="py-2 px-3 rounded-lg bg-white/5 
+                                                     border border-white/15 text-white/70 text-[11px] font-semibold
+                                                     hover:bg-white/10 transition"
+                                          title="Download to local library"
                                         >
                                           <Download size={12} />
                                         </button>

@@ -253,8 +253,46 @@ function CompleteSignupContent() {
       },
     })
 
+    console.log('[v0] signUp response:', {
+      userId: data?.user?.id,
+      identities: data?.user?.identities?.length,
+      hasSession: !!data?.session,
+      error: authError?.message,
+    })
+
     if (authError) {
-      setError(authError.message)
+      if (/already registered|already exists|already in use/i.test(authError.message)) {
+        console.log('[v0] Duplicate email detected via authError')
+        setError('This email address is already registered. Please log in instead.')
+      } else {
+        setError(authError.message)
+      }
+      setLoading(false)
+      return
+    }
+
+    // Supabase returns a user with an empty identities array for a duplicate email
+    // (no error, to prevent email enumeration). Treat that as "already registered".
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      console.log('[v0] Duplicate email detected via empty identities array')
+      setError('This email address is already registered. Please log in instead.')
+
+      try {
+        const res = await fetch('/api/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        })
+        const info = await res.json()
+        console.log('[v0] check-email result:', info)
+        if (info.exists) {
+          router.push(info.hasAccess ? '/' : '/upgrade')
+          return
+        }
+      } catch (checkErr) {
+        console.error('[v0] check-email error:', checkErr)
+      }
+
       setLoading(false)
       return
     }
