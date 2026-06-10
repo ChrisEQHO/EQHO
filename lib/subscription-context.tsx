@@ -30,6 +30,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
       console.log('[v0][SUB-FRONTEND] Supabase user ID (read key):', user.id, 'email:', user.email)
 
+      // Ensure a profiles row exists for this user BEFORE reading subscription.
+      // This guarantees auth users are always mirrored into public.profiles.
+      // Safe + idempotent: never overwrites existing (paid) data.
+      try {
+        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+        const ensureJson = await ensureRes.json().catch(() => null)
+        console.log('[v0][SUB-FRONTEND] ensure-profile result:', JSON.stringify(ensureJson))
+      } catch (ensureErr) {
+        console.error('[v0][SUB-FRONTEND] ensure-profile call failed:', ensureErr)
+      }
+
       // Fetch from profiles table which has subscription fields.
       // profiles is keyed on `id` (= auth user id), not a separate user_id column.
       const { data, error: fetchError } = await supabase

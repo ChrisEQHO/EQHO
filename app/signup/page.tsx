@@ -119,7 +119,17 @@ export default function SignupPage() {
       } catch (apiError) {
         console.error('[v0] Profile creation API error:', apiError)
       }
-      
+
+      // Safety net: guarantee a profiles row exists for this user even if the
+      // create-profile call above failed. Idempotent + never overwrites data.
+      try {
+        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+        const ensureJson = await ensureRes.json()
+        console.log('[v0] signup ensure-profile result:', ensureJson)
+      } catch (ensureErr) {
+        console.error('[v0] signup ensure-profile error:', ensureErr)
+      }
+
       router.push('/signup/success')
     }
   }

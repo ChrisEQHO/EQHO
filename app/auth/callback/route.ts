@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { ensureUserProfile } from '@/lib/ensure-user-profile'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
@@ -35,6 +36,13 @@ export async function GET(request: NextRequest) {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
+        // Guarantee a profiles row exists for this user before checking access.
+        await ensureUserProfile({
+          userId: session.user.id,
+          email: session.user.email,
+          fullName: (session.user.user_metadata?.full_name as string | undefined) ?? '',
+        })
+
         // Check if user has an active subscription
         const { data: profile } = await supabase
           .from('profiles')
