@@ -44,8 +44,11 @@ export default function SignupSuccessPage() {
           </div>
 
           <h2 className="text-xl font-bold text-white mb-2">Check your email</h2>
-          <p className="text-sm text-[#94a3b8] mb-4">
+          <p className="text-sm text-[#94a3b8] mb-3">
             We&apos;ve sent you a confirmation link to verify your account.
+          </p>
+          <p className="text-xs text-[#facc15] mb-4">
+            The email may take up to 5 minutes to arrive.
           </p>
 
           {/* Next steps - compact */}
