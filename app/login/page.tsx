@@ -259,7 +259,7 @@ export default function LoginPage() {
 
         {/* Footer text */}
         <p className="text-center text-xs text-[#64748b] mt-6">
-          Create your EQHO account to access EQHO Player Pro.
+          Create your EQHO account to access EQHO Player.
         </p>
       </div>
     </div>

@@ -43,7 +43,7 @@ export function ProBadge({ showLink = true, size = 'md', showTrialDays = false }
         }}
       >
         <Crown className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-        Pro Trial{showTrialDays && trialDaysLeft !== null ? ` (${trialDaysLeft}d)` : ''}
+        EQHO Player Trial{showTrialDays && trialDaysLeft !== null ? ` (${trialDaysLeft}d)` : ''}
       </span>
     )
 
@@ -72,7 +72,7 @@ export function ProBadge({ showLink = true, size = 'md', showTrialDays = false }
         }}
       >
         <Crown className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-        Pro
+        EQHO Player
       </span>
     )
 
@@ -101,7 +101,7 @@ export function ProBadge({ showLink = true, size = 'md', showTrialDays = false }
       }}
     >
       <Crown className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-      Pro Trial
+      EQHO Player Trial
     </span>
   )
 

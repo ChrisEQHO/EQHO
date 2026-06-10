@@ -481,7 +481,7 @@ function CompleteSignupContent() {
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center mb-5">Welcome to EQHO Player Pro!</h1>
+          <h1 className="text-2xl font-bold text-white text-center mb-5">Welcome to EQHO Player!</h1>
 
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
             <div className="flex items-center justify-center gap-4 mb-4">

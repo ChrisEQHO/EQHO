@@ -129,10 +129,10 @@ function SubscriptionSuccessContent() {
               <span className="text-sm font-semibold text-[#ff8a00] uppercase tracking-wide">Pro Activated</span>
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">
-              Welcome to EQHO Pro{userName ? `, ${userName}` : ""}!
+              Welcome to EQHO Player{userName ? `, ${userName}` : ""}!
             </h1>
             <p className="text-white/60">
-              Your subscription is now active. Enjoy unlimited access to all Pro features.
+              Your subscription is now active. Enjoy unlimited access to all EQHO Player features.
             </p>
           </div>
 
@@ -166,7 +166,7 @@ function SubscriptionSuccessContent() {
             href="/"
             className="block w-full py-4 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-center font-semibold hover:shadow-[0_0_24px_rgba(255,79,163,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            Start Using EQHO Pro
+            Start Using EQHO Player
           </Link>
 
           {/* Help text */}

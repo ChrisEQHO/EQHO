@@ -65,7 +65,7 @@ export default function SignupSuccessPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                Enjoy EQHO Player Pro!
+                Enjoy EQHO Player!
               </li>
             </ol>
           </div>

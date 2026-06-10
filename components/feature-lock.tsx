@@ -59,7 +59,7 @@ export function FeatureLock({ children, feature, fallback }: FeatureLockProps) {
           className="text-sm font-medium mb-1"
           style={{ color: 'var(--eqho-text-primary)' }}
         >
-          Pro Feature
+          Player Feature
         </p>
         {feature && (
           <p 
