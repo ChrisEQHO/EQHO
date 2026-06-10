@@ -80,7 +80,6 @@ export default function SubscriptionSuccessPage() {
           .update({ 
             subscription_status: 'trialing',
             trial_end: trialEnd.toISOString(),
-            updated_at: new Date().toISOString()
           })
           .eq('id', session.user.id)
         
@@ -91,7 +90,6 @@ export default function SubscriptionSuccessPage() {
             .update({ 
               subscription_status: 'trialing',
               trial_end: trialEnd.toISOString(),
-              updated_at: new Date().toISOString()
             })
             .ilike('email', session.user.email)
         }

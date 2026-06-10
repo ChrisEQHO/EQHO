@@ -173,7 +173,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId || null,
     current_period_end: currentPeriodEnd.toISOString(),
-    updated_at: new Date().toISOString(),
   }
 
   console.log('[WEBHOOK] Profile data to write:', JSON.stringify(profileData, null, 2))
@@ -324,7 +323,6 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       stripe_subscription_id: subscription.id,
       trial_end: trialEnd,
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
     })
     .eq('id', profile.id)
     .select()
@@ -350,7 +348,6 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       subscription_status: 'canceled',
       trial_active: false,
       plan: 'none',
-      updated_at: new Date().toISOString(),
     })
     .eq('stripe_customer_id', customerId)
     .select()
@@ -374,7 +371,6 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     .from('profiles')
     .update({
       subscription_status: 'past_due',
-      updated_at: new Date().toISOString(),
     })
     .eq('stripe_customer_id', customerId)
     .select()
@@ -402,7 +398,6 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
       .update({
         subscription_status: 'active',
         trial_active: false,
-        updated_at: new Date().toISOString(),
       })
       .eq('stripe_customer_id', customerId)
       .select()

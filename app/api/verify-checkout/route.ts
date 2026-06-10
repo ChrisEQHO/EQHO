@@ -83,7 +83,6 @@ export async function POST(request: NextRequest) {
       trial_end: trialEnd,
       stripe_customer_id: customerId,
       stripe_subscription_id: subscriptionId,
-      updated_at: new Date().toISOString(),
       ...(customerEmail ? { email: customerEmail.toLowerCase() } : {}),
     }
 
