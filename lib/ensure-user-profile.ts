@@ -88,7 +88,6 @@ export async function ensureUserProfile(params: {
     subscription_status: 'free',
     trial_active: false,
     created_at: nowIso,
-    updated_at: nowIso,
   }
 
   const { data: inserted, error: insertError } = await supabaseAdmin

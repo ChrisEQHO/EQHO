@@ -37,7 +37,6 @@ function SubscriptionSuccessContent() {
               .from("profiles")
               .update({ 
                 subscription_status: "active",
-                updated_at: new Date().toISOString()
               })
               .eq("id", user.id);
           }
