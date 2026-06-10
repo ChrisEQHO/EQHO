@@ -42,18 +42,33 @@ export default function SignupPage() {
       return
     }
 
-    const { data, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: {
-          full_name: fullName,
-        },
-      },
-    })
+    let data: Awaited<ReturnType<typeof supabase.auth.signUp>>['data'] | null = null
+    let authError: Awaited<ReturnType<typeof supabase.auth.signUp>>['error'] | null = null
 
-    console.log('[v0] signUp response:', {
+    try {
+      const result = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: fullName,
+          },
+        },
+      })
+      data = result.data
+      authError = result.error
+    } catch (thrown) {
+      // Network failure / misconfigured client / unexpected throw.
+      console.error('[v0] signUp threw an exception:', thrown)
+      setError(thrown instanceof Error ? thrown.message : 'Signup failed unexpectedly. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    // Full, explicit log of the signUp result for debugging.
+    console.log('[v0] signUp full response:', JSON.stringify({ data, error: authError }, null, 2))
+    console.log('[v0] signUp summary:', {
       userId: data?.user?.id,
       identities: data?.user?.identities?.length,
       hasSession: !!data?.session,
@@ -61,6 +76,7 @@ export default function SignupPage() {
     })
 
     if (authError) {
+      console.error('[v0] signUp returned error:', authError.message, authError)
       // Explicit duplicate-email error from Supabase
       if (/already registered|already exists|already in use/i.test(authError.message)) {
         console.log('[v0] Duplicate email detected via authError')
@@ -74,7 +90,7 @@ export default function SignupPage() {
 
     // Supabase does NOT throw on a duplicate email (to prevent email enumeration).
     // Instead it returns a user object with an EMPTY identities array and no session.
-    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    if (data?.user && (data.user.identities?.length ?? 0) === 0) {
       console.log('[v0] Duplicate email detected via empty identities array')
       setError('This email address is already registered. Please log in instead.')
 
@@ -99,7 +115,7 @@ export default function SignupPage() {
       return
     }
 
-    if (data.user) {
+    if (data?.user) {
       console.log('[v0] User created via signup:', data.user.id, data.user.email)
       
       // Create the profile via API (uses service role key to bypass RLS)
@@ -131,7 +147,13 @@ export default function SignupPage() {
       }
 
       router.push('/signup/success')
+      return
     }
+
+    // No error was returned, but no user was created either. Never show success.
+    console.error('[v0] signUp returned neither a user nor an error. Not redirecting.', data)
+    setError('We could not create your account. Please try again.')
+    setLoading(false)
   }
 
   return (
