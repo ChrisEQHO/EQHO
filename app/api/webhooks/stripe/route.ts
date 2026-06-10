@@ -9,6 +9,23 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// As of Stripe API version 2025-05-28.basil, `current_period_end` no longer
+// lives on the top-level Subscription object — it moved to each subscription
+// item (subscription.items.data[].current_period_end). Reading the old field
+// returns undefined, and `new Date(undefined * 1000).toISOString()` throws a
+// RangeError that crashes the webhook. This helper safely resolves the period
+// end from the new location, with a fallback to a 14-day window.
+function getCurrentPeriodEnd(subscription: Stripe.Subscription): Date {
+  const fromItem = subscription.items?.data?.[0]?.current_period_end
+  // Fallback to a legacy/top-level value if present (older API versions)
+  const legacy = (subscription as unknown as { current_period_end?: number }).current_period_end
+  const epochSeconds = fromItem ?? legacy
+  if (typeof epochSeconds === 'number' && Number.isFinite(epochSeconds)) {
+    return new Date(epochSeconds * 1000)
+  }
+  return new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+}
+
 export async function POST(request: NextRequest) {
   console.log('[WEBHOOK] ========== STRIPE WEBHOOK RECEIVED ==========')
   
@@ -142,7 +159,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       console.log('[WEBHOOK]   status:', subscription.status)
       console.log('[WEBHOOK]   trial_start:', subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : 'none')
       console.log('[WEBHOOK]   trial_end:', subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : 'none')
-      console.log('[WEBHOOK]   current_period_end:', new Date(subscription.current_period_end * 1000).toISOString())
+      console.log('[WEBHOOK]   current_period_end (resolved):', getCurrentPeriodEnd(subscription).toISOString())
 
       // Use actual subscription data
       subscriptionStatus = subscription.status
@@ -152,7 +169,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       trialEnd = subscription.trial_end 
         ? new Date(subscription.trial_end * 1000)
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-      currentPeriodEnd = new Date(subscription.current_period_end * 1000)
+      // NOTE: current_period_end moved to subscription.items in API 2025-05-28.basil
+      currentPeriodEnd = getCurrentPeriodEnd(subscription)
     } catch (subError) {
       console.log('[WEBHOOK] WARNING: Could not retrieve subscription:', subError instanceof Error ? subError.message : subError)
       console.log('[WEBHOOK] Using default trial values instead')
@@ -283,6 +301,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.error('[WEBHOOK] FAILED: Could not update or create profile. No userId and no email available.')
   }
 
+  // TEMP DEBUG: consolidated subscription-sync trace for a real user.
+  console.log('[SUB-SYNC] ----- checkout.session.completed result -----')
+  console.log('[SUB-SYNC] Stripe customer email:', customerEmail ?? 'null')
+  console.log('[SUB-SYNC] client_reference_id:', session.client_reference_id ?? 'null')
+  console.log('[SUB-SYNC] Supabase user ID (resolved):', userId ?? 'null')
+  console.log('[SUB-SYNC] profile update succeeded:', profileUpdated)
+  console.log('[SUB-SYNC] subscription_status written:', profileData.subscription_status)
+  console.log('[SUB-SYNC] ----------------------------------------------')
+
   console.log('[WEBHOOK] ========== CHECKOUT HANDLER COMPLETE ==========')
 }
 
@@ -323,7 +350,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       trial_active: subscription.status === 'trialing',
       stripe_subscription_id: subscription.id,
       trial_end: trialEnd,
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      current_period_end: getCurrentPeriodEnd(subscription).toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', profile.id)
