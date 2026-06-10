@@ -176,6 +176,15 @@ function CompleteSignupContent() {
       }
 
       // No session_id - check if user is already logged in with subscription
+      // First ensure a profiles row exists for the authenticated user.
+      try {
+        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+        const ensureJson = await ensureRes.json()
+        console.log('[v0] complete-signup ensure-profile result:', ensureJson)
+      } catch (ensureErr) {
+        console.error('[v0] complete-signup ensure-profile error:', ensureErr)
+      }
+
       const subData = await checkSubscriptionStatus()
       if (subData) {
         setSubscriptionData(subData)

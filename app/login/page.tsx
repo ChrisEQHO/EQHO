@@ -107,6 +107,15 @@ export default function LoginPage() {
       return
     }
 
+    // Ensure a profiles row exists for this user (mirrors auth.users -> profiles).
+    try {
+      const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+      const ensureJson = await ensureRes.json()
+      console.log('[v0] login ensure-profile result:', ensureJson)
+    } catch (ensureErr) {
+      console.error('[v0] login ensure-profile error:', ensureErr)
+    }
+
     // Check subscription status using 'id' column
     const { data: profile } = await supabase
       .from('profiles')

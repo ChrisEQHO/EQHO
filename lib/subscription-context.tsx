@@ -22,18 +22,34 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
+        console.log('[v0][SUB-FRONTEND] No authenticated user; returning free')
         setProfile(null)
         setIsLoading(false)
         return
+      }
+
+      console.log('[v0][SUB-FRONTEND] Supabase user ID (read key):', user.id, 'email:', user.email)
+
+      // Ensure a profiles row exists for this user BEFORE reading subscription.
+      // This guarantees auth users are always mirrored into public.profiles.
+      // Safe + idempotent: never overwrites existing (paid) data.
+      try {
+        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+        const ensureJson = await ensureRes.json().catch(() => null)
+        console.log('[v0][SUB-FRONTEND] ensure-profile result:', JSON.stringify(ensureJson))
+      } catch (ensureErr) {
+        console.error('[v0][SUB-FRONTEND] ensure-profile call failed:', ensureErr)
       }
 
       // Fetch from profiles table which has subscription fields.
       // profiles is keyed on `id` (= auth user id), not a separate user_id column.
       const { data, error: fetchError } = await supabase
         .from('profiles')
-        .select('id, stripe_customer_id, subscription_status, stripe_subscription_id, trial_end, current_period_end')
+        .select('id, email, stripe_customer_id, subscription_status, stripe_subscription_id, trial_end, current_period_end')
         .eq('id', user.id)
         .single()
+
+      console.log('[v0][SUB-FRONTEND] Profile read by id result:', JSON.stringify(data), 'error:', fetchError?.code, fetchError?.message)
 
       if (fetchError && fetchError.code !== 'PGRST116') {
         console.error('Error fetching profile subscription:', fetchError)
@@ -41,11 +57,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
+        const resolvedStatus = (data.subscription_status as SubscriptionStatus) || 'free'
+        console.log('[v0][SUB-FRONTEND] subscription status returned to frontend:', resolvedStatus, '=> isPro:', resolvedStatus === 'active' || resolvedStatus === 'trialing')
         setProfile({
           ...data,
-          subscription_status: (data.subscription_status as SubscriptionStatus) || 'free',
+          subscription_status: resolvedStatus,
         })
       } else {
+        console.log('[v0][SUB-FRONTEND] No profile row found for auth id', user.id, '=> defaulting to free (this is the upgrade-screen trigger)')
         // Default to free if no profile record (shouldn't happen normally)
         setProfile({
           id: user.id,
