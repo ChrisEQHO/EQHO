@@ -126,7 +126,7 @@ function BillingContent() {
         >
           <CheckCircle className="h-5 w-5" style={{ color: 'var(--eqho-cyan)' }} />
           <span style={{ color: 'var(--eqho-cyan)' }}>
-            Welcome to Pro! Your subscription is now active.
+            Welcome to EQHO Player! Your subscription is now active.
           </span>
         </div>
       )}
@@ -159,7 +159,7 @@ function BillingContent() {
                     className="text-2xl font-bold"
                     style={{ color: 'var(--eqho-text-primary)' }}
                   >
-                    {isUserPro ? 'EQHO Player Pro' : 'EQHO Player Free'}
+                    {isUserPro ? 'EQHO Player' : 'EQHO Player Free'}
                   </h2>
                   <StatusBadge status={profile?.subscription_status || 'free'} />
                 </div>
@@ -261,7 +261,7 @@ function BillingContent() {
 
             {!isUserPro && (
               <p style={{ color: 'var(--eqho-text-secondary)' }}>
-                Upgrade to Pro to unlock cloud sync, cross-device access, and automatic backups.
+                Upgrade to EQHO Player to unlock cloud sync, cross-device access, and automatic backups.
               </p>
             )}
           </div>
@@ -360,7 +360,7 @@ function BillingContent() {
                           Cancel subscription?
                         </AlertDialogTitle>
                         <AlertDialogDescription style={{ color: 'var(--eqho-text-secondary)' }}>
-                          You&apos;ll still have access to Pro features until the end of your current billing period. 
+                          You&apos;ll still have access to EQHO Player features until the end of your current billing period. 
                           After that, you&apos;ll be downgraded to the free plan.
                         </AlertDialogDescription>
                       </AlertDialogHeader>

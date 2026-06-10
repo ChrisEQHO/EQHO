@@ -192,7 +192,7 @@ export default function UpgradeClient() {
             <Check className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold mb-3 text-white">You&apos;re Already Subscribed!</h2>
-          <p className="text-sm mb-6 text-[#94a3b8]">You have full access to EQHO Player Pro.</p>
+          <p className="text-sm mb-6 text-[#94a3b8]">You have full access to EQHO Player.</p>
           <Link href="/">
             <Button className="h-11 px-6 text-sm font-semibold text-white border-0 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
               Go to Player
@@ -226,7 +226,7 @@ export default function UpgradeClient() {
           {/* Logo + Welcome */}
           <div className="text-center">
             <Image src="/images/eqho-logo.png" alt="EQHO Player" width={140} height={140} priority className="mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player Pro</h2>
+            <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player</h2>
             <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
           </div>
 
@@ -288,7 +288,7 @@ export default function UpgradeClient() {
                 <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
                   <p className="font-bold text-white text-lg leading-tight">14 Days FREE</p>
-                  <p className="text-xs text-white/90">Try all Pro features free</p>
+                  <p className="text-xs text-white/90">Try all EQHO Player features free</p>
                 </div>
               </div>
               <div className="bg-[#020617] border border-white/10 rounded-xl px-5 py-3 text-center flex flex-col justify-center">

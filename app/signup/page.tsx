@@ -179,7 +179,7 @@ export default function SignupPage() {
         {/* Signup Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
-          <p className="text-sm text-[#94a3b8] mb-6">Create your EQHO account to access EQHO Player Pro.</p>
+          <p className="text-sm text-[#94a3b8] mb-6">Create your EQHO account to access EQHO Player.</p>
 
           {/* Email Notice */}
           <div className="bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-xl p-4 mb-6">

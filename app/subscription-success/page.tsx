@@ -166,7 +166,7 @@ export default function SubscriptionSuccessPage() {
         </div>
 
         {/* Main Heading */}
-        <h1 className="text-2xl font-bold text-white mb-3">Welcome to EQHO Player Pro!</h1>
+        <h1 className="text-2xl font-bold text-white mb-3">Welcome to EQHO Player!</h1>
 
         {/* Trial Status Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
@@ -230,7 +230,7 @@ export default function SubscriptionSuccessPage() {
                 className="block w-full h-12 rounded-xl font-bold text-base bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white flex items-center justify-center gap-2 opacity-70 cursor-wait"
               >
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Activating Pro...
+                Activating EQHO Player...
               </button>
             )}
             

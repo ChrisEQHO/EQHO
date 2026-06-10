@@ -34,9 +34,9 @@ export function isPro(status: SubscriptionStatus): boolean {
 export function getStatusLabel(status: SubscriptionStatus): string {
   switch (status) {
     case 'active':
-      return 'Pro'
+      return 'EQHO Player'
     case 'trialing':
-      return 'Pro Trial'
+      return 'EQHO Player Trial'
     case 'past_due':
       return 'Payment Due'
     case 'canceled':
