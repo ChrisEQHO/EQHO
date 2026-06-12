@@ -299,6 +299,11 @@ export default function SignupPage() {
                 Login
               </Link>
             </p>
+            <p className="mt-3 text-xs">
+              <Link href="/privacy-policy" className="text-[#64748b] hover:text-white transition-colors">
+                Privacy Policy
+              </Link>
+            </p>
           </div>
         </div>
       </div>
