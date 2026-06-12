@@ -95,6 +95,7 @@ import {
   CloudUpload,
   CloudDownload,
   FileDown,
+  Shield,
 } from "lucide-react";
 
 const uploads = [
@@ -3714,6 +3715,14 @@ export default function Page() {
             >
               <Monitor size={20} />
             </a>
+            <Link
+              href="/privacy-policy"
+              aria-label="Privacy Policy"
+              title="Privacy Policy"
+              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition"
+            >
+              <Shield size={20} />
+            </Link>
             <button
               onClick={handleLogout}
               className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
