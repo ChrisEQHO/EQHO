@@ -261,6 +261,11 @@ export default function LoginPage() {
         <p className="text-center text-xs text-[#64748b] mt-6">
           Create your EQHO account to access EQHO Player.
         </p>
+        <p className="text-center text-xs mt-3">
+          <Link href="/privacy-policy" className="text-[#64748b] hover:text-white transition-colors">
+            Privacy Policy
+          </Link>
+        </p>
       </div>
     </div>
   )

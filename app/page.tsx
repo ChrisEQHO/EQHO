@@ -95,6 +95,7 @@ import {
   CloudUpload,
   CloudDownload,
   FileDown,
+  Shield,
 } from "lucide-react";
 
 const uploads = [
@@ -1824,7 +1825,11 @@ export default function Page() {
 
   const goToPreviousTrack = () => {
     if (playlist.length === 0 || !audioRef.current) return;
-    
+
+    // Preserve the current playback state before changing track.
+    // Only auto-play after skip-back if the player was already playing.
+    const wasPlaying = isPlaying;
+
     // If within first 2 seconds and not on first track, go to previous track
     if (audioRef.current.currentTime < 2 && currentIndex > 0) {
       const prevIdx = currentIndex - 1;
@@ -1833,22 +1838,33 @@ export default function Page() {
       setCurrentTrack(prevTrack);
       if (prevTrack) {
         audioRef.current.src = prevTrack.url;
+        if (wasPlaying) {
+          audioRef.current.play().then(() => {
+            setIsPlaying(true);
+          }).catch((err) => {
+            console.error('Autoplay failed:', err);
+            setIsPlaying(false);
+          });
+        } else {
+          // Load the track but stay paused
+          audioRef.current.load();
+          setIsPlaying(false);
+        }
+      }
+    } else {
+      // Otherwise, reset current track to beginning
+      audioRef.current.currentTime = 0;
+      if (wasPlaying) {
         audioRef.current.play().then(() => {
           setIsPlaying(true);
         }).catch((err) => {
           console.error('Autoplay failed:', err);
           setIsPlaying(false);
         });
-      }
-    } else {
-      // Otherwise, reset current track to beginning and autoplay
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-      }).catch((err) => {
-        console.error('Autoplay failed:', err);
+      } else {
+        // Stay paused at the beginning
         setIsPlaying(false);
-      });
+      }
     }
   };
 
@@ -3714,6 +3730,14 @@ export default function Page() {
             >
               <Monitor size={20} />
             </a>
+            <Link
+              href="/privacy-policy"
+              aria-label="Privacy Policy"
+              title="Privacy Policy"
+              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition"
+            >
+              <Shield size={20} />
+            </Link>
             <button
               onClick={handleLogout}
               className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
