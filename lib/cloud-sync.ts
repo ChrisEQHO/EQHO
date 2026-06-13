@@ -59,6 +59,22 @@ export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error'
 
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
+// Supabase `playlists.id` and `tracks.id` are UUID columns. Local playlist/track
+// IDs (especially legacy ones from IndexedDB) may not be valid UUIDs, so we must
+// never force them into UUID columns or use them in `.eq('id', ...)` lookups —
+// doing so throws "invalid input syntax for type uuid" and the upload silently fails.
+const isValidUuid = (value?: string): boolean =>
+  !!value &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+
+// Derive a stable identity key for matching local tracks against cloud tracks,
+// since cloud track IDs are server-generated UUIDs and won't match local IDs.
+// storage_path looks like: users/{userId}/playlists/{playlistId}/tracks/{trackId}/{fileName}
+const cloudTrackKey = (title: string, fileNameOrStoragePath: string): string => {
+  const fileName = (fileNameOrStoragePath || '').split('/').pop() || ''
+  return `${(title || '').trim().toLowerCase()}::${fileName.trim().toLowerCase()}`
+}
+
 // Pro subscription check for cloud sync gating
 export async function checkProStatus(): Promise<boolean> {
   // STRIPE TEMPORARILY DISABLED - Always return true to allow access
@@ -220,19 +236,25 @@ export async function uploadTrackToCloud(
     return null
   }
 
-  // Store metadata in Supabase (not the file itself)
+  // Store metadata in Supabase (not the file itself).
+  // Only pass the local id when it's a valid UUID; otherwise let Postgres
+  // generate one (uuid_generate_v4()) so a missing/legacy id never fails the insert.
+  const trackInsert: Record<string, unknown> = {
+    user_id: user.id,
+    playlist_id: playlistId,
+    title: track.title,
+    duration: track.durationSeconds,
+    storage_path: r2Key, // R2 object key
+    file_size: track.file.size,
+    mime_type: track.file.type || 'audio/mpeg',
+  }
+  if (isValidUuid(track.id)) {
+    trackInsert.id = track.id
+  }
+
   const { data, error } = await supabase
     .from('tracks')
-    .insert({
-      id: track.id,
-      user_id: user.id,
-      playlist_id: playlistId,
-      title: track.title,
-      duration: track.durationSeconds,
-      storage_path: r2Key, // R2 object key
-      file_size: track.file.size,
-      mime_type: track.file.type || 'audio/mpeg'
-    })
+    .insert(trackInsert)
     .select()
     .single()
 
@@ -676,23 +698,46 @@ export async function uploadPlaylistToCloud(
   if (!user) return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Not authenticated' }
 
   try {
-    // Check if playlist exists, create if not
-    let { data: existingPlaylist } = await supabase
-      .from('playlists')
-      .select('*')
-      .eq('id', localPlaylist.id)
-      .single()
+    // Check if playlist exists, create if not.
+    // Only look up by id when the local id is a valid UUID; otherwise fall back to
+    // matching this user's playlist by name (avoids "invalid input syntax for type uuid").
+    let existingPlaylist: CloudPlaylist | null = null
+
+    if (isValidUuid(localPlaylist.id)) {
+      const { data } = await supabase
+        .from('playlists')
+        .select('*')
+        .eq('id', localPlaylist.id)
+        .maybeSingle()
+      existingPlaylist = data
+    }
 
     if (!existingPlaylist) {
+      const { data } = await supabase
+        .from('playlists')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('name', localPlaylist.name)
+        .maybeSingle()
+      existingPlaylist = data
+    }
+
+    if (!existingPlaylist) {
+      // Insert from local data as the source of truth. Only pass the local id when
+      // it's a valid UUID; otherwise let Postgres generate one.
+      const playlistInsert: Record<string, unknown> = {
+        user_id: user.id,
+        name: localPlaylist.name,
+        track_order: [],
+        gap_seconds: coachSettings?.gapSeconds || 3,
+      }
+      if (isValidUuid(localPlaylist.id)) {
+        playlistInsert.id = localPlaylist.id
+      }
+
       const { data: newPlaylist, error } = await supabase
         .from('playlists')
-        .insert({
-          id: localPlaylist.id,
-          user_id: user.id,
-          name: localPlaylist.name,
-          track_order: [],
-          gap_seconds: coachSettings?.gapSeconds || 3,
-        })
+        .insert(playlistInsert)
         .select()
         .single()
 
@@ -702,33 +747,45 @@ export async function uploadPlaylistToCloud(
       existingPlaylist = newPlaylist
     }
 
+    if (!existingPlaylist) {
+      return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Failed to resolve cloud playlist' }
+    }
+
     // Upload tracks
     let uploadedCount = 0
     let skippedCount = 0
     const trackOrder: string[] = []
 
-    for (const track of localPlaylist.tracks) {
-      // Check if track already exists in cloud
-      const { data: existingTrack } = await supabase
-        .from('tracks')
-        .select('id')
-        .eq('id', track.id)
-        .single()
+    // Fetch existing cloud tracks for this playlist ONCE, and match local tracks by
+    // a stable identity (title + fileName) rather than by id. Cloud track IDs are
+    // server-generated UUIDs, so looking up by the local id is meaningless and also
+    // errors on non-UUID local ids. Local playlist data is the source of truth.
+    const { data: existingCloudTracks } = await supabase
+      .from('tracks')
+      .select('id, title, storage_path')
+      .eq('playlist_id', existingPlaylist.id)
 
-      if (existingTrack) {
-        // Track already uploaded
-        trackOrder.push(existingTrack.id)
+    const existingTrackKeys = new Map<string, string>() // identity key -> cloud track id
+    for (const ct of existingCloudTracks || []) {
+      existingTrackKeys.set(cloudTrackKey(ct.title, ct.storage_path || ''), ct.id)
+    }
+
+    for (const track of localPlaylist.tracks) {
+      // Skip if an equivalent track already exists in the cloud for this playlist.
+      const existingId = existingTrackKeys.get(cloudTrackKey(track.title, track.fileName))
+      if (existingId) {
+        trackOrder.push(existingId)
         skippedCount++
         continue
       }
 
-      // Skip tracks without files (can't upload)
+      // Skip tracks without files (can't upload audio)
       if (!track.file) {
         skippedCount++
         continue
       }
 
-      // Upload to R2 and create metadata in Supabase
+      // Insert/upload from local data as the source of truth.
       const localTrack: LocalTrack = {
         id: track.id,
         title: track.title,
@@ -742,6 +799,8 @@ export async function uploadPlaylistToCloud(
       if (uploaded) {
         uploadedCount++
         trackOrder.push(uploaded.id)
+        // Record so duplicate local entries in the same batch aren't re-uploaded.
+        existingTrackKeys.set(cloudTrackKey(track.title, track.fileName), uploaded.id)
       }
     }
 
