@@ -1035,6 +1035,56 @@ export default function Page() {
     }
   };
 
+  // Resolve a usable File for a track from any available audio source:
+  // a live File/Blob reference, or a playable URL (blob:, object URL, or cloud URL)
+  // that may be backed by IndexedDB-cached audio. Mirrors the download (ZIP) logic
+  // so cloud sync considers the same playable sources the player/queue use.
+  const resolveTrackFileForSync = async (track: any): Promise<File | undefined> => {
+    // 1) Prefer an existing File/Blob reference
+    if (track.file instanceof File) return track.file;
+    if (track.file instanceof Blob) {
+      return new File([track.file], track.fileName || 'audio', {
+        type: track.file.type || 'audio/mpeg',
+      });
+    }
+    // 2) Otherwise fetch from its URL (blob:/object URL/cloud) and convert to a File
+    if (track.url) {
+      try {
+        const res = await fetch(track.url);
+        if (res.ok) {
+          const blob = await res.blob();
+          return new File([blob], track.fileName || 'audio', {
+            type: blob.type || 'audio/mpeg',
+          });
+        }
+      } catch (err) {
+        console.log('[v0] resolveTrackFileForSync: failed to fetch track audio', track.title, err);
+      }
+    }
+    return undefined;
+  };
+
+  // Build sync-ready playlists, resolving each track's audio from any playable
+  // source (File, blob URL, object URL, cloud URL, or IndexedDB-backed audio).
+  const buildPlaylistsToSync = async () => {
+    return Promise.all(
+      savedPlaylists.map(async (playlist) => ({
+        id: playlist.id,
+        name: playlist.name,
+        tracks: await Promise.all(
+          playlist.tracks.map(async (track) => ({
+            id: track.id,
+            title: track.title,
+            fileName: track.fileName,
+            durationSeconds: track.durationSeconds,
+            uploadedAt: track.uploadedAt,
+            file: await resolveTrackFileForSync(track),
+          }))
+        ),
+      }))
+    );
+  };
+
   // Handler for Upload to Cloud button - uploads playlists to R2 storage
   const handleUploadToCloud = async () => {
     if (isUploadingToCloud) return;
@@ -1049,19 +1099,9 @@ export default function Page() {
         return;
       }
 
-      // Prepare playlists with files for upload
-      const playlistsToSync = savedPlaylists.map(playlist => ({
-        id: playlist.id,
-        name: playlist.name,
-        tracks: playlist.tracks.map(track => ({
-          id: track.id,
-          title: track.title,
-          fileName: track.fileName,
-          durationSeconds: track.durationSeconds,
-          uploadedAt: track.uploadedAt,
-          file: track.file,
-        })),
-      }));
+      // Prepare playlists with files for upload, resolving audio from any
+      // playable source (File, blob URL, object URL, cloud URL, or IndexedDB).
+      const playlistsToSync = await buildPlaylistsToSync();
 
       const coachSettingsToSync = {
         gapSeconds: settings.gapSeconds,
@@ -1169,19 +1209,10 @@ export default function Page() {
         return;
       }
 
-      // Prepare playlists for sync (include tracks with files)
-      const playlistsToSync = savedPlaylists.map(playlist => ({
-        id: playlist.id,
-        name: playlist.name,
-        tracks: playlist.tracks.map(track => ({
-          id: track.id,
-          title: track.title,
-          fileName: track.fileName,
-          durationSeconds: track.durationSeconds,
-          uploadedAt: track.uploadedAt,
-          file: track.file,
-        })),
-      }));
+      // Prepare playlists for sync, resolving each track's audio from any
+      // playable source (File, blob URL, object URL, cloud URL, or IndexedDB)
+      // so the same tracks the player can queue are eligible for cloud sync.
+      const playlistsToSync = await buildPlaylistsToSync();
 
       // Prepare coach settings
       const coachSettingsToSync = {
