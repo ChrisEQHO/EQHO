@@ -413,6 +413,8 @@ export default function Page() {
   const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
   const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
+  // Drives the cloud status banner colour: true => green (full success), false => pink/red (partial/error).
+  const [cloudSaveSuccess, setCloudSaveSuccess] = useState<boolean>(false);
 
   // Session-only hidden tracks (does not affect saved playlists or cloud)
   const [hiddenTrackIds, setHiddenTrackIds] = useState<Set<string>>(new Set());
@@ -1173,6 +1175,7 @@ export default function Page() {
     if (isUploadingToCloud) return;
     
     setIsUploadingToCloud(true);
+    setCloudSaveSuccess(false);
     setCloudSaveMessage('Uploading to cloud...');
     
     try {
@@ -1191,20 +1194,35 @@ export default function Page() {
       const result = await syncAllPlaylistsToCloud(playlistsToSync);
       console.log('[v0] handleUploadToCloud: result', result);
 
-      if (result.success) {
-        setCloudSaveMessage(`Uploaded ${result.totalUploaded} tracks from ${result.syncedPlaylists} playlists`);
+      // Total visible playlists we attempted to sync (matches the sidebar folders).
+      const totalPlaylists = playlistsToSync.length;
+      const syncedPlaylists = result.syncedPlaylists;
+
+      if (result.success && syncedPlaylists >= totalPlaylists && totalPlaylists > 0) {
+        // All visible playlists synced successfully -> green banner.
+        setCloudSaveMessage(`Uploaded ${syncedPlaylists}/${totalPlaylists} playlists successfully`);
+        setCloudSaveSuccess(true);
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } else if (result.success) {
+        // Succeeded but not every visible playlist synced -> keep pink (partial).
+        setCloudSaveMessage(`Uploaded ${syncedPlaylists}/${totalPlaylists} playlists`);
+        setCloudSaveSuccess(false);
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
       } else if (result.errors && result.errors.length > 0) {
         // Show the real reason (e.g. R2 not configured) rather than a misleading success.
         setCloudSaveMessage(result.errors[0]);
+        setCloudSaveSuccess(false);
       } else {
         setCloudSaveMessage('Upload completed with some errors');
+        setCloudSaveSuccess(false);
       }
       
       setTimeout(() => setCloudSaveMessage(null), 5000);
     } catch (error) {
       console.error("Upload to cloud failed:", error);
+      setCloudSaveSuccess(false);
       setCloudSaveMessage('Upload failed. Check your connection.');
       setTimeout(() => setCloudSaveMessage(null), 3000);
     } finally {
@@ -1217,6 +1235,7 @@ export default function Page() {
     if (isDownloadingFromCloud) return;
     
     setIsDownloadingFromCloud(true);
+    setCloudSaveSuccess(false);
     setCloudSaveMessage('Downloading from cloud...');
     
     try {
@@ -1277,6 +1296,7 @@ export default function Page() {
     if (isPushingToApps || isMobileBuild) return;
     
     setIsPushingToApps(true);
+    setCloudSaveSuccess(false);
     setCloudSaveMessage('Uploading playlists to cloud...');
     
     try {
@@ -4969,8 +4989,8 @@ export default function Page() {
                   <div className="p-8 space-y-6">
                     {/* Cloud Status Message */}
                     {cloudSaveMessage && (
-                      <div className="px-4 py-3 rounded-xl bg-[#ff4fa3]/10 border border-[#ff4fa3]/30">
-                        <p className="text-sm text-[#ff4fa3] font-medium flex items-center gap-2">
+                      <div className={`px-4 py-3 rounded-xl ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
+                        <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
                           {(isExporting || isPushingToApps || isUploadingToCloud || isDownloadingFromCloud) && <Loader2 size={16} className="animate-spin" />}
                           {cloudSaveMessage}
                         </p>
@@ -5279,8 +5299,8 @@ export default function Page() {
                   
                   {/* Cloud Status Message */}
                   {cloudSaveMessage && (
-                    <div className="mb-4 px-3 py-2 rounded-lg bg-[#ff4fa3]/10 border border-[#ff4fa3]/30">
-                      <p className="text-sm text-[#ff4fa3] font-medium flex items-center gap-2">
+                    <div className={`mb-4 px-3 py-2 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
+                      <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
                         {(isExporting || isPushingToApps) && <Loader2 size={14} className="animate-spin" />}
                         {cloudSaveMessage}
                       </p>
@@ -6776,8 +6796,8 @@ export default function Page() {
                       
                       {/* Cloud Status Message */}
                       {cloudSaveMessage && (
-                        <div className="mb-2 px-2 py-1.5 rounded-lg bg-[#ff4fa3]/10 border border-[#ff4fa3]/30">
-                          <p className="text-[10px] text-[#ff4fa3] font-medium flex items-center gap-1.5">
+                        <div className={`mb-2 px-2 py-1.5 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
+                          <p className={`text-[10px] font-medium flex items-center gap-1.5 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
                             {(isExporting || isPushingToApps) && <Loader2 size={10} className="animate-spin" />}
                             {cloudSaveMessage}
                           </p>
