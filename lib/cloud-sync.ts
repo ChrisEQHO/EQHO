@@ -260,11 +260,14 @@ export async function uploadTrackToCloud(
     trackInsert.id = track.id
   }
 
-  const { data, error } = await supabase
+  // Use maybeSingle() (never single()) so a SELECT that returns 0 rows does NOT
+  // throw PGRST116. We must capture the server-generated Supabase id here, since
+  // playlist.track_order is built from these returned ids (not local IndexedDB ids).
+  const { data: inserted, error } = await supabase
     .from('tracks')
     .insert(trackInsert)
-    .select()
-    .single()
+    .select('*')
+    .maybeSingle()
 
   if (error) {
     console.error('[v0] uploadTrackToCloud: Supabase track insert FAILED for', track.title, '-', error.message)
@@ -273,8 +276,28 @@ export async function uploadTrackToCloud(
     return null
   }
 
-  console.log('[v0] uploadTrackToCloud: Supabase track insert SUCCESS for', track.title, '->', data?.id)
-  return data
+  // Fallback: if the insert succeeded but the returning SELECT came back empty
+  // (e.g. RLS/replication timing), look the row up by its unique storage_path
+  // (the R2 key includes the track id, so it uniquely identifies this track).
+  let row = inserted
+  if (!row) {
+    const { data: found } = await supabase
+      .from('tracks')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('storage_path', r2Key)
+      .maybeSingle()
+    row = found
+  }
+
+  if (!row) {
+    console.error('[v0] uploadTrackToCloud: insert succeeded but could not resolve track id for', track.title)
+    await deleteTrackFromR2(r2Key)
+    return null
+  }
+
+  console.log('[v0] uploadTrackToCloud: Supabase track insert SUCCESS for', track.title, '-> id', row.id)
+  return row
 }
 
 export async function deleteTrackFromCloud(trackId: string): Promise<boolean> {
