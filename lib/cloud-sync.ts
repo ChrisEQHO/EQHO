@@ -799,16 +799,21 @@ export async function uploadPlaylistToCloud(
       // Skip if an equivalent track already exists in the cloud for this playlist.
       const existingId = existingTrackKeys.get(cloudTrackKey(track.title, track.fileName))
       if (existingId) {
+        console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: already in cloud`)
         trackOrder.push(existingId)
         skippedCount++
         continue
       }
 
-      // Skip tracks without files (can't upload audio)
+      // Skip tracks without files (can't upload audio). Note: we never require
+      // file_url/storage_path on the local track — only the actual audio File.
       if (!track.file) {
+        console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: no audio File resolved locally`)
         skippedCount++
         continue
       }
+
+      console.log(`[v0] uploadPlaylistToCloud: UPLOADING "${track.title}" (${track.file.size} bytes) to R2`)
 
       // Insert/upload from local data as the source of truth.
       const localTrack: LocalTrack = {

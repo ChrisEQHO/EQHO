@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles } from "@/lib/eqho-db";
+import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, getLocalPlaylistsForSync } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
@@ -1035,19 +1035,57 @@ export default function Page() {
     }
   };
 
-  // Resolve a usable File for a track from any available audio source:
-  // a live File/Blob reference, or a playable URL (blob:, object URL, or cloud URL)
-  // that may be backed by IndexedDB-cached audio. Mirrors the download (ZIP) logic
-  // so cloud sync considers the same playable sources the player/queue use.
-  const resolveTrackFileForSync = async (track: any): Promise<File | undefined> => {
-    // 1) Prefer an existing File/Blob reference
+  // Build a lookup of original audio File objects straight from IndexedDB, which is
+  // the authoritative local store. Files are keyed by track id AND by fileName so we
+  // can resolve them even when the in-memory React state has lost its live File
+  // reference or its blob: URL has been revoked.
+  const buildIndexedDbFileMap = async (): Promise<{
+    byId: Map<string, File>;
+    byName: Map<string, File>;
+  }> => {
+    const byId = new Map<string, File>();
+    const byName = new Map<string, File>();
+
+    try {
+      // Robustly read the raw records from the eqho-player-db savedPlaylists and
+      // currentQueue stores and extract a File from whatever audio representation
+      // each track holds (File / Blob / ArrayBuffer / audioData / url). This also
+      // emits the detailed [v0] logging (db opened, store counts, per-track source).
+      const localFiles = await getAllLocalAudioFiles();
+      for (const lf of localFiles) {
+        if (lf.id) byId.set(lf.id, lf.file);
+        if (lf.fileName) byName.set(lf.fileName, lf.file);
+      }
+    } catch (err) {
+      console.log('[v0] buildIndexedDbFileMap: failed reading audio from IndexedDB', err);
+    }
+
+    return { byId, byName };
+  };
+
+  // Resolve a usable File for a track from any available audio source, in priority:
+  // 1) a live File/Blob reference, 2) the original File in IndexedDB (by id/fileName),
+  // 3) a fetchable URL (blob:/object URL/cloud). This ensures cloud sync uploads the
+  // actual local audio and never skips a track just because file_url/url is missing.
+  const resolveTrackFileForSync = async (
+    track: any,
+    idbFiles: { byId: Map<string, File>; byName: Map<string, File> }
+  ): Promise<File | undefined> => {
+    // 1) Prefer an existing File/Blob reference held in memory
     if (track.file instanceof File) return track.file;
     if (track.file instanceof Blob) {
       return new File([track.file], track.fileName || 'audio', {
         type: track.file.type || 'audio/mpeg',
       });
     }
-    // 2) Otherwise fetch from its URL (blob:/object URL/cloud) and convert to a File
+
+    // 2) Look up the original File in IndexedDB (authoritative local store)
+    const fromIdb =
+      (track.id && idbFiles.byId.get(track.id)) ||
+      (track.fileName && idbFiles.byName.get(track.fileName));
+    if (fromIdb) return fromIdb;
+
+    // 3) Otherwise fetch from its URL (blob:/object URL/cloud) and convert to a File
     if (track.url) {
       try {
         const res = await fetch(track.url);
@@ -1064,25 +1102,58 @@ export default function Page() {
     return undefined;
   };
 
-  // Build sync-ready playlists, resolving each track's audio from any playable
-  // source (File, blob URL, object URL, cloud URL, or IndexedDB-backed audio).
+  // Build sync-ready playlists by reading tracks DIRECTLY from the IndexedDB
+  // savedPlaylists/currentQueue stores (the local source of truth), NOT from the
+  // in-memory React state or Supabase metadata (which can hold playlists whose
+  // `tracks` arrays are empty — the cause of "N playlists but 0 tracks").
   const buildPlaylistsToSync = async () => {
-    return Promise.all(
-      savedPlaylists.map(async (playlist) => ({
-        id: playlist.id,
-        name: playlist.name,
-        tracks: await Promise.all(
-          playlist.tracks.map(async (track) => ({
-            id: track.id,
-            title: track.title,
-            fileName: track.fileName,
-            durationSeconds: track.durationSeconds,
-            uploadedAt: track.uploadedAt,
-            file: await resolveTrackFileForSync(track),
-          }))
-        ),
-      }))
+    // 1) Primary source: grouped playlists + tracks straight from IndexedDB.
+    let playlists = await getLocalPlaylistsForSync();
+
+    // 2) Fallback: if IndexedDB yielded no playable tracks at all, fall back to the
+    //    in-memory React state (the named saved playlists AND the current queue),
+    //    resolving each track's File via the IndexedDB map.
+    const idbHasTracks = playlists.some((p) => p.tracks.some((t) => t.file));
+    if (!idbHasTracks && (savedPlaylists.length > 0 || playlist.length > 0)) {
+      console.log('[v0] buildPlaylistsToSync: IndexedDB had no playable tracks — falling back to in-memory playlists + queue');
+      const idbFiles = await buildIndexedDbFileMap();
+
+      const mapTrack = async (track: any) => ({
+        id: track.id,
+        title: track.title,
+        fileName: track.fileName,
+        durationSeconds: track.durationSeconds,
+        uploadedAt: track.uploadedAt,
+        file: await resolveTrackFileForSync(track, idbFiles),
+      });
+
+      const savedFromState = await Promise.all(
+        savedPlaylists.map(async (pl) => ({
+          id: pl.id,
+          name: pl.name,
+          tracks: await Promise.all(pl.tracks.map(mapTrack)),
+        }))
+      );
+
+      // Include the current queue (the playable now-playing list) as its own playlist.
+      const queueFromState =
+        playlist.length > 0
+          ? [{
+              id: 'current-queue',
+              name: currentPlaylistName || 'Current Queue',
+              tracks: await Promise.all(playlist.map(mapTrack)),
+            }]
+          : [];
+
+      playlists = [...savedFromState, ...queueFromState];
+    }
+
+    const totalTracks = playlists.reduce((n, p) => n + p.tracks.length, 0);
+    const resolvedTracks = playlists.reduce((n, p) => n + p.tracks.filter((t) => t.file).length, 0);
+    console.log(
+      `[v0] buildPlaylistsToSync: ${playlists.length} playlist(s), ${totalTracks} track(s) found, ${resolvedTracks} with audio ready to upload, ${totalTracks - resolvedTracks} skipped (no audio)`
     );
+    return playlists;
   };
 
   // Handler for Upload to Cloud button - uploads playlists to R2 storage
