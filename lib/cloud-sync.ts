@@ -120,6 +120,71 @@ export async function fetchCloudPlaylistWithTracks(playlistId: string): Promise<
   }
 }
 
+// Stable identity key for a LOCAL track (title + fileName), matching the same
+// scheme used to match local tracks against cloud tracks during upload. Exposed
+// so the UI can compare a local playlist against its cloud version.
+export function localTrackKey(title: string, fileName: string): string {
+  return cloudTrackKey(title, fileName)
+}
+
+// Build a per-playlist "signature": the ORDERED list of track identity keys
+// (title::fileName) for each of the current user's cloud playlists. The UI uses
+// this to decide whether a local playlist is new, modified (added/removed/renamed/
+// reordered/changed tracks), or fully synced. Read-only; does not mutate anything.
+export async function fetchCloudPlaylistSignatures(): Promise<Record<string, string[]>> {
+  const supabase = createClient()
+  if (!supabase) return {}
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return {}
+
+  const [playlistsResult, tracksResult] = await Promise.all([
+    supabase.from('playlists').select('id, track_order').eq('user_id', user.id),
+    supabase.from('tracks').select('id, title, storage_path, playlist_id').eq('user_id', user.id),
+  ])
+
+  const playlists = playlistsResult.data || []
+  const tracks = tracksResult.data || []
+
+  // Map each cloud track id -> identity key, and group track ids by playlist.
+  const idToKey = new Map<string, string>()
+  const tracksByPlaylist = new Map<string, string[]>()
+  for (const t of tracks) {
+    idToKey.set(t.id, cloudTrackKey(t.title, t.storage_path || ''))
+    if (t.playlist_id) {
+      const arr = tracksByPlaylist.get(t.playlist_id) || []
+      arr.push(t.id)
+      tracksByPlaylist.set(t.playlist_id, arr)
+    }
+  }
+
+  const signatures: Record<string, string[]> = {}
+  for (const p of playlists) {
+    const order: string[] = Array.isArray(p.track_order) ? p.track_order : []
+    const seen = new Set<string>()
+    const keys: string[] = []
+    // Follow the saved track order first.
+    for (const id of order) {
+      const key = idToKey.get(id)
+      if (key) {
+        keys.push(key)
+        seen.add(id)
+      }
+    }
+    // Append any tracks belonging to the playlist that weren't in track_order
+    // (e.g. legacy rows), so the signature reflects the full cloud contents.
+    for (const id of tracksByPlaylist.get(p.id) || []) {
+      if (!seen.has(id)) {
+        const key = idToKey.get(id)
+        if (key) keys.push(key)
+      }
+    }
+    signatures[p.id] = keys
+  }
+
+  return signatures
+}
+
 export async function createCloudPlaylist(
   name: string,
   description?: string,

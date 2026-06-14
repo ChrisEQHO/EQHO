@@ -28,6 +28,8 @@ import {
   syncAllPlaylistsToCloud,
   downloadAllPlaylistsFromCloud,
   isCloudStorageAvailable,
+  fetchCloudPlaylistSignatures,
+  localTrackKey,
   type CloudPlaylist,
   type SyncStatus 
 } from "@/lib/cloud-sync";
@@ -401,6 +403,9 @@ export default function Page() {
   // Cloud sync state
   const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile';
   const [cloudPlaylists, setCloudPlaylists] = useState<CloudPlaylist[]>([]);
+  // Per-cloud-playlist ordered track identity keys, used to detect whether a local
+  // playlist is new, modified, or fully synced against its cloud version.
+  const [cloudSignatures, setCloudSignatures] = useState<Record<string, string[]>>({});
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<string | null>(null);
   const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
@@ -811,6 +816,43 @@ export default function Page() {
   }, [user]);
 
   // Cloud sync handlers
+  // Refresh per-playlist cloud signatures whenever the set of cloud playlists changes
+  // so each card can show an accurate "Upload to Cloud" / "Push Updates" / "Synced" state.
+  useEffect(() => {
+    if (isMobileBuild) return;
+    if (cloudPlaylists.length === 0) {
+      setCloudSignatures({});
+      return;
+    }
+    let cancelled = false;
+    fetchCloudPlaylistSignatures()
+      .then((sigs) => { if (!cancelled) setCloudSignatures(sigs); })
+      .catch(() => { /* non-fatal: cards just fall back to default state */ });
+    return () => { cancelled = true; };
+  }, [cloudPlaylists, isMobileBuild]);
+
+  // Find the cloud playlist that corresponds to a local one. After upload the cloud
+  // id may be a server-generated UUID (different from the local id), so match by id
+  // first and fall back to matching by name.
+  const findCloudPlaylistFor = (localPlaylist: { id: string; name: string }) =>
+    cloudPlaylists.find(cp => cp.id === localPlaylist.id) ||
+    cloudPlaylists.find(cp => cp.name === localPlaylist.name);
+
+  // Per-playlist cloud sync status:
+  //  - 'new'      => never uploaded                 => "Upload to Cloud"
+  //  - 'modified' => in cloud but tracks differ     => "Push Updates"
+  //  - 'synced'   => playlist + tracks match cloud   => blue "Synced", no upload button
+  const getPlaylistCloudStatus = (localPlaylist: { id: string; name: string; tracks: Array<{ title: string; fileName: string }> }): 'new' | 'modified' | 'synced' => {
+    const cloud = findCloudPlaylistFor(localPlaylist);
+    if (!cloud) return 'new';
+    const localKeys = localPlaylist.tracks.map(t => localTrackKey(t.title, t.fileName));
+    const cloudKeys = cloudSignatures[cloud.id] || [];
+    const matches =
+      localKeys.length === cloudKeys.length &&
+      localKeys.every((k, i) => k === cloudKeys[i]);
+    return matches ? 'synced' : 'modified';
+  };
+
   const handleSyncPlaylistToCloud = async (playlistId: string) => {
     if (isMobileBuild) return; // Read-only on mobile
     
@@ -4628,7 +4670,7 @@ export default function Page() {
                       className="px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
                     >
                       <RefreshCw size={14} />
-                      Sync
+                      Sync All
                     </button>
                   </div>
                 )}
@@ -4824,7 +4866,8 @@ export default function Page() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                       {savedPlaylists.map((localPlaylist) => {
-                        const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
+                        const cloudStatus = getPlaylistCloudStatus(localPlaylist);
+                        const isInCloud = cloudStatus !== 'new';
                         const isSyncing = syncingPlaylistId === localPlaylist.id;
                         const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
                         
@@ -4868,11 +4911,20 @@ export default function Page() {
                               )}
                             </div>
                             
-                            {isInCloud && (
+                            {cloudStatus === 'synced' ? (
                               <div className="mb-2 flex items-center gap-1 text-[10px] text-cyan-400">
                                 <Cloud size={10} />
                                 Synced
                               </div>
+                            ) : !isMobileBuild && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
+                                disabled={isSyncing}
+                                className="mb-2 w-full py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                              >
+                                {isSyncing ? <Loader2 size={11} className="animate-spin" /> : <Cloud size={11} />}
+                                {cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
+                              </button>
                             )}
                             
                             <div className="space-y-0.5 mb-2">
@@ -6435,7 +6487,8 @@ export default function Page() {
                             </div>
                             <div className="space-y-2">
                               {savedPlaylists.map((localPlaylist) => {
-                                const isInCloud = cloudPlaylists.some(cp => cp.id === localPlaylist.id);
+                                const cloudStatus = getPlaylistCloudStatus(localPlaylist);
+                                const isInCloud = cloudStatus !== 'new';
                                 const isSyncing = syncingPlaylistId === localPlaylist.id;
                                 const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
                                 
@@ -6475,12 +6528,21 @@ export default function Page() {
                                       </div>
                                     </div>
                                     
-                                    {/* Cloud Sync Badge */}
-                                    {isInCloud && (
+                                    {/* Cloud Sync Status / Action */}
+                                    {cloudStatus === 'synced' ? (
                                       <div className="mb-2 flex items-center gap-1 text-[9px] text-cyan-400">
                                         <Cloud size={9} />
                                         Synced to cloud
                                       </div>
+                                    ) : !isMobileBuild && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
+                                        disabled={isSyncing}
+                                        className="mb-2 w-full py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-semibold hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                      >
+                                        {isSyncing ? <Loader2 size={10} className="animate-spin" /> : <Cloud size={10} />}
+                                        {cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
+                                      </button>
                                     )}
                                     
                                     {/* Track Preview */}
