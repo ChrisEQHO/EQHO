@@ -1111,27 +1111,41 @@ export default function Page() {
     let playlists = await getLocalPlaylistsForSync();
 
     // 2) Fallback: if IndexedDB yielded no playable tracks at all, fall back to the
-    //    in-memory React state, resolving each track's File via the IndexedDB map.
+    //    in-memory React state (the named saved playlists AND the current queue),
+    //    resolving each track's File via the IndexedDB map.
     const idbHasTracks = playlists.some((p) => p.tracks.some((t) => t.file));
-    if (!idbHasTracks && savedPlaylists.length > 0) {
-      console.log('[v0] buildPlaylistsToSync: IndexedDB had no playable tracks — falling back to in-memory playlists');
+    if (!idbHasTracks && (savedPlaylists.length > 0 || playlist.length > 0)) {
+      console.log('[v0] buildPlaylistsToSync: IndexedDB had no playable tracks — falling back to in-memory playlists + queue');
       const idbFiles = await buildIndexedDbFileMap();
-      playlists = await Promise.all(
-        savedPlaylists.map(async (playlist) => ({
-          id: playlist.id,
-          name: playlist.name,
-          tracks: await Promise.all(
-            playlist.tracks.map(async (track: any) => ({
-              id: track.id,
-              title: track.title,
-              fileName: track.fileName,
-              durationSeconds: track.durationSeconds,
-              uploadedAt: track.uploadedAt,
-              file: await resolveTrackFileForSync(track, idbFiles),
-            }))
-          ),
+
+      const mapTrack = async (track: any) => ({
+        id: track.id,
+        title: track.title,
+        fileName: track.fileName,
+        durationSeconds: track.durationSeconds,
+        uploadedAt: track.uploadedAt,
+        file: await resolveTrackFileForSync(track, idbFiles),
+      });
+
+      const savedFromState = await Promise.all(
+        savedPlaylists.map(async (pl) => ({
+          id: pl.id,
+          name: pl.name,
+          tracks: await Promise.all(pl.tracks.map(mapTrack)),
         }))
       );
+
+      // Include the current queue (the playable now-playing list) as its own playlist.
+      const queueFromState =
+        playlist.length > 0
+          ? [{
+              id: 'current-queue',
+              name: currentPlaylistName || 'Current Queue',
+              tracks: await Promise.all(playlist.map(mapTrack)),
+            }]
+          : [];
+
+      playlists = [...savedFromState, ...queueFromState];
     }
 
     const totalTracks = playlists.reduce((n, p) => n + p.tracks.length, 0);

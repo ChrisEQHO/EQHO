@@ -523,7 +523,8 @@ export const getLocalPlaylistsForSync = async (): Promise<SyncReadyPlaylist[]> =
 
   const playlists: SyncReadyPlaylist[] = [];
 
-  // Named saved playlists (the primary source — these are the user's 4 playlists)
+  // Named saved playlists (sidebar playlists). NOTE: these are often empty
+  // containers — the actual uploaded audio lives in the currentQueue store.
   for (const pl of savedRaw) {
     const rawTracks: any[] = Array.isArray(pl.tracks)
       ? pl.tracks
@@ -532,10 +533,38 @@ export const getLocalPlaylistsForSync = async (): Promise<SyncReadyPlaylist[]> =
         : [];
     const tracks = await Promise.all(rawTracks.map(toSyncTrack));
     console.log(
-      `[v0] getLocalPlaylistsForSync: playlist "${pl.name || pl.id}" -> ${tracks.length} track(s), ${tracks.filter((t) => t.file).length} with audio`
+      `[v0] getLocalPlaylistsForSync: saved playlist "${pl.name || pl.id}" -> ${tracks.length} track(s), ${tracks.filter((t) => t.file).length} with audio`
     );
     playlists.push({ id: pl.id, name: pl.name || "Untitled Playlist", tracks });
   }
 
+  // Current queue (the playable now-playing list). This is where uploaded audio
+  // actually lives, so it MUST be uploaded too — otherwise empty saved playlists
+  // produce "N playlists but 0 tracks". The queue records are flat track records.
+  const queueTrackRecords: any[] = [];
+  for (const rec of queueRaw) {
+    if (Array.isArray(rec.tracks)) queueTrackRecords.push(...rec.tracks);
+    else queueTrackRecords.push(rec);
+  }
+  if (queueTrackRecords.length > 0) {
+    const queueTracks = await Promise.all(queueTrackRecords.map(toSyncTrack));
+    let queueName = "Current Queue";
+    try {
+      if (typeof localStorage !== "undefined") {
+        queueName = localStorage.getItem("currentPlaylistName") || queueName;
+      }
+    } catch {
+      /* localStorage may be unavailable; fall back to default name */
+    }
+    console.log(
+      `[v0] getLocalPlaylistsForSync: current queue "${queueName}" -> ${queueTracks.length} track(s), ${queueTracks.filter((t) => t.file).length} with audio`
+    );
+    playlists.push({ id: "current-queue", name: queueName, tracks: queueTracks });
+  }
+
+  const totalTracks = playlists.reduce((n, p) => n + p.tracks.length, 0);
+  console.log(
+    `[v0] getLocalPlaylistsForSync: returning ${playlists.length} playlist(s) with ${totalTracks} total track(s)`
+  );
   return playlists;
 };
