@@ -742,11 +742,13 @@ export async function uploadPlaylistToCloud(
     if (!existingPlaylist) {
       // Insert from local data as the source of truth. Only pass the local id when
       // it's a valid UUID; otherwise let Postgres generate one.
+      // Use a constant default for the playlist's gap_seconds column (it may be
+      // NOT NULL); we intentionally do NOT sync the user's actual gap setting.
       const playlistInsert: Record<string, unknown> = {
         user_id: user.id,
         name: localPlaylist.name,
         track_order: [],
-        gap_seconds: coachSettings?.gapSeconds || 3,
+        gap_seconds: 3,
       }
       if (isValidUuid(localPlaylist.id)) {
         playlistInsert.id = localPlaylist.id
@@ -849,32 +851,14 @@ export async function uploadPlaylistToCloud(
       `[v0] uploadPlaylistToCloud: "${localPlaylist.name}" done — uploaded ${uploadedCount}, skipped ${skippedCount}, failed ${failedCount}`
     )
 
-    // Update track order on playlist
+    // Update the playlist manifest only: name + track order (the R2 storage paths,
+    // track names and durations are stored per-track in the `tracks` table).
+    // NOTE: Cloud upload intentionally does NOT write coach_settings, profiles,
+    // player settings, volume, gap/countdown/back-to-back, or subscription data.
     await updateCloudPlaylist(existingPlaylist.id, {
       track_order: trackOrder,
       name: localPlaylist.name,
     })
-
-    // Save coach settings to Supabase if provided
-    if (coachSettings) {
-      await saveCoachSettings({
-        default_gap_seconds: coachSettings.gapSeconds,
-        countdown_enabled: coachSettings.countdownEnabled,
-        countdown_seconds: coachSettings.countdownSeconds,
-        autoplay_next: coachSettings.autoplayNext,
-        back_to_back_default: coachSettings.backToBackDefault,
-        show_pause_warning: coachSettings.showPauseWarning,
-        show_skip_warning: coachSettings.showSkipWarning,
-        playlist_repeats: coachSettings.playlistRepeats,
-        default_volume: 1,
-      })
-    }
-
-    // Update sync timestamp
-    await supabase
-      .from('profiles')
-      .update({ last_synced_at: new Date().toISOString() })
-      .eq('id', user.id)
 
     return { success: true, uploadedTracks: uploadedCount, skippedTracks: skippedCount }
   } catch (error) {
@@ -939,8 +923,8 @@ export async function syncAllPlaylistsToCloud(
     }
   }
 
-  // Update push timestamp after all syncs
-  await pushToApps()
+  // Cloud upload only handles playlists + audio. It intentionally does NOT update
+  // any profile/sync timestamps or player/coach settings.
 
   return {
     success: errors.length === 0,
