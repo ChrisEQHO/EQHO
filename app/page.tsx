@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, getLocalPlaylistsForSync, debugInspectIndexedDb } from "@/lib/eqho-db";
+import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
@@ -1102,58 +1102,70 @@ export default function Page() {
     return undefined;
   };
 
-  // Build sync-ready playlists by reading tracks DIRECTLY from the IndexedDB
-  // savedPlaylists/currentQueue stores (the local source of truth), NOT from the
-  // in-memory React state or Supabase metadata (which can hold playlists whose
-  // `tracks` arrays are empty — the cause of "N playlists but 0 tracks").
+  // Build sync-ready playlists using EXACTLY the same source that renders the
+  // visible Playlists sidebar: the `savedPlaylists` state array. We never scan
+  // IndexedDB for arbitrary objects, so the current queue, session state, player
+  // settings, coach settings, profiles, cloud manifests, and metadata-only/old
+  // playlists are all excluded. IndexedDB is only consulted to resolve each
+  // visible track's audio File (never to discover playlists).
   const buildPlaylistsToSync = async () => {
-    // 1) Primary source: grouped playlists + tracks straight from IndexedDB.
-    let playlists = await getLocalPlaylistsForSync();
+    // The sidebar renders `savedPlaylists.map(...)` directly, so these names are
+    // exactly what the user sees.
+    console.log(
+      `[v0] buildPlaylistsToSync: visible sidebar playlists (${savedPlaylists.length}):`,
+      savedPlaylists.map((p) => p.name)
+    );
 
-    // 2) Fallback: if IndexedDB yielded no playable tracks at all, fall back to the
-    //    in-memory React state (the named saved playlists AND the current queue),
-    //    resolving each track's File via the IndexedDB map.
-    const idbHasTracks = playlists.some((p) => p.tracks.some((t) => t.file));
-    if (!idbHasTracks && (savedPlaylists.length > 0 || playlist.length > 0)) {
-      console.log('[v0] buildPlaylistsToSync: IndexedDB had no playable tracks — falling back to in-memory playlists + queue');
-      const idbFiles = await buildIndexedDbFileMap();
+    // Audio is resolved from IndexedDB only for tracks that belong to visible playlists.
+    const idbFiles = await buildIndexedDbFileMap();
 
-      const mapTrack = async (track: any) => ({
-        id: track.id,
-        title: track.title,
-        fileName: track.fileName,
-        durationSeconds: track.durationSeconds,
-        uploadedAt: track.uploadedAt,
-        file: await resolveTrackFileForSync(track, idbFiles),
-      });
-
-      const savedFromState = await Promise.all(
-        savedPlaylists.map(async (pl) => ({
-          id: pl.id,
-          name: pl.name,
-          tracks: await Promise.all(pl.tracks.map(mapTrack)),
-        }))
-      );
-
-      // Include the current queue (the playable now-playing list) as its own playlist.
-      const queueFromState =
-        playlist.length > 0
-          ? [{
-              id: 'current-queue',
-              name: currentPlaylistName || 'Current Queue',
-              tracks: await Promise.all(playlist.map(mapTrack)),
-            }]
+    const resolved = await Promise.all(
+      savedPlaylists.map(async (pl) => {
+        const hasName = typeof pl.name === 'string' && pl.name.trim().length > 0;
+        const hasTracksArray = Array.isArray(pl.tracks);
+        const tracks = hasTracksArray
+          ? await Promise.all(
+              pl.tracks.map(async (track: any) => ({
+                id: track.id,
+                title: track.title,
+                fileName: track.fileName,
+                durationSeconds: track.durationSeconds,
+                uploadedAt: track.uploadedAt,
+                file: await resolveTrackFileForSync(track, idbFiles),
+              }))
+            )
           : [];
+        const tracksWithAudio = tracks.filter((t) => t.file);
+        return { pl, hasName, hasTracksArray, tracks, tracksWithAudio };
+      })
+    );
 
-      playlists = [...savedFromState, ...queueFromState];
+    const playlistsToUpload: { id: string; name: string; tracks: any[] }[] = [];
+
+    for (const { pl, hasName, hasTracksArray, tracks, tracksWithAudio } of resolved) {
+      // Only upload objects that are real, visible playlist folders with audio.
+      if (!hasName) {
+        console.log(`[v0] buildPlaylistsToSync: SKIP playlist id=${pl.id} — reason: no playlist name`);
+        continue;
+      }
+      if (!hasTracksArray) {
+        console.log(`[v0] buildPlaylistsToSync: SKIP "${pl.name}" — reason: no real tracks array`);
+        continue;
+      }
+      if (tracksWithAudio.length === 0) {
+        console.log(`[v0] buildPlaylistsToSync: SKIP "${pl.name}" — reason: no track with audio data (${tracks.length} track(s), 0 with audio)`);
+        continue;
+      }
+      // Upload only the tracks that actually have audio.
+      playlistsToUpload.push({ id: pl.id, name: pl.name, tracks: tracksWithAudio });
     }
 
-    const totalTracks = playlists.reduce((n, p) => n + p.tracks.length, 0);
-    const resolvedTracks = playlists.reduce((n, p) => n + p.tracks.filter((t) => t.file).length, 0);
+    const totalTracks = playlistsToUpload.reduce((n, p) => n + p.tracks.length, 0);
     console.log(
-      `[v0] buildPlaylistsToSync: ${playlists.length} playlist(s), ${totalTracks} track(s) found, ${resolvedTracks} with audio ready to upload, ${totalTracks - resolvedTracks} skipped (no audio)`
+      `[v0] buildPlaylistsToSync: selected ${playlistsToUpload.length} playlist(s) for upload with ${totalTracks} audio track(s):`,
+      playlistsToUpload.map((p) => `${p.name} (${p.tracks.length})`)
     );
-    return playlists;
+    return playlistsToUpload;
   };
 
   // Handler for Upload to Cloud button - uploads playlists to R2 storage
@@ -1170,13 +1182,8 @@ export default function Page() {
         return;
       }
 
-      // TEMPORARY: dump the real IndexedDB structure (stores, record counts,
-      // first playlist/track keys + shapes, audio presence) so the uploader can
-      // be matched to the actual stored format instead of guessed field names.
-      await debugInspectIndexedDb();
-
-      // Prepare playlists with files for upload, reading tracks DIRECTLY from the
-      // IndexedDB savedPlaylists/currentQueue stores (not Supabase metadata).
+      // Prepare playlists for upload using ONLY the visible sidebar playlists
+      // (savedPlaylists). IndexedDB is consulted only to resolve each track's audio.
       const playlistsToSync = await buildPlaylistsToSync();
 
       // Upload ONLY playlists + audio + a simple manifest. We intentionally do NOT
