@@ -297,3 +297,140 @@ export const clearSavedPlaylists = async (): Promise<void> => {
     tx.onerror = () => reject(tx.error);
   });
 };
+
+// ---------------------------------------------------------------------------
+// Robust local audio extraction for cloud upload.
+// Reads the raw records from the savedPlaylists and currentQueue stores and
+// extracts a usable File from whatever audio representation each track holds:
+// File, Blob, ArrayBuffer / typed array (fileData / audioData / buffer), or a
+// (object/blob/cloud) URL. This does NOT assume a fixed schema, so it works
+// across legacy and current storage formats.
+// ---------------------------------------------------------------------------
+
+export interface LocalAudioFile {
+  id: string;
+  fileName: string;
+  title: string;
+  file: File;
+  source: string; // which representation it was extracted from
+}
+
+const extractFileFromRecord = async (
+  rec: any
+): Promise<{ file: File; source: string } | null> => {
+  if (!rec) return null;
+  const name = rec.fileName || rec.title || rec.name || "audio";
+  const type = rec.fileType || rec.mimeType || rec.type || "audio/mpeg";
+
+  // 1) Native File
+  if (rec.file instanceof File) return { file: rec.file, source: "File" };
+
+  // 2) Blob (in `file` or `blob`)
+  if (rec.file instanceof Blob)
+    return { file: new File([rec.file], name, { type: rec.file.type || type }), source: "Blob(file)" };
+  if (rec.blob instanceof Blob)
+    return { file: new File([rec.blob], name, { type: rec.blob.type || type }), source: "Blob" };
+
+  // 3) ArrayBuffer / typed array, under any of the common field names
+  const buf = rec.fileData ?? rec.audioData ?? rec.arrayBuffer ?? rec.buffer ?? rec.data;
+  if (buf instanceof ArrayBuffer) return { file: new File([buf], name, { type }), source: "ArrayBuffer" };
+  if (buf && ArrayBuffer.isView(buf)) return { file: new File([buf as any], name, { type }), source: "TypedArray" };
+
+  // 4) URL string (object URL, blob: URL, or cloud URL)
+  const url = rec.url || rec.objectUrl || rec.audioUrl || rec.fileUrl;
+  if (typeof url === "string" && url) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const blob = await res.blob();
+        return { file: new File([blob], name, { type: blob.type || type }), source: "URL" };
+      }
+    } catch (err) {
+      console.log('[v0] extractFileFromRecord: failed to fetch url for', name, err);
+    }
+  }
+
+  return null;
+};
+
+export const getAllLocalAudioFiles = async (): Promise<LocalAudioFile[]> => {
+  const db = await openEqhoDB();
+  console.log(
+    `[v0] IndexedDB opened: "${DB_NAME}" v${DB_VERSION} — stores: [${Array.from(db.objectStoreNames).join(", ")}]`
+  );
+
+  const readStore = (storeName: string): Promise<any[]> =>
+    new Promise((resolve) => {
+      if (!db.objectStoreNames.contains(storeName)) {
+        resolve([]);
+        return;
+      }
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+
+  const [savedRaw, queueRaw] = await Promise.all([
+    readStore(SAVED_PLAYLISTS_STORE),
+    readStore(CURRENT_QUEUE_STORE),
+  ]);
+
+  console.log(`[v0] savedPlaylists count: ${savedRaw.length}`);
+  console.log(`[v0] currentQueue count: ${queueRaw.length}`);
+
+  const results: LocalAudioFile[] = [];
+  const seen = new Set<string>();
+
+  const handleTrack = async (rec: any, playlistLabel: string) => {
+    const id = rec.id || rec.trackId || "";
+    const fileName = rec.fileName || rec.title || "audio";
+    const label = rec.title || fileName;
+
+    const has = {
+      File: rec.file instanceof File,
+      Blob: rec.file instanceof Blob || rec.blob instanceof Blob,
+      ArrayBuffer:
+        (rec.fileData ?? rec.audioData ?? rec.arrayBuffer ?? rec.buffer ?? rec.data) instanceof ArrayBuffer,
+      audioData: rec.audioData != null,
+      url: typeof (rec.url || rec.objectUrl || rec.audioUrl || rec.fileUrl) === "string",
+    };
+    console.log(`[v0] [${playlistLabel}] track "${label}" audio sources:`, has);
+
+    const extracted = await extractFileFromRecord(rec);
+    if (!extracted) {
+      console.log(
+        `[v0] [${playlistLabel}] SKIP track "${label}" — reason: no usable audio (File/Blob/ArrayBuffer/audioData/url all absent)`
+      );
+      return;
+    }
+
+    const key = id || fileName;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({ id, fileName, title: label, file: extracted.file, source: extracted.source });
+  };
+
+  // savedPlaylists records: either a playlist with a `tracks[]` array, or a flat track
+  for (const rec of savedRaw) {
+    if (Array.isArray(rec.tracks)) {
+      console.log(`[v0] savedPlaylist "${rec.name || rec.id}" tracks found: ${rec.tracks.length}`);
+      for (const t of rec.tracks) await handleTrack(t, `saved:${rec.name || rec.id}`);
+    } else {
+      await handleTrack(rec, "saved");
+    }
+  }
+
+  // currentQueue records: flat track records (or, defensively, nested)
+  for (const rec of queueRaw) {
+    if (Array.isArray(rec.tracks)) {
+      console.log(`[v0] currentQueue group "${rec.name || rec.id}" tracks found: ${rec.tracks.length}`);
+      for (const t of rec.tracks) await handleTrack(t, "queue");
+    } else {
+      await handleTrack(rec, "queue");
+    }
+  }
+
+  console.log(`[v0] getAllLocalAudioFiles: extracted ${results.length} audio file(s) from IndexedDB`);
+  return results;
+};

@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles } from "@/lib/eqho-db";
+import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
@@ -1046,26 +1046,18 @@ export default function Page() {
     const byId = new Map<string, File>();
     const byName = new Map<string, File>();
 
-    const add = (id?: string, fileName?: string, file?: File) => {
-      if (!file) return;
-      if (id) byId.set(id, file);
-      if (fileName) byName.set(fileName, file);
-    };
-
     try {
-      const savedFromIdb = await getSavedPlaylistsWithTracks();
-      for (const pl of savedFromIdb) {
-        for (const t of pl.tracks) add(t.id, t.fileName, t.file);
+      // Robustly read the raw records from the eqho-player-db savedPlaylists and
+      // currentQueue stores and extract a File from whatever audio representation
+      // each track holds (File / Blob / ArrayBuffer / audioData / url). This also
+      // emits the detailed [v0] logging (db opened, store counts, per-track source).
+      const localFiles = await getAllLocalAudioFiles();
+      for (const lf of localFiles) {
+        if (lf.id) byId.set(lf.id, lf.file);
+        if (lf.fileName) byName.set(lf.fileName, lf.file);
       }
     } catch (err) {
-      console.log('[v0] buildIndexedDbFileMap: failed reading saved playlists from IndexedDB', err);
-    }
-
-    try {
-      const currentFromIdb = await getCurrentPlaylistWithFiles();
-      for (const t of currentFromIdb) add(t.id, t.fileName, t.file);
-    } catch (err) {
-      console.log('[v0] buildIndexedDbFileMap: failed reading current queue from IndexedDB', err);
+      console.log('[v0] buildIndexedDbFileMap: failed reading audio from IndexedDB', err);
     }
 
     return { byId, byName };
