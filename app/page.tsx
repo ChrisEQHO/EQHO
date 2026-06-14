@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
+import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, getLocalPlaylistsForSync } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
@@ -1102,49 +1102,44 @@ export default function Page() {
     return undefined;
   };
 
-  // Build sync-ready playlists, resolving each track's audio from IndexedDB first
-  // (the original File/Blob objects), then falling back to in-memory/url sources.
+  // Build sync-ready playlists by reading tracks DIRECTLY from the IndexedDB
+  // savedPlaylists/currentQueue stores (the local source of truth), NOT from the
+  // in-memory React state or Supabase metadata (which can hold playlists whose
+  // `tracks` arrays are empty — the cause of "N playlists but 0 tracks").
   const buildPlaylistsToSync = async () => {
-    const idbFiles = await buildIndexedDbFileMap();
+    // 1) Primary source: grouped playlists + tracks straight from IndexedDB.
+    let playlists = await getLocalPlaylistsForSync();
 
-    let totalTracks = 0;
-    let resolvedTracks = 0;
-    let skippedTracks = 0;
-    console.log(`[v0] buildPlaylistsToSync: ${savedPlaylists.length} playlist(s) found locally`);
-
-    const result = await Promise.all(
-      savedPlaylists.map(async (playlist) => ({
-        id: playlist.id,
-        name: playlist.name,
-        tracks: await Promise.all(
-          playlist.tracks.map(async (track) => {
-            totalTracks++;
-            const file = await resolveTrackFileForSync(track, idbFiles);
-            if (file) {
-              resolvedTracks++;
-            } else {
-              skippedTracks++;
-              console.log(
-                `[v0] buildPlaylistsToSync: SKIP track "${track.title || track.fileName}" — reason: no audio File found (no live File, not in IndexedDB, no fetchable url)`
-              );
-            }
-            return {
+    // 2) Fallback: if IndexedDB yielded no playable tracks at all, fall back to the
+    //    in-memory React state, resolving each track's File via the IndexedDB map.
+    const idbHasTracks = playlists.some((p) => p.tracks.some((t) => t.file));
+    if (!idbHasTracks && savedPlaylists.length > 0) {
+      console.log('[v0] buildPlaylistsToSync: IndexedDB had no playable tracks — falling back to in-memory playlists');
+      const idbFiles = await buildIndexedDbFileMap();
+      playlists = await Promise.all(
+        savedPlaylists.map(async (playlist) => ({
+          id: playlist.id,
+          name: playlist.name,
+          tracks: await Promise.all(
+            playlist.tracks.map(async (track: any) => ({
               id: track.id,
               title: track.title,
               fileName: track.fileName,
               durationSeconds: track.durationSeconds,
               uploadedAt: track.uploadedAt,
-              file,
-            };
-          })
-        ),
-      }))
-    );
+              file: await resolveTrackFileForSync(track, idbFiles),
+            }))
+          ),
+        }))
+      );
+    }
 
+    const totalTracks = playlists.reduce((n, p) => n + p.tracks.length, 0);
+    const resolvedTracks = playlists.reduce((n, p) => n + p.tracks.filter((t) => t.file).length, 0);
     console.log(
-      `[v0] buildPlaylistsToSync: ${totalTracks} track(s) found, ${resolvedTracks} with audio ready to upload, ${skippedTracks} skipped (no audio)`
+      `[v0] buildPlaylistsToSync: ${playlists.length} playlist(s), ${totalTracks} track(s) found, ${resolvedTracks} with audio ready to upload, ${totalTracks - resolvedTracks} skipped (no audio)`
     );
-    return result;
+    return playlists;
   };
 
   // Handler for Upload to Cloud button - uploads playlists to R2 storage
