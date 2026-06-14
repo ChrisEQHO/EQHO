@@ -838,6 +838,14 @@ export default function Page() {
     cloudPlaylists.find(cp => cp.id === localPlaylist.id) ||
     cloudPlaylists.find(cp => cp.name === localPlaylist.name);
 
+  // "Cloud Available" playlists: exist in the cloud but are NOT present on this
+  // device yet. Match by id OR name (an uploaded playlist keeps its local id while
+  // the cloud copy gets a server UUID), so a synced local playlist never also
+  // appears as a duplicate cloud-only card.
+  const cloudOnlyPlaylists = cloudPlaylists.filter(
+    cp => !savedPlaylists.some(sp => sp.id === cp.id || sp.name === cp.name)
+  );
+
   // Per-playlist cloud sync status:
   //  - 'new'      => never uploaded                 => "Upload to Cloud"
   //  - 'modified' => in cloud but tracks differ     => "Push Updates"
@@ -4955,16 +4963,16 @@ export default function Page() {
                   </div>
                 )}
 
-                {/* Cloud Playlists */}
-                {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
+                {/* Cloud Available Playlists (in cloud, not yet on this device) */}
+                {cloudOnlyPlaylists.length > 0 && (
                   <div>
                     <h2 className="text-sm font-bold text-white/60 mb-4 flex items-center gap-2 uppercase tracking-wider">
                       <Cloud size={16} className="text-cyan-400" />
-                      Cloud Playlists
+                      Cloud Available
+                      <span className="text-white/30 font-normal lowercase">({cloudOnlyPlaylists.length})</span>
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                          {cloudPlaylists
-                            .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
+                          {cloudOnlyPlaylists
                             .map((cloudPlaylist) => {
                               const isDownloading = downloadingPlaylistId === cloudPlaylist.id;
                               
@@ -4984,31 +4992,20 @@ export default function Page() {
                                       <h3 className="text-base font-bold truncate">{cloudPlaylist.name}</h3>
                                       <p className="text-sm text-white/50 mt-1">{cloudPlaylist.tracks.length} tracks</p>
                                     </div>
-                                    
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDownloadCloudPlaylist(cloudPlaylist.id);
-                                      }}
-                                      disabled={isDownloading}
-                                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center transition opacity-0 group-hover:opacity-100 shrink-0"
-                                      title="Download to device"
-                                    >
-                                      {isDownloading ? (
-                                        <Loader2 size={14} className="animate-spin text-cyan-400" />
-                                      ) : (
-                                        <Download size={14} className="text-cyan-400" />
-                                      )}
-                                    </button>
                                   </div>
-                                  
+
+                                  {/* Load from Cloud: downloads audio from R2 by storage_path */}
                                   <button
-                                    onClick={() => setShowSendToSessionConfirm({ name: cloudPlaylist.name, tracks: cloudPlaylist.tracks })}
-                                    className="mt-3 w-full py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 
-                                               border border-cyan-500/30 text-cyan-400 text-sm font-medium
-                                               hover:from-cyan-500/30 hover:to-blue-500/30 transition"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadCloudPlaylist(cloudPlaylist.id);
+                                    }}
+                                    disabled={isDownloading}
+                                    className="mt-3 w-full py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-sm font-semibold
+                                               hover:bg-cyan-500/30 transition flex items-center justify-center gap-2 disabled:opacity-50"
                                   >
-                                    Send to Session
+                                    {isDownloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                                    {isDownloading ? 'Loading…' : 'Load from Cloud'}
                                   </button>
                                 </div>
                               );
@@ -6601,18 +6598,19 @@ export default function Page() {
                           </div>
                         )}
                         
-                        {/* Cloud Playlists */}
-                        {cloudPlaylists.filter(cp => !savedPlaylists.some(sp => sp.id === cp.id)).length > 0 && (
+                        {/* Cloud Available Playlists (in cloud, not yet on this device) */}
+                        {cloudOnlyPlaylists.length > 0 && (
                           <div>
                             <h3 className="text-[10px] font-bold text-white/60 mb-2 flex items-center gap-1.5 uppercase tracking-wider sticky top-0 bg-[#050816] py-1 z-10">
                               <Cloud size={12} className="text-cyan-400" />
-                              Cloud Playlists
+                              Cloud Available
+                              <span className="text-white/30 font-normal normal-case">({cloudOnlyPlaylists.length})</span>
                             </h3>
                             <div className="space-y-2">
-                              {cloudPlaylists
-                                .filter(cp => !savedPlaylists.some(sp => sp.id === cp.id))
+                              {cloudOnlyPlaylists
                                 .map((cloudPlaylist) => {
                                   const totalDuration = cloudPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
+                                  const isDownloading = downloadingPlaylistId === cloudPlaylist.id;
                                   
                                   return (
                                     <div
@@ -6648,50 +6646,19 @@ export default function Page() {
                                         )}
                                       </div>
                                       
-                                      {/* Action Buttons */}
-                                      <div className="flex gap-2">
-                                        <button
-                                          onClick={() => setShowSendToSessionConfirm({ name: cloudPlaylist.name, tracks: cloudPlaylist.tracks })}
-                                          className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
-                                                     border border-pink-500/25 text-pink-400 text-[11px] font-semibold
-                                                     hover:from-pink-500/25 hover:to-orange-500/25 transition"
-                                          title="Replace the current queue with this playlist"
-                                        >
-                                          Send to Session
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            if (cloudPlaylist.tracks.length === 0) return;
-                                            // Append this playlist's tracks to the existing queue to build one master playlist
-                                            setPlaylist((prev) => {
-                                              const next = [...prev, ...cloudPlaylist.tracks];
-                                              if (prev.length === 0) {
-                                                setCurrentPlaylistName(cloudPlaylist.name);
-                                                setCurrentIndex(0);
-                                                setCurrentTrack(next[0]);
-                                              }
-                                              return next;
-                                            });
-                                          }}
-                                          className="py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500/15 to-blue-500/15 
-                                                     border border-cyan-500/25 text-cyan-400 text-[11px] font-semibold
-                                                     hover:from-cyan-500/25 hover:to-blue-500/25 transition"
-                                          title="Add to the current Up Next queue"
-                                        >
-                                          Add
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setSavedPlaylists(prev => [...prev, cloudPlaylist]);
-                                          }}
-                                          className="py-2 px-3 rounded-lg bg-white/5 
-                                                     border border-white/15 text-white/70 text-[11px] font-semibold
-                                                     hover:bg-white/10 transition"
-                                          title="Download to local library"
-                                        >
-                                          <Download size={12} />
-                                        </button>
-                                      </div>
+                                      {/* Load from Cloud: downloads audio from R2 by storage_path,
+                                          then the playlist appears in the local library as Synced. */}
+                                      <button
+                                        onClick={() => handleDownloadCloudPlaylist(cloudPlaylist.id)}
+                                        disabled={isDownloading}
+                                        className="w-full py-2 rounded-lg bg-cyan-500/15 
+                                                   border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold
+                                                   hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                        title="Download this playlist's audio to this device"
+                                      >
+                                        {isDownloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                        {isDownloading ? 'Loading…' : 'Load from Cloud'}
+                                      </button>
                                     </div>
                                   );
                                 })}
