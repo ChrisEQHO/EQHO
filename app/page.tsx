@@ -867,8 +867,14 @@ export default function Page() {
     const localPlaylist = savedPlaylists.find(p => p.id === playlistId);
     if (!localPlaylist) return;
 
+    // Capture whether this playlist already exists in the cloud so we can show the
+    // correct success message: pushing updates vs a first-time upload.
+    const wasModified = getPlaylistCloudStatus(localPlaylist) === 'modified';
+
     setSyncingPlaylistId(playlistId);
     setSyncStatus('syncing');
+    setCloudSaveSuccess(false);
+    setCloudSaveMessage(`Syncing ${localPlaylist.name}...`);
 
     try {
       const result = await syncPlaylistToCloud({
@@ -886,15 +892,26 @@ export default function Page() {
 
       if (result.success) {
         setSyncStatus('success');
-        // Refresh cloud playlists
+        // Single-playlist success messages (green banner via cloudSaveSuccess).
+        setCloudSaveMessage(
+          wasModified
+            ? 'Updates pushed successfully'
+            : `Uploaded ${localPlaylist.name} successfully`
+        );
+        setCloudSaveSuccess(true);
+        // Refresh cloud playlists so the card flips to the blue "Synced" state.
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
       } else {
         setSyncStatus('error');
+        setCloudSaveSuccess(false);
+        setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
       }
     } catch (error) {
       console.error("Sync failed:", error);
       setSyncStatus('error');
+      setCloudSaveSuccess(false);
+      setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
     } finally {
       setTimeout(() => {
         setSyncingPlaylistId(null);
@@ -4994,7 +5011,7 @@ export default function Page() {
                                     </div>
                                   </div>
 
-                                  {/* Load from Cloud: downloads audio from R2 by storage_path */}
+                                  {/* Download to Device: downloads audio from R2 by storage_path */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -5005,7 +5022,7 @@ export default function Page() {
                                                hover:bg-cyan-500/30 transition flex items-center justify-center gap-2 disabled:opacity-50"
                                   >
                                     {isDownloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                                    {isDownloading ? 'Loading…' : 'Load from Cloud'}
+                                    {isDownloading ? 'Downloading…' : 'Download to Device'}
                                   </button>
                                 </div>
                               );
@@ -6646,7 +6663,7 @@ export default function Page() {
                                         )}
                                       </div>
                                       
-                                      {/* Load from Cloud: downloads audio from R2 by storage_path,
+                                      {/* Download to Device: downloads audio from R2 by storage_path,
                                           then the playlist appears in the local library as Synced. */}
                                       <button
                                         onClick={() => handleDownloadCloudPlaylist(cloudPlaylist.id)}
@@ -6657,7 +6674,7 @@ export default function Page() {
                                         title="Download this playlist's audio to this device"
                                       >
                                         {isDownloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                                        {isDownloading ? 'Loading…' : 'Load from Cloud'}
+                                        {isDownloading ? 'Downloading…' : 'Download to Device'}
                                       </button>
                                     </div>
                                   );
