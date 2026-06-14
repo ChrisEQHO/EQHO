@@ -220,6 +220,13 @@ export async function uploadTrackToCloud(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  // Audio source check
+  if (!track.file) {
+    console.warn('[v0] uploadTrackToCloud: audio source MISSING for track', track.title)
+    return null
+  }
+  console.log('[v0] uploadTrackToCloud: audio source FOUND for track', track.title, `(${track.file.size} bytes)`)
+
   // Upload file to R2 storage
   const r2Key = getTrackStorageKey(user.id, playlistId, track.id, track.fileName)
   
@@ -232,9 +239,10 @@ export async function uploadTrackToCloud(
   )
 
   if (!r2Result.success) {
-    console.error('Error uploading track to R2:', r2Result.error)
+    console.error('[v0] uploadTrackToCloud: R2 upload FAILED for track', track.title, '-', r2Result.error)
     return null
   }
+  console.log('[v0] uploadTrackToCloud: R2 upload SUCCESS for track', track.title, '->', r2Key)
 
   // Store metadata in Supabase (not the file itself).
   // Only pass the local id when it's a valid UUID; otherwise let Postgres
@@ -259,12 +267,13 @@ export async function uploadTrackToCloud(
     .single()
 
   if (error) {
-    console.error('Error creating track record:', error)
+    console.error('[v0] uploadTrackToCloud: Supabase track insert FAILED for', track.title, '-', error.message)
     // Clean up R2 file
     await deleteTrackFromR2(r2Key)
     return null
   }
 
+  console.log('[v0] uploadTrackToCloud: Supabase track insert SUCCESS for', track.title, '->', data?.id)
   return data
 }
 
@@ -327,51 +336,36 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
   const supabase = createClient()
   if (!supabase) return { success: false, uploadedTracks: 0 }
 
-  // Check if playlist exists in cloud
-  const { data: existingPlaylist } = await supabase
-    .from('playlists')
-    .select('*')
-    .eq('id', localPlaylist.id)
-    .single()
-
-  let cloudPlaylist: CloudPlaylist | null = existingPlaylist
-
-  if (!cloudPlaylist) {
-    // Create new playlist
-    cloudPlaylist = await createCloudPlaylist(localPlaylist.name)
-    if (!cloudPlaylist) return { success: false, uploadedTracks: 0 }
-  }
-
-  // Upload tracks
-  let uploadedCount = 0
-  const trackOrder: string[] = []
-
-  for (const track of localPlaylist.tracks) {
-    // Check if track already exists
-    const { data: existingTrack } = await supabase
-      .from('tracks')
-      .select('id')
-      .eq('id', track.id)
-      .single()
-
-    if (!existingTrack) {
-      const uploaded = await uploadTrackToCloud(cloudPlaylist.id, track)
-      if (uploaded) {
-        uploadedCount++
-        trackOrder.push(uploaded.id)
-      }
-    } else {
-      trackOrder.push(existingTrack.id)
-    }
-  }
-
-  // Update track order
-  await updateCloudPlaylist(cloudPlaylist.id, { 
-    track_order: trackOrder,
-    name: localPlaylist.name 
+  // Delegate to the robust uploader, which inserts missing playlists/tracks from
+  // local data as the source of truth and never does failing per-id lookups
+  // (the old `.eq('id', track.id).single()` lookup returned 406 when the row
+  // didn't exist, blocking the upload entirely).
+  const result = await uploadPlaylistToCloud({
+    id: localPlaylist.id,
+    name: localPlaylist.name,
+    tracks: localPlaylist.tracks,
   })
 
-  return { success: true, cloudPlaylist, uploadedTracks: uploadedCount }
+  if (!result.success) {
+    console.error('[v0] syncPlaylistToCloud: upload failed', result.error)
+    return { success: false, uploadedTracks: 0 }
+  }
+
+  // Resolve the resulting cloud playlist row to return to the caller.
+  const { data: cloudPlaylist } = await supabase
+    .from('playlists')
+    .select('*')
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+    .eq('name', localPlaylist.name)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    success: true,
+    cloudPlaylist: cloudPlaylist || undefined,
+    uploadedTracks: result.uploadedTracks,
+  }
 }
 
 export async function fetchPlaylistWithFiles(playlistId: string): Promise<LocalPlaylist | null> {
@@ -754,7 +748,13 @@ export async function uploadPlaylistToCloud(
     // Upload tracks
     let uploadedCount = 0
     let skippedCount = 0
+    let attemptedCount = 0
+    let failedCount = 0
     const trackOrder: string[] = []
+
+    console.log(
+      `[v0] uploadPlaylistToCloud: playlist "${localPlaylist.name}" has ${localPlaylist.tracks.length} local track(s)`
+    )
 
     // Fetch existing cloud tracks for this playlist ONCE, and match local tracks by
     // a stable identity (title + fileName) rather than by id. Cloud track IDs are
@@ -795,14 +795,36 @@ export async function uploadPlaylistToCloud(
         file: track.file,
       }
 
+      attemptedCount++
       const uploaded = await uploadTrackToCloud(existingPlaylist.id, localTrack)
       if (uploaded) {
         uploadedCount++
         trackOrder.push(uploaded.id)
         // Record so duplicate local entries in the same batch aren't re-uploaded.
         existingTrackKeys.set(cloudTrackKey(track.title, track.fileName), uploaded.id)
+      } else {
+        failedCount++
       }
     }
+
+    // If we tried to upload tracks (they had audio) but every one failed, this is a
+    // real error (most commonly R2 not configured server-side). Surface it instead of
+    // reporting a misleading "success with 0 tracks".
+    if (attemptedCount > 0 && uploadedCount === 0) {
+      console.error(
+        `[v0] uploadPlaylistToCloud: all ${attemptedCount} track upload(s) failed for "${localPlaylist.name}". Check R2 configuration (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ACCOUNT_ID).`
+      )
+      return {
+        success: false,
+        uploadedTracks: 0,
+        skippedTracks: skippedCount,
+        error: 'Track audio upload failed. Cloudflare R2 storage is not configured on the server.',
+      }
+    }
+
+    console.log(
+      `[v0] uploadPlaylistToCloud: "${localPlaylist.name}" done — uploaded ${uploadedCount}, skipped ${skippedCount}, failed ${failedCount}`
+    )
 
     // Update track order on playlist
     await updateCloudPlaylist(existingPlaylist.id, {
@@ -878,6 +900,11 @@ export async function syncAllPlaylistsToCloud(
   const errors: string[] = []
   let syncedPlaylists = 0
   let totalUploaded = 0
+
+  const totalLocalTracks = localPlaylists.reduce((sum, p) => sum + p.tracks.length, 0)
+  console.log(
+    `[v0] syncAllPlaylistsToCloud: found ${localPlaylists.length} local playlist(s) with ${totalLocalTracks} total local track(s)`
+  )
 
   for (const playlist of localPlaylists) {
     const result = await uploadPlaylistToCloud(playlist, coachSettings)

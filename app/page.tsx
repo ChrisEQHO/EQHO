@@ -1115,16 +1115,20 @@ export default function Page() {
       };
 
       const result = await syncAllPlaylistsToCloud(playlistsToSync, coachSettingsToSync);
-      
+      console.log('[v0] handleUploadToCloud: result', result);
+
       if (result.success) {
         setCloudSaveMessage(`Uploaded ${result.totalUploaded} tracks from ${result.syncedPlaylists} playlists`);
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
+      } else if (result.errors && result.errors.length > 0) {
+        // Show the real reason (e.g. R2 not configured) rather than a misleading success.
+        setCloudSaveMessage(result.errors[0]);
       } else {
         setCloudSaveMessage('Upload completed with some errors');
       }
       
-      setTimeout(() => setCloudSaveMessage(null), 4000);
+      setTimeout(() => setCloudSaveMessage(null), 5000);
     } catch (error) {
       console.error("Upload to cloud failed:", error);
       setCloudSaveMessage('Upload failed. Check your connection.');
