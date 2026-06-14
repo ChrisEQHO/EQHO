@@ -10,27 +10,44 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@/lib/supabase/server'
 
 // R2 Configuration
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME
-const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+// Read env vars at request time (not module load) so credentials added to the
+// deployment after the serverless module first initialized are still picked up.
+// Uses exactly the Vercel-provided names: R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+// R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_ENDPOINT.
+function getR2Config() {
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
+  const accountId = process.env.R2_ACCOUNT_ID
+  const bucketName = process.env.R2_BUCKET_NAME
+  const endpoint =
+    process.env.R2_ENDPOINT ||
+    (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined)
+
+  return { accessKeyId, secretAccessKey, accountId, bucketName, endpoint }
+}
 
 function isR2Configured(): boolean {
-  return !!(R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET_NAME && (R2_ENDPOINT || R2_ACCOUNT_ID))
+  const { accessKeyId, secretAccessKey, bucketName, endpoint } = getR2Config()
+  return !!(accessKeyId && secretAccessKey && bucketName && endpoint)
+}
+
+function getBucketName(): string | undefined {
+  return getR2Config().bucketName
 }
 
 function createR2Client(): S3Client | null {
-  if (!isR2Configured()) {
+  const { accessKeyId, secretAccessKey, endpoint } = getR2Config()
+
+  if (!isR2Configured() || !endpoint) {
     return null
   }
 
   return new S3Client({
     region: 'auto',
-    endpoint: R2_ENDPOINT,
+    endpoint,
     credentials: {
-      accessKeyId: R2_ACCESS_KEY_ID!,
-      secretAccessKey: R2_SECRET_ACCESS_KEY!,
+      accessKeyId: accessKeyId!,
+      secretAccessKey: secretAccessKey!,
     },
   })
 }
@@ -61,7 +78,7 @@ export async function GET(request: NextRequest) {
       }
 
       const command = new GetObjectCommand({
-        Bucket: R2_BUCKET_NAME,
+        Bucket: getBucketName(),
         Key: key,
       })
 
@@ -72,7 +89,7 @@ export async function GET(request: NextRequest) {
     if (action === 'list-playlists') {
       const prefix = `users/${user.id}/playlists/`
       const command = new ListObjectsV2Command({
-        Bucket: R2_BUCKET_NAME,
+        Bucket: getBucketName(),
         Prefix: prefix,
         Delimiter: '/',
       })
@@ -103,7 +120,7 @@ export async function GET(request: NextRequest) {
 
       const prefix = `users/${user.id}/playlists/${playlistId}/tracks/`
       const command = new ListObjectsV2Command({
-        Bucket: R2_BUCKET_NAME,
+        Bucket: getBucketName(),
         Prefix: prefix,
       })
 
@@ -168,7 +185,7 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(arrayBuffer)
 
       const command = new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
+        Bucket: getBucketName(),
         Key: key,
         Body: buffer,
         ContentType: file.type || 'audio/mpeg',
@@ -197,7 +214,7 @@ export async function POST(request: NextRequest) {
 
       const key = `users/${user.id}/playlists/${playlistId}/tracks/${trackId}/${fileName}`
       const command = new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
+        Bucket: getBucketName(),
         Key: key,
         ContentType: fileContentType || 'audio/mpeg',
       })
@@ -238,7 +255,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const command = new DeleteObjectCommand({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: getBucketName(),
       Key: key,
     })
 
