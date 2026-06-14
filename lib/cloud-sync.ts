@@ -14,6 +14,17 @@ import {
 } from '@/lib/r2-storage'
 
 // Types matching the Supabase schema
+// Lightweight track shape attached to a cloud playlist for display + loading.
+// Note: this carries metadata + the R2 storage_path only — the actual audio File
+// is downloaded on demand via "Load from Cloud" (handleDownloadCloudPlaylist).
+export interface CloudPlaylistTrack {
+  id: string
+  title: string
+  fileName: string
+  durationSeconds: number
+  storage_path: string
+}
+
 export interface CloudPlaylist {
   id: string
   user_id: string
@@ -23,6 +34,9 @@ export interface CloudPlaylist {
   gap_seconds: number
   created_at: string
   updated_at: string
+  // Populated by fetchCloudPlaylists so the library can show track counts/previews
+  // for playlists that live in the cloud but aren't downloaded on this device yet.
+  tracks: CloudPlaylistTrack[]
 }
 
 export interface CloudTrack {
@@ -99,7 +113,52 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
     return []
   }
 
-  return data || []
+  const playlists = (data || []) as Omit<CloudPlaylist, 'tracks'>[]
+  if (playlists.length === 0) return []
+
+  // Fetch this user's tracks (RLS-scoped) and attach them to each playlist so the
+  // library can render counts/previews for cloud playlists that aren't on this
+  // device yet. We only need lightweight metadata + the R2 storage_path here.
+  const { data: trackRows, error: tracksError } = await supabase
+    .from('tracks')
+    .select('id, title, storage_path, duration, playlist_id, created_at')
+
+  if (tracksError) {
+    console.error('Error fetching tracks for cloud playlists:', tracksError)
+  }
+
+  const tracksByPlaylist = new Map<string, CloudPlaylistTrack[]>()
+  for (const t of trackRows || []) {
+    if (!t.playlist_id) continue
+    const fileName = (t.storage_path || '').split('/').pop() || t.title || 'audio'
+    const uiTrack: CloudPlaylistTrack = {
+      id: t.id,
+      title: t.title,
+      fileName,
+      durationSeconds: t.duration || 0,
+      storage_path: t.storage_path || '',
+    }
+    const arr = tracksByPlaylist.get(t.playlist_id) || []
+    arr.push(uiTrack)
+    tracksByPlaylist.set(t.playlist_id, arr)
+  }
+
+  return playlists.map((p) => {
+    const unordered = tracksByPlaylist.get(p.id) || []
+    // Respect the saved track_order, then append any leftovers.
+    const order = Array.isArray(p.track_order) ? p.track_order : []
+    const byId = new Map(unordered.map((t) => [t.id, t]))
+    const ordered: CloudPlaylistTrack[] = []
+    for (const id of order) {
+      const t = byId.get(id)
+      if (t) {
+        ordered.push(t)
+        byId.delete(id)
+      }
+    }
+    for (const t of byId.values()) ordered.push(t)
+    return { ...p, tracks: ordered }
+  })
 }
 
 export async function fetchCloudPlaylistWithTracks(playlistId: string): Promise<{
@@ -118,6 +177,71 @@ export async function fetchCloudPlaylistWithTracks(playlistId: string): Promise<
     playlist: playlistResult.data,
     tracks: tracksResult.data || []
   }
+}
+
+// Stable identity key for a LOCAL track (title + fileName), matching the same
+// scheme used to match local tracks against cloud tracks during upload. Exposed
+// so the UI can compare a local playlist against its cloud version.
+export function localTrackKey(title: string, fileName: string): string {
+  return cloudTrackKey(title, fileName)
+}
+
+// Build a per-playlist "signature": the ORDERED list of track identity keys
+// (title::fileName) for each of the current user's cloud playlists. The UI uses
+// this to decide whether a local playlist is new, modified (added/removed/renamed/
+// reordered/changed tracks), or fully synced. Read-only; does not mutate anything.
+export async function fetchCloudPlaylistSignatures(): Promise<Record<string, string[]>> {
+  const supabase = createClient()
+  if (!supabase) return {}
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return {}
+
+  const [playlistsResult, tracksResult] = await Promise.all([
+    supabase.from('playlists').select('id, track_order').eq('user_id', user.id),
+    supabase.from('tracks').select('id, title, storage_path, playlist_id').eq('user_id', user.id),
+  ])
+
+  const playlists = playlistsResult.data || []
+  const tracks = tracksResult.data || []
+
+  // Map each cloud track id -> identity key, and group track ids by playlist.
+  const idToKey = new Map<string, string>()
+  const tracksByPlaylist = new Map<string, string[]>()
+  for (const t of tracks) {
+    idToKey.set(t.id, cloudTrackKey(t.title, t.storage_path || ''))
+    if (t.playlist_id) {
+      const arr = tracksByPlaylist.get(t.playlist_id) || []
+      arr.push(t.id)
+      tracksByPlaylist.set(t.playlist_id, arr)
+    }
+  }
+
+  const signatures: Record<string, string[]> = {}
+  for (const p of playlists) {
+    const order: string[] = Array.isArray(p.track_order) ? p.track_order : []
+    const seen = new Set<string>()
+    const keys: string[] = []
+    // Follow the saved track order first.
+    for (const id of order) {
+      const key = idToKey.get(id)
+      if (key) {
+        keys.push(key)
+        seen.add(id)
+      }
+    }
+    // Append any tracks belonging to the playlist that weren't in track_order
+    // (e.g. legacy rows), so the signature reflects the full cloud contents.
+    for (const id of tracksByPlaylist.get(p.id) || []) {
+      if (!seen.has(id)) {
+        const key = idToKey.get(id)
+        if (key) keys.push(key)
+      }
+    }
+    signatures[p.id] = keys
+  }
+
+  return signatures
 }
 
 export async function createCloudPlaylist(
