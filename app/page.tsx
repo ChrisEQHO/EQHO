@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, getLocalPlaylistsForSync } from "@/lib/eqho-db";
+import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, getLocalPlaylistsForSync, debugInspectIndexedDb } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
@@ -1170,22 +1170,18 @@ export default function Page() {
         return;
       }
 
-      // Prepare playlists with files for upload, resolving audio from any
-      // playable source (File, blob URL, object URL, cloud URL, or IndexedDB).
+      // TEMPORARY: dump the real IndexedDB structure (stores, record counts,
+      // first playlist/track keys + shapes, audio presence) so the uploader can
+      // be matched to the actual stored format instead of guessed field names.
+      await debugInspectIndexedDb();
+
+      // Prepare playlists with files for upload, reading tracks DIRECTLY from the
+      // IndexedDB savedPlaylists/currentQueue stores (not Supabase metadata).
       const playlistsToSync = await buildPlaylistsToSync();
 
-      const coachSettingsToSync = {
-        gapSeconds: settings.gapSeconds,
-        countdownEnabled: settings.showCountdown,
-        countdownSeconds: settings.countdownSeconds,
-        autoplayNext: settings.autoplayNext,
-        backToBackDefault: settings.backToBack,
-        showPauseWarning: settings.showPauseWarning,
-        showSkipWarning: settings.showSkipWarning,
-        playlistRepeats: settings.playlistRepeats,
-      };
-
-      const result = await syncAllPlaylistsToCloud(playlistsToSync, coachSettingsToSync);
+      // Upload ONLY playlists + audio + a simple manifest. We intentionally do NOT
+      // sync profiles, coach_settings, subscription, or player settings.
+      const result = await syncAllPlaylistsToCloud(playlistsToSync);
       console.log('[v0] handleUploadToCloud: result', result);
 
       if (result.success) {
