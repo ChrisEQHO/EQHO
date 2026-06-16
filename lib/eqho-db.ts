@@ -269,8 +269,15 @@ export const saveSavedPlaylistsWithTracks = async (playlists: SavedPlaylistWithT
     store.clear();
     playlists.forEach((pl) => store.put(pl));
 
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => {
+      const totalTracks = playlists.reduce((sum, pl) => sum + pl.tracks.length, 0);
+      console.log(`[v0][cloud-restore] IndexedDB save SUCCESS — ${playlists.length} playlist(s), ${totalTracks} track(s)`);
+      resolve();
+    };
+    tx.onerror = () => {
+      console.error("[v0][cloud-restore] IndexedDB save FAILED:", tx.error);
+      reject(tx.error);
+    };
   });
 };
 

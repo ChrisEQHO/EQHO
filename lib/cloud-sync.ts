@@ -553,7 +553,7 @@ export async function fetchPlaylistWithFilesDetailed(playlistId: string): Promis
         file
       })
     } else {
-      console.log(`[v0][cloud-restore]   ✗ FAILED "${track.title}" (${track.storage_path || 'no storage_path'})`)
+      console.error(`[v0][cloud-restore] Could not download ${track.title} from cloud (storage_path: ${track.storage_path || 'none'})`)
       failedTracks.push(track.title)
     }
   }
