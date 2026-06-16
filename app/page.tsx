@@ -1890,9 +1890,15 @@ export default function Page() {
       return;
     }
 
-    // No track loaded yet OR all tracks finished - start from first track in playlist
+    // No track loaded yet OR all tracks finished - start from first visible track
     if (playlist.length > 0) {
-      const firstTrack = playlist[0];
+      // Skip hidden tracks so a hidden track never becomes the starting "Now Playing"
+      let firstVisibleIdx = 0;
+      while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
+        firstVisibleIdx++;
+      }
+      if (firstVisibleIdx >= playlist.length) return; // all hidden
+      const firstTrack = playlist[firstVisibleIdx];
       if (!firstTrack.url) return;
       // Reset session tracking
       setPlaylistRound(1);
@@ -1903,7 +1909,7 @@ export default function Page() {
       setShowSessionFinished(false);
       audioRef.current.src = firstTrack.url;
       setCurrentTrack(firstTrack);
-      setCurrentIndex(0);
+      setCurrentIndex(firstVisibleIdx);
       try {
         await audioRef.current.play();
         setIsPlaying(true);
@@ -2167,9 +2173,18 @@ export default function Page() {
     // Only auto-play after skip-back if the player was already playing.
     const wasPlaying = isPlaying;
 
-    // If within first 2 seconds and not on first track, go to previous track
-    if (audioRef.current.currentTime < 2 && currentIndex > 0) {
-      const prevIdx = currentIndex - 1;
+    // Find previous visible (non-hidden) track before the current index
+    let prevVisibleIdx = -1;
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (!hiddenTrackIds.has(playlist[i].id)) {
+        prevVisibleIdx = i;
+        break;
+      }
+    }
+
+    // If within first 2 seconds and there is a previous visible track, go to it
+    if (audioRef.current.currentTime < 2 && prevVisibleIdx >= 0) {
+      const prevIdx = prevVisibleIdx;
       setCurrentIndex(prevIdx);
       const prevTrack = playlist[prevIdx];
       setCurrentTrack(prevTrack);

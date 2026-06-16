@@ -106,24 +106,55 @@ export async function getSignedDownloadUrl(
 }
 
 /**
- * Download a track file from R2 using signed URL
+ * Download a track file from R2.
+ *
+ * Primary path: stream the bytes through our own /api/r2?action=download route
+ * (server -> R2). This avoids the browser hitting the R2 presigned URL directly,
+ * which fails when the bucket has no CORS rule for the app origin — the usual
+ * reason cloud restore produced 0 playable tracks.
+ *
+ * Fallback: if the proxy route fails, try the presigned URL directly.
  */
 export async function downloadTrackFromR2(key: string): Promise<File | null> {
+  const fileName = key.split('/').pop() || 'track.mp3'
+
+  // 1) Proxy download through our API (no browser->R2 CORS dependency).
+  try {
+    const proxyResponse = await fetch(`/api/r2?action=download&key=${encodeURIComponent(key)}`)
+    console.log(`[v0][cloud-restore] R2 proxy download status: ${proxyResponse.status} for ${key}`)
+    if (proxyResponse.ok) {
+      const blob = await proxyResponse.blob()
+      console.log(`[v0][cloud-restore] R2 proxy blob size: ${blob.size} bytes for ${fileName}`)
+      if (blob.size > 0) {
+        return new File([blob], fileName, { type: blob.type || 'audio/mpeg' })
+      }
+      console.warn(`[v0][cloud-restore] R2 proxy returned empty blob for ${key}, trying signed URL`)
+    } else {
+      console.warn(`[v0][cloud-restore] R2 proxy download failed (${proxyResponse.status}), trying signed URL`)
+    }
+  } catch (error) {
+    console.error('[v0][cloud-restore] R2 proxy download error, trying signed URL:', error)
+  }
+
+  // 2) Fallback: presigned URL fetched directly from R2.
   const signedUrl = await getSignedDownloadUrl(key)
-  if (!signedUrl) return null
+  if (!signedUrl) {
+    console.error(`[v0][cloud-restore] No signed URL available for ${key}`)
+    return null
+  }
 
   try {
     const response = await fetch(signedUrl)
+    console.log(`[v0][cloud-restore] R2 signed-url download status: ${response.status} for ${key}`)
     if (!response.ok) {
       throw new Error(`Failed to download: ${response.statusText}`)
     }
 
     const blob = await response.blob()
-    const fileName = key.split('/').pop() || 'track.mp3'
-    
+    console.log(`[v0][cloud-restore] R2 signed-url blob size: ${blob.size} bytes for ${fileName}`)
     return new File([blob], fileName, { type: blob.type || 'audio/mpeg' })
   } catch (error) {
-    console.error('Error downloading from R2:', error)
+    console.error('[v0][cloud-restore] Error downloading from R2 signed URL:', error)
     return null
   }
 }

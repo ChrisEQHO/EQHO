@@ -86,6 +86,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ url: signedUrl })
     }
 
+    // Proxy-download the actual audio bytes through this route. This avoids the
+    // browser fetching the R2 presigned URL directly, which fails when the R2
+    // bucket has no CORS rule for the app origin (the common cause of cloud
+    // restore returning 0 playable tracks). The server streams the file back.
+    if (action === 'download' && key) {
+      if (!key.startsWith(`users/${user.id}/`)) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: getBucketName(),
+        Key: key,
+      })
+
+      const obj = await client.send(command)
+      if (!obj.Body) {
+        return NextResponse.json({ error: 'Object not found' }, { status: 404 })
+      }
+
+      // Body is a web ReadableStream in the Node 18+/edge-compatible runtime.
+      const body = obj.Body as unknown as ReadableStream
+      return new NextResponse(body, {
+        status: 200,
+        headers: {
+          'Content-Type': obj.ContentType || 'audio/mpeg',
+          ...(obj.ContentLength ? { 'Content-Length': String(obj.ContentLength) } : {}),
+          'Cache-Control': 'private, max-age=0, no-store',
+        },
+      })
+    }
+
     if (action === 'list-playlists') {
       const prefix = `users/${user.id}/playlists/`
       const command = new ListObjectsV2Command({
