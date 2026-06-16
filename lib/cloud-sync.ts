@@ -519,7 +519,10 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
 // (via the secure /api/r2 signed download route). Returns the local playlist plus
 // per-track failure info so the UI can report which tracks failed and never create
 // empty playlist folders when audio downloads fail.
-export async function fetchPlaylistWithFilesDetailed(playlistId: string): Promise<{
+export async function fetchPlaylistWithFilesDetailed(
+  playlistId: string,
+  onProgress?: (completed: number, total: number) => void
+): Promise<{
   playlist: LocalPlaylist | null
   failedTracks: string[]
   totalTracks: number
@@ -539,6 +542,10 @@ export async function fetchPlaylistWithFilesDetailed(playlistId: string): Promis
   const localTracks: LocalTrack[] = []
   const failedTracks: string[] = []
 
+  // Report initial progress (0 of total) so the UI can show 0% immediately.
+  onProgress?.(0, tracks.length)
+
+  let completed = 0
   for (const track of tracks) {
     console.log(`[v0][cloud-restore]   track "${track.title}" storage_path: ${track.storage_path || '(none)'}`)
     const file = track.storage_path ? await downloadTrackFile(track.storage_path) : null
@@ -556,6 +563,8 @@ export async function fetchPlaylistWithFilesDetailed(playlistId: string): Promis
       console.error(`[v0][cloud-restore] Could not download ${track.title} from cloud (storage_path: ${track.storage_path || 'none'})`)
       failedTracks.push(track.title)
     }
+    completed++
+    onProgress?.(completed, tracks.length)
   }
 
   // Never create an empty playlist/folder if no audio could be downloaded.
