@@ -395,6 +395,8 @@ export default function Page() {
   const [showSessionFinished, setShowSessionFinished] = useState(false);
   const [showFullscreenQueuePlaylist, setShowFullscreenQueuePlaylist] = useState(false);
   const [showClearPlaylistConfirm, setShowClearPlaylistConfirm] = useState(false);
+  // Saved-playlist removal confirmation (guards accidental clicks on the "Clear" link).
+  const [playlistToRemove, setPlaylistToRemove] = useState<{ id: string; name: string } | null>(null);
   const [showClearLibraryConfirm, setShowClearLibraryConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
@@ -4252,6 +4254,42 @@ export default function Page() {
         </div>
       )}
 
+      {/* Remove Saved Playlist Confirmation - guards accidental "Clear" link clicks */}
+      {playlistToRemove && (
+        <div
+          className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPlaylistToRemove(null)}
+        >
+          <div
+            className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Remove Playlist?</h3>
+            <p className="text-white/60 mb-6">
+              This will remove <strong className="text-white">{playlistToRemove.name}</strong> from your saved playlists. This can&apos;t be undone.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setPlaylistToRemove(null)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setSavedPlaylists((prev) => prev.filter((p) => p.id !== playlistToRemove.id));
+                  setPlaylistToRemove(null);
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+              >
+                Yes, Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
           <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
@@ -4461,8 +4499,9 @@ export default function Page() {
                           Load
                         </button>
                         <button
-                          onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
+                          onClick={() => setPlaylistToRemove({ id: pl.id, name: pl.name })}
                           className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
+                          title="Remove this saved playlist"
                         >
                           Clear
                         </button>
