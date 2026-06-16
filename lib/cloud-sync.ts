@@ -515,19 +515,35 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
   }
 }
 
-export async function fetchPlaylistWithFiles(playlistId: string): Promise<LocalPlaylist | null> {
+// Restore a single cloud playlist by downloading its real audio files from R2
+// (via the secure /api/r2 signed download route). Returns the local playlist plus
+// per-track failure info so the UI can report which tracks failed and never create
+// empty playlist folders when audio downloads fail.
+export async function fetchPlaylistWithFilesDetailed(playlistId: string): Promise<{
+  playlist: LocalPlaylist | null
+  failedTracks: string[]
+  totalTracks: number
+}> {
   const supabase = createClient()
-  if (!supabase) return null
+  if (!supabase) return { playlist: null, failedTracks: [], totalTracks: 0 }
 
   const { playlist, tracks } = await fetchCloudPlaylistWithTracks(playlistId)
-  if (!playlist) return null
+  if (!playlist) {
+    console.log('[v0][cloud-restore] Playlist not found for id', playlistId)
+    return { playlist: null, failedTracks: [], totalTracks: 0 }
+  }
 
-  // Download all track files
+  console.log(`[v0][cloud-restore] Playlist "${playlist.name}" — ${tracks.length} track(s) found`)
+
+  // Download the real audio file for every track from R2.
   const localTracks: LocalTrack[] = []
+  const failedTracks: string[] = []
 
   for (const track of tracks) {
-    const file = await downloadTrackFile(track.storage_path)
+    console.log(`[v0][cloud-restore]   track "${track.title}" storage_path: ${track.storage_path || '(none)'}`)
+    const file = track.storage_path ? await downloadTrackFile(track.storage_path) : null
     if (file) {
+      console.log(`[v0][cloud-restore]   ✓ downloaded "${track.title}"`)
       localTracks.push({
         id: track.id,
         title: track.title,
@@ -536,24 +552,41 @@ export async function fetchPlaylistWithFiles(playlistId: string): Promise<LocalP
         uploadedAt: track.created_at,
         file
       })
+    } else {
+      console.log(`[v0][cloud-restore]   ✗ FAILED "${track.title}" (${track.storage_path || 'no storage_path'})`)
+      failedTracks.push(track.title)
     }
   }
 
-  // Sort by track_order
+  // Never create an empty playlist/folder if no audio could be downloaded.
+  if (localTracks.length === 0) {
+    console.log(`[v0][cloud-restore] Skipping "${playlist.name}" — no audio downloaded`)
+    return { playlist: null, failedTracks, totalTracks: tracks.length }
+  }
+
+  // Sort by track_order, then append any tracks not present in the saved order.
   const orderedTracks = playlist.track_order
     .map(id => localTracks.find(t => t.id === id))
     .filter((t): t is LocalTrack => t !== undefined)
 
-  // Add any tracks not in the order
   const unorderedTracks = localTracks.filter(
     t => !playlist.track_order.includes(t.id)
   )
 
   return {
-    id: playlist.id,
-    name: playlist.name,
-    tracks: [...orderedTracks, ...unorderedTracks]
+    playlist: {
+      id: playlist.id,
+      name: playlist.name,
+      tracks: [...orderedTracks, ...unorderedTracks]
+    },
+    failedTracks,
+    totalTracks: tracks.length,
   }
+}
+
+export async function fetchPlaylistWithFiles(playlistId: string): Promise<LocalPlaylist | null> {
+  const { playlist } = await fetchPlaylistWithFilesDetailed(playlistId)
+  return playlist
 }
 
 // =====================
@@ -1068,37 +1101,44 @@ export async function syncAllPlaylistsToCloud(
  */
 export async function downloadAllPlaylistsFromCloud(): Promise<{
   playlists: LocalPlaylist[]
-  coachSettings: CoachSettings | null
+  failedTracks: string[]
   error?: string
 }> {
   const supabase = createClient()
-  if (!supabase) return { playlists: [], coachSettings: null, error: 'Supabase not configured' }
+  if (!supabase) return { playlists: [], failedTracks: [], error: 'Supabase not configured' }
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { playlists: [], coachSettings: null, error: 'Not authenticated' }
+  if (!user) return { playlists: [], failedTracks: [], error: 'Not authenticated' }
 
   try {
-    // Fetch all playlists
+    // Read the user's cloud playlists from Supabase.
     const cloudPlaylists = await fetchCloudPlaylists()
-    const localPlaylists: LocalPlaylist[] = []
+    console.log(`[v0][cloud-restore] Found ${cloudPlaylists.length} cloud playlist(s):`, cloudPlaylists.map(p => p.name))
 
+    const localPlaylists: LocalPlaylist[] = []
+    const failedTracks: string[] = []
+
+    // Restore each playlist as its own separate local playlist, downloading the
+    // real audio from R2. Playlists with no downloadable audio are skipped (no
+    // empty folders). NOTE: we intentionally do NOT restore coach_settings,
+    // profiles, subscriptions, gap/volume/countdown or back-to-back settings.
     for (const cloudPlaylist of cloudPlaylists) {
-      const localPlaylist = await fetchPlaylistWithFiles(cloudPlaylist.id)
-      if (localPlaylist) {
-        localPlaylists.push(localPlaylist)
+      const { playlist, failedTracks: failed } = await fetchPlaylistWithFilesDetailed(cloudPlaylist.id)
+      for (const f of failed) failedTracks.push(`${cloudPlaylist.name} – ${f}`)
+      if (playlist) {
+        localPlaylists.push(playlist)
       }
     }
 
-    // Fetch coach settings
-    const coachSettings = await fetchCoachSettings()
+    console.log(`[v0][cloud-restore] Restored ${localPlaylists.length} playlist(s); ${failedTracks.length} track(s) failed`)
 
-    return { playlists: localPlaylists, coachSettings }
+    return { playlists: localPlaylists, failedTracks }
   } catch (error) {
-    console.error('Error downloading playlists from cloud:', error)
-    return { 
-      playlists: [], 
-      coachSettings: null, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    console.error('[v0][cloud-restore] Error downloading playlists from cloud:', error)
+    return {
+      playlists: [],
+      failedTracks: [],
+      error: error instanceof Error ? error.message : 'Unknown error'
     }
   }
 }

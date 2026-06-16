@@ -19,6 +19,7 @@ import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
+  fetchPlaylistWithFilesDetailed, 
   syncPlaylistToCloud, 
   deleteCloudPlaylist,
   isCloudSyncAvailable,
@@ -936,9 +937,11 @@ export default function Page() {
     setDownloadingPlaylistId(playlistId);
 
     try {
-      const localPlaylist = await fetchPlaylistWithFiles(playlistId);
+      const { playlist: localPlaylist, failedTracks } = await fetchPlaylistWithFilesDetailed(playlistId);
       if (localPlaylist) {
-        // Convert to the format expected by savedPlaylists
+        // Convert to the format expected by savedPlaylists. The object URL makes
+        // the restored audio immediately playable; the savedPlaylists effect
+        // persists the files into IndexedDB.
         const newPlaylist = {
           id: localPlaylist.id,
           name: localPlaylist.name,
@@ -963,9 +966,33 @@ export default function Page() {
           }
           return [...prev, newPlaylist];
         });
+
+        console.log(`[v0][cloud-restore] Final restored playlist count: 1 ("${newPlaylist.name}")`);
+        if (failedTracks.length > 0) {
+          console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
+          setCloudSaveMessage(`Restored ${newPlaylist.name} (${failedTracks.length} track${failedTracks.length === 1 ? '' : 's'} failed)`);
+          setCloudSaveSuccess(false);
+        } else {
+          setCloudSaveMessage(`Restored ${newPlaylist.name} from cloud`);
+          setCloudSaveSuccess(true);
+        }
+        setTimeout(() => setCloudSaveMessage(null), 5000);
+      } else {
+        // No audio could be downloaded — do not create an empty playlist folder.
+        console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
+        setCloudSaveMessage(
+          failedTracks.length > 0
+            ? `Could not restore playlist — ${failedTracks.length} track(s) failed to download`
+            : 'Could not restore playlist from cloud'
+        );
+        setCloudSaveSuccess(false);
+        setTimeout(() => setCloudSaveMessage(null), 5000);
       }
     } catch (error) {
-      console.error("Download failed:", error);
+      console.error("[v0][cloud-restore] Download failed:", error);
+      setCloudSaveMessage('Download failed. Check your connection.');
+      setCloudSaveSuccess(false);
+      setTimeout(() => setCloudSaveMessage(null), 4000);
     } finally {
       setDownloadingPlaylistId(null);
     }
@@ -1321,17 +1348,21 @@ export default function Page() {
       }
 
       if (result.playlists.length > 0) {
-        // Merge cloud playlists with local playlists
-        const existingIds = new Set(savedPlaylists.map(p => p.id));
+        // Merge cloud playlists with local playlists (match by id or name so a
+        // playlist already present locally isn't duplicated).
         const newPlaylists = result.playlists
-          .filter(p => !existingIds.has(p.id))
+          .filter(p => !savedPlaylists.some(sp => sp.id === p.id || sp.name === p.name))
           .map(p => ({
             id: p.id,
             name: p.name,
             tracks: p.tracks.map(t => ({
               id: t.id,
               title: t.title,
+              sub: "Cloud Track",
+              duration: formatDuration(t.durationSeconds),
               fileName: t.fileName,
+              // Object URL so the restored audio is immediately playable.
+              url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
               uploadedAt: t.uploadedAt,
               file: t.file,
@@ -1339,16 +1370,33 @@ export default function Page() {
           }));
 
         if (newPlaylists.length > 0) {
+          // Each cloud playlist becomes its own separate local playlist folder.
+          // The savedPlaylists effect persists them (with audio) into IndexedDB.
           setSavedPlaylists(prev => [...prev, ...newPlaylists]);
-          setCloudSaveMessage(`Downloaded ${newPlaylists.length} playlists from cloud`);
+          console.log(`[v0][cloud-restore] Final restored playlist count: ${newPlaylists.length}`);
+          const failNote = result.failedTracks.length > 0
+            ? ` (${result.failedTracks.length} track${result.failedTracks.length === 1 ? '' : 's'} failed)`
+            : '';
+          setCloudSaveMessage(`Restored ${newPlaylists.length} playlist${newPlaylists.length === 1 ? '' : 's'} from cloud${failNote}`);
+          setCloudSaveSuccess(result.failedTracks.length === 0);
         } else {
-          setCloudSaveMessage('All cloud playlists already synced locally');
+          setCloudSaveMessage('All cloud playlists already restored locally');
+          setCloudSaveSuccess(true);
         }
+
+        // Surface exactly which tracks failed to download.
+        if (result.failedTracks.length > 0) {
+          console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
+        }
+      } else if (result.failedTracks.length > 0) {
+        console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
+        setCloudSaveMessage(`No playlists restored — ${result.failedTracks.length} track(s) failed to download`);
+        setCloudSaveSuccess(false);
       } else {
         setCloudSaveMessage('No playlists found in cloud');
       }
       
-      setTimeout(() => setCloudSaveMessage(null), 4000);
+      setTimeout(() => setCloudSaveMessage(null), 5000);
     } catch (error) {
       console.error("Download from cloud failed:", error);
       setCloudSaveMessage('Download failed. Check your connection.');
