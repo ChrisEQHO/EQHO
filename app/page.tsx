@@ -1535,11 +1535,17 @@ export default function Page() {
       processFilesToUploadedTracks(individualFiles);
     }
 
-    // Process folders as playlists - add to savedPlaylists
+    // Process folders as playlists - add to savedPlaylists.
+    // A dropped folder that itself contains subfolders becomes ONE playlist per
+    // subfolder (matching the folder picker behaviour), so a parent folder of
+    // playlists no longer merges into a single giant playlist.
     for (const folder of folderEntries) {
-      const audioFiles = await getAudioFilesFromDirectory(folder.entry);
-      if (audioFiles.length > 0) {
-        await createPlaylistFromFiles(folder.name, audioFiles);
+      const groups = await getPlaylistGroupsFromDirectory(folder.entry, folder.name);
+      console.log(`[v0][folder-upload] Dropped "${folder.name}" -> ${groups.length} playlist(s):`, groups.map(g => g.name));
+      for (const group of groups) {
+        if (group.files.length > 0) {
+          await createPlaylistFromFiles(group.name, group.files);
+        }
       }
     }
   };
@@ -1586,6 +1592,63 @@ export default function Page() {
     }
 
     return audioFiles;
+  };
+
+  // Split a dropped directory into playlist groups:
+  // - direct audio files in the folder -> one playlist named after the folder
+  // - each immediate subfolder -> its own playlist (audio gathered recursively)
+  // This handles both "drop a single playlist folder" and "drop a parent folder
+  // containing many playlist subfolders".
+  const getPlaylistGroupsFromDirectory = async (
+    dirEntry: FileSystemDirectoryEntry,
+    folderName: string
+  ): Promise<{ name: string; files: File[] }[]> => {
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+      return new Promise((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+    };
+
+    // Read this directory's immediate children.
+    const children: FileSystemEntry[] = [];
+    const reader = dirEntry.createReader();
+    let batch = await readEntries(reader);
+    while (batch.length > 0) {
+      children.push(...batch);
+      batch = await readEntries(reader);
+    }
+
+    const groups: { name: string; files: File[] }[] = [];
+
+    // Direct audio files become a playlist named after this folder.
+    const directFiles: File[] = [];
+    for (const child of children) {
+      if (child.isFile) {
+        const fileEntry = child as FileSystemFileEntry;
+        const file = await new Promise<File>((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+        if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
+          directFiles.push(file);
+        }
+      }
+    }
+    if (directFiles.length > 0) {
+      groups.push({ name: folderName, files: directFiles });
+    }
+
+    // Each immediate subfolder becomes its own playlist (recursively gathering audio).
+    for (const child of children) {
+      if (child.isDirectory) {
+        const subDir = child as FileSystemDirectoryEntry;
+        const subFiles = await getAudioFilesFromDirectory(subDir);
+        if (subFiles.length > 0) {
+          groups.push({ name: child.name, files: subFiles });
+        }
+      }
+    }
+
+    return groups;
   };
 
   // Helper function to process files into uploadedTracks
@@ -1673,6 +1736,36 @@ export default function Page() {
         };
       });
     });
+  };
+
+  // Group a flat webkitdirectory file list by each file's immediate parent folder,
+  // then create ONE playlist per folder. This fixes the bug where selecting a parent
+  // folder that contains multiple subfolders merged everything into a single playlist.
+  // - "Parent/SubA/track.mp3" -> playlist "SubA"
+  // - "Parent/track.mp3"      -> playlist "Parent"
+  const createPlaylistsFromFolderSelection = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
+
+    const groups = new Map<string, File[]>();
+    for (const file of files) {
+      const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      const segments = relPath.split("/").filter(Boolean);
+      // Immediate parent folder of the file (most specific folder name).
+      const folderName =
+        segments.length >= 2
+          ? segments[segments.length - 2]
+          : segments[0]?.replace(/\.[^/.]+$/, "") || `Playlist ${savedPlaylists.length + 1}`;
+      const arr = groups.get(folderName) || [];
+      arr.push(file);
+      groups.set(folderName, arr);
+    }
+
+    console.log(`[v0][folder-upload] ${files.length} file(s) grouped into ${groups.size} playlist(s):`, Array.from(groups.keys()));
+
+    // Create each folder as its own separate playlist (sequentially so names/order are stable).
+    for (const [folderName, folderFiles] of groups) {
+      await createPlaylistFromFiles(folderName, folderFiles);
+    }
   };
 
   const handleDragEnterUpload = (event: React.DragEvent) => {
@@ -4028,41 +4121,8 @@ export default function Page() {
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      // Use the dropped folder's name as the playlist name
-                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
-                      const playlistName = folderName;
-                      const newPlaylistId = crypto.randomUUID();
-                      const newTracks: Track[] = [];
-                      
-                      let processed = 0;
-                      files.forEach((file) => {
-                        const url = URL.createObjectURL(file);
-                        const audio = new Audio(url);
-                        audio.onloadedmetadata = async () => {
-                          const newTrack: Track = {
-                            id: crypto.randomUUID(),
-                            title: file.name.replace(/\.[^/.]+$/, ""),
-                            sub: "Uploaded Track",
-                            duration: formatDuration(Math.round(audio.duration)),
-                            fileName: file.name,
-                            url,
-                            durationSeconds: Math.round(audio.duration),
-                            uploadedAt: new Date().toISOString(),
-                            file,
-                          };
-                          newTracks.push(newTrack);
-                          processed++;
-                          
-                          if (processed === files.length) {
-                            setSavedPlaylists(prev => [...prev, {
-                              id: newPlaylistId,
-                              name: playlistName,
-                              tracks: newTracks,
-                            }]);
-                          }
-                        };
-                      });
+                      // One playlist per subfolder (handles a parent folder with many subfolders).
+                      createPlaylistsFromFolderSelection(files);
                     }
                     event.target.value = "";
                   }}
@@ -4857,40 +4917,8 @@ export default function Page() {
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      // Use the selected folder's name as the playlist name
-                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
-                      const playlistName = folderName;
-                      const newPlaylistId = crypto.randomUUID();
-                      const newTracks: Track[] = [];
-                      
-                      let processed = 0;
-                      files.forEach((file) => {
-                        const url = URL.createObjectURL(file);
-                        const audio = new Audio(url);
-                        audio.onloadedmetadata = async () => {
-                          const newTrack: Track = {
-                            id: crypto.randomUUID(),
-                            title: file.name.replace(/\.[^/.]+$/, ""),
-                            sub: "Uploaded Track",
-                            duration: formatDuration(Math.round(audio.duration)),
-                            fileName: file.name,
-                            url,
-                            durationSeconds: Math.round(audio.duration),
-                            uploadedAt: new Date().toISOString(),
-                            file,
-                          };
-                          newTracks.push(newTrack);
-                          
-                          processed++;
-                          if (processed === files.length) {
-                            setSavedPlaylists((prev) => [
-                              ...prev,
-                              { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                            ]);
-                          }
-                        };
-                      });
+                      // One playlist per subfolder (handles a parent folder with many subfolders).
+                      createPlaylistsFromFolderSelection(files);
                     }
                     event.target.value = "";
                   }}
