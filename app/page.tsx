@@ -411,6 +411,10 @@ export default function Page() {
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<string | null>(null);
   const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
   const [downloadingPlaylistId, setDownloadingPlaylistId] = useState<string | null>(null);
+  // Per-playlist "Download to Device" status for the main left playlist list.
+  // Keyed by local playlist id -> { signature of the downloaded tracks, status }.
+  // Used to drive the small Download button states (Downloaded / Update / Failed).
+  const [deviceDownloads, setDeviceDownloads] = useState<Record<string, { signature: string; status: 'downloaded' | 'failed' }>>({});
   const [showFullscreenMobilePlayer, setShowFullscreenMobilePlayer] = useState(false);
   
   // Cloud sync state
@@ -800,6 +804,26 @@ export default function Page() {
     loadSavedPlaylistsData();
   }, []);
 
+  // Restore the small "Download to Device" status map (lightweight UI metadata only;
+  // the actual offline audio lives in IndexedDB via savedPlaylists).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('eqho-device-downloads');
+      if (raw) setDeviceDownloads(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Persist the status map whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem('eqho-device-downloads', JSON.stringify(deviceDownloads));
+    } catch {
+      /* ignore */
+    }
+  }, [deviceDownloads]);
+
   // Cloud sync: Fetch cloud playlists on mount (for logged-in users)
   useEffect(() => {
     const loadCloudPlaylists = async () => {
@@ -991,6 +1015,104 @@ export default function Page() {
     } catch (error) {
       console.error("[v0][cloud-restore] Download failed:", error);
       setCloudSaveMessage('Download failed. Check your connection.');
+      setCloudSaveSuccess(false);
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+    } finally {
+      setDownloadingPlaylistId(null);
+    }
+  };
+
+  // Signature of a local playlist's track identity + order, used to detect whether
+  // a device download is still current ("Downloaded") or stale ("Update").
+  const playlistSignature = (pl: { tracks: Array<{ title: string; fileName: string }> }) =>
+    pl.tracks.map(t => localTrackKey(t.title, t.fileName)).join('|');
+
+  // Returns the Download-to-Device button state for a left-list playlist.
+  const getDeviceDownloadState = (
+    localPlaylist: { id: string; name: string; tracks: Array<{ title: string; fileName: string }> }
+  ): 'download' | 'downloading' | 'downloaded' | 'update' | 'failed' => {
+    if (downloadingPlaylistId === localPlaylist.id) return 'downloading';
+    const record = deviceDownloads[localPlaylist.id];
+    if (!record) return 'download';
+    if (record.status === 'failed') return 'failed';
+    // Downloaded previously — if the playlist's tracks changed, offer an Update.
+    return record.signature === playlistSignature(localPlaylist) ? 'downloaded' : 'update';
+  };
+
+  // "Download to Device": fetch the exact playlist's tracks from Supabase, download
+  // the real audio from Cloudflare R2, and store everything locally (IndexedDB via
+  // savedPlaylists) so the playlist plays offline from local files first.
+  const handleDownloadToDevice = async (localPlaylist: { id: string; name: string; tracks: Array<{ title: string; fileName: string }> }) => {
+    if (downloadingPlaylistId) return;
+
+    // 1. Find that exact playlist's cloud record.
+    const cloud = findCloudPlaylistFor(localPlaylist);
+    if (!cloud) {
+      setDeviceDownloads(prev => ({ ...prev, [localPlaylist.id]: { signature: '', status: 'failed' } }));
+      setCloudSaveMessage(`"${localPlaylist.name}" is not in the cloud yet — upload it first`);
+      setCloudSaveSuccess(false);
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+      return;
+    }
+
+    setDownloadingPlaylistId(localPlaylist.id);
+    try {
+      // 2 + 3. Fetch tracks from Supabase and download real audio files from R2.
+      const { playlist: restored, failedTracks } = await fetchPlaylistWithFilesDetailed(cloud.id);
+
+      if (restored && restored.tracks.length > 0) {
+        // 4 + 5. Save audio + metadata locally with the same order/title/duration.
+        // The savedPlaylists effect persists the File objects into IndexedDB.
+        const downloaded = {
+          id: localPlaylist.id,
+          name: restored.name,
+          tracks: restored.tracks.map(t => ({
+            id: t.id,
+            title: t.title,
+            sub: "Downloaded Track",
+            duration: formatDuration(t.durationSeconds),
+            fileName: t.fileName,
+            url: URL.createObjectURL(t.file),
+            durationSeconds: t.durationSeconds,
+            uploadedAt: t.uploadedAt,
+            file: t.file,
+          })),
+        };
+
+        // 6. Replace the local playlist so playback uses the local downloaded file first.
+        setSavedPlaylists(prev => {
+          const exists = prev.some(p => p.id === localPlaylist.id);
+          return exists
+            ? prev.map(p => p.id === localPlaylist.id ? downloaded : p)
+            : [...prev, downloaded];
+        });
+
+        const allOk = failedTracks.length === 0;
+        setDeviceDownloads(prev => ({
+          ...prev,
+          [localPlaylist.id]: {
+            signature: playlistSignature(downloaded),
+            status: allOk ? 'downloaded' : 'failed',
+          },
+        }));
+        setCloudSaveMessage(
+          allOk
+            ? `Downloaded "${downloaded.name}" to this device`
+            : `Downloaded "${downloaded.name}" (${failedTracks.length} track${failedTracks.length === 1 ? '' : 's'} failed)`
+        );
+        setCloudSaveSuccess(allOk);
+        setTimeout(() => setCloudSaveMessage(null), 5000);
+        // 10. Do not autoplay anything after download.
+      } else {
+        setDeviceDownloads(prev => ({ ...prev, [localPlaylist.id]: { signature: '', status: 'failed' } }));
+        setCloudSaveMessage(`Failed to download "${localPlaylist.name}" to this device`);
+        setCloudSaveSuccess(false);
+        setTimeout(() => setCloudSaveMessage(null), 5000);
+      }
+    } catch (error) {
+      console.error("[v0][device-download] Failed:", error);
+      setDeviceDownloads(prev => ({ ...prev, [localPlaylist.id]: { signature: '', status: 'failed' } }));
+      setCloudSaveMessage(`Failed to download "${localPlaylist.name}" to this device`);
       setCloudSaveSuccess(false);
       setTimeout(() => setCloudSaveMessage(null), 4000);
     } finally {
@@ -4052,7 +4174,7 @@ export default function Page() {
       )}
 
       {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
-      <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_240px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
+          <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
 
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
@@ -4220,6 +4342,32 @@ export default function Page() {
                         >
                           Load
                         </button>
+                        {(() => {
+                          const dState = getDeviceDownloadState(pl);
+                          const label =
+                            dState === 'downloading' ? 'Downloading…'
+                            : dState === 'downloaded' ? 'Downloaded'
+                            : dState === 'update' ? 'Update'
+                            : dState === 'failed' ? 'Failed'
+                            : 'Download';
+                          // EQHO neon styling, colour shifts by state but layout stays identical.
+                          const styles =
+                            dState === 'downloaded' ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-300'
+                            : dState === 'update' ? 'border-[#ff8a00]/60 bg-[#ff8a00]/10 text-[#ff8a00]'
+                            : dState === 'failed' ? 'border-red-500/60 bg-red-500/10 text-red-400'
+                            : 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20';
+                          return (
+                            <button
+                              onClick={() => handleDownloadToDevice(pl)}
+                              disabled={pl.tracks.length === 0 || dState === 'downloading' || !!downloadingPlaylistId}
+                              className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-semibold transition disabled:opacity-30 ${styles}`}
+                              title="Download to device for offline use"
+                            >
+                              <CloudDownload size={10} className="shrink-0" />
+                              {label}
+                            </button>
+                          );
+                        })()}
                         <button
                           onClick={() => setSavedPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
                           className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
