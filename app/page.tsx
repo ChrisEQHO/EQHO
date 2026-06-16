@@ -1119,6 +1119,9 @@ export default function Page() {
       setDownloadingPlaylistId(null);
     }
   };
+
+  // Handler for Download Playlists button - downloads the actual audio files as a ZIP
+  const handleDownloadAllPlaylists = async () => {
     if (isExporting) return;
 
     if (savedPlaylists.length === 0) {
