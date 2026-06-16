@@ -19,6 +19,7 @@ import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
+  fetchPlaylistWithFilesDetailed, 
   syncPlaylistToCloud, 
   deleteCloudPlaylist,
   isCloudSyncAvailable,
@@ -936,9 +937,11 @@ export default function Page() {
     setDownloadingPlaylistId(playlistId);
 
     try {
-      const localPlaylist = await fetchPlaylistWithFiles(playlistId);
+      const { playlist: localPlaylist, failedTracks } = await fetchPlaylistWithFilesDetailed(playlistId);
       if (localPlaylist) {
-        // Convert to the format expected by savedPlaylists
+        // Convert to the format expected by savedPlaylists. The object URL makes
+        // the restored audio immediately playable; the savedPlaylists effect
+        // persists the files into IndexedDB.
         const newPlaylist = {
           id: localPlaylist.id,
           name: localPlaylist.name,
@@ -963,9 +966,33 @@ export default function Page() {
           }
           return [...prev, newPlaylist];
         });
+
+        console.log(`[v0][cloud-restore] Final restored playlist count: 1 ("${newPlaylist.name}")`);
+        if (failedTracks.length > 0) {
+          console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
+          setCloudSaveMessage(`Restored ${newPlaylist.name} (${failedTracks.length} track${failedTracks.length === 1 ? '' : 's'} failed)`);
+          setCloudSaveSuccess(false);
+        } else {
+          setCloudSaveMessage(`Restored ${newPlaylist.name} from cloud`);
+          setCloudSaveSuccess(true);
+        }
+        setTimeout(() => setCloudSaveMessage(null), 5000);
+      } else {
+        // No audio could be downloaded — do not create an empty playlist folder.
+        console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
+        setCloudSaveMessage(
+          failedTracks.length > 0
+            ? `Could not restore playlist — ${failedTracks.length} track(s) failed to download`
+            : 'Could not restore playlist from cloud'
+        );
+        setCloudSaveSuccess(false);
+        setTimeout(() => setCloudSaveMessage(null), 5000);
       }
     } catch (error) {
-      console.error("Download failed:", error);
+      console.error("[v0][cloud-restore] Download failed:", error);
+      setCloudSaveMessage('Download failed. Check your connection.');
+      setCloudSaveSuccess(false);
+      setTimeout(() => setCloudSaveMessage(null), 4000);
     } finally {
       setDownloadingPlaylistId(null);
     }
@@ -1321,17 +1348,21 @@ export default function Page() {
       }
 
       if (result.playlists.length > 0) {
-        // Merge cloud playlists with local playlists
-        const existingIds = new Set(savedPlaylists.map(p => p.id));
+        // Merge cloud playlists with local playlists (match by id or name so a
+        // playlist already present locally isn't duplicated).
         const newPlaylists = result.playlists
-          .filter(p => !existingIds.has(p.id))
+          .filter(p => !savedPlaylists.some(sp => sp.id === p.id || sp.name === p.name))
           .map(p => ({
             id: p.id,
             name: p.name,
             tracks: p.tracks.map(t => ({
               id: t.id,
               title: t.title,
+              sub: "Cloud Track",
+              duration: formatDuration(t.durationSeconds),
               fileName: t.fileName,
+              // Object URL so the restored audio is immediately playable.
+              url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
               uploadedAt: t.uploadedAt,
               file: t.file,
@@ -1339,16 +1370,33 @@ export default function Page() {
           }));
 
         if (newPlaylists.length > 0) {
+          // Each cloud playlist becomes its own separate local playlist folder.
+          // The savedPlaylists effect persists them (with audio) into IndexedDB.
           setSavedPlaylists(prev => [...prev, ...newPlaylists]);
-          setCloudSaveMessage(`Downloaded ${newPlaylists.length} playlists from cloud`);
+          console.log(`[v0][cloud-restore] Final restored playlist count: ${newPlaylists.length}`);
+          const failNote = result.failedTracks.length > 0
+            ? ` (${result.failedTracks.length} track${result.failedTracks.length === 1 ? '' : 's'} failed)`
+            : '';
+          setCloudSaveMessage(`Restored ${newPlaylists.length} playlist${newPlaylists.length === 1 ? '' : 's'} from cloud${failNote}`);
+          setCloudSaveSuccess(result.failedTracks.length === 0);
         } else {
-          setCloudSaveMessage('All cloud playlists already synced locally');
+          setCloudSaveMessage('All cloud playlists already restored locally');
+          setCloudSaveSuccess(true);
         }
+
+        // Surface exactly which tracks failed to download.
+        if (result.failedTracks.length > 0) {
+          console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
+        }
+      } else if (result.failedTracks.length > 0) {
+        console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
+        setCloudSaveMessage(`No playlists restored — ${result.failedTracks.length} track(s) failed to download`);
+        setCloudSaveSuccess(false);
       } else {
         setCloudSaveMessage('No playlists found in cloud');
       }
       
-      setTimeout(() => setCloudSaveMessage(null), 4000);
+      setTimeout(() => setCloudSaveMessage(null), 5000);
     } catch (error) {
       console.error("Download from cloud failed:", error);
       setCloudSaveMessage('Download failed. Check your connection.');
@@ -1487,11 +1535,17 @@ export default function Page() {
       processFilesToUploadedTracks(individualFiles);
     }
 
-    // Process folders as playlists - add to savedPlaylists
+    // Process folders as playlists - add to savedPlaylists.
+    // A dropped folder that itself contains subfolders becomes ONE playlist per
+    // subfolder (matching the folder picker behaviour), so a parent folder of
+    // playlists no longer merges into a single giant playlist.
     for (const folder of folderEntries) {
-      const audioFiles = await getAudioFilesFromDirectory(folder.entry);
-      if (audioFiles.length > 0) {
-        await createPlaylistFromFiles(folder.name, audioFiles);
+      const groups = await getPlaylistGroupsFromDirectory(folder.entry, folder.name);
+      console.log(`[v0][folder-upload] Dropped "${folder.name}" -> ${groups.length} playlist(s):`, groups.map(g => g.name));
+      for (const group of groups) {
+        if (group.files.length > 0) {
+          await createPlaylistFromFiles(group.name, group.files);
+        }
       }
     }
   };
@@ -1538,6 +1592,63 @@ export default function Page() {
     }
 
     return audioFiles;
+  };
+
+  // Split a dropped directory into playlist groups:
+  // - direct audio files in the folder -> one playlist named after the folder
+  // - each immediate subfolder -> its own playlist (audio gathered recursively)
+  // This handles both "drop a single playlist folder" and "drop a parent folder
+  // containing many playlist subfolders".
+  const getPlaylistGroupsFromDirectory = async (
+    dirEntry: FileSystemDirectoryEntry,
+    folderName: string
+  ): Promise<{ name: string; files: File[] }[]> => {
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+      return new Promise((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+    };
+
+    // Read this directory's immediate children.
+    const children: FileSystemEntry[] = [];
+    const reader = dirEntry.createReader();
+    let batch = await readEntries(reader);
+    while (batch.length > 0) {
+      children.push(...batch);
+      batch = await readEntries(reader);
+    }
+
+    const groups: { name: string; files: File[] }[] = [];
+
+    // Direct audio files become a playlist named after this folder.
+    const directFiles: File[] = [];
+    for (const child of children) {
+      if (child.isFile) {
+        const fileEntry = child as FileSystemFileEntry;
+        const file = await new Promise<File>((resolve, reject) => {
+          fileEntry.file(resolve, reject);
+        });
+        if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
+          directFiles.push(file);
+        }
+      }
+    }
+    if (directFiles.length > 0) {
+      groups.push({ name: folderName, files: directFiles });
+    }
+
+    // Each immediate subfolder becomes its own playlist (recursively gathering audio).
+    for (const child of children) {
+      if (child.isDirectory) {
+        const subDir = child as FileSystemDirectoryEntry;
+        const subFiles = await getAudioFilesFromDirectory(subDir);
+        if (subFiles.length > 0) {
+          groups.push({ name: child.name, files: subFiles });
+        }
+      }
+    }
+
+    return groups;
   };
 
   // Helper function to process files into uploadedTracks
@@ -1625,6 +1736,36 @@ export default function Page() {
         };
       });
     });
+  };
+
+  // Group a flat webkitdirectory file list by each file's immediate parent folder,
+  // then create ONE playlist per folder. This fixes the bug where selecting a parent
+  // folder that contains multiple subfolders merged everything into a single playlist.
+  // - "Parent/SubA/track.mp3" -> playlist "SubA"
+  // - "Parent/track.mp3"      -> playlist "Parent"
+  const createPlaylistsFromFolderSelection = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
+
+    const groups = new Map<string, File[]>();
+    for (const file of files) {
+      const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      const segments = relPath.split("/").filter(Boolean);
+      // Immediate parent folder of the file (most specific folder name).
+      const folderName =
+        segments.length >= 2
+          ? segments[segments.length - 2]
+          : segments[0]?.replace(/\.[^/.]+$/, "") || `Playlist ${savedPlaylists.length + 1}`;
+      const arr = groups.get(folderName) || [];
+      arr.push(file);
+      groups.set(folderName, arr);
+    }
+
+    console.log(`[v0][folder-upload] ${files.length} file(s) grouped into ${groups.size} playlist(s):`, Array.from(groups.keys()));
+
+    // Create each folder as its own separate playlist (sequentially so names/order are stable).
+    for (const [folderName, folderFiles] of groups) {
+      await createPlaylistFromFiles(folderName, folderFiles);
+    }
   };
 
   const handleDragEnterUpload = (event: React.DragEvent) => {
@@ -3980,41 +4121,8 @@ export default function Page() {
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      // Use the dropped folder's name as the playlist name
-                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
-                      const playlistName = folderName;
-                      const newPlaylistId = crypto.randomUUID();
-                      const newTracks: Track[] = [];
-                      
-                      let processed = 0;
-                      files.forEach((file) => {
-                        const url = URL.createObjectURL(file);
-                        const audio = new Audio(url);
-                        audio.onloadedmetadata = async () => {
-                          const newTrack: Track = {
-                            id: crypto.randomUUID(),
-                            title: file.name.replace(/\.[^/.]+$/, ""),
-                            sub: "Uploaded Track",
-                            duration: formatDuration(Math.round(audio.duration)),
-                            fileName: file.name,
-                            url,
-                            durationSeconds: Math.round(audio.duration),
-                            uploadedAt: new Date().toISOString(),
-                            file,
-                          };
-                          newTracks.push(newTrack);
-                          processed++;
-                          
-                          if (processed === files.length) {
-                            setSavedPlaylists(prev => [...prev, {
-                              id: newPlaylistId,
-                              name: playlistName,
-                              tracks: newTracks,
-                            }]);
-                          }
-                        };
-                      });
+                      // One playlist per subfolder (handles a parent folder with many subfolders).
+                      createPlaylistsFromFolderSelection(files);
                     }
                     event.target.value = "";
                   }}
@@ -4809,40 +4917,8 @@ export default function Page() {
                       file.name.endsWith(".m4a")
                     );
                     if (files.length > 0) {
-                      // Use the selected folder's name as the playlist name
-                      const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-                      const folderName = firstPath.split("/")[0] || `Playlist ${savedPlaylists.length + 1}`;
-                      const playlistName = folderName;
-                      const newPlaylistId = crypto.randomUUID();
-                      const newTracks: Track[] = [];
-                      
-                      let processed = 0;
-                      files.forEach((file) => {
-                        const url = URL.createObjectURL(file);
-                        const audio = new Audio(url);
-                        audio.onloadedmetadata = async () => {
-                          const newTrack: Track = {
-                            id: crypto.randomUUID(),
-                            title: file.name.replace(/\.[^/.]+$/, ""),
-                            sub: "Uploaded Track",
-                            duration: formatDuration(Math.round(audio.duration)),
-                            fileName: file.name,
-                            url,
-                            durationSeconds: Math.round(audio.duration),
-                            uploadedAt: new Date().toISOString(),
-                            file,
-                          };
-                          newTracks.push(newTrack);
-                          
-                          processed++;
-                          if (processed === files.length) {
-                            setSavedPlaylists((prev) => [
-                              ...prev,
-                              { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                            ]);
-                          }
-                        };
-                      });
+                      // One playlist per subfolder (handles a parent folder with many subfolders).
+                      createPlaylistsFromFolderSelection(files);
                     }
                     event.target.value = "";
                   }}
