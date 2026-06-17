@@ -5786,6 +5786,26 @@ export default function Page() {
                   </div>
                 </div>
 
+                {/* Account - Sign Out */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <LogOut size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Account</h2>
+                  </div>
+                  <p className="text-white/60 text-sm mb-4">
+                    Sign out of EQHO Player on this device and return to the login screen.
+                  </p>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full min-h-[44px] py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={16} />
+                    Sign Out
+                  </button>
+                </div>
+
                 {/* Danger Zone - Delete Account */}
                 <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
                   <div className="flex items-center gap-3 mb-4">
@@ -6246,7 +6266,7 @@ export default function Page() {
       </div>
 
       {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-130px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3">
+      <div className="flex lg:hidden flex-col h-[calc(100dvh-150px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3">
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -7262,24 +7282,24 @@ export default function Page() {
                     </div>
 
                     {/* Account / Logout */}
-                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 mt-1 mb-2">
                       <div className="flex items-center gap-2 mb-2">
                         <LogOut size={14} className="text-red-400" />
                         <span className="text-[10px] font-bold text-white">Account</span>
                       </div>
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-2">
                         <button
                           onClick={handleLogout}
-                          className="w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                          className="w-full min-h-[44px] py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 active:bg-red-500/30 transition flex items-center justify-center gap-2"
                         >
-                          <LogOut size={12} />
+                          <LogOut size={14} />
                           Sign Out
                         </button>
                         <button
                           onClick={() => setShowDeleteAccountConfirm(true)}
-                          className="w-full py-2 rounded-lg bg-red-600/10 border border-red-600/30 text-red-500 text-[11px] font-semibold hover:bg-red-600/20 transition flex items-center justify-center gap-2"
+                          className="w-full min-h-[44px] py-2.5 rounded-lg bg-red-600/10 border border-red-600/30 text-red-500 text-xs font-semibold hover:bg-red-600/20 active:bg-red-600/30 transition flex items-center justify-center gap-2"
                         >
-                          <Trash2 size={12} />
+                          <Trash2 size={14} />
                           Delete Account
                         </button>
                       </div>
@@ -7299,15 +7319,15 @@ export default function Page() {
         <div className="session-bottom-divider" />
 
         {/* Mobile Layout - Compact 2x2 Grid */}
-        <div className="flex md:hidden flex-col gap-2 px-3 py-2 pb-[calc(8px+env(safe-area-inset-bottom))]">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="flex md:hidden flex-col gap-2.5 px-3 py-2.5 pb-[calc(10px+env(safe-area-inset-bottom))]">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
             {/* Gap Between Routines */}
             <div className="flex flex-col items-center">
               <div className="text-[9px] font-medium tracking-wide text-white/50 uppercase mb-1">Gap</div>
               <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
-                <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="px-2.5 py-1.5 text-white/70 active:bg-white/10"><Minus size={12} /></button>
-                <span className="px-2 py-1.5 text-xs font-bold text-white border-x border-white/15 min-w-[36px] text-center">{gapSeconds}s</span>
-                <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="px-2.5 py-1.5 text-white/70 active:bg-white/10"><Plus size={12} /></button>
+                <button onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="min-h-[40px] min-w-[40px] grid place-items-center text-white/70 active:bg-white/10 rounded-l-lg"><Minus size={14} /></button>
+                <span className="px-2 py-1.5 text-sm font-bold text-white border-x border-white/15 min-w-[40px] text-center">{gapSeconds}s</span>
+                <button onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="min-h-[40px] min-w-[40px] grid place-items-center text-white/70 active:bg-white/10 rounded-r-lg"><Plus size={14} /></button>
               </div>
             </div>
 
@@ -7316,15 +7336,15 @@ export default function Page() {
               <div className="text-[9px] font-medium tracking-wide text-white/50 uppercase mb-1">B2B</div>
               <button 
                 onClick={() => updateBackToBack((v) => !v)}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 min-h-[40px] px-1"
               >
-                <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
-                  <RefreshCw size={12} />
+                <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
+                  <RefreshCw size={13} />
                 </div>
-                <div className={`h-5 w-9 rounded-full border p-0.5 transition-colors ${
+                <div className={`h-6 w-10 rounded-full border p-0.5 transition-colors ${
                   backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"
                 }`}>
-                  <div className={`h-4 w-4 rounded-full transition-transform ${
+                  <div className={`h-5 w-5 rounded-full transition-transform ${
                     backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/40"
                   }`} />
                 </div>
@@ -7334,11 +7354,11 @@ export default function Page() {
             {/* Total Session Time */}
             <div className="flex flex-col items-center">
               <div className="text-[9px] font-medium tracking-wide text-white/50 uppercase mb-1">Time</div>
-              <div className="flex items-center gap-1.5">
-                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
-                  <Clock size={12} />
+              <div className="flex items-center gap-1.5 min-h-[40px]">
+                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                  <Clock size={13} />
                 </div>
-                <div className="text-white text-sm font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                <div className="text-white text-base font-bold leading-none">{formatSessionTime(totalSessionSeconds)}</div>
               </div>
             </div>
 
@@ -7346,9 +7366,9 @@ export default function Page() {
             <div className="flex flex-col items-center">
               <div className="text-[9px] font-medium tracking-wide text-white/50 uppercase mb-1">Reps</div>
               <div className="flex items-center rounded-lg border border-white/20 bg-white/5">
-                <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="px-2.5 py-1.5 text-white/70 active:bg-white/10"><Minus size={12} /></button>
-                <span className="px-2 py-1.5 text-xs font-bold text-white border-x border-white/15 min-w-[28px] text-center">{playlistRepeats}x</span>
-                <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="px-2.5 py-1.5 text-white/70 active:bg-white/10"><Plus size={12} /></button>
+                <button onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="min-h-[40px] min-w-[40px] grid place-items-center text-white/70 active:bg-white/10 rounded-l-lg"><Minus size={14} /></button>
+                <span className="px-2 py-1.5 text-sm font-bold text-white border-x border-white/15 min-w-[34px] text-center">{playlistRepeats}x</span>
+                <button onClick={() => updatePlaylistRepeats((v) => Math.min(20, v + 1))} className="min-h-[40px] min-w-[40px] grid place-items-center text-white/70 active:bg-white/10 rounded-r-lg"><Plus size={14} /></button>
               </div>
             </div>
           </div>
@@ -7357,7 +7377,7 @@ export default function Page() {
           <button
             onClick={handlePauseClick}
             disabled={!currentTrack && playlist.length === 0}
-            className={`w-full py-3 text-sm font-bold rounded-xl transition disabled:opacity-30 ${
+            className={`w-full min-h-[48px] py-3 text-base font-bold rounded-xl transition disabled:opacity-30 ${
               isGapPaused
                 ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                 : isPlaying
