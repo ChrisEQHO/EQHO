@@ -443,6 +443,12 @@ export default function Page() {
   const [isPushingToApps, setIsPushingToApps] = useState(false);
   const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
   const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
+  // "Sync All" progress + result state.
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncAllProgress, setSyncAllProgress] = useState<{ current: number; total: number } | null>(null);
+  // Local playlist ids that failed during the most recent "Sync All" run, so their
+  // cards keep showing the existing red/error icon until a successful re-sync.
+  const [syncAllFailedIds, setSyncAllFailedIds] = useState<string[]>([]);
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
   // Drives the cloud status banner colour: true => green (full success), false => pink/red (partial/error).
   const [cloudSaveSuccess, setCloudSaveSuccess] = useState<boolean>(false);
@@ -1030,6 +1036,8 @@ export default function Page() {
 
       if (result.success) {
         setSyncStatus('success');
+        // Clear any prior "Sync All" failure flag for this playlist.
+        setSyncAllFailedIds((prev) => prev.filter((id) => id !== playlistId));
         // Single-playlist success messages (green banner via cloudSaveSuccess).
         setCloudSaveMessage(
           wasModified
@@ -1056,6 +1064,94 @@ export default function Page() {
         setSyncStatus('idle');
       }, 2000);
     }
+  };
+
+  // "Sync All": upload/sync every local playlist that is not fully synced.
+  // Covers new playlists, playlists with new tracks, changed track order, and
+  // renamed/updated metadata. Already-synced/unchanged tracks are skipped by the
+  // uploader (it matches by title + fileName), so nothing is re-uploaded needlessly.
+  const handleSyncAll = async () => {
+    if (isMobileBuild || isSyncingAll) return;
+
+    // Only sync playlists that aren't already fully synced ('new' or 'modified').
+    const playlistsToSync = savedPlaylists.filter(
+      (pl) => getPlaylistCloudStatus(pl) !== 'synced'
+    );
+
+    if (playlistsToSync.length === 0) {
+      setCloudSaveSuccess(true);
+      setCloudSaveMessage('All playlists already synced');
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+      return;
+    }
+
+    setIsSyncingAll(true);
+    setSyncAllFailedIds([]);
+    setCloudSaveSuccess(false);
+
+    const total = playlistsToSync.length;
+    let syncedCount = 0;
+    const failed: { id: string; name: string }[] = [];
+
+    for (let i = 0; i < total; i++) {
+      const pl = playlistsToSync[i];
+      // Requirement #5: show clear progress ("Syncing 1 of 4", ...).
+      setSyncAllProgress({ current: i + 1, total });
+      setCloudSaveMessage(`Syncing ${i + 1} of ${total}...`);
+
+      try {
+        const result = await syncPlaylistToCloud({
+          id: pl.id,
+          name: pl.name,
+          tracks: pl.tracks.map((t) => ({
+            id: t.id,
+            title: t.title,
+            fileName: t.fileName,
+            durationSeconds: t.durationSeconds,
+            uploadedAt: t.uploadedAt,
+            file: t.file!,
+          })),
+        });
+
+        if (result.success) {
+          syncedCount++;
+        } else {
+          // Requirement #8: one failure must not stop the whole sync.
+          failed.push({ id: pl.id, name: pl.name });
+          console.error(`[v0][sync-all] Failed to sync "${pl.name}"`);
+        }
+      } catch (error) {
+        failed.push({ id: pl.id, name: pl.name });
+        console.error(`[v0][sync-all] Error syncing "${pl.name}":`, error);
+      }
+    }
+
+    // Requirement #9: refresh cloud status/count so cards reflect the synced state.
+    try {
+      const playlists = await fetchCloudPlaylists();
+      setCloudPlaylists(playlists);
+    } catch {
+      /* non-fatal: signatures effect will retry on next change */
+    }
+
+    // Requirement #8: keep failed playlists flagged with the red/error icon.
+    setSyncAllFailedIds(failed.map((f) => f.id));
+
+    if (failed.length === 0) {
+      // Requirement #7: green success summary.
+      setCloudSaveSuccess(true);
+      setCloudSaveMessage(`${syncedCount} / ${total} playlists synced`);
+    } else {
+      setCloudSaveSuccess(false);
+      const failedNames = failed.map((f) => f.name).join(', ');
+      setCloudSaveMessage(
+        `${syncedCount} / ${total} synced — failed: ${failedNames}`
+      );
+    }
+
+    setIsSyncingAll(false);
+    setSyncAllProgress(null);
+    setTimeout(() => setCloudSaveMessage(null), 6000);
   };
 
   const handleDeleteCloudPlaylist = async (playlistId: string) => {
@@ -5213,14 +5309,18 @@ export default function Page() {
                       <span>{cloudPlaylists.length} cloud</span>
                     </div>
                     <button
-                      onClick={async () => {
-                        const playlists = await fetchCloudPlaylists();
-                        setCloudPlaylists(playlists);
-                      }}
-                      className="px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
+                      onClick={handleSyncAll}
+                      disabled={isSyncingAll}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition flex items-center gap-2 disabled:cursor-not-allowed ${
+                        cloudSaveSuccess && !isSyncingAll
+                          ? "border-green-500/40 bg-green-500/10 text-green-400"
+                          : "border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
+                      } ${isSyncingAll ? "opacity-80" : ""}`}
                     >
-                      <RefreshCw size={14} />
-                      Sync All
+                      <RefreshCw size={14} className={isSyncingAll ? "animate-spin" : ""} />
+                      {isSyncingAll && syncAllProgress
+                        ? `Syncing ${syncAllProgress.current} of ${syncAllProgress.total}`
+                        : "Sync All"}
                     </button>
                   </div>
                 )}
@@ -5387,6 +5487,7 @@ export default function Page() {
                         const cloudStatus = getPlaylistCloudStatus(localPlaylist);
                         const isInCloud = cloudStatus !== 'new';
                         const isSyncing = syncingPlaylistId === localPlaylist.id;
+                        const syncFailed = syncAllFailedIds.includes(localPlaylist.id);
                         const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
                         
                         return (
@@ -5438,10 +5539,22 @@ export default function Page() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
                                 disabled={isSyncing}
-                                className="mb-2 w-full py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                className={`mb-2 w-full py-1.5 rounded-lg border text-[11px] font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                                  syncFailed
+                                    ? "bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25"
+                                    : "bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25"
+                                }`}
                               >
-                                {isSyncing ? <Loader2 size={11} className="animate-spin" /> : <Cloud size={11} />}
-                                {cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
+                                {isSyncing
+                                  ? <Loader2 size={11} className="animate-spin" />
+                                  : syncFailed
+                                    ? <AlertCircle size={11} />
+                                    : <Cloud size={11} />}
+                                {isSyncing
+                                  ? 'Syncing...'
+                                  : syncFailed
+                                    ? 'Sync failed — Retry'
+                                    : cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
                               </button>
                             )}
                             
