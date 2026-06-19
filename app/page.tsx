@@ -446,9 +446,11 @@ export default function Page() {
   // "Sync All" progress + result state.
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncAllProgress, setSyncAllProgress] = useState<{ current: number; total: number } | null>(null);
-  // Local playlist ids that failed during the most recent "Sync All" run, so their
-  // cards keep showing the existing red/error icon until a successful re-sync.
-  const [syncAllFailedIds, setSyncAllFailedIds] = useState<string[]>([]);
+  // Per-playlist push/sync button status. No entry = default (blue "Push Updates").
+  //  - 'pushing' => disabled "Pushing..."
+  //  - 'success' => green "Push Successful" (auto-reverts to the Synced pill)
+  //  - 'failed'  => red "Push Unsuccessful" (clickable to retry; persists)
+  const [pushStatus, setPushStatus] = useState<Record<string, 'pushing' | 'success' | 'failed'>>({});
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
   // Drives the cloud status banner colour: true => green (full success), false => pink/red (partial/error).
   const [cloudSaveSuccess, setCloudSaveSuccess] = useState<boolean>(false);
@@ -1017,6 +1019,7 @@ export default function Page() {
 
     setSyncingPlaylistId(playlistId);
     setSyncStatus('syncing');
+    setPushStatus((prev) => ({ ...prev, [playlistId]: 'pushing' }));
     setCloudSaveSuccess(false);
     setCloudSaveMessage(`Syncing ${localPlaylist.name}...`);
 
@@ -1034,10 +1037,13 @@ export default function Page() {
         })),
       });
 
-      if (result.success) {
+      // Requirement #5: a partial failure (some tracks failed) is treated as
+      // unsuccessful and must NOT be marked as fully synced.
+      const partialFailure = result.success && (result.failedTracks ?? 0) > 0;
+
+      if (result.success && !partialFailure) {
         setSyncStatus('success');
-        // Clear any prior "Sync All" failure flag for this playlist.
-        setSyncAllFailedIds((prev) => prev.filter((id) => id !== playlistId));
+        setPushStatus((prev) => ({ ...prev, [playlistId]: 'success' }));
         // Single-playlist success messages (green banner via cloudSaveSuccess).
         setCloudSaveMessage(
           wasModified
@@ -1048,14 +1054,37 @@ export default function Page() {
         // Refresh cloud playlists so the card flips to the blue "Synced" state.
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
+        // Auto-clear the green "Push Successful" state so the card returns to the
+        // "Synced" pill shortly after.
+        setTimeout(() => {
+          setPushStatus((prev) => {
+            if (prev[playlistId] !== 'success') return prev;
+            const next = { ...prev };
+            delete next[playlistId];
+            return next;
+          });
+        }, 2500);
       } else {
         setSyncStatus('error');
+        setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
-        setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
+        setCloudSaveMessage(
+          partialFailure
+            ? `Some tracks failed to upload for ${localPlaylist.name}`
+            : `Failed to sync ${localPlaylist.name}`
+        );
+        // Refresh cloud state so partially-synced playlists keep a non-synced status.
+        if (partialFailure) {
+          try {
+            const playlists = await fetchCloudPlaylists();
+            setCloudPlaylists(playlists);
+          } catch { /* non-fatal */ }
+        }
       }
     } catch (error) {
       console.error("Sync failed:", error);
       setSyncStatus('error');
+      setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
       setCloudSaveSuccess(false);
       setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
     } finally {
@@ -1086,16 +1115,22 @@ export default function Page() {
     }
 
     setIsSyncingAll(true);
-    setSyncAllFailedIds([]);
     setCloudSaveSuccess(false);
+    // Reset push status only for the playlists we're about to (re)sync.
+    setPushStatus((prev) => {
+      const next = { ...prev };
+      for (const pl of playlistsToSync) next[pl.id] = 'pushing';
+      return next;
+    });
 
     const total = playlistsToSync.length;
     let syncedCount = 0;
     const failed: { id: string; name: string }[] = [];
+    const succeeded: string[] = [];
 
     for (let i = 0; i < total; i++) {
       const pl = playlistsToSync[i];
-      // Requirement #5: show clear progress ("Syncing 1 of 4", ...).
+      // Show clear progress ("Syncing 1 of 4", ...).
       setSyncAllProgress({ current: i + 1, total });
       setCloudSaveMessage(`Syncing ${i + 1} of ${total}...`);
 
@@ -1113,20 +1148,29 @@ export default function Page() {
           })),
         });
 
-        if (result.success) {
+        // Requirement #5: partial failure counts as unsuccessful.
+        const partialFailure = result.success && (result.failedTracks ?? 0) > 0;
+
+        if (result.success && !partialFailure) {
+          // Requirement #7: mark this card green "Push Successful".
           syncedCount++;
+          succeeded.push(pl.id);
+          setPushStatus((prev) => ({ ...prev, [pl.id]: 'success' }));
         } else {
           // Requirement #8: one failure must not stop the whole sync.
+          // Requirement #7: mark this card red "Push Unsuccessful".
           failed.push({ id: pl.id, name: pl.name });
+          setPushStatus((prev) => ({ ...prev, [pl.id]: 'failed' }));
           console.error(`[v0][sync-all] Failed to sync "${pl.name}"`);
         }
       } catch (error) {
         failed.push({ id: pl.id, name: pl.name });
+        setPushStatus((prev) => ({ ...prev, [pl.id]: 'failed' }));
         console.error(`[v0][sync-all] Error syncing "${pl.name}":`, error);
       }
     }
 
-    // Requirement #9: refresh cloud status/count so cards reflect the synced state.
+    // Refresh cloud status/count so cards reflect the synced state.
     try {
       const playlists = await fetchCloudPlaylists();
       setCloudPlaylists(playlists);
@@ -1134,8 +1178,17 @@ export default function Page() {
       /* non-fatal: signatures effect will retry on next change */
     }
 
-    // Requirement #8: keep failed playlists flagged with the red/error icon.
-    setSyncAllFailedIds(failed.map((f) => f.id));
+    // Auto-clear the green "Push Successful" states so successful cards revert to the
+    // "Synced" pill. Failed cards stay red until the user retries.
+    setTimeout(() => {
+      setPushStatus((prev) => {
+        const next = { ...prev };
+        for (const id of succeeded) {
+          if (next[id] === 'success') delete next[id];
+        }
+        return next;
+      });
+    }, 2500);
 
     if (failed.length === 0) {
       // Requirement #7: green success summary.
@@ -5492,8 +5545,8 @@ export default function Page() {
                       {savedPlaylists.map((localPlaylist) => {
                         const cloudStatus = getPlaylistCloudStatus(localPlaylist);
                         const isInCloud = cloudStatus !== 'new';
-                        const isSyncing = syncingPlaylistId === localPlaylist.id;
-                        const syncFailed = syncAllFailedIds.includes(localPlaylist.id);
+                        const cardPushStatus = pushStatus[localPlaylist.id];
+                        const isSyncing = syncingPlaylistId === localPlaylist.id || cardPushStatus === 'pushing';
                         const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
                         
                         return (
@@ -5536,7 +5589,10 @@ export default function Page() {
                               )}
                             </div>
                             
-                            {cloudStatus === 'synced' ? (
+                            {/* Show the "Synced" pill only when there is no active push
+                                status to display; otherwise the colored push button
+                                (pushing / success / failed) takes precedence. */}
+                            {cloudStatus === 'synced' && !cardPushStatus ? (
                               <div className="mb-2 flex items-center gap-1 text-[10px] text-cyan-400">
                                 <Cloud size={10} />
                                 Synced
@@ -5544,23 +5600,29 @@ export default function Page() {
                             ) : !isMobileBuild && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
-                                disabled={isSyncing}
-                                className={`mb-2 w-full py-1.5 rounded-lg border text-[11px] font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50 ${
-                                  syncFailed
-                                    ? "bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25"
-                                    : "bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25"
+                                disabled={cardPushStatus === 'pushing'}
+                                className={`mb-2 w-full py-1.5 rounded-lg border text-[11px] font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed ${
+                                  cardPushStatus === 'success'
+                                    ? "bg-green-500/15 border-green-500/40 text-green-400"
+                                    : cardPushStatus === 'failed'
+                                      ? "bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25"
+                                      : "bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25"
                                 }`}
                               >
-                                {isSyncing
+                                {cardPushStatus === 'pushing'
                                   ? <Loader2 size={11} className="animate-spin" />
-                                  : syncFailed
-                                    ? <AlertCircle size={11} />
-                                    : <Cloud size={11} />}
-                                {isSyncing
-                                  ? 'Syncing...'
-                                  : syncFailed
-                                    ? 'Sync failed — Retry'
-                                    : cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
+                                  : cardPushStatus === 'success'
+                                    ? <Check size={11} />
+                                    : cardPushStatus === 'failed'
+                                      ? <AlertCircle size={11} />
+                                      : <Cloud size={11} />}
+                                {cardPushStatus === 'pushing'
+                                  ? 'Pushing...'
+                                  : cardPushStatus === 'success'
+                                    ? 'Push Successful'
+                                    : cardPushStatus === 'failed'
+                                      ? 'Push Unsuccessful'
+                                      : cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
                               </button>
                             )}
                             
