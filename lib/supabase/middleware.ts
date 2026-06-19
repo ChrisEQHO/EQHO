@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isAdminEmail } from '@/lib/access'
 
-// TEMPORARY: Set to true to allow direct access to the player without
-// login, signup, or Stripe subscription checks. Set back to false to
-// re-enable the full auth + subscription gating.
-const BYPASS_AUTH = true
+// Full auth + subscription gating is ENABLED. Access to the player requires a
+// logged-in user who is an admin, has an active subscription, or is on an active
+// trial. The v0 preview / local dev bypass below remains so the app can still be
+// developed inside v0 without logging in.
+const BYPASS_AUTH = false
 
 export async function updateSession(request: NextRequest) {
   // TEMPORARY bypass: skip all auth/subscription gating entirely
@@ -76,6 +78,12 @@ export async function updateSession(request: NextRequest) {
     
     // Check subscription status for protected routes (player)
     if (pathname === '/') {
+      // Admins always get in, regardless of subscription state.
+      if (isAdminEmail(user.email)) {
+        console.log('[v0] Middleware: Admin email, granting access:', user.email)
+        return supabaseResponse
+      }
+
       // Try fetching profile by 'id' first, then by email as fallback
       let profile = null
       let profileError = null
@@ -134,6 +142,13 @@ export async function updateSession(request: NextRequest) {
 
     // If user is logged in and trying to access login/signup, check subscription
     if (pathname === '/login' || pathname === '/signup') {
+      // Admins go straight to the player.
+      if (isAdminEmail(user.email)) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/'
+        return NextResponse.redirect(url)
+      }
+
       let profile = null
       const { data: profileById } = await supabase
         .from('profiles')

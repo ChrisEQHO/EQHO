@@ -16,6 +16,13 @@ import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
+import {
+  isAdminEmail,
+  isOnline,
+  isWithinOfflineGrace,
+  recordEntitlementVerified,
+  clearEntitlementVerified,
+} from "@/lib/access";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -46,6 +53,7 @@ import {
   ListMusic,
   Music,
   Music2,
+  WifiOff,
   Timer,
   Settings,
   UploadCloud,
@@ -383,6 +391,14 @@ export default function Page() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  // True once the initial Supabase auth check has completed (so we can tell
+  // "logged out" apart from "still loading").
+  const [authChecked, setAuthChecked] = useState(false);
+  // Access gate state for the client-side guard (mobile static builds have no
+  // middleware, so the player enforces login + subscription here too).
+  const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline">(
+    isV0Preview ? "granted" : "checking"
+  );
   const router = useRouter();
   const supabase = createClient();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -445,23 +461,81 @@ export default function Page() {
     // V0 Preview: use mock user, do not call Supabase
     if (isV0Preview) {
       setUser(mockUser as unknown as User);
+      setAuthChecked(true);
       return;
     }
     
-    if (!supabase) return;
+    if (!supabase) {
+      setAuthChecked(true);
+      return;
+    }
     
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch {
+        // Offline / network error: leave user null; the gate falls back to the
+        // offline grace window for previously-verified accounts.
+        setUser(null);
+      } finally {
+        setAuthChecked(true);
+      }
     };
     getUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setAuthChecked(true);
     });
 
     return () => subscription.unsubscribe();
   }, [supabase]);
+
+  // -------------------------------------------------------------------------
+  // Client-side access gate.
+  // Web production is also covered by middleware, but mobile/desktop Capacitor
+  // builds use static export (no middleware), so the player enforces the same
+  // login + active-subscription rule here. Admins and active/trial users get in.
+  // Offline, we honour a grace window from the last successful online check so
+  // downloaded playlists keep working without giving away indefinite access.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (isV0Preview) {
+      setGate("granted");
+      return;
+    }
+    // Wait for both the auth check and the subscription fetch to settle.
+    if (!authChecked || isSubscriptionLoading) return;
+
+    const online = isOnline();
+
+    // Offline: we can't re-verify with Supabase/Stripe. Fall back to the grace
+    // window recorded during the last successful online verification.
+    if (!online) {
+      setGate(isWithinOfflineGrace() ? "granted" : "blocked-offline");
+      return;
+    }
+
+    // Online but not logged in -> go to login.
+    if (!user) {
+      clearEntitlementVerified();
+      router.replace("/login");
+      return;
+    }
+
+    // Online and logged in: admins and active/trial subscribers are entitled.
+    const entitled = isAdminEmail(user.email) || isPro;
+    if (entitled) {
+      recordEntitlementVerified();
+      setGate("granted");
+      return;
+    }
+
+    // Logged in but no active subscription/trial -> upgrade.
+    clearEntitlementVerified();
+    router.replace("/upgrade");
+  }, [authChecked, isSubscriptionLoading, user, isPro, router]);
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
@@ -481,6 +555,9 @@ export default function Page() {
       })
     }
     
+    // Revoke the offline grace window so a signed-out device can't keep playing.
+    clearEntitlementVerified();
+
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
@@ -2939,6 +3016,52 @@ export default function Page() {
       </button>
     );
   };
+
+  // Access gate: while we verify login + subscription, show a branded loader.
+  // This prevents the player (and any cached audio) from rendering for users who
+  // are not authenticated/subscribed, including on mobile builds with no middleware.
+  if (gate === "checking") {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#050814] text-white gap-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
+          <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
+        </div>
+        <Loader2 size={32} className="animate-spin text-[#ff4fa3] relative z-10" />
+        <p className="text-white/50 text-sm relative z-10">Checking your access…</p>
+      </div>
+    );
+  }
+
+  // Offline and outside the grace window (or never verified): cannot confirm a
+  // valid subscription, so block access until the device is back online.
+  if (gate === "blocked-offline") {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#050814] text-white p-6">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
+          <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
+        </div>
+        <div className="relative z-10 max-w-md text-center bg-[#090f1c]/95 backdrop-blur-xl border border-[#ff8a00]/30 rounded-2xl p-8">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center mx-auto mb-5">
+            <WifiOff size={26} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2 text-balance">You&apos;re offline</h1>
+          <p className="text-white/60 mb-6 text-pretty">
+            We couldn&apos;t verify your EQHO Player subscription. Please reconnect to the
+            internet to continue. Your downloaded playlists will be available again
+            once your subscription is confirmed.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full min-h-[48px] py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
