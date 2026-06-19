@@ -3460,6 +3460,9 @@ export default function Page() {
                     setCurrentTrack(tracks[0]);
                     setSessionRunning(false);
                     setFinishedTracks(new Set());
+                    // Switch back to the main player so the user sees the Up Next queue.
+                    setActivePage("player");
+                    setMobileTab("nowplaying");
                   }}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
@@ -4347,6 +4350,9 @@ export default function Page() {
                   setCurrentTrack(tracks[0]);
                   setSessionRunning(false);
                   setFinishedTracks(new Set());
+                  // Switch back to the main player so the loaded queue is visible.
+                  setActivePage("player");
+                  setMobileTab("nowplaying");
                 }}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
               >
