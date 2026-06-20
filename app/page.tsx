@@ -719,7 +719,9 @@ export default function Page() {
   }, []);
 
   const trackProgress =
-    trackDuration > 0 ? (currentTime / trackDuration) * 100 : 0;
+    Number.isFinite(trackDuration) && trackDuration > 0
+      ? Math.min(Math.max((currentTime / trackDuration) * 100, 0), 100)
+      : 0;
 
   const remainingTime = Math.max(trackDuration - currentTime, 0);
 
@@ -2656,142 +2658,190 @@ export default function Page() {
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
 
-  // Wire up audio element events for real-time tracking and auto-advance
-  useEffect(() => {
+  // Real-time progress / duration tracking. Bound via JSX props on the single
+  // shared <audio> element, so every view (main, fullscreen, mobile, coach) reads
+  // the same currentTime / trackDuration state.
+  const handleAudioTimeUpdate = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    // Ignore the transient huge currentTime produced by the duration-probe seek.
+    if (audio.currentTime > 1e6) return;
+    setCurrentTime(audio.currentTime);
+    // Opportunistically capture a reliable duration if metadata was missing or
+    // reported as Infinity/NaN earlier (common for uploaded blob audio). Once the
+    // element knows a finite duration, lock it in so the progress bar + right-side
+    // duration label work instead of staying frozen at "--:--".
+    const d = audio.duration;
+    if (Number.isFinite(d) && d > 0) {
+      setTrackDuration((prev) => (prev !== d ? d : prev));
+    }
+  };
+
+  // Read a reliable duration from the element. Many browsers report duration as
+  // Infinity/NaN at `loadedmetadata` for blob-backed audio; when that happens we
+  // nudge the element (seek far ahead) to force the real duration to be computed,
+  // then restore the position. This is the root-cause fix for the frozen progress
+  // bar and the "--:--" duration label.
+  const readReliableDuration = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const d = audio.duration;
+    if (Number.isFinite(d) && d > 0) {
+      setTrackDuration(d);
+      return;
+    }
+    // Duration unknown: force the browser to determine it.
+    const onSeeked = () => {
+      audio.removeEventListener("seeked", onSeeked);
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setTrackDuration(audio.duration);
+      }
+      // Restore to the start without disrupting playback state.
+      try { audio.currentTime = 0; } catch { /* ignore */ }
+    };
+    audio.addEventListener("seeked", onSeeked);
+    try {
+      audio.currentTime = 1e7; // large but finite seek target
+    } catch {
+      audio.removeEventListener("seeked", onSeeked);
+    }
+  };
+
+  const handleAudioLoadedMetadata = () => readReliableDuration();
+  const handleAudioDurationChange = () => {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+      setTrackDuration(audio.duration);
+    }
+  };
+  // Keep the shared isPlaying state in lockstep with the element's real state so
+  // every view shows the correct play/pause status (and manual pauses stick).
+  const handleAudioPlay = () => setIsPlaying(true);
+  const handleAudioPause = () => {
+    // Ignore the brief pause the browser emits while we seek to compute duration.
+    if (audioRef.current && audioRef.current.seeking) return;
+    setIsPlaying(false);
+  };
+
+  // Auto-advance engine. Defined in component scope and bound directly to the
+  // <audio> element via the onEnded JSX prop, so it is ALWAYS attached to the
+  // live audio DOM node (no addEventListener/ref timing or remount fragility).
+  // Reads latest values from refs to avoid stale closures.
+  const handleTrackEnded = () => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
+    const _backToBack = backToBackRef.current;
+    const _backToBackPlayed = backToBackPlayedRef.current;
+    const _gapSeconds = gapSecondsRef.current;
+    const _playlistRepeats = playlistRepeatsRef.current;
+    const _playlistRound = playlistRoundRef.current;
+    const _currentIndex = currentIndexRef.current;
+    const _playlist = playlistRef.current;
+    const _hiddenTrackIds = hiddenTrackIdsRef.current;
 
-    const handleLoadedMetadata = () => {
-      setTrackDuration(audio.duration || 0);
-    };
-
-    const handleEnded = () => {
-      const _backToBack = backToBackRef.current;
-      const _backToBackPlayed = backToBackPlayedRef.current;
-      const _gapSeconds = gapSecondsRef.current;
-      const _playlistRepeats = playlistRepeatsRef.current;
-      const _playlistRound = playlistRoundRef.current;
-      const _currentIndex = currentIndexRef.current;
-      const _playlist = playlistRef.current;
-      const _hiddenTrackIds = hiddenTrackIdsRef.current;
-
-      const playAfterGap = (playFn: () => void, upcomingTitle: string, upcomingId: string) => {
-        setNextUpTitle(upcomingTitle);
-        setNextUpTrackId(upcomingId);
-        if (_gapSeconds > 0) {
-          setIsPlaying(false);
-          setIsGapPaused(true);
-          setGapCountdown(_gapSeconds);
-          lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
-          gapCallbackRef.current = playFn;
-        } else {
-          playFn();
-        }
-      };
-
-      // Back-to-back: repeat the same track once before advancing
-      if (_backToBack && !_backToBackPlayed) {
-        setBackToBackPlayed(true);
-        const currentTrk = _playlist[_currentIndex];
-        playAfterGap(() => {
-          // Re-load the same track's source so it reliably replays from the start.
-          // After the `ended` event the audio element is in its "ended" state, where
-          // simply setting currentTime = 0 and calling play() does NOT reliably
-          // restart a blob source. Re-assigning src mirrors the next-track path,
-          // which is the proven way to (re)start playback here.
-          if (currentTrk?.url) {
-            audio.src = currentTrk.url;
-            audio.currentTime = 0;
-            audio.play().then(() => {
-              setIsPlaying(true);
-            }).catch(() => {
-              setIsPlaying(false);
-            });
-          }
-        }, currentTrk?.title || "", currentTrk?.id || "");
-        return;
-      }
-      setBackToBackPlayed(false);
-
-      // Find next non-hidden track
-      let nextIdx = _currentIndex + 1;
-      while (nextIdx < _playlist.length && _hiddenTrackIds.has(_playlist[nextIdx].id)) {
-        nextIdx++;
-      }
-
-      // There's a next visible track in the playlist
-      if (nextIdx < _playlist.length) {
-        playAfterGap(() => {
-          const nextTrack = _playlist[nextIdx];
-          setCurrentIndex(nextIdx);
-          setCurrentTrack(nextTrack);
-          if (nextTrack?.url) {
-            audio.src = nextTrack.url;
-            audio.play().then(() => {
-              setIsPlaying(true);
-            }).catch(() => {
-              setIsPlaying(false);
-            });
-          }
-        }, _playlist[nextIdx]?.title || "", _playlist[nextIdx]?.id || "");
+    const playAfterGap = (playFn: () => void, upcomingTitle: string, upcomingId: string) => {
+      setNextUpTitle(upcomingTitle);
+      setNextUpTrackId(upcomingId);
+      if (_gapSeconds > 0) {
+        setIsPlaying(false);
+        setIsGapPaused(true);
+        setGapCountdown(_gapSeconds);
+        lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
+        gapCallbackRef.current = playFn;
       } else {
-        // End of playlist - check if we need to repeat
-        if (_playlistRound < _playlistRepeats) {
-          setPlaylistRound((r) => r + 1);
+        playFn();
+      }
+    };
 
-          // Find first non-hidden track for repeat
-          let firstVisibleIdx = 0;
-          while (firstVisibleIdx < _playlist.length && _hiddenTrackIds.has(_playlist[firstVisibleIdx].id)) {
-            firstVisibleIdx++;
-          }
-
-          if (firstVisibleIdx < _playlist.length) {
-            playAfterGap(() => {
-              const firstTrack = _playlist[firstVisibleIdx];
-              setCurrentIndex(firstVisibleIdx);
-              setCurrentTrack(firstTrack);
-              if (firstTrack?.url) {
-                audio.src = firstTrack.url;
-                audio.play().then(() => {
-                  setIsPlaying(true);
-                }).catch(() => {
-                  setIsPlaying(false);
-                });
-              }
-            }, _playlist[firstVisibleIdx]?.title || "", _playlist[firstVisibleIdx]?.id || "");
-          } else {
-            // All tracks are hidden, end session
-            setFinishedTracks(new Set(_playlist.map((t) => t.id)));
+    // Back-to-back: repeat the same track once before advancing
+    if (_backToBack && !_backToBackPlayed) {
+      setBackToBackPlayed(true);
+      const currentTrk = _playlist[_currentIndex];
+      playAfterGap(() => {
+        // Re-load the same track's source so it reliably replays from the start.
+        // After the `ended` event the audio element is in its "ended" state, where
+        // simply setting currentTime = 0 and calling play() does NOT reliably
+        // restart a blob source. Re-assigning src mirrors the next-track path,
+        // which is the proven way to (re)start playback here.
+        if (currentTrk?.url) {
+          audio.src = currentTrk.url;
+          audio.currentTime = 0;
+          audio.play().then(() => {
+            setIsPlaying(true);
+          }).catch(() => {
             setIsPlaying(false);
-            setSessionRunning(false);
-            setPlaylistRound(1);
-            setShowSessionFinished(true);
-          }
+          });
+        }
+      }, currentTrk?.title || "", currentTrk?.id || "");
+      return;
+    }
+    setBackToBackPlayed(false);
+
+    // Find next non-hidden track
+    let nextIdx = _currentIndex + 1;
+    while (nextIdx < _playlist.length && _hiddenTrackIds.has(_playlist[nextIdx].id)) {
+      nextIdx++;
+    }
+
+    // There's a next visible track in the playlist
+    if (nextIdx < _playlist.length) {
+      playAfterGap(() => {
+        const nextTrack = _playlist[nextIdx];
+        setCurrentIndex(nextIdx);
+        setCurrentTrack(nextTrack);
+        if (nextTrack?.url) {
+          audio.src = nextTrack.url;
+          audio.play().then(() => {
+            setIsPlaying(true);
+          }).catch(() => {
+            setIsPlaying(false);
+          });
+        }
+      }, _playlist[nextIdx]?.title || "", _playlist[nextIdx]?.id || "");
+    } else {
+      // End of playlist - check if we need to repeat
+      if (_playlistRound < _playlistRepeats) {
+        setPlaylistRound((r) => r + 1);
+
+        // Find first non-hidden track for repeat
+        let firstVisibleIdx = 0;
+        while (firstVisibleIdx < _playlist.length && _hiddenTrackIds.has(_playlist[firstVisibleIdx].id)) {
+          firstVisibleIdx++;
+        }
+
+        if (firstVisibleIdx < _playlist.length) {
+          playAfterGap(() => {
+            const firstTrack = _playlist[firstVisibleIdx];
+            setCurrentIndex(firstVisibleIdx);
+            setCurrentTrack(firstTrack);
+            if (firstTrack?.url) {
+              audio.src = firstTrack.url;
+              audio.play().then(() => {
+                setIsPlaying(true);
+              }).catch(() => {
+                setIsPlaying(false);
+              });
+            }
+          }, _playlist[firstVisibleIdx]?.title || "", _playlist[firstVisibleIdx]?.id || "");
         } else {
-          // All repeats done - mark all tracks as finished
+          // All tracks are hidden, end session
           setFinishedTracks(new Set(_playlist.map((t) => t.id)));
           setIsPlaying(false);
           setSessionRunning(false);
           setPlaylistRound(1);
           setShowSessionFinished(true);
         }
+      } else {
+        // All repeats done - mark all tracks as finished
+        setFinishedTracks(new Set(_playlist.map((t) => t.id)));
+        setIsPlaying(false);
+        setSessionRunning(false);
+        setPlaylistRound(1);
+        setShowSessionFinished(true);
       }
-    };
-
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-    audio.addEventListener("ended", handleEnded);
-
-    return () => {
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
-      audio.removeEventListener("ended", handleEnded);
-    };
-  }, []);
+    }
+  };
 
   // Sync volume and mute state with audio element
   useEffect(() => {
@@ -3231,6 +3281,15 @@ export default function Page() {
       
       <audio
         ref={audioRef}
+        preload="metadata"
+        onEnded={handleTrackEnded}
+        onTimeUpdate={handleAudioTimeUpdate}
+        onLoadedMetadata={handleAudioLoadedMetadata}
+        onDurationChange={handleAudioDurationChange}
+        onCanPlay={handleAudioDurationChange}
+        onLoadedData={handleAudioDurationChange}
+        onPlay={handleAudioPlay}
+        onPause={handleAudioPause}
         onError={() => {
           // If playback fails while offline and there is no local downloaded copy,
           // tell the user the track is not available on this device.
