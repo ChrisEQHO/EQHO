@@ -2208,23 +2208,36 @@ export default function Page() {
   const togglePlayPause = async (track: Track) => {
     if (!audioRef.current || !track || !track.url) return;
 
+    const audio = audioRef.current;
     const sameTrack = currentTrack?.id === track.id;
+    // Whether the requested track is the one ACTUALLY loaded in the <audio> element.
+    // currentTrack (React state) can drift from the loaded source - e.g. after
+    // "Send to Session" sets currentTrack without loading audio - so we must verify
+    // against the element's real src, otherwise play() would resume a stale/previous
+    // track instead of the one the user clicked.
+    const srcLoaded = audio.src === track.url;
 
     try {
-      if (sameTrack && isPlaying) {
-        audioRef.current.pause();
+      // Only treat this as a pause toggle when the EXACT track is loaded and playing.
+      if (sameTrack && srcLoaded && isPlaying) {
+        audio.pause();
         setIsPlaying(false);
         return;
       }
 
+      // Load the requested track whenever it isn't already the loaded source.
+      if (!srcLoaded) {
+        audio.src = track.url;
+        audio.currentTime = 0;
+      }
+
       if (!sameTrack) {
         const trackIndex = playlist.findIndex((t) => t.id === track.id);
-        audioRef.current.src = track.url;
         setCurrentTrack(track);
         if (trackIndex >= 0) setCurrentIndex(trackIndex);
       }
 
-      await audioRef.current.play();
+      await audio.play();
       setIsPlaying(true);
     } catch (error) {
       console.error("Playback failed:", error);
