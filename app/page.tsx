@@ -2661,64 +2661,36 @@ export default function Page() {
   // Real-time progress / duration tracking. Bound via JSX props on the single
   // shared <audio> element, so every view (main, fullscreen, mobile, coach) reads
   // the same currentTime / trackDuration state.
-  const handleAudioTimeUpdate = () => {
+  // Opportunistically lock in a reliable, finite duration whenever the element
+  // exposes one. Uploaded blob audio often reports duration as Infinity/NaN at
+  // `loadedmetadata`, but the browser resolves it shortly after via
+  // `durationchange` / during playback (`timeupdate`). We capture it from any of
+  // those events. IMPORTANT: we must NOT seek the element to force duration here,
+  // because seeking a playing element past its end fires a spurious `ended` event
+  // that would consume the back-to-back repeat slot.
+  const captureDuration = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    // Ignore the transient huge currentTime produced by the duration-probe seek.
-    if (audio.currentTime > 1e6) return;
-    setCurrentTime(audio.currentTime);
-    // Opportunistically capture a reliable duration if metadata was missing or
-    // reported as Infinity/NaN earlier (common for uploaded blob audio). Once the
-    // element knows a finite duration, lock it in so the progress bar + right-side
-    // duration label work instead of staying frozen at "--:--".
     const d = audio.duration;
     if (Number.isFinite(d) && d > 0) {
       setTrackDuration((prev) => (prev !== d ? d : prev));
     }
   };
 
-  // Read a reliable duration from the element. Many browsers report duration as
-  // Infinity/NaN at `loadedmetadata` for blob-backed audio; when that happens we
-  // nudge the element (seek far ahead) to force the real duration to be computed,
-  // then restore the position. This is the root-cause fix for the frozen progress
-  // bar and the "--:--" duration label.
-  const readReliableDuration = () => {
+  const handleAudioTimeUpdate = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    const d = audio.duration;
-    if (Number.isFinite(d) && d > 0) {
-      setTrackDuration(d);
-      return;
-    }
-    // Duration unknown: force the browser to determine it.
-    const onSeeked = () => {
-      audio.removeEventListener("seeked", onSeeked);
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        setTrackDuration(audio.duration);
-      }
-      // Restore to the start without disrupting playback state.
-      try { audio.currentTime = 0; } catch { /* ignore */ }
-    };
-    audio.addEventListener("seeked", onSeeked);
-    try {
-      audio.currentTime = 1e7; // large but finite seek target
-    } catch {
-      audio.removeEventListener("seeked", onSeeked);
-    }
+    setCurrentTime(audio.currentTime);
+    captureDuration();
   };
 
-  const handleAudioLoadedMetadata = () => readReliableDuration();
-  const handleAudioDurationChange = () => {
-    const audio = audioRef.current;
-    if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
-      setTrackDuration(audio.duration);
-    }
-  };
+  const handleAudioLoadedMetadata = () => captureDuration();
+  const handleAudioDurationChange = () => captureDuration();
   // Keep the shared isPlaying state in lockstep with the element's real state so
   // every view shows the correct play/pause status (and manual pauses stick).
   const handleAudioPlay = () => setIsPlaying(true);
   const handleAudioPause = () => {
-    // Ignore the brief pause the browser emits while we seek to compute duration.
+    // Ignore the brief pause emitted while the user scrubs/seeks the progress bar.
     if (audioRef.current && audioRef.current.seeking) return;
     setIsPlaying(false);
   };
