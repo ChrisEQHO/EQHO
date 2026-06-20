@@ -2240,6 +2240,8 @@ export default function Page() {
   // core fix for back-to-back: the flag can no longer leak across tracks.
   const playTrackFresh = (track: Track, index: number) => {
     if (!track?.url) return;
+    // A different track always begins a fresh back-to-back cycle.
+    b2bRepeatedTrackIdRef.current = null;
     setBackToBackPlayed(false);
     setCurrentIndex(index);
     setCurrentTrack(track);
@@ -2253,6 +2255,7 @@ export default function Page() {
     setIsPlaying(false);
     setSessionRunning(false);
     setPlaylistRound(1);
+    b2bRepeatedTrackIdRef.current = null;
     setBackToBackPlayed(false);
     setShowSessionFinished(true);
   };
@@ -2366,6 +2369,7 @@ export default function Page() {
         }
       } else {
         // Track changed while paused (e.g. after "Send to Session") - load it fresh.
+        b2bRepeatedTrackIdRef.current = null;
         setBackToBackPlayed(false);
         loadAndPlay(currentTrack.url, true);
       }
@@ -2602,6 +2606,7 @@ export default function Page() {
     if (audioRef.current.currentTime < 2 && prevVisibleIdx >= 0) {
       const prevTrack = playlist[prevVisibleIdx];
       if (prevTrack) {
+        b2bRepeatedTrackIdRef.current = null;
         setBackToBackPlayed(false);
         setCurrentIndex(prevVisibleIdx);
         setCurrentTrack(prevTrack);
@@ -2620,6 +2625,7 @@ export default function Page() {
     } else {
       // Otherwise, restart the current track from the beginning.
       try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
+      b2bRepeatedTrackIdRef.current = null;
       setBackToBackPlayed(false);
       if (wasPlaying) {
         audioRef.current.play().then(() => {
@@ -2651,6 +2657,11 @@ export default function Page() {
   playlistRef.current = playlist;
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
+  // Authoritative back-to-back tracker: holds the id of the track that has ALREADY
+  // played its back-to-back repeat. This is keyed by the actually-playing track id
+  // (read at the moment the track ends), so the decision can never desync the way a
+  // separate boolean flag could. null = nothing has consumed its repeat yet.
+  const b2bRepeatedTrackIdRef = useRef<string | null>(null);
 
   // Real-time progress / duration tracking. Bound via JSX props on the single
   // shared <audio> element, so every view (main, fullscreen, mobile, coach) reads
@@ -2724,19 +2735,24 @@ export default function Page() {
       }
     };
 
-    // 1) Back-to-back: replay the SAME track once before advancing. We set the flag
-    //    true now so that when this repeat ends we fall through to the advance path.
-    if (_backToBack && !_backToBackPlayed) {
-      const currentTrk = _playlist[_currentIndex];
-      if (currentTrk?.url) {
-        setBackToBackPlayed(true);
-        playAfterGap(
-          () => loadAndPlay(currentTrk.url, true),
-          currentTrk.title || "",
-          currentTrk.id || "",
-        );
-        return;
-      }
+    // 1) Back-to-back: replay the SAME track once before advancing. The decision is
+    //    keyed by the actually-playing track id, so it can't desync. If this track
+    //    hasn't consumed its repeat yet, replay it and mark it consumed; when the
+    //    repeat ends we'll fall through to the advance path below.
+    const endedTrack = _playlist[_currentIndex];
+    if (
+      _backToBack &&
+      endedTrack?.url &&
+      b2bRepeatedTrackIdRef.current !== endedTrack.id
+    ) {
+      b2bRepeatedTrackIdRef.current = endedTrack.id;
+      setBackToBackPlayed(true); // keep UI ("Up Next") state in sync
+      playAfterGap(
+        () => loadAndPlay(endedTrack.url, true),
+        endedTrack.title || "",
+        endedTrack.id || "",
+      );
+      return;
     }
 
     // 2) Advance to the next visible track. playTrackFresh clears the back-to-back
@@ -2959,14 +2975,18 @@ export default function Page() {
   };
 
   const updateBackToBack = (newValue: boolean | ((prev: boolean) => boolean)) => {
-    setBackToBack((prev) => {
-      const val = typeof newValue === "function" ? newValue(prev) : newValue;
-      setSettings((s) => ({ ...s, backToBack: val }));
-      // Turning back-to-back ON should let the currently playing track still earn
-      // its repeat, so clear the "already repeated" flag.
-      if (val) setBackToBackPlayed(false);
-      return val;
-    });
+    // Compute the next value from the live ref (no nested setState, which is impure
+    // and can fail to commit). backToBackRef is kept current on every render.
+    const val =
+      typeof newValue === "function" ? newValue(backToBackRef.current) : newValue;
+    setBackToBack(val);
+    setSettings((s) => ({ ...s, backToBack: val }));
+    // Turning back-to-back ON lets the currently playing track still earn its
+    // repeat, so clear the consumed marker (and the UI flag) for it.
+    if (val) {
+      b2bRepeatedTrackIdRef.current = null;
+      setBackToBackPlayed(false);
+    }
   };
 
   const [sessionQueue, setSessionQueue] = useState<QueueItem[]>([]);
