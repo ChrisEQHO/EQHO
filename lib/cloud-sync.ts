@@ -477,6 +477,7 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
   success: boolean
   cloudPlaylist?: CloudPlaylist
   uploadedTracks: number
+  failedTracks?: number
 }> {
   if (isMobileBuild) return { success: false, uploadedTracks: 0 }
 
@@ -512,6 +513,7 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
     success: true,
     cloudPlaylist: cloudPlaylist || undefined,
     uploadedTracks: result.uploadedTracks,
+    failedTracks: result.failedTracks,
   }
 }
 
@@ -866,6 +868,7 @@ export async function uploadPlaylistToCloud(
   success: boolean
   uploadedTracks: number
   skippedTracks: number
+  failedTracks?: number
   error?: string
 }> {
   if (isMobileBuild) return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Read-only on mobile' }
@@ -1031,7 +1034,9 @@ export async function uploadPlaylistToCloud(
       name: localPlaylist.name,
     })
 
-    return { success: true, uploadedTracks: uploadedCount, skippedTracks: skippedCount }
+    // NOTE: success here means the playlist manifest was updated. Per-track upload
+    // failures are surfaced via `failedTracks` so the UI can flag partial failures.
+    return { success: true, uploadedTracks: uploadedCount, skippedTracks: skippedCount, failedTracks: failedCount }
   } catch (error) {
     console.error('Error uploading playlist to cloud:', error)
     return { 

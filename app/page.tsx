@@ -443,6 +443,14 @@ export default function Page() {
   const [isPushingToApps, setIsPushingToApps] = useState(false);
   const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
   const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
+  // "Sync All" progress + result state.
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncAllProgress, setSyncAllProgress] = useState<{ current: number; total: number } | null>(null);
+  // Per-playlist push/sync button status. No entry = default (blue "Push Updates").
+  //  - 'pushing' => disabled "Pushing..."
+  //  - 'success' => green "Push Successful" (auto-reverts to the Synced pill)
+  //  - 'failed'  => red "Push Unsuccessful" (clickable to retry; persists)
+  const [pushStatus, setPushStatus] = useState<Record<string, 'pushing' | 'success' | 'failed'>>({});
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
   // Drives the cloud status banner colour: true => green (full success), false => pink/red (partial/error).
   const [cloudSaveSuccess, setCloudSaveSuccess] = useState<boolean>(false);
@@ -1011,6 +1019,7 @@ export default function Page() {
 
     setSyncingPlaylistId(playlistId);
     setSyncStatus('syncing');
+    setPushStatus((prev) => ({ ...prev, [playlistId]: 'pushing' }));
     setCloudSaveSuccess(false);
     setCloudSaveMessage(`Syncing ${localPlaylist.name}...`);
 
@@ -1028,8 +1037,13 @@ export default function Page() {
         })),
       });
 
-      if (result.success) {
+      // Requirement #5: a partial failure (some tracks failed) is treated as
+      // unsuccessful and must NOT be marked as fully synced.
+      const partialFailure = result.success && (result.failedTracks ?? 0) > 0;
+
+      if (result.success && !partialFailure) {
         setSyncStatus('success');
+        setPushStatus((prev) => ({ ...prev, [playlistId]: 'success' }));
         // Single-playlist success messages (green banner via cloudSaveSuccess).
         setCloudSaveMessage(
           wasModified
@@ -1040,14 +1054,37 @@ export default function Page() {
         // Refresh cloud playlists so the card flips to the blue "Synced" state.
         const playlists = await fetchCloudPlaylists();
         setCloudPlaylists(playlists);
+        // Auto-clear the green "Push Successful" state so the card returns to the
+        // "Synced" pill shortly after.
+        setTimeout(() => {
+          setPushStatus((prev) => {
+            if (prev[playlistId] !== 'success') return prev;
+            const next = { ...prev };
+            delete next[playlistId];
+            return next;
+          });
+        }, 2500);
       } else {
         setSyncStatus('error');
+        setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
-        setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
+        setCloudSaveMessage(
+          partialFailure
+            ? `Some tracks failed to upload for ${localPlaylist.name}`
+            : `Failed to sync ${localPlaylist.name}`
+        );
+        // Refresh cloud state so partially-synced playlists keep a non-synced status.
+        if (partialFailure) {
+          try {
+            const playlists = await fetchCloudPlaylists();
+            setCloudPlaylists(playlists);
+          } catch { /* non-fatal */ }
+        }
       }
     } catch (error) {
       console.error("Sync failed:", error);
       setSyncStatus('error');
+      setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
       setCloudSaveSuccess(false);
       setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
     } finally {
@@ -1056,6 +1093,118 @@ export default function Page() {
         setSyncStatus('idle');
       }, 2000);
     }
+  };
+
+  // "Sync All": upload/sync every local playlist that is not fully synced.
+  // Covers new playlists, playlists with new tracks, changed track order, and
+  // renamed/updated metadata. Already-synced/unchanged tracks are skipped by the
+  // uploader (it matches by title + fileName), so nothing is re-uploaded needlessly.
+  const handleSyncAll = async () => {
+    if (isMobileBuild || isSyncingAll) return;
+
+    // Only sync playlists that aren't already fully synced ('new' or 'modified').
+    const playlistsToSync = savedPlaylists.filter(
+      (pl) => getPlaylistCloudStatus(pl) !== 'synced'
+    );
+
+    if (playlistsToSync.length === 0) {
+      setCloudSaveSuccess(true);
+      setCloudSaveMessage('All playlists already synced');
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+      return;
+    }
+
+    setIsSyncingAll(true);
+    setCloudSaveSuccess(false);
+    // Reset push status only for the playlists we're about to (re)sync.
+    setPushStatus((prev) => {
+      const next = { ...prev };
+      for (const pl of playlistsToSync) next[pl.id] = 'pushing';
+      return next;
+    });
+
+    const total = playlistsToSync.length;
+    let syncedCount = 0;
+    const failed: { id: string; name: string }[] = [];
+    const succeeded: string[] = [];
+
+    for (let i = 0; i < total; i++) {
+      const pl = playlistsToSync[i];
+      // Show clear progress ("Syncing 1 of 4", ...).
+      setSyncAllProgress({ current: i + 1, total });
+      setCloudSaveMessage(`Syncing ${i + 1} of ${total}...`);
+
+      try {
+        const result = await syncPlaylistToCloud({
+          id: pl.id,
+          name: pl.name,
+          tracks: pl.tracks.map((t) => ({
+            id: t.id,
+            title: t.title,
+            fileName: t.fileName,
+            durationSeconds: t.durationSeconds,
+            uploadedAt: t.uploadedAt,
+            file: t.file!,
+          })),
+        });
+
+        // Requirement #5: partial failure counts as unsuccessful.
+        const partialFailure = result.success && (result.failedTracks ?? 0) > 0;
+
+        if (result.success && !partialFailure) {
+          // Requirement #7: mark this card green "Push Successful".
+          syncedCount++;
+          succeeded.push(pl.id);
+          setPushStatus((prev) => ({ ...prev, [pl.id]: 'success' }));
+        } else {
+          // Requirement #8: one failure must not stop the whole sync.
+          // Requirement #7: mark this card red "Push Unsuccessful".
+          failed.push({ id: pl.id, name: pl.name });
+          setPushStatus((prev) => ({ ...prev, [pl.id]: 'failed' }));
+          console.error(`[v0][sync-all] Failed to sync "${pl.name}"`);
+        }
+      } catch (error) {
+        failed.push({ id: pl.id, name: pl.name });
+        setPushStatus((prev) => ({ ...prev, [pl.id]: 'failed' }));
+        console.error(`[v0][sync-all] Error syncing "${pl.name}":`, error);
+      }
+    }
+
+    // Refresh cloud status/count so cards reflect the synced state.
+    try {
+      const playlists = await fetchCloudPlaylists();
+      setCloudPlaylists(playlists);
+    } catch {
+      /* non-fatal: signatures effect will retry on next change */
+    }
+
+    // Auto-clear the green "Push Successful" states so successful cards revert to the
+    // "Synced" pill. Failed cards stay red until the user retries.
+    setTimeout(() => {
+      setPushStatus((prev) => {
+        const next = { ...prev };
+        for (const id of succeeded) {
+          if (next[id] === 'success') delete next[id];
+        }
+        return next;
+      });
+    }, 2500);
+
+    if (failed.length === 0) {
+      // Requirement #7: green success summary.
+      setCloudSaveSuccess(true);
+      setCloudSaveMessage(`${syncedCount} / ${total} playlists synced`);
+    } else {
+      setCloudSaveSuccess(false);
+      const failedNames = failed.map((f) => f.name).join(', ');
+      setCloudSaveMessage(
+        `${syncedCount} / ${total} synced — failed: ${failedNames}`
+      );
+    }
+
+    setIsSyncingAll(false);
+    setSyncAllProgress(null);
+    setTimeout(() => setCloudSaveMessage(null), 6000);
   };
 
   const handleDeleteCloudPlaylist = async (playlistId: string) => {
@@ -2547,14 +2696,23 @@ export default function Page() {
       // Back-to-back: repeat the same track once before advancing
       if (_backToBack && !_backToBackPlayed) {
         setBackToBackPlayed(true);
-        audio.currentTime = 0;
+        const currentTrk = _playlist[_currentIndex];
         playAfterGap(() => {
-          audio.play().then(() => {
-            setIsPlaying(true);
-          }).catch(() => {
-            setIsPlaying(false);
-          });
-        }, _playlist[_currentIndex]?.title || "", _playlist[_currentIndex]?.id || "");
+          // Re-load the same track's source so it reliably replays from the start.
+          // After the `ended` event the audio element is in its "ended" state, where
+          // simply setting currentTime = 0 and calling play() does NOT reliably
+          // restart a blob source. Re-assigning src mirrors the next-track path,
+          // which is the proven way to (re)start playback here.
+          if (currentTrk?.url) {
+            audio.src = currentTrk.url;
+            audio.currentTime = 0;
+            audio.play().then(() => {
+              setIsPlaying(true);
+            }).catch(() => {
+              setIsPlaying(false);
+            });
+          }
+        }, currentTrk?.title || "", currentTrk?.id || "");
         return;
       }
       setBackToBackPlayed(false);
@@ -3364,6 +3522,9 @@ export default function Page() {
                     setCurrentTrack(tracks[0]);
                     setSessionRunning(false);
                     setFinishedTracks(new Set());
+                    // Switch back to the main player so the user sees the Up Next queue.
+                    setActivePage("player");
+                    setMobileTab("nowplaying");
                   }}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
@@ -4251,6 +4412,9 @@ export default function Page() {
                   setCurrentTrack(tracks[0]);
                   setSessionRunning(false);
                   setFinishedTracks(new Set());
+                  // Switch back to the main player so the loaded queue is visible.
+                  setActivePage("player");
+                  setMobileTab("nowplaying");
                 }}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
               >
@@ -5213,14 +5377,18 @@ export default function Page() {
                       <span>{cloudPlaylists.length} cloud</span>
                     </div>
                     <button
-                      onClick={async () => {
-                        const playlists = await fetchCloudPlaylists();
-                        setCloudPlaylists(playlists);
-                      }}
-                      className="px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition flex items-center gap-2"
+                      onClick={handleSyncAll}
+                      disabled={isSyncingAll}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition flex items-center gap-2 disabled:cursor-not-allowed ${
+                        cloudSaveSuccess && !isSyncingAll
+                          ? "border-green-500/40 bg-green-500/10 text-green-400"
+                          : "border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
+                      } ${isSyncingAll ? "opacity-80" : ""}`}
                     >
-                      <RefreshCw size={14} />
-                      Sync All
+                      <RefreshCw size={14} className={isSyncingAll ? "animate-spin" : ""} />
+                      {isSyncingAll && syncAllProgress
+                        ? `Syncing ${syncAllProgress.current} of ${syncAllProgress.total}`
+                        : "Sync All"}
                     </button>
                   </div>
                 )}
@@ -5386,7 +5554,8 @@ export default function Page() {
                       {savedPlaylists.map((localPlaylist) => {
                         const cloudStatus = getPlaylistCloudStatus(localPlaylist);
                         const isInCloud = cloudStatus !== 'new';
-                        const isSyncing = syncingPlaylistId === localPlaylist.id;
+                        const cardPushStatus = pushStatus[localPlaylist.id];
+                        const isSyncing = syncingPlaylistId === localPlaylist.id || cardPushStatus === 'pushing';
                         const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
                         
                         return (
@@ -5429,7 +5598,10 @@ export default function Page() {
                               )}
                             </div>
                             
-                            {cloudStatus === 'synced' ? (
+                            {/* Show the "Synced" pill only when there is no active push
+                                status to display; otherwise the colored push button
+                                (pushing / success / failed) takes precedence. */}
+                            {cloudStatus === 'synced' && !cardPushStatus ? (
                               <div className="mb-2 flex items-center gap-1 text-[10px] text-cyan-400">
                                 <Cloud size={10} />
                                 Synced
@@ -5437,11 +5609,29 @@ export default function Page() {
                             ) : !isMobileBuild && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
-                                disabled={isSyncing}
-                                className="mb-2 w-full py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                disabled={cardPushStatus === 'pushing'}
+                                className={`mb-2 w-full py-1.5 rounded-lg border text-[11px] font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed ${
+                                  cardPushStatus === 'success'
+                                    ? "bg-green-500/15 border-green-500/40 text-green-400"
+                                    : cardPushStatus === 'failed'
+                                      ? "bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25"
+                                      : "bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25"
+                                }`}
                               >
-                                {isSyncing ? <Loader2 size={11} className="animate-spin" /> : <Cloud size={11} />}
-                                {cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
+                                {cardPushStatus === 'pushing'
+                                  ? <Loader2 size={11} className="animate-spin" />
+                                  : cardPushStatus === 'success'
+                                    ? <Check size={11} />
+                                    : cardPushStatus === 'failed'
+                                      ? <AlertCircle size={11} />
+                                      : <Cloud size={11} />}
+                                {cardPushStatus === 'pushing'
+                                  ? 'Pushing...'
+                                  : cardPushStatus === 'success'
+                                    ? 'Push Successful'
+                                    : cardPushStatus === 'failed'
+                                      ? 'Push Unsuccessful'
+                                      : cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
                               </button>
                             )}
                             
