@@ -2696,14 +2696,23 @@ export default function Page() {
       // Back-to-back: repeat the same track once before advancing
       if (_backToBack && !_backToBackPlayed) {
         setBackToBackPlayed(true);
-        audio.currentTime = 0;
+        const currentTrk = _playlist[_currentIndex];
         playAfterGap(() => {
-          audio.play().then(() => {
-            setIsPlaying(true);
-          }).catch(() => {
-            setIsPlaying(false);
-          });
-        }, _playlist[_currentIndex]?.title || "", _playlist[_currentIndex]?.id || "");
+          // Re-load the same track's source so it reliably replays from the start.
+          // After the `ended` event the audio element is in its "ended" state, where
+          // simply setting currentTime = 0 and calling play() does NOT reliably
+          // restart a blob source. Re-assigning src mirrors the next-track path,
+          // which is the proven way to (re)start playback here.
+          if (currentTrk?.url) {
+            audio.src = currentTrk.url;
+            audio.currentTime = 0;
+            audio.play().then(() => {
+              setIsPlaying(true);
+            }).catch(() => {
+              setIsPlaying(false);
+            });
+          }
+        }, currentTrk?.title || "", currentTrk?.id || "");
         return;
       }
       setBackToBackPlayed(false);
