@@ -17,5 +17,5 @@ export const SUBSCRIPTION_CONFIG = {
   price: 399, // £3.99 in pence
   currency: 'gbp',
   interval: 'month' as const,
-  trialDays: 30,
+  trialDays: 14,
 }

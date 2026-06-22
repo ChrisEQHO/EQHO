@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       mode: 'subscription',
       payment_method_types: ['card'],
       // Require the customer to enter card details now, even during the trial.
-      // They will not be charged until the 30-day trial ends.
+      // They will not be charged until the 14-day trial ends.
       payment_method_collection: 'always',
       customer: customerId,
       customer_email: customerId ? undefined : user.email || undefined,
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         },
       ],
       subscription_data: {
-        trial_period_days: 30,
+        trial_period_days: 14,
         metadata: {
           supabase_user_id: user.id,
         },
