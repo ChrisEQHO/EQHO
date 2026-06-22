@@ -257,7 +257,7 @@ export default function UpgradeClient() {
               </div>
               <div className="bg-[#020617] border border-white/10 rounded-xl px-5 py-3 text-center flex flex-col justify-center">
                 <p className="text-xs text-[#94a3b8]">Then</p>
-                <p className="text-2xl font-black text-white leading-tight">£7.99</p>
+                <p className="text-2xl font-black text-white leading-tight">£3.99</p>
                 <p className="text-xs text-[#64748b]">/month</p>
               </div>
             </div>
@@ -300,7 +300,7 @@ export default function UpgradeClient() {
             </button>
 
             <p className="text-center text-xs mt-2 text-[#64748b]">
-              Start your 30-day free trial today. Your subscription will automatically continue at £7.99/month unless cancelled.
+              Start your 30-day free trial today. Your subscription will automatically continue at £3.99/month unless cancelled.
             </p>
             <p className="text-center text-xs mt-1.5 text-[#64748b]">
               No charge today. Cancel anytime during your free trial.
