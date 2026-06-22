@@ -5,20 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Check, Loader2, CreditCard, Settings, Sparkles, Play, Bug } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Check, Loader2, CreditCard, Settings, Sparkles, Play } from 'lucide-react'
 
 type ViewState = 'loading' | 'finalizing' | 'signup' | 'success'
-
-interface DebugInfo {
-  userEmail: string | null
-  userId: string | null
-  profileExists: boolean
-  subscriptionStatus: string | null
-  trialEnd: string | null
-  accessAllowed: boolean
-  sessionIdFound: boolean
-  lastChecked: string
-}
 
 function CompleteSignupContent() {
   const [viewState, setViewState] = useState<ViewState>('loading')
@@ -30,17 +19,6 @@ function CompleteSignupContent() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [pollCount, setPollCount] = useState(0)
-  const [showDebug, setShowDebug] = useState(true) // Show debug panel by default
-  const [debugInfo, setDebugInfo] = useState<DebugInfo>({
-    userEmail: null,
-    userId: null,
-    profileExists: false,
-    subscriptionStatus: null,
-    trialEnd: null,
-    accessAllowed: false,
-    sessionIdFound: false,
-    lastChecked: new Date().toISOString(),
-  })
   const [subscriptionData, setSubscriptionData] = useState<{
     status: string
     daysRemaining: number
@@ -50,15 +28,6 @@ function CompleteSignupContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
-
-  // Update debug info helper
-  const updateDebug = useCallback((updates: Partial<DebugInfo>) => {
-    setDebugInfo(prev => ({
-      ...prev,
-      ...updates,
-      lastChecked: new Date().toISOString(),
-    }))
-  }, [])
 
   // Check subscription status - used for polling
   const checkSubscriptionStatus = useCallback(async () => {
@@ -70,12 +39,10 @@ function CompleteSignupContent() {
     
     if (!user) {
       console.log('[v0] No logged in user')
-      updateDebug({ userEmail: null, userId: null, profileExists: false })
       return null
     }
 
     console.log('[v0] Checking subscription for user:', user.id, user.email)
-    updateDebug({ userEmail: user.email || null, userId: user.id })
 
     // Check profile
     const { data: profile, error: profileError } = await supabase
@@ -86,21 +53,13 @@ function CompleteSignupContent() {
 
     if (profileError) {
       console.log('[v0] Profile lookup error:', profileError.message)
-      updateDebug({ profileExists: false, subscriptionStatus: null, trialEnd: null, accessAllowed: false })
       return null
     }
 
     if (profile) {
       console.log('[v0] Profile found:', profile)
-      
+
       const accessAllowed = profile.subscription_status === 'trialing' || profile.subscription_status === 'active'
-      
-      updateDebug({
-        profileExists: true,
-        subscriptionStatus: profile.subscription_status,
-        trialEnd: profile.trial_end,
-        accessAllowed,
-      })
 
       if (accessAllowed) {
         const trialEnd = profile.trial_end ? new Date(profile.trial_end) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -115,14 +74,12 @@ function CompleteSignupContent() {
     }
 
     return null
-  }, [updateDebug])
+  }, [])
 
   // Initial check
   useEffect(() => {
     console.log('[v0] /complete-signup loaded')
     console.log('[v0] session_id:', sessionId)
-    
-    updateDebug({ sessionIdFound: !!sessionId })
 
     const initializeCheck = async () => {
       // If we have a session_id, we came from Stripe checkout
@@ -154,14 +111,7 @@ function CompleteSignupContent() {
               daysRemaining,
               email: result.profile.email || ''
             })
-            
-            updateDebug({
-              profileExists: true,
-              subscriptionStatus: result.profile.subscription_status,
-              trialEnd: result.profile.trial_end,
-              accessAllowed: true,
-            })
-            
+
             setViewState('success')
             return
           } else {
@@ -197,7 +147,7 @@ function CompleteSignupContent() {
     }
 
     initializeCheck()
-  }, [sessionId, checkSubscriptionStatus, updateDebug])
+  }, [sessionId, checkSubscriptionStatus])
 
   // Polling - check subscription status every 2 seconds for up to 20 seconds
   useEffect(() => {
@@ -335,90 +285,10 @@ function CompleteSignupContent() {
     }
   }
 
-  // Debug Panel Component
-  const DebugPanel = () => (
-    <div className="fixed bottom-4 right-4 z-50">
-      <button
-        onClick={() => setShowDebug(!showDebug)}
-        className="mb-2 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg text-yellow-400 hover:bg-yellow-500/30 transition"
-      >
-        <Bug className="w-5 h-5" />
-      </button>
-      
-      {showDebug && (
-        <div className="bg-[#0a1020] border border-yellow-500/30 rounded-lg p-4 w-80 text-xs font-mono">
-          <h3 className="text-yellow-400 font-bold mb-2 flex items-center gap-2">
-            <Bug className="w-4 h-4" /> Debug Panel
-          </h3>
-          <div className="space-y-1 text-white/80">
-            <div className="flex justify-between">
-              <span className="text-white/50">User Email:</span>
-              <span className={debugInfo.userEmail ? 'text-green-400' : 'text-red-400'}>
-                {debugInfo.userEmail || 'Not logged in'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">User ID:</span>
-              <span className="text-white/70 truncate max-w-[150px]">
-                {debugInfo.userId || 'N/A'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Profile Exists:</span>
-              <span className={debugInfo.profileExists ? 'text-green-400' : 'text-red-400'}>
-                {debugInfo.profileExists ? 'Yes' : 'No'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Subscription:</span>
-              <span className={
-                debugInfo.subscriptionStatus === 'trialing' || debugInfo.subscriptionStatus === 'active'
-                  ? 'text-green-400'
-                  : 'text-red-400'
-              }>
-                {debugInfo.subscriptionStatus || 'none'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Trial End:</span>
-              <span className="text-white/70">
-                {debugInfo.trialEnd ? new Date(debugInfo.trialEnd).toLocaleDateString() : 'N/A'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Access Allowed:</span>
-              <span className={debugInfo.accessAllowed ? 'text-green-400' : 'text-red-400'}>
-                {debugInfo.accessAllowed ? 'Yes' : 'No'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Session ID:</span>
-              <span className={debugInfo.sessionIdFound ? 'text-green-400' : 'text-yellow-400'}>
-                {debugInfo.sessionIdFound ? 'Found' : 'Not found'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">Poll Count:</span>
-              <span className="text-white/70">{pollCount}/10</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/50">View State:</span>
-              <span className="text-cyan-400">{viewState}</span>
-            </div>
-            <div className="mt-2 pt-2 border-t border-white/10 text-white/40">
-              Last checked: {new Date(debugInfo.lastChecked).toLocaleTimeString()}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-
   // Loading state
   if (viewState === 'loading') {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <DebugPanel />
         <div className="text-center">
           <Loader2 className="w-10 h-10 text-[#ff4fa3] animate-spin mx-auto mb-3" />
           <p className="text-white/70 text-sm">Loading...</p>
@@ -431,7 +301,6 @@ function CompleteSignupContent() {
   if (viewState === 'finalizing') {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-        <DebugPanel />
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#22c55e]/10 to-transparent rounded-full blur-3xl" />
           <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
@@ -464,7 +333,6 @@ function CompleteSignupContent() {
   if (viewState === 'success' && subscriptionData) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-        <DebugPanel />
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#22c55e]/10 to-transparent rounded-full blur-3xl" />
           <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
@@ -549,7 +417,6 @@ function CompleteSignupContent() {
   // Signup form state (fallback)
   return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-      <DebugPanel />
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
