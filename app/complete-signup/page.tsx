@@ -367,7 +367,7 @@ function CompleteSignupContent() {
               <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
                 <div className="flex items-center gap-1.5 text-[#94a3b8]">
                   <CreditCard className="h-3 w-3" />
-                  <span className="text-xs">Then £47.90/yr</span>
+                  <span className="text-xs">Then £3.99/month</span>
                 </div>
               </div>
               <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
@@ -379,7 +379,7 @@ function CompleteSignupContent() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-4">
-              {['Unlimited playlists', 'Cloud sync', 'Advanced sessions', 'Priority support'].map((feature) => (
+              {['Cloud Storage', 'Playback Tools', 'Cross Device Sync', 'Offline Playback'].map((feature) => (
                 <div key={feature} className="flex items-center gap-1.5 text-sm text-[#e2e8f0]">
                   <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
                     <Check className="w-2.5 h-2.5 text-white" />
