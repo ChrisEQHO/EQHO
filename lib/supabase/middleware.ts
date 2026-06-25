@@ -2,11 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isAdminEmail } from '@/lib/access'
 
-// Full auth + subscription gating is ENABLED. Access to the player requires a
-// logged-in user who is an admin, has an active subscription, or is on an active
-// trial. The v0 preview / local dev bypass below remains so the app can still be
-// developed inside v0 without logging in.
-const BYPASS_AUTH = false
+// Auth + subscription gating is DISABLED. The player is free to use without
+// signing up or logging in, so the middleware passes every request through
+// untouched and never redirects to /login or /upgrade.
+const BYPASS_AUTH = true
 
 export async function updateSession(request: NextRequest) {
   // TEMPORARY bypass: skip all auth/subscription gating entirely
