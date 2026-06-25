@@ -201,10 +201,10 @@ export default function SubscriptionSuccessPage() {
           {/* Features - 2 columns */}
           <div className="grid grid-cols-2 gap-2 mb-4 text-left">
             {[
-              'Unlimited playlists',
-              'Cloud sync',
-              'Advanced sessions',
-              'Priority support',
+              'Cloud Storage',
+              'Playback Tools',
+              'Cross Device Sync',
+              'Offline Playback',
             ].map((feature) => (
               <div key={feature} className="flex items-center gap-2 text-sm text-[#e2e8f0]">
                 <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">

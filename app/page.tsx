@@ -16,13 +16,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
-import {
-  isAdminEmail,
-  isOnline,
-  isWithinOfflineGrace,
-  recordEntitlementVerified,
-  clearEntitlementVerified,
-} from "@/lib/access";
+import { clearEntitlementVerified } from "@/lib/access";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -394,10 +388,10 @@ export default function Page() {
   // True once the initial Supabase auth check has completed (so we can tell
   // "logged out" apart from "still loading").
   const [authChecked, setAuthChecked] = useState(false);
-  // Access gate state for the client-side guard (mobile static builds have no
-  // middleware, so the player enforces login + subscription here too).
+  // Access is open to everyone - no login or subscription is required to use the
+  // player - so the gate always starts (and stays) granted.
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline">(
-    isV0Preview ? "granted" : "checking"
+    "granted"
   );
   const router = useRouter();
   const supabase = createClient();
@@ -500,50 +494,8 @@ export default function Page() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  // -------------------------------------------------------------------------
-  // Client-side access gate.
-  // Web production is also covered by middleware, but mobile/desktop Capacitor
-  // builds use static export (no middleware), so the player enforces the same
-  // login + active-subscription rule here. Admins and active/trial users get in.
-  // Offline, we honour a grace window from the last successful online check so
-  // downloaded playlists keep working without giving away indefinite access.
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (isV0Preview) {
-      setGate("granted");
-      return;
-    }
-    // Wait for both the auth check and the subscription fetch to settle.
-    if (!authChecked || isSubscriptionLoading) return;
-
-    const online = isOnline();
-
-    // Offline: we can't re-verify with Supabase/Stripe. Fall back to the grace
-    // window recorded during the last successful online verification.
-    if (!online) {
-      setGate(isWithinOfflineGrace() ? "granted" : "blocked-offline");
-      return;
-    }
-
-    // Online but not logged in -> go to login.
-    if (!user) {
-      clearEntitlementVerified();
-      router.replace("/login");
-      return;
-    }
-
-    // Online and logged in: admins and active/trial subscribers are entitled.
-    const entitled = isAdminEmail(user.email) || isPro;
-    if (entitled) {
-      recordEntitlementVerified();
-      setGate("granted");
-      return;
-    }
-
-    // Logged in but no active subscription/trial -> upgrade.
-    clearEntitlementVerified();
-    router.replace("/upgrade");
-  }, [authChecked, isSubscriptionLoading, user, isPro, router]);
+  // Access gate intentionally removed: the player is free to use without login or
+  // a subscription, so no client-side redirect to /login or /upgrade is performed.
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock, Bug } from 'lucide-react'
+import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
@@ -15,15 +15,6 @@ const isV0Preview = typeof window !== 'undefined' && (
   window.location.hostname.includes('localhost')
 )
 
-interface DebugInfo {
-  authEmail: string | null
-  authUserId: string | null
-  displayedEmail: string | null
-  profileEmail: string | null
-  localStorageEmail: string | null
-  emailMismatch: boolean
-}
-
 export default function UpgradeClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -33,16 +24,7 @@ export default function UpgradeClient() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [hasSubscription, setHasSubscription] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const [showDebug, setShowDebug] = useState(true)
-  const [debugInfo, setDebugInfo] = useState<DebugInfo>({
-    authEmail: null,
-    authUserId: null,
-    displayedEmail: null,
-    profileEmail: null,
-    localStorageEmail: null,
-    emailMismatch: false,
-  })
-  const [emailMismatch, setEmailMismatch] = useState(false)
+  const [emailMismatch] = useState(false)
 
   // Check session on mount - ALWAYS use getUser() for fresh auth data
   useEffect(() => {
@@ -71,28 +53,21 @@ export default function UpgradeClient() {
 
       console.log('[v0] Fresh auth user:', authUser.id, authUser.email)
       
-      // Check localStorage for any stale email
-      const localStorageEmail = typeof window !== 'undefined' 
-        ? localStorage.getItem('userEmail') || localStorage.getItem('email') || localStorage.getItem('user_email')
-        : null
-
       // Set user from fresh auth data
       const freshEmail = authUser.email || ''
       setUser({ id: authUser.id, email: freshEmail })
 
       // Check profile for subscription status
       let profile = null
-      let profileEmail = null
-      
+
       const { data: profileById } = await supabase
         .from('profiles')
         .select('subscription_status, email')
         .eq('id', authUser.id)
         .single()
-      
+
       if (profileById) {
         profile = profileById
-        profileEmail = profileById.email
       } else if (authUser.email) {
         // Fallback: look up by email (profiles is keyed on id, there is no user_id column)
         const { data: profileByEmail } = await supabase
@@ -102,19 +77,8 @@ export default function UpgradeClient() {
           .single()
         if (profileByEmail) {
           profile = profileByEmail
-          profileEmail = profileByEmail.email
         }
       }
-
-      // Update debug info
-      setDebugInfo({
-        authEmail: freshEmail,
-        authUserId: authUser.id,
-        displayedEmail: freshEmail,
-        profileEmail: profileEmail,
-        localStorageEmail: localStorageEmail,
-        emailMismatch: false,
-      })
 
       if (profile?.subscription_status && ['active', 'trialing'].includes(profile.subscription_status)) {
         setHasSubscription(true)
@@ -282,30 +246,29 @@ export default function UpgradeClient() {
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
-            {/* 14 Days Free Banner + Yearly Pricing */}
+            {/* 14 Days Free Banner + Monthly Pricing */}
             <div className="flex gap-3 mb-4">
               <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 flex items-center gap-3">
                 <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
                   <p className="font-bold text-white text-lg leading-tight">14 Days FREE</p>
-                  <p className="text-xs text-white/90">Try all EQHO Player features free</p>
+                  <p className="text-xs text-white/90">Full access to all EQHO Player features</p>
                 </div>
               </div>
               <div className="bg-[#020617] border border-white/10 rounded-xl px-5 py-3 text-center flex flex-col justify-center">
                 <p className="text-xs text-[#94a3b8]">Then</p>
-                <p className="text-2xl font-black text-white leading-tight">£47.90</p>
-                <p className="text-xs text-[#64748b]">/year</p>
-                <p className="text-[10px] text-[#22c55e] mt-0.5">Just £3.99/mo avg</p>
+                <p className="text-2xl font-black text-white leading-tight">£3.99</p>
+                <p className="text-xs text-[#64748b]">/month</p>
               </div>
             </div>
 
             {/* Features - 2 columns */}
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
               {[
-                'Unlimited playlists',
-                'Cloud sync',
-                'Advanced sessions',
-                'Priority support',
+                'Cloud Storage',
+                'Playback Tools',
+                'Cross Device Sync',
+                'Offline Playback',
               ].map((feature) => (
                 <div key={feature} className="flex items-center gap-2 text-sm text-[#e2e8f0]">
                   <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
@@ -337,73 +300,12 @@ export default function UpgradeClient() {
             </button>
 
             <p className="text-center text-xs mt-2 text-[#64748b]">
-              Redirects to Stripe. Card won&apos;t be charged until trial ends.
+              Start your 14-day free trial today. Your subscription will automatically continue at £3.99/month unless cancelled.
+            </p>
+            <p className="text-center text-xs mt-1.5 text-[#64748b]">
+              No charge today. Cancel anytime during your free trial.
             </p>
           </div>
-
-          {/* Debug Panel */}
-          {showDebug && (
-            <div className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 text-xs font-mono">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Bug className="h-4 w-4 text-[#fbbf24]" />
-                  <span className="font-semibold text-[#fbbf24]">Debug Panel</span>
-                </div>
-                <button 
-                  onClick={() => setShowDebug(false)}
-                  className="text-[#64748b] hover:text-white text-xs"
-                >
-                  Hide
-                </button>
-              </div>
-              <div className="space-y-1.5 text-[#94a3b8]">
-                <div className="flex justify-between">
-                  <span>Auth Email:</span>
-                  <span className="text-[#22d3ee]">{debugInfo.authEmail || 'null'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Auth User ID:</span>
-                  <span className="text-[#22d3ee] truncate max-w-[200px]">{debugInfo.authUserId || 'null'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Displayed Email:</span>
-                  <span className="text-[#22d3ee]">{debugInfo.displayedEmail || 'null'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Profile Email:</span>
-                  <span className="text-[#22d3ee]">{debugInfo.profileEmail || 'null'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>LocalStorage Email:</span>
-                  <span className="text-[#22d3ee]">{debugInfo.localStorageEmail || 'null'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Email Mismatch:</span>
-                  <span className={emailMismatch ? 'text-red-400' : 'text-green-400'}>
-                    {emailMismatch ? 'YES - ERROR' : 'No'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Checkout Email:</span>
-                  <span className="text-[#22d3ee]">{user?.email || 'null'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Client Ref ID:</span>
-                  <span className="text-[#22d3ee] truncate max-w-[200px]">{user?.id || 'null'}</span>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {!showDebug && (
-            <button 
-              onClick={() => setShowDebug(true)}
-              className="text-[#64748b] hover:text-[#94a3b8] text-xs flex items-center gap-1 mx-auto"
-            >
-              <Bug className="h-3 w-3" />
-              Show Debug
-            </button>
-          )}
         </div>
       </main>
     </div>
