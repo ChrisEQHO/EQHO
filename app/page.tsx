@@ -4070,77 +4070,22 @@ export default function Page() {
                   const completed = playlist.slice(0, currentIndex).map((track, i) => ({ track, originalIndex: i }));
                   const reordered = [...upcoming, ...completed];
 
-                  return reordered.map(({ track, originalIndex }) => {
+                  return (
+                    <SortableTrackList
+                      ids={reordered.map(({ track }) => track.id)}
+                      onReorder={reorderPlaylistByIds}
+                    >
+                      {reordered.map(({ track, originalIndex }) => {
                     const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
                     const colour = colours[originalIndex % colours.length];
                     const isActiveTrack = currentTrack?.id === track.id;
                     const isCompleted = originalIndex < currentIndex;
-                    const isDropTarget = dropTargetIndex === originalIndex && draggedTrackIndex !== null;
                     const isHidden = hiddenTrackIds.has(track.id);
 
                     return (
-                      <div key={track.id} className="relative">
-                        {isDropTarget && draggedTrackIndex !== null && dropPosition === "above" && (
-                          <div className="absolute -top-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
-                        )}
-                        <div
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggedTrackIndex(originalIndex);
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", originalIndex.toString());
-                          }}
-                          onDragEnd={() => {
-                            setDraggedTrackIndex(null);
-                            setDropTargetIndex(null);
-                            setDropPosition("below");
-                            dropPositionRef.current = "below";
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            if (draggedTrackIndex !== null && draggedTrackIndex !== originalIndex) {
-                              setDropTargetIndex(originalIndex);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const midpoint = rect.top + rect.height / 2;
-                              const position = e.clientY < midpoint ? "above" : "below";
-                              setDropPosition(position);
-                              dropPositionRef.current = position;
-                            }
-                          }}
-                          onDragLeave={() => {
-                            if (dropTargetIndex === originalIndex) {
-                              setDropTargetIndex(null);
-                            }
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (draggedTrackIndex === null || draggedTrackIndex === originalIndex) return;
-                            
-                            const fromIndex = draggedTrackIndex;
-                            const toIndex = originalIndex;
-                            const position = dropPositionRef.current;
-                            
-                            setPlaylist((prev) => {
-                              const newPlaylist = [...prev];
-                              const [draggedItem] = newPlaylist.splice(fromIndex, 1);
-                              let finalPosition: number;
-                              
-                              if (position === "above") {
-                                finalPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
-                              } else {
-                                finalPosition = fromIndex < toIndex ? toIndex : toIndex + 1;
-                              }
-                              
-                              newPlaylist.splice(finalPosition, 0, draggedItem);
-                              return newPlaylist;
-                            });
-                            
-                            setDraggedTrackIndex(null);
-                            setDropTargetIndex(null);
-                            setDropPosition("below");
-                            dropPositionRef.current = "below";
-                          }}
+                        <SortableTrackItem
+                          key={track.id}
+                          id={track.id}
                           className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
                             isHidden
                               ? "opacity-40 bg-white/[0.01] border border-dashed border-white/10"
@@ -4149,7 +4094,7 @@ export default function Page() {
                               : isCompleted
                               ? "opacity-50 bg-white/[0.02]"
                               : "bg-white/[0.03] hover:bg-white/[0.06]"
-                          } ${draggedTrackIndex === originalIndex ? "opacity-50 scale-95" : ""}`}
+                          }`}
                           onClick={() => {
                             if (isHidden) return; // Don't allow clicking hidden tracks
                             setCurrentIndex(originalIndex);
@@ -4197,13 +4142,11 @@ export default function Page() {
                               <X size={14} />
                             </button>
                           )}
-                        </div>
-                        {isDropTarget && draggedTrackIndex !== null && dropPosition === "below" && (
-                          <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-cyan-400 rounded-full z-10 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
-                        )}
-                      </div>
+                        </SortableTrackItem>
                     );
-                  });
+                  })}
+                    </SortableTrackList>
+                  );
                 })()
               )}
             </div>
@@ -4944,8 +4887,11 @@ export default function Page() {
                       <p className="mt-2 text-sm text-white/35">Upload tracks and add them to your playlist</p>
                     </div>
                   ) : (
-                    (() => {
-                      return playlist.map((track, originalIndex) => {
+                    <SortableTrackList
+                      ids={playlist.map((t) => t.id)}
+                      onReorder={reorderPlaylistByIds}
+                    >
+                      {playlist.map((track, originalIndex) => {
                         const visibleIndex = getVisibleIndex(track.id);
                         const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
                         const colour = colours[originalIndex % colours.length];
@@ -4953,8 +4899,6 @@ export default function Page() {
                         const isFinished = finishedTracks.has(track.id);
                         const isCompleted = !isFinished && originalIndex < currentIndex;
                         const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
-                        const isDragging = draggedTrackIndex === originalIndex;
-                        const isDropTarget = dropTargetIndex === originalIndex;
                         const isHidden = hiddenTrackIds.has(track.id);
                       
                         return (
@@ -5016,11 +4960,10 @@ export default function Page() {
                                   <X size={18} className="md:w-4 md:h-4" />
                                 </button>
                               )}
-                            </div>
                           </SortableTrackItem>
                         );
-                      });
-                    })()
+                      })}
+                    </SortableTrackList>
                   )}
                 </div>
               </Card>
