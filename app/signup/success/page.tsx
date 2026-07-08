@@ -33,7 +33,7 @@ export default function SignupSuccessPage() {
           <div className="w-4 h-px bg-white/20" />
           <div className="flex items-center gap-1.5">
             <span className="w-5 h-5 rounded-full bg-[#64748b] text-white text-xs font-bold flex items-center justify-center">3</span>
-            <span className="text-xs text-[#64748b]">Trial</span>
+            <span className="text-xs text-[#64748b]">Play</span>
           </div>
         </div>
 
@@ -61,11 +61,11 @@ export default function SignupSuccessPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                Start your 14-day free trial
+                Log in with your new account
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                Enjoy EQHO Player!
+                Enjoy free access to EQHO Player!
               </li>
             </ol>
           </div>

@@ -44,22 +44,9 @@ export default function LoginPage() {
       // ALWAYS use getUser() for fresh auth data
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error || !user) return
-      
-      // Check subscription status using 'id' column
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('subscription_status')
-        .eq('id', user.id)
-        .single()
 
-      const hasAccess = profile?.subscription_status && 
-        ['active', 'trialing'].includes(profile.subscription_status)
-
-      if (hasAccess) {
-        router.replace('/')
-      } else {
-        router.replace('/upgrade')
-      }
+      // Free access: any logged-in user goes straight to the player.
+      router.replace('/')
     }
     checkSession()
   }, [router])
@@ -116,21 +103,8 @@ export default function LoginPage() {
       console.error('[v0] login ensure-profile error:', ensureErr)
     }
 
-    // Check subscription status using 'id' column
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('id', data.user.id)
-      .single()
-
-    const hasAccess = profile?.subscription_status && 
-      ['active', 'trialing'].includes(profile.subscription_status)
-
-    if (hasAccess) {
-      router.replace('/')
-    } else {
-      router.replace('/upgrade')
-    }
+    // Free access: no subscription required, go straight to the player.
+    router.replace('/')
   }
 
   return (
