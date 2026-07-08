@@ -67,6 +67,8 @@ import {
   Play,
   MoreVertical,
   GripVertical,
+  ChevronUp,
+  ChevronDown,
   Search,
   Upload,
   SlidersHorizontal,
@@ -2508,6 +2510,35 @@ export default function Page() {
       const [moved] = updated.splice(fromIndex, 1);
       updated.splice(toIndex, 0, moved);
       return updated;
+    });
+  };
+
+  // Touch-friendly reorder (used by the mobile/tablet up & down buttons).
+  // HTML5 drag-and-drop doesn't fire on touch screens, so mobile reordering
+  // moves a track by one slot using the same array-splice logic as the web
+  // player's drag handler, and keeps currentIndex pointing at the playing track.
+  const moveTrackByOne = (fromIndex: number, toIndex: number) => {
+    setPlaylist((prev) => {
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= prev.length ||
+        toIndex >= prev.length
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+    setCurrentIndex((idx) => {
+      if (fromIndex === toIndex) return idx;
+      if (fromIndex === idx) return toIndex;
+      if (fromIndex < idx && toIndex >= idx) return idx - 1;
+      if (fromIndex > idx && toIndex <= idx) return idx + 1;
+      return idx;
     });
   };
 
@@ -6928,7 +6959,15 @@ export default function Page() {
                               const isActiveTrack = currentTrack?.id === track.id;
                               const isFinished = finishedTracks.has(track.id);
                               const isHidden = hiddenTrackIds.has(track.id);
-                              
+
+                              // Touch reorder: swap with the visible neighbour above/below.
+                              // The playing track stays pinned at the top, so a track can't
+                              // move above it and the active track itself isn't reorderable.
+                              const upNeighbour = displayIndex > 0 ? reorderedPlaylist[displayIndex - 1] : null;
+                              const downNeighbour = displayIndex < reorderedPlaylist.length - 1 ? reorderedPlaylist[displayIndex + 1] : null;
+                              const canMoveUp = !isActiveTrack && !!upNeighbour && upNeighbour.id !== currentTrack?.id;
+                              const canMoveDown = !isActiveTrack && !!downNeighbour && downNeighbour.id !== currentTrack?.id;
+
                               return (
                                 <div
                                   key={track.id}
@@ -6968,6 +7007,38 @@ export default function Page() {
                                     <p className={`text-sm font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
                                   </div>
                                   
+                                  {/* Reorder Buttons (touch-friendly, mobile/tablet) */}
+                                  {!isHidden && (canMoveUp || canMoveDown) && (
+                                    <div className="flex flex-col shrink-0">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!canMoveUp || !upNeighbour) return;
+                                          const toIndex = playlist.findIndex(t => t.id === upNeighbour.id);
+                                          moveTrackByOne(originalIndex, toIndex);
+                                        }}
+                                        disabled={!canMoveUp}
+                                        aria-label="Move track up"
+                                        className="p-1 rounded-md text-white/50 hover:text-cyan-400 hover:bg-cyan-500/15 active:bg-cyan-500/25 transition disabled:opacity-20 disabled:pointer-events-none"
+                                      >
+                                        <ChevronUp size={16} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!canMoveDown || !downNeighbour) return;
+                                          const toIndex = playlist.findIndex(t => t.id === downNeighbour.id);
+                                          moveTrackByOne(originalIndex, toIndex);
+                                        }}
+                                        disabled={!canMoveDown}
+                                        aria-label="Move track down"
+                                        className="p-1 rounded-md text-white/50 hover:text-cyan-400 hover:bg-cyan-500/15 active:bg-cyan-500/25 transition disabled:opacity-20 disabled:pointer-events-none"
+                                      >
+                                        <ChevronDown size={16} />
+                                      </button>
+                                    </div>
+                                  )}
+
                                   {/* Remove/Unhide Button */}
                                   {isHidden ? (
                                     <button
