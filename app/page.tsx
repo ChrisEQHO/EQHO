@@ -1241,7 +1241,7 @@ export default function Page() {
     setDownloadingPlaylistId(playlistId);
 
     try {
-      const { playlist: localPlaylist, failedTracks } = await fetchPlaylistWithFilesDetailed(playlistId);
+      const { playlist: localPlaylist, failedTracks, reason } = await fetchPlaylistWithFilesDetailed(playlistId);
       if (localPlaylist) {
         // Convert to the format expected by savedPlaylists. The object URL makes
         // the restored audio immediately playable; the savedPlaylists effect
@@ -1283,14 +1283,22 @@ export default function Page() {
         setTimeout(() => setCloudSaveMessage(null), 5000);
       } else {
         // No audio could be downloaded — do not create an empty playlist folder.
-        console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
+        // Show WHY, using the reason classified during the download attempt.
+        console.log('[v0][cloud-restore] Failed tracks:', failedTracks, 'reason:', reason);
+        const reasonMessage: Record<string, string> = {
+          'access-denied': "Can't download — this playlist was uploaded by a different account.",
+          'not-configured': 'Cloud storage is not configured. Please contact support.',
+          'missing': 'The audio files for this playlist are no longer in cloud storage.',
+          'offline': 'Download failed. Check your connection and try again.',
+        };
         setCloudSaveMessage(
-          failedTracks.length > 0
+          (reason && reasonMessage[reason]) ||
+          (failedTracks.length > 0
             ? `Could not restore playlist — ${failedTracks.length} track(s) failed to download`
-            : 'Could not restore playlist from cloud'
+            : 'Could not restore playlist from cloud')
         );
         setCloudSaveSuccess(false);
-        setTimeout(() => setCloudSaveMessage(null), 5000);
+        setTimeout(() => setCloudSaveMessage(null), 6000);
       }
     } catch (error) {
       console.error("[v0][cloud-restore] Download failed:", error);

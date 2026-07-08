@@ -11,6 +11,7 @@ import {
   listUserPlaylistsFromR2,
   listPlaylistTracksFromR2,
   getSignedDownloadUrl,
+  probeTrackAccess,
 } from '@/lib/r2-storage'
 
 // Types matching the Supabase schema
@@ -521,6 +522,13 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
 // (via the secure /api/r2 signed download route). Returns the local playlist plus
 // per-track failure info so the UI can report which tracks failed and never create
 // empty playlist folders when audio downloads fail.
+export type CloudRestoreReason =
+  | 'access-denied'
+  | 'not-configured'
+  | 'missing'
+  | 'offline'
+  | 'unknown'
+
 export async function fetchPlaylistWithFilesDetailed(
   playlistId: string,
   onProgress?: (completed: number, total: number) => void
@@ -528,6 +536,7 @@ export async function fetchPlaylistWithFilesDetailed(
   playlist: LocalPlaylist | null
   failedTracks: string[]
   totalTracks: number
+  reason?: CloudRestoreReason
 }> {
   const supabase = createClient()
   if (!supabase) return { playlist: null, failedTracks: [], totalTracks: 0 }
@@ -547,10 +556,49 @@ export async function fetchPlaylistWithFilesDetailed(
   // Report initial progress (0 of total) so the UI can show 0% immediately.
   onProgress?.(0, tracks.length)
 
+  // The audio object in R2 is keyed by the uploaded File's real name, but the DB
+  // `storage_path` can record a slightly different fileName (sanitization / drift).
+  // When a direct path download fails, we recover the track by matching it against
+  // the playlist's ACTUAL R2 object listing (by trackId, then by fileName). The
+  // listing is fetched lazily and only once per restore.
+  let r2Listing: Array<{ key: string; fileName: string }> | null = null
+  const getR2Listing = async (): Promise<Array<{ key: string; fileName: string }>> => {
+    if (r2Listing === null) {
+      try {
+        // The route derives the user from the session, so userId here is unused
+        // server-side; pass the playlist owner (or '') to satisfy the signature.
+        r2Listing = await listPlaylistTracksFromR2((playlist as { user_id?: string }).user_id || '', playlist.id)
+        console.log(`[v0][cloud-restore] R2 listing for playlist ${playlist.id}: ${r2Listing.length} object(s)`)
+      } catch (err) {
+        console.error('[v0][cloud-restore] R2 listing failed:', err)
+        r2Listing = []
+      }
+    }
+    return r2Listing
+  }
+
   let completed = 0
   for (const track of tracks) {
     console.log(`[v0][cloud-restore]   track "${track.title}" storage_path: ${track.storage_path || '(none)'}`)
-    const file = track.storage_path ? await downloadTrackFile(track.storage_path) : null
+    let file = track.storage_path ? await downloadTrackFile(track.storage_path) : null
+
+    // Fallback: the recorded storage_path didn't resolve. Find the track's real
+    // object in R2 (same user's bucket prefix) by its trackId path segment, then
+    // by fileName, and download that actual key instead.
+    if (!file) {
+      const listing = await getR2Listing()
+      if (listing.length > 0) {
+        const dbFileName = (track.storage_path || '').split('/').pop() || ''
+        const match =
+          listing.find(o => o.key.includes(`/tracks/${track.id}/`)) ||
+          (dbFileName ? listing.find(o => o.fileName === dbFileName) : undefined)
+        if (match) {
+          console.log(`[v0][cloud-restore]   ↺ retry "${track.title}" via listed key: ${match.key}`)
+          file = await downloadTrackFile(match.key)
+        }
+      }
+    }
+
     if (file) {
       console.log(`[v0][cloud-restore]   ✓ downloaded "${track.title}"`)
       localTracks.push({
@@ -572,7 +620,19 @@ export async function fetchPlaylistWithFilesDetailed(
   // Never create an empty playlist/folder if no audio could be downloaded.
   if (localTracks.length === 0) {
     console.log(`[v0][cloud-restore] Skipping "${playlist.name}" — no audio downloaded`)
-    return { playlist: null, failedTracks, totalTracks: tracks.length }
+    // Classify WHY every track failed so the UI can show an actionable message,
+    // by probing access to the first track's storage path.
+    let reason: CloudRestoreReason = 'unknown'
+    const firstWithPath = tracks.find(t => t.storage_path)
+    if (firstWithPath?.storage_path) {
+      const probe = await probeTrackAccess(firstWithPath.storage_path)
+      console.log(`[v0][cloud-restore] access probe status: ${probe.status} (${probe.error || 'ok'})`)
+      if (probe.status === 403) reason = 'access-denied'
+      else if (probe.status === 500) reason = 'not-configured'
+      else if (probe.status === 404) reason = 'missing'
+      else if (probe.status === 0) reason = 'offline'
+    }
+    return { playlist: null, failedTracks, totalTracks: tracks.length, reason }
   }
 
   // Sort by track_order, then append any tracks not present in the saved order.

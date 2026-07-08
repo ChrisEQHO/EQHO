@@ -264,6 +264,25 @@ export async function listPlaylistTracksFromR2(
   }
 }
 
+/**
+ * Probe whether the current user can access a given R2 object key.
+ * Used to classify a failed cloud download: 403 = the object belongs to another
+ * account, 500 = R2 not configured, 404 = object missing, 0 = network/offline.
+ */
+export async function probeTrackAccess(
+  key: string
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  try {
+    const response = await fetch(`/api/r2?action=download-url&key=${encodeURIComponent(key)}`)
+    if (response.ok) return { ok: true, status: response.status }
+    let error: string | undefined
+    try { error = (await response.json())?.error } catch {}
+    return { ok: false, status: response.status, error }
+  } catch {
+    return { ok: false, status: 0, error: 'network' }
+  }
+}
+
 // =====================
 // UTILITY OPERATIONS
 // =====================
