@@ -67,6 +67,8 @@ import {
   Play,
   MoreVertical,
   GripVertical,
+  ChevronUp,
+  ChevronDown,
   Search,
   Upload,
   SlidersHorizontal,
@@ -388,10 +390,11 @@ export default function Page() {
   // True once the initial Supabase auth check has completed (so we can tell
   // "logged out" apart from "still loading").
   const [authChecked, setAuthChecked] = useState(false);
-  // Access is open to everyone - no login or subscription is required to use the
-  // player - so the gate always starts (and stays) granted.
+  // Free access, but login is required. The gate starts "checking" until the
+  // Supabase auth check resolves: logged-in users are "granted", logged-out users
+  // are redirected to /login. (No subscription/trial check - login alone is enough.)
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline">(
-    "granted"
+    isV0Preview ? "granted" : "checking"
   );
   const router = useRouter();
   const supabase = createClient();
@@ -410,6 +413,10 @@ export default function Page() {
   const [showClearLibraryConfirm, setShowClearLibraryConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  // Sign-out UI state: drives the "Signing out…" loading label and the
+  // "Sign out failed" error message on the Sign Out buttons.
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
   const [showRemoveTrackConfirm, setShowRemoveTrackConfirm] = useState<{ track: Track; originalIndex: number } | null>(null);
 
@@ -475,11 +482,23 @@ export default function Page() {
     const getUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        if (user) {
+          setUser(user);
+        } else {
+          // No validated user - fall back to any locally-stored session so an
+          // offline (but previously logged-in) device keeps access to downloads.
+          const { data: { session } } = await supabase.auth.getSession();
+          setUser(session?.user ?? null);
+        }
       } catch {
-        // Offline / network error: leave user null; the gate falls back to the
-        // offline grace window for previously-verified accounts.
-        setUser(null);
+        // Offline / network error: read the persisted local session (no network)
+        // rather than forcing a logout on every connection blip.
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          setUser(session?.user ?? null);
+        } catch {
+          setUser(null);
+        }
       } finally {
         setAuthChecked(true);
       }
@@ -494,33 +513,78 @@ export default function Page() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  // Access gate intentionally removed: the player is free to use without login or
-  // a subscription, so no client-side redirect to /login or /upgrade is performed.
+  // -------------------------------------------------------------------------
+  // Client-side login gate.
+  // Web is also covered by middleware, but mobile/desktop (Capacitor) builds use
+  // static export with no middleware, so the player enforces login here too.
+  // Free access = any logged-in user is allowed; logged-out users go to /login.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (isV0Preview) {
+      setGate("granted");
+      return;
+    }
+    // Wait for the initial auth check to settle before deciding.
+    if (!authChecked) return;
+
+    if (user) {
+      setGate("granted");
+    } else {
+      // Keep the loader visible (never flash the player) while redirecting.
+      setGate("checking");
+      router.replace("/login");
+    }
+  }, [authChecked, user, router]);
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
 
   const handleLogout = async () => {
-    if (!supabase) return;
-    
-    // Clear all auth-related localStorage values
-    if (typeof window !== 'undefined') {
-      const keysToRemove = [
-        'userEmail', 'email', 'user_email', 'user', 'profile', 
-        'subscription', 'stripe', 'trial', 'account', 'session'
-      ]
-      keysToRemove.forEach(key => {
-        try { localStorage.removeItem(key) } catch {}
-        try { sessionStorage.removeItem(key) } catch {}
-      })
-    }
-    
-    // Revoke the offline grace window so a signed-out device can't keep playing.
-    clearEntitlementVerified();
+    if (isSigningOut) return; // guard against double taps
+    setSignOutError(null);
+    setIsSigningOut(true);
 
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    try {
+      // 1. Sign out of Supabase (scope: 'local' clears this device's session
+      //    reliably, including offline, without needing a valid refresh token).
+      if (supabase) {
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        if (error) throw error;
+      }
+
+      // 2. Clear app auth state.
+      setUser(null);
+
+      // 3. Clear cached local/session auth data + the offline grace window so a
+      //    signed-out device can't keep playing or auto-restore the session.
+      clearEntitlementVerified();
+      if (typeof window !== 'undefined') {
+        const keysToRemove = [
+          'userEmail', 'email', 'user_email', 'user', 'profile',
+          'subscription', 'stripe', 'trial', 'account', 'session',
+        ];
+        keysToRemove.forEach((key) => {
+          try { localStorage.removeItem(key); } catch {}
+          try { sessionStorage.removeItem(key); } catch {}
+        });
+      }
+
+      // 4. Hard-redirect to /login. Using location.replace (not router.push)
+      //    drops the player from history so Back can't return to it, and fully
+      //    tears down cached player state. Works in the browser, Capacitor
+      //    (iPhone/iPad) and the desktop wrapper, which all run a web view.
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login');
+      } else {
+        router.replace('/login');
+      }
+      // Note: we intentionally do NOT clear isSigningOut here - the page is
+      // navigating away, so the button stays in its "Signing out…" state.
+    } catch (err) {
+      console.error('[v0] sign out failed:', err);
+      setSignOutError('Sign out failed. Please try again.');
+      setIsSigningOut(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -2446,6 +2510,35 @@ export default function Page() {
       const [moved] = updated.splice(fromIndex, 1);
       updated.splice(toIndex, 0, moved);
       return updated;
+    });
+  };
+
+  // Touch-friendly reorder (used by the mobile/tablet up & down buttons).
+  // HTML5 drag-and-drop doesn't fire on touch screens, so mobile reordering
+  // moves a track by one slot using the same array-splice logic as the web
+  // player's drag handler, and keeps currentIndex pointing at the playing track.
+  const moveTrackByOne = (fromIndex: number, toIndex: number) => {
+    setPlaylist((prev) => {
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= prev.length ||
+        toIndex >= prev.length
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+    setCurrentIndex((idx) => {
+      if (fromIndex === toIndex) return idx;
+      if (fromIndex === idx) return toIndex;
+      if (fromIndex < idx && toIndex >= idx) return idx - 1;
+      if (fromIndex > idx && toIndex <= idx) return idx + 1;
+      return idx;
     });
   };
 
@@ -6080,11 +6173,24 @@ export default function Page() {
                   </p>
                   <button
                     onClick={handleLogout}
-                    className="w-full min-h-[44px] py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+                    disabled={isSigningOut}
+                    className="w-full min-h-[44px] py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    <LogOut size={16} />
-                    Sign Out
+                    {isSigningOut ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Signing out…
+                      </>
+                    ) : (
+                      <>
+                        <LogOut size={16} />
+                        Sign Out
+                      </>
+                    )}
                   </button>
+                  {signOutError && (
+                    <p className="text-red-400 text-xs mt-2 text-center">{signOutError}</p>
+                  )}
                 </div>
 
                 {/* Danger Zone - Delete Account */}
@@ -6853,7 +6959,15 @@ export default function Page() {
                               const isActiveTrack = currentTrack?.id === track.id;
                               const isFinished = finishedTracks.has(track.id);
                               const isHidden = hiddenTrackIds.has(track.id);
-                              
+
+                              // Touch reorder: swap with the visible neighbour above/below.
+                              // The playing track stays pinned at the top, so a track can't
+                              // move above it and the active track itself isn't reorderable.
+                              const upNeighbour = displayIndex > 0 ? reorderedPlaylist[displayIndex - 1] : null;
+                              const downNeighbour = displayIndex < reorderedPlaylist.length - 1 ? reorderedPlaylist[displayIndex + 1] : null;
+                              const canMoveUp = !isActiveTrack && !!upNeighbour && upNeighbour.id !== currentTrack?.id;
+                              const canMoveDown = !isActiveTrack && !!downNeighbour && downNeighbour.id !== currentTrack?.id;
+
                               return (
                                 <div
                                   key={track.id}
@@ -6893,6 +7007,38 @@ export default function Page() {
                                     <p className={`text-sm font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</p>
                                   </div>
                                   
+                                  {/* Reorder Buttons (touch-friendly, mobile/tablet) */}
+                                  {!isHidden && (canMoveUp || canMoveDown) && (
+                                    <div className="flex flex-col shrink-0">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!canMoveUp || !upNeighbour) return;
+                                          const toIndex = playlist.findIndex(t => t.id === upNeighbour.id);
+                                          moveTrackByOne(originalIndex, toIndex);
+                                        }}
+                                        disabled={!canMoveUp}
+                                        aria-label="Move track up"
+                                        className="p-1 rounded-md text-white/50 hover:text-cyan-400 hover:bg-cyan-500/15 active:bg-cyan-500/25 transition disabled:opacity-20 disabled:pointer-events-none"
+                                      >
+                                        <ChevronUp size={16} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!canMoveDown || !downNeighbour) return;
+                                          const toIndex = playlist.findIndex(t => t.id === downNeighbour.id);
+                                          moveTrackByOne(originalIndex, toIndex);
+                                        }}
+                                        disabled={!canMoveDown}
+                                        aria-label="Move track down"
+                                        className="p-1 rounded-md text-white/50 hover:text-cyan-400 hover:bg-cyan-500/15 active:bg-cyan-500/25 transition disabled:opacity-20 disabled:pointer-events-none"
+                                      >
+                                        <ChevronDown size={16} />
+                                      </button>
+                                    </div>
+                                  )}
+
                                   {/* Remove/Unhide Button */}
                                   {isHidden ? (
                                     <button
@@ -7571,11 +7717,24 @@ export default function Page() {
                       <div className="flex flex-col gap-2">
                         <button
                           onClick={handleLogout}
-                          className="w-full min-h-[44px] py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 active:bg-red-500/30 transition flex items-center justify-center gap-2"
+                          disabled={isSigningOut}
+                          className="w-full min-h-[44px] py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 active:bg-red-500/30 transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                          <LogOut size={14} />
-                          Sign Out
+                          {isSigningOut ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" />
+                              Signing out…
+                            </>
+                          ) : (
+                            <>
+                              <LogOut size={14} />
+                              Sign Out
+                            </>
+                          )}
                         </button>
+                        {signOutError && (
+                          <p className="text-red-400 text-[10px] text-center">{signOutError}</p>
+                        )}
                         <button
                           onClick={() => setShowDeleteAccountConfirm(true)}
                           className="w-full min-h-[44px] py-2.5 rounded-lg bg-red-600/10 border border-red-600/30 text-red-500 text-xs font-semibold hover:bg-red-600/20 active:bg-red-600/30 transition flex items-center justify-center gap-2"
