@@ -1,11 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isAdminEmail } from '@/lib/access'
 
-// Auth + subscription gating is DISABLED. The player is free to use without
-// signing up or logging in, so the middleware passes every request through
-// untouched and never redirects to /login or /upgrade.
-const BYPASS_AUTH = true
+// Login is REQUIRED (but the app is free - there is no subscription/trial check).
+// Logged-out users hitting a protected route are redirected to /login; logged-in
+// users are allowed through. Set to true only to fully disable auth gating.
+const BYPASS_AUTH = false
 
 export async function updateSession(request: NextRequest) {
   // TEMPORARY bypass: skip all auth/subscription gating entirely
@@ -71,106 +70,12 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is logged in
+  // If user is logged in, keep them out of the auth pages (send to the player).
+  // Login alone grants access - there is no subscription/trial check.
   if (user) {
-    console.log('[v0] Middleware: User logged in:', user.email, 'id:', user.id)
-    
-    // Check subscription status for protected routes (player)
-    if (pathname === '/') {
-      // Admins always get in, regardless of subscription state.
-      if (isAdminEmail(user.email)) {
-        console.log('[v0] Middleware: Admin email, granting access:', user.email)
-        return supabaseResponse
-      }
-
-      // Try fetching profile by 'id' first, then by email as fallback
-      let profile = null
-      let profileError = null
-      
-      const { data: profileById, error: err1 } = await supabase
-        .from('profiles')
-        .select('subscription_status, plan, email')
-        .eq('id', user.id)
-        .single()
-      
-      if (profileById) {
-        profile = profileById
-        console.log('[v0] Middleware: Profile found by id:', JSON.stringify(profile))
-      } else {
-        profileError = err1
-        console.log('[v0] Middleware: No profile by id, error:', err1?.message)
-        
-        if (user.email) {
-          // Try by email as fallback
-          const { data: profileByEmail, error: err2 } = await supabase
-            .from('profiles')
-            .select('subscription_status, plan, email')
-            .ilike('email', user.email)
-            .single()
-          
-          if (profileByEmail) {
-            profile = profileByEmail
-            console.log('[v0] Middleware: Profile found by email:', JSON.stringify(profile))
-          } else {
-            console.log('[v0] Middleware: No profile by email, error:', err2?.message)
-          }
-        }
-      }
-      
-      if (!profile) {
-        console.log('[v0] Middleware: No profile found for user, redirecting to upgrade')
-        const url = request.nextUrl.clone()
-        url.pathname = '/upgrade'
-        return NextResponse.redirect(url)
-      }
-      
-      // Allow access if subscription_status is 'active' OR 'trialing'
-      // Remove plan check - just check subscription status
-      const hasActiveSubscription = profile.subscription_status === 'active' || 
-                                    profile.subscription_status === 'trialing'
-      
-      console.log('[v0] Middleware: subscription_status:', profile.subscription_status, 'hasActiveSubscription:', hasActiveSubscription)
-      
-      // If no active subscription, redirect to upgrade page
-      if (!hasActiveSubscription) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/upgrade'
-        return NextResponse.redirect(url)
-      }
-    }
-
-    // If user is logged in and trying to access login/signup, check subscription
     if (pathname === '/login' || pathname === '/signup') {
-      // Admins go straight to the player.
-      if (isAdminEmail(user.email)) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/'
-        return NextResponse.redirect(url)
-      }
-
-      let profile = null
-      const { data: profileById } = await supabase
-        .from('profiles')
-        .select('subscription_status')
-        .eq('id', user.id)
-        .single()
-      
-      if (profileById) {
-        profile = profileById
-      } else if (user.email) {
-        const { data: profileByEmail } = await supabase
-          .from('profiles')
-          .select('subscription_status')
-          .ilike('email', user.email)
-          .single()
-        profile = profileByEmail
-      }
-      
-      const hasActiveSubscription = profile?.subscription_status === 'active' || 
-                                    profile?.subscription_status === 'trialing'
-      
       const url = request.nextUrl.clone()
-      url.pathname = hasActiveSubscription ? '/' : '/upgrade'
+      url.pathname = '/'
       return NextResponse.redirect(url)
     }
   }
