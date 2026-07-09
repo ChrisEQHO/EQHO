@@ -47,11 +47,13 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[v0] login clicked')
     setError(null)
     setLoading(true)
 
     // In v0 preview mode, just redirect to player
     if (isV0Preview) {
+      console.log('[v0] login: v0 preview, redirect target: /')
       router.replace('/')
       return
     }
@@ -64,26 +66,41 @@ export default function LoginPage() {
       return
     }
 
-    // Sign in with Supabase
+    // Sign in with Supabase (client-side only; session is persisted to
+    // localStorage on the Capacitor build, cookies on web).
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
+    console.log('[v0] login Supabase response:', {
+      hasUser: !!data?.user,
+      hasSession: !!data?.session,
+      error: authError?.message ?? null,
+    })
 
     if (authError) {
-      if (authError.message.includes('Invalid login')) {
-        setError('Invalid email or password. Please try again.')
-      } else if (authError.message.includes('Email not confirmed')) {
-        setError('Please verify your email before logging in.')
-      } else {
-        setError(authError.message)
-      }
+      // Show the EXACT Supabase error and keep the email/password fields filled.
+      setError(authError.message)
       setLoading(false)
       return
     }
 
     if (!data.user) {
       setError('Login failed. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    // Immediately confirm the session was actually persisted before redirecting.
+    // This is the authoritative check for the Capacitor WebView (localStorage).
+    const { data: sessionData } = await supabase.auth.getSession()
+    const sessionExists = !!sessionData?.session
+    console.log('[v0] login session exists:', sessionExists)
+
+    if (!sessionExists) {
+      // No persisted session means the WebView storage didn't take the token, so
+      // redirecting would just bounce back to /login. Surface it instead.
+      setError('Could not start your session. Please try again.')
       setLoading(false)
       return
     }
@@ -103,8 +120,9 @@ export default function LoginPage() {
     }
 
     // Free access: no subscription required, go straight to the player.
-    // The client-side Supabase session (persisted to localStorage) is what the
-    // player uses to decide login vs. player — no server redirect/cookie needed.
+    // The client-side Supabase session (persisted to localStorage on mobile) is
+    // what the player uses to decide login vs. player — no server/cookie needed.
+    console.log('[v0] login redirect target: /')
     router.replace('/')
   }
 
