@@ -15,23 +15,56 @@
  */
 
 const { execFileSync } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 
 const isMobile = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 const scriptsDir = __dirname
+const projectRoot = process.cwd()
+const backupDir = path.join(projectRoot, '.mobile-build-backup')
 
-function run(command, args) {
-  execFileSync(command, args, { stdio: 'inherit', cwd: process.cwd() })
+// Resolve the Next.js CLI directly instead of relying on PATH. Running the JS
+// entry point through the current Node keeps App Router detection working even
+// when `next` isn't on PATH in the caller's shell.
+function resolveNextBin() {
+  try {
+    return require.resolve('next/dist/bin/next', { paths: [projectRoot] })
+  } catch {
+    return null
+  }
+}
+
+function runNext(args) {
+  const nextBin = resolveNextBin()
+  if (nextBin) {
+    execFileSync(process.execPath, [nextBin, ...args], { stdio: 'inherit', cwd: projectRoot })
+  } else {
+    // Fallback to PATH-resolved binary.
+    execFileSync('next', args, { stdio: 'inherit', cwd: projectRoot })
+  }
 }
 
 function runNode(scriptFile) {
-  run(process.execPath, [path.join(scriptsDir, scriptFile)])
+  execFileSync(process.execPath, [path.join(scriptsDir, scriptFile)], {
+    stdio: 'inherit',
+    cwd: projectRoot,
+  })
 }
 
 if (!isMobile) {
   // Standard web build.
-  run('next', ['build'])
+  runNext(['build'])
   process.exit(0)
+}
+
+// Self-heal: a previously interrupted mobile build (crash / Ctrl-C / OOM) can
+// leave server-only routes stranded in `.mobile-build-backup`, so the working
+// tree is half-moved. Building on top of that half-moved tree is what triggers
+// the "Couldn't find a `pages` directory" error. Restore any stale backup first
+// so every mobile build starts from a clean App Router tree.
+if (fs.existsSync(backupDir)) {
+  console.log('[build] Found leftover .mobile-build-backup — restoring before build...')
+  runNode('restore-web-build.js')
 }
 
 console.log('[build] Mobile target detected — preparing static export...')
@@ -41,7 +74,7 @@ let buildError = null
 try {
   // Build the mobile static export with the default bundler. Do not pass extra
   // bundler flags here — this Next.js version rejects unknown build options.
-  run('next', ['build'])
+  runNext(['build'])
 } catch (err) {
   buildError = err
 } finally {
