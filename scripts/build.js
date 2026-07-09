@@ -39,14 +39,10 @@ runNode('prepare-mobile-build.js')
 
 let buildError = null
 try {
-  // Build the mobile static export with the WEBPACK bundler, not Turbopack.
-  // Next.js 16 defaults to Turbopack, whose content-hashed chunk filenames can
-  // contain characters like "~" and ".." (e.g. `0jgl3s3x4~r9..js`). The iOS
-  // Capacitor WKWebView serves bundled files through a custom scheme handler
-  // that normalizes NSURL paths, which mangles those "~"/".." segments into
-  // 404s — so the CSS/JS never load and the app shows an unstyled plain-blue
-  // screen. Webpack emits clean hexadecimal filenames that load reliably on iOS.
-  run('next', ['build', '--webpack'])
+  // Build the mobile static export. The `--webpack` flag is NOT supported by
+  // this Next.js version (`next build` rejects it as an unknown option), so we
+  // run the plain build command.
+  run('next', ['build'])
 } catch (err) {
   buildError = err
 } finally {
