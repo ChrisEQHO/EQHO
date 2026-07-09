@@ -3384,6 +3384,10 @@ export default function Page() {
       <audio
         ref={audioRef}
         preload="metadata"
+        // iOS/iPadOS WKWebView (Capacitor) refuses to start inline media playback
+        // unless the element is explicitly marked play-inline. Without this the
+        // play() promise rejects with NotAllowedError and the button appears dead.
+        playsInline
         onEnded={handleTrackEnded}
         onTimeUpdate={handleAudioTimeUpdate}
         onLoadedMetadata={handleAudioLoadedMetadata}
@@ -6865,15 +6869,11 @@ export default function Page() {
                       ) : (
                         <div className="space-y-1">
                           {(() => {
-                            // Find current track index in playlist
-                            const currentPlaylistIndex = playlist.findIndex(t => t.id === currentTrack?.id);
-                            // Reorder: current track first, then remaining tracks after it, then tracks before it
-                            const reorderedPlaylist = currentPlaylistIndex >= 0
-                              ? [
-                                  ...playlist.slice(currentPlaylistIndex),
-                                  ...playlist.slice(0, currentPlaylistIndex)
-                                ]
-                              : playlist;
+                            // Render the playlist in its TRUE order (no pinning of the
+                            // now-playing track). This makes every row -- including the
+                            // first/top track -- behave identically for drag + up/down
+                            // reordering. The active track is still visually highlighted.
+                            const reorderedPlaylist = playlist;
                             
                             return (
                               <SortableTrackList
@@ -6889,13 +6889,13 @@ export default function Page() {
                               const isFinished = finishedTracks.has(track.id);
                               const isHidden = hiddenTrackIds.has(track.id);
 
-                              // Touch reorder: swap with the visible neighbour above/below.
-                              // The playing track stays pinned at the top, so a track can't
-                              // move above it and the active track itself isn't reorderable.
+                              // Touch reorder: swap with the neighbour above/below.
+                              // Every row is reorderable (including the top/active track);
+                              // only the list edges disable the up/down buttons.
                               const upNeighbour = displayIndex > 0 ? reorderedPlaylist[displayIndex - 1] : null;
                               const downNeighbour = displayIndex < reorderedPlaylist.length - 1 ? reorderedPlaylist[displayIndex + 1] : null;
-                              const canMoveUp = !isActiveTrack && !!upNeighbour && upNeighbour.id !== currentTrack?.id;
-                              const canMoveDown = !isActiveTrack && !!downNeighbour && downNeighbour.id !== currentTrack?.id;
+                              const canMoveUp = !!upNeighbour;
+                              const canMoveDown = !!downNeighbour;
 
                               return (
                                 <SortableTrackItem
