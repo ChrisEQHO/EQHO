@@ -2234,6 +2234,13 @@ export default function Page() {
   // playing element fires a transient `pause` event; this flag lets onPause ignore it
   // so the shared isPlaying state never flickers off during a track transition.
   const isTransitioningRef = useRef(false);
+  // The exact URL we last assigned to the <audio> element. Comparing against this
+  // is far more reliable than `audio.src === url`: the element's `.src` getter
+  // returns a RESOLVED/normalized URL, which on the iOS Capacitor WKWebView does
+  // NOT string-match the original blob:/capacitor: URL we stored on the track.
+  // That mismatch made "resume" fall through to a full reload (or fail silently),
+  // which is why play/pause appeared broken in the iPhone/iPad app.
+  const loadedUrlRef = useRef<string>("");
 
   // Single, reliable way to load a URL into the shared <audio> element and play it.
   // Every play path (start, skip, auto-advance, back-to-back, repeat) goes through
@@ -2244,14 +2251,18 @@ export default function Page() {
     if (!audio || !url) return;
     isTransitioningRef.current = true;
     audio.src = url;
+    loadedUrlRef.current = url;
     if (fromStart) {
       try { audio.currentTime = 0; } catch { /* ignore */ }
     }
     audio
       .play()
-      .then(() => setIsPlaying(true))
+      .then(() => {
+        console.log("[v0] audio play promise: success (loadAndPlay)");
+        setIsPlaying(true);
+      })
       .catch((error) => {
-        console.error("Playback failed:", error);
+        console.error("[v0] audio play promise: error (loadAndPlay):", error);
         setIsPlaying(false);
       })
       .finally(() => {
@@ -2290,10 +2301,12 @@ export default function Page() {
     if (!audio || !track || !track.url) return;
 
     const sameTrack = currentTrack?.id === track.id;
-    // Verify against the element's REAL src, not just currentTrack state: state can
-    // drift from the loaded source (e.g. after "Send to Session" sets currentTrack
-    // without loading audio), and resuming the wrong src would play a stale track.
-    const srcLoaded = audio.src === track.url;
+    // Verify against the URL we actually loaded (tracked in loadedUrlRef), not the
+    // element's `.src` getter: state can drift from the loaded source (e.g. after
+    // "Send to Session" sets currentTrack without loading audio), and on the iOS
+    // Capacitor WKWebView `audio.src` is normalized so it won't string-match the
+    // stored blob URL. loadedUrlRef is the reliable source of truth.
+    const srcLoaded = !!audio.src && loadedUrlRef.current === track.url;
 
     // Pause toggle: only when the exact track is loaded AND currently playing.
     if (sameTrack && srcLoaded && isPlaying) {
@@ -2306,9 +2319,10 @@ export default function Page() {
     if (sameTrack && srcLoaded && !isPlaying) {
       try {
         await audio.play();
+        console.log("[v0] audio play promise: success (togglePlayPause resume)");
         setIsPlaying(true);
       } catch (error) {
-        console.error("Playback failed:", error);
+        console.error("[v0] audio play promise: error (togglePlayPause resume):", error);
         setIsPlaying(false);
       }
       return;
@@ -2357,6 +2371,7 @@ export default function Page() {
 
       if (!isSameTrack) {
         audioRef.current.src = track.url;
+        loadedUrlRef.current = track.url;
         setCurrentTrack(track);
       }
 
@@ -2382,15 +2397,22 @@ export default function Page() {
     
     // If paused with a current track loaded AND not all finished, resume.
     if (currentTrack && currentTrack.url && !allTracksFinished) {
-      const srcLoaded = audioRef.current.src === currentTrack.url;
+      // Robust "is this track already loaded?" check: the element must have a src
+      // AND the URL we actually loaded (tracked in a ref) must match the current
+      // track. Using loadedUrlRef instead of `audio.src === url` avoids the iOS
+      // WKWebView src-normalization mismatch that broke resume in the app.
+      const srcLoaded =
+        !!audioRef.current.src && loadedUrlRef.current === currentTrack.url;
       setSessionRunning(true);
       if (srcLoaded) {
         // Same track already loaded - resume from the current position.
         try {
           await audioRef.current.play();
+          console.log("[v0] audio play promise: success (resume)");
           setIsPlaying(true);
         } catch (error) {
-          console.error("Playback failed:", error);
+          console.error("[v0] audio play promise: error (resume):", error);
+          setIsPlaying(false);
         }
       } else {
         // Track changed while paused (e.g. after "Send to Session") - load it fresh.
@@ -2448,6 +2470,7 @@ export default function Page() {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current.src = "";
+      loadedUrlRef.current = "";
     }
 
     setPlaylist([]);
@@ -2693,6 +2716,7 @@ export default function Page() {
           // Load the track but stay paused at the start.
           isTransitioningRef.current = true;
           audioRef.current.src = prevTrack.url;
+          loadedUrlRef.current = prevTrack.url;
           try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
           audioRef.current.load();
           isTransitioningRef.current = false;
@@ -3043,6 +3067,16 @@ export default function Page() {
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
+    // Diagnostics for iPhone/iPad debugging (view in Safari Web Inspector).
+    console.log(
+      isPlaying ? "[v0] pause button clicked" : "[v0] play button clicked",
+      {
+        audioRefExists: !!audioRef.current,
+        currentTrackExists: !!currentTrack,
+        isPlaying,
+        isGapPaused,
+      }
+    );
     if (isPlaying && !isGapPaused && settings.showPauseWarning) {
       setShowPauseConfirm(true);
     } else {
