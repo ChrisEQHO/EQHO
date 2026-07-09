@@ -5,14 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { isV0Preview } from '@/lib/utils/preview'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
-
-// Check if running in v0 preview
-const isV0Preview = typeof window !== 'undefined' && (
-  window.location.hostname.includes('vusercontent.net') ||
-  window.location.hostname.includes('v0.dev') ||
-  window.location.hostname.includes('localhost')
-)
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -95,15 +89,22 @@ export default function LoginPage() {
     }
 
     // Ensure a profiles row exists for this user (mirrors auth.users -> profiles).
-    try {
-      const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
-      const ensureJson = await ensureRes.json()
-      console.log('[v0] login ensure-profile result:', ensureJson)
-    } catch (ensureErr) {
-      console.error('[v0] login ensure-profile error:', ensureErr)
+    // Skipped on the Capacitor static export (`output: export`) since there is no
+    // API server bundled; the client-side Supabase session already controls access.
+    const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+    if (!isMobileBuild) {
+      try {
+        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+        const ensureJson = await ensureRes.json()
+        console.log('[v0] login ensure-profile result:', ensureJson)
+      } catch (ensureErr) {
+        console.error('[v0] login ensure-profile error:', ensureErr)
+      }
     }
 
     // Free access: no subscription required, go straight to the player.
+    // The client-side Supabase session (persisted to localStorage) is what the
+    // player uses to decide login vs. player — no server redirect/cookie needed.
     router.replace('/')
   }
 
