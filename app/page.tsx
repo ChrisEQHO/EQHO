@@ -6882,12 +6882,7 @@ export default function Page() {
                                 <SortableTrackItem
                                   key={track.id}
                                   id={track.id}
-                                  onClick={() => {
-                                    if (isHidden) return; // Don't allow clicking hidden tracks
-                                    setCurrentIndex(originalIndex);
-                                    togglePlayPause(track);
-                                  }}
-                                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                  className={`flex items-center gap-2 p-2 rounded-lg transition ${
                                     isHidden
                                       ? "opacity-40 border border-dashed border-white/10"
                                       : isActiveTrack 
