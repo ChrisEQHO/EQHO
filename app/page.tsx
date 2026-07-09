@@ -6738,55 +6738,6 @@ export default function Page() {
                             {trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}
                           </div>
                         </div>
-
-                        {/* Session Overview Stats */}
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
-                          {[
-                            [Music, visibleTrackCount, "ROUTINES", "in playlist", "text-purple-400"],
-                            [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
-                            [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
-                            [Timer, estimatedSessionLabel, "EST. SESSION", "(incl. gaps)", "text-purple-400"],
-                          ].map(([Icon, value, a, b, colour]: any, idx) => (
-                            <div key={idx} className="flex items-start gap-1.5">
-                              <Icon className={`${colour} shrink-0`} size={16} />
-                              <div className="min-w-0">
-                                <div className="text-sm font-bold truncate">{value}</div>
-                                <div className="text-[8px] text-white/70 truncate">{a}</div>
-                                <div className="text-[8px] text-white/70 truncate">{b}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Session Status */}
-                        <div className="border-t border-white/10 pt-2">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[9px] uppercase text-white/50">Session Status</span>
-                            <span className={`text-[9px] font-bold ${sessionRunning ? "text-green-400" : "text-white/40"}`}>
-                              {sessionRunning ? "In Progress" : "Ready"}
-                            </span>
-                          </div>
-                          {sessionRunning ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[9px]">
-                                <span className="text-white/50">Current Track</span>
-                                <span className="text-pink-400 font-medium truncate max-w-[150px]">{currentTrack?.title || "-"}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[9px]">
-                                <span className="text-white/50">Progress</span>
-                                <span className="text-cyan-400 font-medium">{completedTracks} of {visibleTrackCount} completed</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[9px]">
-                                <span className="text-white/50">Time Remaining</span>
-                                <span className="text-orange-400 font-medium">{remainingTimeLabel}</span>
-                              </div>
-                            </div>
-                          ) : (
-                            playlist.length > 0 && (
-                              <p className="text-[9px] text-white/40">Press play to start your session</p>
-                            )
-                          )}
-                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2 py-4">
