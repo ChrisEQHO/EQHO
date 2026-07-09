@@ -39,9 +39,8 @@ runNode('prepare-mobile-build.js')
 
 let buildError = null
 try {
-  // Build the mobile static export. The `--webpack` flag is NOT supported by
-  // this Next.js version (`next build` rejects it as an unknown option), so we
-  // run the plain build command.
+  // Build the mobile static export with the default bundler. Do not pass extra
+  // bundler flags here — this Next.js version rejects unknown build options.
   run('next', ['build'])
 } catch (err) {
   buildError = err
