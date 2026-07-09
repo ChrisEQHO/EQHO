@@ -1,6 +1,8 @@
 import { ImageResponse } from 'next/og'
 
-export const runtime = 'edge'
+// Render at build time so the route is compatible with `output: export`
+// (Capacitor mobile static build). Edge runtime cannot be statically exported.
+export const dynamic = 'force-static'
 
 export const size = {
   width: 180,
