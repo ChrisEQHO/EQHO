@@ -41,7 +41,7 @@ import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
 import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
-import { SortableTrackList, SortableTrackItem } from "@/components/sortable-track-list";
+import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
 import Link from "next/link";
 import {
   Home,
@@ -4101,6 +4101,9 @@ export default function Page() {
                             togglePlayPause(track);
                           }}
                         >
+                          <TrackDragHandle className="flex items-center justify-center -ml-1 text-white/30 hover:text-white/70 active:text-white shrink-0 bg-transparent border-0 p-0.5">
+                            <GripVertical size={16} />
+                          </TrackDragHandle>
                           <span className={`text-sm font-black w-6 ${isHidden ? "text-white/20" : colour}`}>{originalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
@@ -4920,9 +4923,9 @@ export default function Page() {
                                   : "border-white/8"
                             }`}
                           >
-                              <div className="cursor-grab active:cursor-grabbing">
+                              <TrackDragHandle className="flex items-center justify-center bg-transparent border-0 p-0">
                                 <GripVertical size={15} className="text-white/75 hover:text-white" />
-                              </div>
+                              </TrackDragHandle>
                               <div className={`text-[34px] font-black ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div>
                                 <div className={`text-base font-semibold ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
@@ -6894,6 +6897,13 @@ export default function Page() {
                                         : "hover:bg-white/5"
                                   }`}
                                 >
+                                  {/* Drag handle (press & hold to reorder on touch) */}
+                                  {!isHidden && (
+                                    <TrackDragHandle className="flex items-center justify-center shrink-0 -ml-1 text-white/30 hover:text-white/70 active:text-white bg-transparent border-0 p-0.5">
+                                      <GripVertical size={18} />
+                                    </TrackDragHandle>
+                                  )}
+
                                   {/* Track Number - shows original playlist position */}
                                   <div className={`text-xl font-black w-6 text-center ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>
                                     {originalIndex + 1}
