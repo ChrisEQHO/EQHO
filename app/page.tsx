@@ -2734,6 +2734,15 @@ export default function Page() {
   playlistRef.current = playlist;
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
+  // Keeps the "Autoplay Next Track" setting readable inside the onEnded handler
+  // (which reads refs, not closures). When false, playback stops when a track ends
+  // instead of auto-advancing to the next routine.
+  const autoplayNextRef = useRef(true);
+  // Countdown settings read by the gap-ticker effect (defined before `settings`),
+  // so they must be refs. showCountdownRef gates the audible countdown beeps;
+  // countdownSecondsRef sets how many final gap seconds beep as a "get ready" cue.
+  const showCountdownRef = useRef(true);
+  const countdownSecondsRef = useRef(3);
   // Authoritative back-to-back tracker: holds the id of the track that has ALREADY
   // played its back-to-back repeat. This is keyed by the actually-playing track id
   // (read at the moment the track ends), so the decision can never desync the way a
@@ -2829,6 +2838,17 @@ export default function Page() {
         endedTrack.title || "",
         endedTrack.id || "",
       );
+      return;
+    }
+
+    // 1b) Autoplay Next Track is OFF: the current routine (including any back-to-back
+    //     repeat) has finished, so stop here instead of advancing. The coach can
+    //     manually skip forward to continue. Keeps the session "running" (not ended)
+    //     so Resume/Skip still work.
+    if (!autoplayNextRef.current) {
+      setIsPlaying(false);
+      setIsGapPaused(false);
+      setGapCountdown(0);
       return;
     }
 
@@ -2946,10 +2966,19 @@ export default function Page() {
       return;
     }
     
-    // Play beep on final 3 seconds - only if we haven't beeped this second yet
-    if (gapCountdown <= 3 && gapCountdown > 0 && lastBeepedCountdown.current !== gapCountdown) {
+    // Audible "get ready" countdown before the next routine. Honors the
+    // "Show Countdown Timer" toggle and the configurable "Countdown Before Routine"
+    // length: beep only during the final `countdownSeconds` of the gap, and not at
+    // all when the countdown timer is disabled.
+    if (
+      showCountdownRef.current &&
+      countdownSecondsRef.current > 0 &&
+      gapCountdown <= countdownSecondsRef.current &&
+      gapCountdown > 0 &&
+      lastBeepedCountdown.current !== gapCountdown
+    ) {
       lastBeepedCountdown.current = gapCountdown;
-      const freq = gapCountdown === 3 ? 660 : gapCountdown === 2 ? 880 : 1100;
+      const freq = gapCountdown === 1 ? 1100 : gapCountdown === 2 ? 880 : 660;
       const isFinal = gapCountdown === 1;
       playBeep(freq, 200, isFinal);
     }
@@ -2994,6 +3023,11 @@ export default function Page() {
     showPauseWarning: true,
     showSkipWarning: true,
   });
+
+  // Keep the playback-engine refs in sync with the live settings every render.
+  autoplayNextRef.current = settings.autoplayNext;
+  showCountdownRef.current = settings.showCountdown;
+  countdownSecondsRef.current = settings.countdownSeconds;
 
   const updateSetting = (key: string, value: any) => {
     setSettings((current) => ({
@@ -6738,55 +6772,6 @@ export default function Page() {
                             {trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}
                           </div>
                         </div>
-
-                        {/* Session Overview Stats */}
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
-                          {[
-                            [Music, visibleTrackCount, "ROUTINES", "in playlist", "text-purple-400"],
-                            [Timer, routineTimeLabel, "TOTAL", "ROUTINE TIME", "text-pink-500"],
-                            [Clock, `${gapSeconds} sec`, "GAP BETWEEN", "ROUTINES", "text-orange-400"],
-                            [Timer, estimatedSessionLabel, "EST. SESSION", "(incl. gaps)", "text-purple-400"],
-                          ].map(([Icon, value, a, b, colour]: any, idx) => (
-                            <div key={idx} className="flex items-start gap-1.5">
-                              <Icon className={`${colour} shrink-0`} size={16} />
-                              <div className="min-w-0">
-                                <div className="text-sm font-bold truncate">{value}</div>
-                                <div className="text-[8px] text-white/70 truncate">{a}</div>
-                                <div className="text-[8px] text-white/70 truncate">{b}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Session Status */}
-                        <div className="border-t border-white/10 pt-2">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[9px] uppercase text-white/50">Session Status</span>
-                            <span className={`text-[9px] font-bold ${sessionRunning ? "text-green-400" : "text-white/40"}`}>
-                              {sessionRunning ? "In Progress" : "Ready"}
-                            </span>
-                          </div>
-                          {sessionRunning ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[9px]">
-                                <span className="text-white/50">Current Track</span>
-                                <span className="text-pink-400 font-medium truncate max-w-[150px]">{currentTrack?.title || "-"}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[9px]">
-                                <span className="text-white/50">Progress</span>
-                                <span className="text-cyan-400 font-medium">{completedTracks} of {visibleTrackCount} completed</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[9px]">
-                                <span className="text-white/50">Time Remaining</span>
-                                <span className="text-orange-400 font-medium">{remainingTimeLabel}</span>
-                              </div>
-                            </div>
-                          ) : (
-                            playlist.length > 0 && (
-                              <p className="text-[9px] text-white/40">Press play to start your session</p>
-                            )
-                          )}
-                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2 py-4">
@@ -6882,12 +6867,7 @@ export default function Page() {
                                 <SortableTrackItem
                                   key={track.id}
                                   id={track.id}
-                                  onClick={() => {
-                                    if (isHidden) return; // Don't allow clicking hidden tracks
-                                    setCurrentIndex(originalIndex);
-                                    togglePlayPause(track);
-                                  }}
-                                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                  className={`flex items-center gap-2 p-2 rounded-lg transition ${
                                     isHidden
                                       ? "opacity-40 border border-dashed border-white/10"
                                       : isActiveTrack 
