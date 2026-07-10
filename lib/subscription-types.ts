@@ -52,6 +52,20 @@ export function getStatusLabel(status: SubscriptionStatus): string {
 // which then auto-renews into the paid plan (there is no permanent free tier).
 export const TRIAL_LENGTH_DAYS = 30
 
+// Public launch date. Paid subscriptions become available on this date and the
+// current free version ends on the same date. Until then, no sign-up is offered.
+export const SUBSCRIPTION_LAUNCH_LABEL = '1 September 2026'
+
+// A user only counts as actually subscribed when Stripe reports an active
+// subscription AND we have a Stripe subscription id on file. `trialing` and any
+// other status must NOT be treated as an active paid subscription.
+export function hasActiveSubscription(
+  profile: { subscription_status: SubscriptionStatus; stripe_subscription_id: string | null } | null,
+): boolean {
+  if (!profile) return false
+  return profile.subscription_status === 'active' && !!profile.stripe_subscription_id
+}
+
 export function getTrialDaysRemaining(trialEnd: string | null): number | null {
   if (!trialEnd) return null
   

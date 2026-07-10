@@ -39,7 +39,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
-import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS } from "@/lib/subscription-types";
+import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS, hasActiveSubscription, SUBSCRIPTION_LAUNCH_LABEL } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
 import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
@@ -2372,16 +2372,18 @@ export default function Page() {
     // Capacitor WKWebView `audio.src` is normalized so it won't string-match the
     // stored blob URL. loadedUrlRef is the reliable source of truth.
     const srcLoaded = !!audio.src && loadedUrlRef.current === track.url;
+    // Real element state — not React `isPlaying`, which can drift on mobile.
+    const actuallyPlaying = !audio.paused && !audio.ended;
 
     // Pause toggle: only when the exact track is loaded AND currently playing.
-    if (sameTrack && srcLoaded && isPlaying) {
+    if (sameTrack && srcLoaded && actuallyPlaying) {
       audio.pause();
       setIsPlaying(false);
       return;
     }
 
     // Resume the same, already-loaded track from its current position.
-    if (sameTrack && srcLoaded && !isPlaying) {
+    if (sameTrack && srcLoaded && !actuallyPlaying) {
       try {
         await audio.play();
         console.log("[v0] audio play promise: success (togglePlayPause resume)");
@@ -2451,8 +2453,12 @@ export default function Page() {
   const toggleSession = async () => {
     if (!audioRef.current) return;
 
+    // Use the real <audio> element as source of truth (React `isPlaying` can
+    // drift on mobile WebViews where onPlay/onPause don't fire reliably).
+    const actuallyPlaying = !audioRef.current.paused && !audioRef.current.ended;
+
     // If playing, show confirmation before pausing
-    if (isPlaying) {
+    if (actuallyPlaying) {
       setShowStopConfirm(true);
       return;
     }
@@ -2873,6 +2879,13 @@ export default function Page() {
     if (!audio) return;
     setCurrentTime(audio.currentTime);
     captureDuration();
+    // Self-heal `isPlaying` from the real element. On mobile WebViews the
+    // onPlay event is unreliable, so timeupdate (which only fires while the
+    // audio is actually progressing) is a dependable signal that we ARE playing.
+    // This keeps the Pause/Resume button label correct.
+    if (!isPlaying && !audio.paused && !isTransitioningRef.current) {
+      setIsPlaying(true);
+    }
   };
 
   const handleAudioLoadedMetadata = () => captureDuration();
@@ -3143,17 +3156,19 @@ export default function Page() {
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
-    // Diagnostics for iPhone/iPad debugging (view in Safari Web Inspector).
-    console.log(
-      isPlaying ? "[v0] pause button clicked" : "[v0] play button clicked",
-      {
-        audioRefExists: !!audioRef.current,
-        currentTrackExists: !!currentTrack,
-        isPlaying,
-        isGapPaused,
-      }
-    );
-    if (isPlaying && !isGapPaused) {
+    const audio = audioRef.current;
+    // Source of truth is the REAL <audio> element, not React state. On mobile
+    // WebViews (notably iOS WKWebView) the onPlay/onPause DOM events don't fire
+    // reliably, so `isPlaying` state can drift out of sync with actual playback.
+    // Relying on stale `isPlaying` made a tap take the wrong branch (reloading a
+    // track instead of pausing it), which looked like "the button does nothing".
+    const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
+    if (isGapPaused) {
+      // During an inter-track gap, defer to the session toggle (handles the gap).
+      toggleSession();
+      return;
+    }
+    if (actuallyPlaying) {
       if (settings.showPauseWarning) {
         // Warning enabled — ask for confirmation before pausing.
         setShowPauseConfirm(true);
@@ -3162,10 +3177,8 @@ export default function Page() {
         // toggleSession() here, because toggleSession shows its own
         // showStopConfirm dialog whenever isPlaying, which made the pause
         // warning still appear even when this setting was turned off.
-        if (audioRef.current) {
-          audioRef.current.pause();
-          setIsPlaying(false);
-        }
+        audio!.pause();
+        setIsPlaying(false);
       }
     } else {
       toggleSession();
@@ -3174,7 +3187,14 @@ export default function Page() {
 
   // Handler for skip back button with warning check
   const handleSkipBackClick = () => {
-    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+    // The warning should reflect what the user PERCEIVES as playing. On mobile
+    // WebViews onPlay/onPause can drift in either direction, so treat playback
+    // as active if EITHER the React state (drives the play/pause icon) OR the
+    // real <audio> element reports playing. This guarantees the warning shows
+    // whenever the user sees a track playing.
+    const audio = audioRef.current;
+    const perceivedPlaying = isPlaying || (!!audio && !audio.paused && !audio.ended);
+    if (perceivedPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipBackConfirm(true);
     } else {
       goToPreviousTrack();
@@ -3183,7 +3203,9 @@ export default function Page() {
 
   // Handler for skip forward button with warning check
   const handleSkipForwardClick = () => {
-    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+    const audio = audioRef.current;
+    const perceivedPlaying = isPlaying || (!!audio && !audio.paused && !audio.ended);
+    if (perceivedPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipForwardConfirm(true);
     } else {
       goToNextTrack();
@@ -4704,6 +4726,62 @@ export default function Page() {
         </div>
       )}
 
+      {/* Skip Forward Confirmation - Mobile (outside isFullscreen container) */}
+      {showSkipForwardConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <StepForward size={40} className="mx-auto mb-3 text-pink-400" />
+            <h3 className="text-xl font-bold text-white mb-2">Skip to Next Track?</h3>
+            <p className="text-white/60 text-sm mb-5">Are you sure you want to skip to the next track?</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowSkipForwardConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowSkipForwardConfirm(false);
+                  setTimeout(() => goToNextTrack(), 50);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
+              >
+                Yes, Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Back Confirmation - Mobile (outside isFullscreen container) */}
+      {showSkipBackConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <StepBack size={40} className="mx-auto mb-3 text-cyan-400" />
+            <h3 className="text-xl font-bold text-white mb-2">Skip to Previous Track?</h3>
+            <p className="text-white/60 text-sm mb-5">Are you sure you want to go back to the previous track?</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowSkipBackConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowSkipBackConfirm(false);
+                  setTimeout(() => goToPreviousTrack(), 50);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition text-sm"
+              >
+                Yes, Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Clear Playlist Confirmation - Mobile (outside isFullscreen container) */}
       {showClearPlaylistConfirm && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
@@ -6102,9 +6180,10 @@ export default function Page() {
                     <h2 className="text-lg font-bold">Subscription</h2>
                   </div>
                   {(() => {
+                    // Only a genuine, active Stripe subscription counts as "active".
+                    if (hasActiveSubscription(profile)) {
                     const countdownTarget = getCountdownTarget(profile);
                     const daysLeft = getDaysUntil(countdownTarget);
-                    const isTrial = profile?.subscription_status === "trialing";
                     const pct = daysLeft !== null
                       ? Math.max(0, Math.min(100, (daysLeft / TRIAL_LENGTH_DAYS) * 100))
                       : 0;
@@ -6115,7 +6194,7 @@ export default function Page() {
                       <span className="text-white/70 text-sm">Current Plan</span>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
                         <Crown className="h-3.5 w-3.5" />
-                        {isTrial ? "Free Trial" : "EQHO Player"}
+                        EQHO Player
                       </span>
                     </div>
 
@@ -6126,9 +6205,7 @@ export default function Page() {
                         <span className="text-emerald-300 text-sm font-semibold">
                           {subCancelPending
                             ? "Access until period ends"
-                            : isTrial
-                              ? "Your free trial is active"
-                              : "Your subscription is active"}
+                            : "Your subscription is active"}
                         </span>
                       </div>
 
@@ -6157,7 +6234,7 @@ export default function Page() {
                       {/* Renewal date */}
                       {countdownTarget && (
                         <p className="text-emerald-100/70 text-xs">
-                          {subCancelPending ? "Ends on " : isTrial ? "Auto-renews on " : "Renews on "}
+                          {subCancelPending ? "Ends on " : "Renews on "}
                           <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                         </p>
                       )}
@@ -6165,9 +6242,7 @@ export default function Page() {
                       {/* Auto-renewal note */}
                       {!subCancelPending && (
                         <p className="text-emerald-100/50 text-[11px] leading-relaxed">
-                          {isTrial
-                            ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
-                            : "Your subscription renews automatically. Cancel anytime."}
+                          Your subscription renews automatically. Cancel anytime.
                         </p>
                       )}
                     </div>
@@ -6196,6 +6271,29 @@ export default function Page() {
                       {subActionError && (
                         <p className="text-red-400 text-[11px] text-center">{subActionError}</p>
                       )}
+                    </div>
+                  </div>
+                    );
+                    }
+                    // No active subscription — pre-launch informational state (no sign-up).
+                    return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70 text-sm">Current Plan</span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 text-white/70 border border-white/15">
+                        Free
+                      </span>
+                    </div>
+                    <div className="rounded-xl bg-gradient-to-br from-emerald-500/15 to-green-600/10 border border-emerald-500/30 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Crown size={16} className="text-emerald-400" />
+                        <span className="text-emerald-300 text-sm font-semibold">
+                          Subscription available from {SUBSCRIPTION_LAUNCH_LABEL}
+                        </span>
+                      </div>
+                      <p className="text-emerald-100/70 text-xs leading-relaxed">
+                        Your free version ends on <span className="font-semibold text-emerald-200">{SUBSCRIPTION_LAUNCH_LABEL}</span>.
+                      </p>
                     </div>
                   </div>
                     );
@@ -6817,7 +6915,7 @@ export default function Page() {
           the fixed control bar depends on whether it's expanded (~230px) or
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
-      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-232px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-96px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
+      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-248px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-112px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -6865,7 +6963,7 @@ export default function Page() {
             </div>
 
             {/* Mobile Content Area */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {mobileTab === "nowplaying" && (
                 <div className="h-full flex flex-col overflow-hidden">
                   {/* Now Playing Section - Compact */}
@@ -7385,7 +7483,10 @@ export default function Page() {
                   )}
 
                   {/* Scrollable Playlists List */}
-                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  <div
+                    className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+                    style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+                  >
                     {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
                       <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
                         <Folder size={32} className="mx-auto mb-2 text-white/20" />
@@ -7787,12 +7888,20 @@ export default function Page() {
                           <Crown size={14} className="text-emerald-400" />
                           <span className="text-[10px] font-bold text-white">Subscription</span>
                         </div>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
-                          <Crown className="h-2.5 w-2.5" />
-                          {isTrialing ? "Free Trial" : "EQHO Player"}
-                        </span>
+                        {hasActiveSubscription(profile) ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                            <Crown className="h-2.5 w-2.5" />
+                            EQHO Player
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-white/10 text-white/70 border border-white/15">
+                            Free
+                          </span>
+                        )}
                       </div>
                       {(() => {
+                        // Only a genuine, active Stripe subscription counts as "active".
+                        if (hasActiveSubscription(profile)) {
                         const countdownTarget = getCountdownTarget(profile);
                         const daysLeft = getDaysUntil(countdownTarget);
                         const pct = daysLeft !== null
@@ -7805,9 +7914,7 @@ export default function Page() {
                               <span className="text-emerald-300 text-[9px] font-semibold">
                                 {subCancelPending
                                   ? "Access until period ends"
-                                  : isTrialing
-                                    ? "Your free trial is active"
-                                    : "Your subscription is active"}
+                                  : "Your subscription is active"}
                               </span>
                             </div>
 
@@ -7836,16 +7943,14 @@ export default function Page() {
                             {/* Renewal date */}
                             {countdownTarget && (
                               <p className="text-emerald-100/70 text-[9px]">
-                                {subCancelPending ? "Ends on " : isTrialing ? "Auto-renews on " : "Renews on "}
+                                {subCancelPending ? "Ends on " : "Renews on "}
                                 <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                               </p>
                             )}
 
                             {!subCancelPending && (
                               <p className="text-emerald-100/50 text-[9px] leading-relaxed">
-                                {isTrialing
-                                  ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
-                                  : "Your subscription renews automatically. Cancel anytime."}
+                                Your subscription renews automatically. Cancel anytime.
                               </p>
                             )}
 
@@ -7872,6 +7977,18 @@ export default function Page() {
                             {subActionError && (
                               <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
                             )}
+                          </div>
+                        );
+                        }
+                        // No active subscription — pre-launch informational state (no sign-up).
+                        return (
+                          <div className="space-y-1.5">
+                            <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
+                              Subscription available from {SUBSCRIPTION_LAUNCH_LABEL}
+                            </p>
+                            <p className="text-emerald-100/70 text-[9px] leading-relaxed">
+                              Your free version ends on <span className="font-semibold text-emerald-200">{SUBSCRIPTION_LAUNCH_LABEL}</span>.
+                            </p>
                           </div>
                         );
                       })()}

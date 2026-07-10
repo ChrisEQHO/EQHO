@@ -14,17 +14,17 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const fetchSubscription = useCallback(async () => {
     // In the v0 preview/dev there is no Supabase session, so seed a demo
-    // trialing profile (30-day trial, ~23 days left) purely so the subscription
-    // UI + countdown are visible. This never runs in production/mobile builds.
+    // profile. Since there is no active Stripe subscription pre-launch, this
+    // reflects the free / not-yet-subscribed state so the settings screen shows
+    // the "subscription available from launch" message. Never runs in prod.
     if (isV0Preview) {
-      const trialEnd = new Date(Date.now() + 23 * 24 * 60 * 60 * 1000).toISOString()
       setProfile({
         id: 'v0-preview-user',
         stripe_customer_id: null,
-        subscription_status: 'trialing',
+        subscription_status: 'free',
         stripe_subscription_id: null,
-        trial_end: trialEnd,
-        current_period_end: trialEnd,
+        trial_end: null,
+        current_period_end: null,
       })
       setIsLoading(false)
       return
