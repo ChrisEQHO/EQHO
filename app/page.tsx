@@ -41,6 +41,7 @@ import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
 import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
+import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
 import Link from "next/link";
 import {
@@ -332,7 +333,7 @@ function DraggableTrackRow({
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
-  const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading } = useSubscription();
+  const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading, refetch: refetchSubscription } = useSubscription();
 
   // Sidebar navigation items (desktop only)
   const sidebarItems = [
@@ -414,6 +415,17 @@ export default function Page() {
   const [showClearLibraryConfirm, setShowClearLibraryConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  // Subscription cancel/resume (unsubscribe) state — shared by the desktop and
+  // mobile settings UIs. Cancellation runs through the Stripe-connected server
+  // action (cancel_at_period_end), and the Stripe webhook syncs Supabase.
+  const [showCancelSubConfirm, setShowCancelSubConfirm] = useState(false);
+  const [cancelSubLoading, setCancelSubLoading] = useState(false);
+  const [resumeSubLoading, setResumeSubLoading] = useState(false);
+  const [subActionError, setSubActionError] = useState<string | null>(null);
+  // Tracks that the user has scheduled cancellation this session (mirrors the
+  // /billing page's client-side tracking, since `profiles` does not expose the
+  // Stripe cancel_at_period_end flag directly).
+  const [subCancelPending, setSubCancelPending] = useState(false);
   // Sign-out UI state: drives the "Signing out…" loading label and the
   // "Sign out failed" error message on the Sign Out buttons.
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -604,6 +616,54 @@ export default function Page() {
     } finally {
       setDeleteAccountLoading(false);
       setShowDeleteAccountConfirm(false);
+    }
+  };
+
+  // Cancel the subscription at period end via the Stripe-connected server action.
+  // Stripe sets cancel_at_period_end=true and its webhook updates Supabase; we
+  // refetch the subscription so the UI reflects the new state.
+  const handleCancelSubscription = async () => {
+    if (cancelSubLoading) return;
+    setSubActionError(null);
+    setCancelSubLoading(true);
+    try {
+      const result = await cancelSubscription();
+      if (result.error) {
+        console.log("[v0] cancel subscription error:", result.error);
+        setSubActionError(result.error);
+      } else {
+        setSubCancelPending(true);
+        await refetchSubscription();
+        setShowCancelSubConfirm(false);
+      }
+    } catch (err) {
+      console.error("[v0] cancel subscription failed:", err);
+      setSubActionError("Failed to cancel subscription. Please try again.");
+    } finally {
+      setCancelSubLoading(false);
+    }
+  };
+
+  // Resume a subscription that was scheduled to cancel (Stripe
+  // cancel_at_period_end=false), then refetch so the UI updates.
+  const handleResumeSubscription = async () => {
+    if (resumeSubLoading) return;
+    setSubActionError(null);
+    setResumeSubLoading(true);
+    try {
+      const result = await resumeSubscription();
+      if (result.error) {
+        console.log("[v0] resume subscription error:", result.error);
+        setSubActionError(result.error);
+      } else {
+        setSubCancelPending(false);
+        await refetchSubscription();
+      }
+    } catch (err) {
+      console.error("[v0] resume subscription failed:", err);
+      setSubActionError("Failed to resume subscription. Please try again.");
+    } finally {
+      setResumeSubLoading(false);
     }
   };
 
@@ -3657,6 +3717,45 @@ export default function Page() {
           </div>
         )}
 
+        {/* Cancel Subscription Confirmation */}
+        {showCancelSubConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
+              <h3 className="text-2xl font-bold text-white mb-2">Cancel subscription?</h3>
+              <p className="text-white/60 mb-6">
+                You&apos;ll keep full access to EQHO Player until the end of your current billing period. After that, your account returns to the free plan.
+              </p>
+              {subActionError && (
+                <p className="text-red-400 text-sm mb-4">{subActionError}</p>
+              )}
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowCancelSubConfirm(false)}
+                  disabled={cancelSubLoading}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                >
+                  Keep subscription
+                </button>
+                <button
+                  onClick={handleCancelSubscription}
+                  disabled={cancelSubLoading}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  {cancelSubLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Canceling...
+                    </>
+                  ) : (
+                    "Yes, cancel"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Send to Session Confirmation */}
         {showSendToSessionConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -6009,11 +6108,35 @@ export default function Page() {
                       </p>
                     </div>
                     
-                    {/* Cancel Subscription Link */}
-                    <div className="text-center pt-1">
-                      <Link href="/billing" className="text-white/40 hover:text-white/60 text-xs underline underline-offset-2 transition-colors">
-                        Cancel subscription
-                      </Link>
+                    {/* Cancel / Resume Subscription (Stripe + Supabase) */}
+                    <div className="pt-1 space-y-2">
+                      {subCancelPending ? (
+                        <>
+                          <div className="rounded-lg bg-[#ff8a00]/10 border border-[#ff8a00]/30 px-3 py-2">
+                            <p className="text-[#ff8a00] text-[11px] font-medium">
+                              Your subscription is set to cancel at the end of the billing period.
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleResumeSubscription}
+                            disabled={resumeSubLoading}
+                            className="w-full py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                          >
+                            {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                            Resume subscription
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
+                          className="w-full py-2 rounded-lg bg-transparent border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/10 transition"
+                        >
+                          Cancel subscription
+                        </button>
+                      )}
+                      {subActionError && (
+                        <p className="text-red-400 text-[11px] text-center">{subActionError}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -7638,6 +7761,61 @@ export default function Page() {
                               Send your latest playlists to your logged-in EQHO apps.
                             </p>
                           </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Subscription (Stripe + Supabase) */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Crown size={14} className="text-emerald-400" />
+                        <span className="text-[10px] font-bold text-white">Subscription</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-white/70">Current Plan</span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold ${isPro ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white" : "bg-white/10 text-white/60"}`}>
+                            <Crown className="h-2.5 w-2.5" />
+                            {isTrialing ? "Free Trial" : isPro ? "EQHO Player" : "Free"}
+                          </span>
+                        </div>
+                        {isTrialing && profile?.trial_end && getTrialDaysRemaining(profile.trial_end) !== null && (
+                          <p className="text-emerald-300 text-[10px] font-medium">
+                            {getTrialDaysRemaining(profile.trial_end)} days remaining · renews {formatTrialEndDate(profile.trial_end)}
+                          </p>
+                        )}
+                        {isPro ? (
+                          subCancelPending ? (
+                            <>
+                              <div className="rounded-lg bg-[#ff8a00]/10 border border-[#ff8a00]/30 px-2 py-1.5">
+                                <p className="text-[#ff8a00] text-[9px] font-medium leading-relaxed">
+                                  Set to cancel at the end of your billing period.
+                                </p>
+                              </div>
+                              <button
+                                onClick={handleResumeSubscription}
+                                disabled={resumeSubLoading}
+                                className="w-full min-h-[44px] py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 active:bg-emerald-500/30 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                              >
+                                {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                                Resume Subscription
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
+                              className="w-full min-h-[44px] py-2 rounded-lg bg-transparent border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/10 active:bg-red-500/20 transition"
+                            >
+                              Cancel Subscription
+                            </button>
+                          )
+                        ) : (
+                          <p className="text-white/50 text-[9px] leading-relaxed">
+                            You&apos;re on the free plan. Upgrade to unlock cloud sync and cross-device access.
+                          </p>
+                        )}
+                        {subActionError && (
+                          <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
                         )}
                       </div>
                     </div>
