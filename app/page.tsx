@@ -3187,11 +3187,14 @@ export default function Page() {
 
   // Handler for skip back button with warning check
   const handleSkipBackClick = () => {
-    // Source of truth is the real <audio> element (React `isPlaying` can drift
-    // on mobile WebViews where onPlay/onPause don't fire reliably).
+    // The warning should reflect what the user PERCEIVES as playing. On mobile
+    // WebViews onPlay/onPause can drift in either direction, so treat playback
+    // as active if EITHER the React state (drives the play/pause icon) OR the
+    // real <audio> element reports playing. This guarantees the warning shows
+    // whenever the user sees a track playing.
     const audio = audioRef.current;
-    const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
-    if (actuallyPlaying && !isGapPaused && settings.showSkipWarning) {
+    const perceivedPlaying = isPlaying || (!!audio && !audio.paused && !audio.ended);
+    if (perceivedPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipBackConfirm(true);
     } else {
       goToPreviousTrack();
@@ -3201,8 +3204,8 @@ export default function Page() {
   // Handler for skip forward button with warning check
   const handleSkipForwardClick = () => {
     const audio = audioRef.current;
-    const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
-    if (actuallyPlaying && !isGapPaused && settings.showSkipWarning) {
+    const perceivedPlaying = isPlaying || (!!audio && !audio.paused && !audio.ended);
+    if (perceivedPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipForwardConfirm(true);
     } else {
       goToNextTrack();
