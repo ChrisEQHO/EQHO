@@ -2512,30 +2512,36 @@ export default function Page() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentTrack, isPlaying]);
 
-  const handleUploadedTrackPlayPause = async (track: Track) => {
+  const handleUploadedTrackPlayPause = (track: Track) => {
     if (!audioRef.current || !track?.url) return;
 
+    const audio = audioRef.current;
     const isSameTrack = currentTrack?.id === track.id;
+    const actuallyPlaying = !audio.paused && !audio.ended;
 
-    try {
-      if (isSameTrack && isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-        return;
-      }
-
-      if (!isSameTrack) {
-        audioRef.current.src = track.url;
-        loadedUrlRef.current = track.url;
-        setCurrentTrack(track);
-      }
-
-      await audioRef.current.play();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error("Track play failed:", error);
+    // Same track already playing -> pause.
+    if (isSameTrack && actuallyPlaying) {
+      audio.pause();
       setIsPlaying(false);
+      return;
     }
+
+    // Same track, loaded, paused -> resume from position (element already holds
+    // a playable src, so play() works on both web and native).
+    if (isSameTrack && loadedUrlRef.current === track.url && !!audio.src) {
+      audio
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((error) => {
+          console.error("[v0] resume failed:", error);
+          setIsPlaying(false);
+        });
+      return;
+    }
+
+    // Different/unloaded track -> load fresh via the native-safe play path.
+    setCurrentTrack(track);
+    loadAndPlay(track, true);
   };
 
   const toggleSession = async () => {
