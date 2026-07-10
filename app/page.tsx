@@ -3148,8 +3148,20 @@ export default function Page() {
         isGapPaused,
       }
     );
-    if (isPlaying && !isGapPaused && settings.showPauseWarning) {
-      setShowPauseConfirm(true);
+    if (isPlaying && !isGapPaused) {
+      if (settings.showPauseWarning) {
+        // Warning enabled — ask for confirmation before pausing.
+        setShowPauseConfirm(true);
+      } else {
+        // Warning disabled — pause immediately. We must NOT fall through to
+        // toggleSession() here, because toggleSession shows its own
+        // showStopConfirm dialog whenever isPlaying, which made the pause
+        // warning still appear even when this setting was turned off.
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
     } else {
       toggleSession();
     }
