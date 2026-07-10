@@ -2372,16 +2372,18 @@ export default function Page() {
     // Capacitor WKWebView `audio.src` is normalized so it won't string-match the
     // stored blob URL. loadedUrlRef is the reliable source of truth.
     const srcLoaded = !!audio.src && loadedUrlRef.current === track.url;
+    // Real element state — not React `isPlaying`, which can drift on mobile.
+    const actuallyPlaying = !audio.paused && !audio.ended;
 
     // Pause toggle: only when the exact track is loaded AND currently playing.
-    if (sameTrack && srcLoaded && isPlaying) {
+    if (sameTrack && srcLoaded && actuallyPlaying) {
       audio.pause();
       setIsPlaying(false);
       return;
     }
 
     // Resume the same, already-loaded track from its current position.
-    if (sameTrack && srcLoaded && !isPlaying) {
+    if (sameTrack && srcLoaded && !actuallyPlaying) {
       try {
         await audio.play();
         console.log("[v0] audio play promise: success (togglePlayPause resume)");
@@ -2451,8 +2453,12 @@ export default function Page() {
   const toggleSession = async () => {
     if (!audioRef.current) return;
 
+    // Use the real <audio> element as source of truth (React `isPlaying` can
+    // drift on mobile WebViews where onPlay/onPause don't fire reliably).
+    const actuallyPlaying = !audioRef.current.paused && !audioRef.current.ended;
+
     // If playing, show confirmation before pausing
-    if (isPlaying) {
+    if (actuallyPlaying) {
       setShowStopConfirm(true);
       return;
     }
@@ -2873,6 +2879,13 @@ export default function Page() {
     if (!audio) return;
     setCurrentTime(audio.currentTime);
     captureDuration();
+    // Self-heal `isPlaying` from the real element. On mobile WebViews the
+    // onPlay event is unreliable, so timeupdate (which only fires while the
+    // audio is actually progressing) is a dependable signal that we ARE playing.
+    // This keeps the Pause/Resume button label correct.
+    if (!isPlaying && !audio.paused && !isTransitioningRef.current) {
+      setIsPlaying(true);
+    }
   };
 
   const handleAudioLoadedMetadata = () => captureDuration();
@@ -3143,17 +3156,19 @@ export default function Page() {
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
-    // Diagnostics for iPhone/iPad debugging (view in Safari Web Inspector).
-    console.log(
-      isPlaying ? "[v0] pause button clicked" : "[v0] play button clicked",
-      {
-        audioRefExists: !!audioRef.current,
-        currentTrackExists: !!currentTrack,
-        isPlaying,
-        isGapPaused,
-      }
-    );
-    if (isPlaying && !isGapPaused) {
+    const audio = audioRef.current;
+    // Source of truth is the REAL <audio> element, not React state. On mobile
+    // WebViews (notably iOS WKWebView) the onPlay/onPause DOM events don't fire
+    // reliably, so `isPlaying` state can drift out of sync with actual playback.
+    // Relying on stale `isPlaying` made a tap take the wrong branch (reloading a
+    // track instead of pausing it), which looked like "the button does nothing".
+    const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
+    if (isGapPaused) {
+      // During an inter-track gap, defer to the session toggle (handles the gap).
+      toggleSession();
+      return;
+    }
+    if (actuallyPlaying) {
       if (settings.showPauseWarning) {
         // Warning enabled — ask for confirmation before pausing.
         setShowPauseConfirm(true);
@@ -3162,10 +3177,8 @@ export default function Page() {
         // toggleSession() here, because toggleSession shows its own
         // showStopConfirm dialog whenever isPlaying, which made the pause
         // warning still appear even when this setting was turned off.
-        if (audioRef.current) {
-          audioRef.current.pause();
-          setIsPlaying(false);
-        }
+        audio!.pause();
+        setIsPlaying(false);
       }
     } else {
       toggleSession();
