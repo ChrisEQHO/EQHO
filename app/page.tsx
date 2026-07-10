@@ -7338,7 +7338,9 @@ export default function Page() {
                     >
                       <input
                         type="file"
-                        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                        // @ts-expect-error - non-standard folder selection attributes
+                        webkitdirectory=""
+                        directory=""
                         multiple
                         onChange={(event) => {
                           const files = Array.from(event.target.files || []).filter((file) =>
@@ -7348,37 +7350,8 @@ export default function Page() {
                             file.name.endsWith(".m4a")
                           );
                           if (files.length > 0) {
-                            const playlistName = `Playlist ${savedPlaylists.length + 1}`;
-                            const newPlaylistId = crypto.randomUUID();
-                            const newTracks: Track[] = [];
-                            
-                            let processed = 0;
-                            files.forEach((file) => {
-                              const url = URL.createObjectURL(file);
-                              const audio = new Audio(url);
-                              audio.onloadedmetadata = async () => {
-                                const newTrack: Track = {
-                                  id: crypto.randomUUID(),
-                                  title: file.name.replace(/\.[^/.]+$/, ""),
-                                  sub: "Uploaded Track",
-                                  duration: formatDuration(Math.round(audio.duration)),
-                                  fileName: file.name,
-                                  url,
-                                  durationSeconds: Math.round(audio.duration),
-                                  uploadedAt: new Date().toISOString(),
-                                  file,
-                                };
-                                newTracks.push(newTrack);
-                                
-                                processed++;
-                                if (processed === files.length) {
-                                  setSavedPlaylists((prev) => [
-                                    ...prev,
-                                    { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                                  ]);
-                                }
-                              };
-                            });
+                            // One playlist per folder, named after the folder (same as desktop).
+                            createPlaylistsFromFolderSelection(files);
                           }
                           event.target.value = "";
                         }}
