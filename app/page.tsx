@@ -3717,45 +3717,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Cancel Subscription Confirmation */}
-        {showCancelSubConfirm && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
-              <h3 className="text-2xl font-bold text-white mb-2">Cancel subscription?</h3>
-              <p className="text-white/60 mb-6">
-                You&apos;ll keep full access to EQHO Player until the end of your current billing period. After that, your account returns to the free plan.
-              </p>
-              {subActionError && (
-                <p className="text-red-400 text-sm mb-4">{subActionError}</p>
-              )}
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => setShowCancelSubConfirm(false)}
-                  disabled={cancelSubLoading}
-                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
-                >
-                  Keep subscription
-                </button>
-                <button
-                  onClick={handleCancelSubscription}
-                  disabled={cancelSubLoading}
-                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
-                >
-                  {cancelSubLoading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Canceling...
-                    </>
-                  ) : (
-                    "Yes, cancel"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Send to Session Confirmation */}
         {showSendToSessionConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -4589,6 +4550,47 @@ export default function Page() {
 
           {/* Bottom Safe Area */}
           <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
+        </div>
+      )}
+
+      {/* Cancel Subscription Confirmation — top level so it renders in both the
+          desktop and mobile settings views (outside the fullscreen-only container,
+          which is display:none when not fullscreen and would hide a nested modal). */}
+      {showCancelSubConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Cancel subscription?</h3>
+            <p className="text-white/60 mb-6">
+              You&apos;ll keep full access to EQHO Player until the end of your current billing period. After that, your account returns to the free plan.
+            </p>
+            {subActionError && (
+              <p className="text-red-400 text-sm mb-4">{subActionError}</p>
+            )}
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowCancelSubConfirm(false)}
+                disabled={cancelSubLoading}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+              >
+                Keep subscription
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelSubLoading}
+                className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {cancelSubLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Canceling...
+                  </>
+                ) : (
+                  "Yes, cancel"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
