@@ -917,6 +917,10 @@ export default function Page() {
 
   const [isDraggingUpload, setIsDraggingUpload] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  // Mobile-only: whether the bottom control bar settings (Gap/B2B/Time/Reps)
+  // grid is expanded. When collapsed, only the session button remains, and the
+  // orange divider line acts as the collapse/expand handle.
+  const [bottomBarExpanded, setBottomBarExpanded] = useState(true);
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("below");
@@ -7966,10 +7970,29 @@ export default function Page() {
 
       {/* Fixed Bottom Control Bar */}
       <div className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
-        <div className="session-bottom-divider" />
+        {/* Desktop divider (mobile uses the collapse handle below instead) */}
+        <div className="hidden md:block session-bottom-divider" />
+
+        {/* Mobile collapse handle — the orange line doubles as the toggle */}
+        <button
+          type="button"
+          onClick={() => setBottomBarExpanded((v) => !v)}
+          aria-expanded={bottomBarExpanded}
+          aria-label={bottomBarExpanded ? "Collapse session controls" : "Expand session controls"}
+          className="md:hidden group block w-full"
+        >
+          <div className="session-bottom-divider" />
+          <div className="flex items-center justify-center gap-1.5 py-1.5 text-white/50 group-active:text-white/80 transition-colors">
+            {bottomBarExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            <span className="text-[10px] font-medium tracking-wide uppercase">
+              {bottomBarExpanded ? "Hide controls" : "Session controls"}
+            </span>
+          </div>
+        </button>
 
         {/* Mobile Layout - Compact 2x2 Grid */}
-        <div className="flex md:hidden flex-col gap-2.5 px-3 py-2.5 pb-[calc(10px+env(safe-area-inset-bottom))]">
+        <div className="flex md:hidden flex-col gap-2.5 px-3 pb-[calc(10px+env(safe-area-inset-bottom))]">
+          {bottomBarExpanded && (
           <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
             {/* Gap Between Routines */}
             <div className="flex flex-col items-center">
@@ -8022,8 +8045,9 @@ export default function Page() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Session Button */}
+          {/* Session Button — always visible, even when collapsed */}
           <button
             onClick={handlePauseClick}
             disabled={!currentTrack && playlist.length === 0}
