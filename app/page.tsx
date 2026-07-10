@@ -39,8 +39,9 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
-import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
+import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
+import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
 import Link from "next/link";
 import {
@@ -70,6 +71,7 @@ import {
   GripVertical,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Search,
   Upload,
   SlidersHorizontal,
@@ -332,7 +334,7 @@ function DraggableTrackRow({
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activePage, setActivePage] = useState("player");
-  const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading } = useSubscription();
+  const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading, refetch: refetchSubscription } = useSubscription();
 
   // Sidebar navigation items (desktop only)
   const sidebarItems = [
@@ -414,6 +416,17 @@ export default function Page() {
   const [showClearLibraryConfirm, setShowClearLibraryConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  // Subscription cancel/resume (unsubscribe) state — shared by the desktop and
+  // mobile settings UIs. Cancellation runs through the Stripe-connected server
+  // action (cancel_at_period_end), and the Stripe webhook syncs Supabase.
+  const [showCancelSubConfirm, setShowCancelSubConfirm] = useState(false);
+  const [cancelSubLoading, setCancelSubLoading] = useState(false);
+  const [resumeSubLoading, setResumeSubLoading] = useState(false);
+  const [subActionError, setSubActionError] = useState<string | null>(null);
+  // Tracks that the user has scheduled cancellation this session (mirrors the
+  // /billing page's client-side tracking, since `profiles` does not expose the
+  // Stripe cancel_at_period_end flag directly).
+  const [subCancelPending, setSubCancelPending] = useState(false);
   // Sign-out UI state: drives the "Signing out…" loading label and the
   // "Sign out failed" error message on the Sign Out buttons.
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -604,6 +617,54 @@ export default function Page() {
     } finally {
       setDeleteAccountLoading(false);
       setShowDeleteAccountConfirm(false);
+    }
+  };
+
+  // Cancel the subscription at period end via the Stripe-connected server action.
+  // Stripe sets cancel_at_period_end=true and its webhook updates Supabase; we
+  // refetch the subscription so the UI reflects the new state.
+  const handleCancelSubscription = async () => {
+    if (cancelSubLoading) return;
+    setSubActionError(null);
+    setCancelSubLoading(true);
+    try {
+      const result = await cancelSubscription();
+      if (result.error) {
+        console.log("[v0] cancel subscription error:", result.error);
+        setSubActionError(result.error);
+      } else {
+        setSubCancelPending(true);
+        await refetchSubscription();
+        setShowCancelSubConfirm(false);
+      }
+    } catch (err) {
+      console.error("[v0] cancel subscription failed:", err);
+      setSubActionError("Failed to cancel subscription. Please try again.");
+    } finally {
+      setCancelSubLoading(false);
+    }
+  };
+
+  // Resume a subscription that was scheduled to cancel (Stripe
+  // cancel_at_period_end=false), then refetch so the UI updates.
+  const handleResumeSubscription = async () => {
+    if (resumeSubLoading) return;
+    setSubActionError(null);
+    setResumeSubLoading(true);
+    try {
+      const result = await resumeSubscription();
+      if (result.error) {
+        console.log("[v0] resume subscription error:", result.error);
+        setSubActionError(result.error);
+      } else {
+        setSubCancelPending(false);
+        await refetchSubscription();
+      }
+    } catch (err) {
+      console.error("[v0] resume subscription failed:", err);
+      setSubActionError("Failed to resume subscription. Please try again.");
+    } finally {
+      setResumeSubLoading(false);
     }
   };
 
@@ -857,6 +918,10 @@ export default function Page() {
 
   const [isDraggingUpload, setIsDraggingUpload] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  // Mobile-only: whether the bottom control bar settings (Gap/B2B/Time/Reps)
+  // grid is expanded. When collapsed, only the session button remains, and the
+  // orange divider line acts as the collapse/expand handle.
+  const [bottomBarExpanded, setBottomBarExpanded] = useState(true);
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("below");
@@ -2602,13 +2667,16 @@ export default function Page() {
     const track = playlist.find(t => t.id === trackId);
     if (!track) return;
     
-    // If this track is currently playing, stop and move to next visible track
+    // If this track is currently playing, stop playback. Hiding a track must
+    // NOT auto-play the next track — we pause and move the "Now Playing" pointer
+    // to the next visible track loaded but PAUSED, so the user decides when to
+    // resume (previously this auto-advanced and played the next track).
     if (currentTrack?.id === trackId) {
       if (audioRef.current) {
         audioRef.current.pause();
-        setIsPlaying(false);
       }
-      
+      setIsPlaying(false);
+
       // Find next visible track after current index (excluding the one being hidden)
       const currentIdx = playlist.findIndex(t => t.id === trackId);
       let nextVisibleIdx = -1;
@@ -2618,32 +2686,40 @@ export default function Page() {
           break;
         }
       }
-      
-      if (nextVisibleIdx >= 0) {
-        // Auto-play the next visible track (fresh back-to-back cycle).
-        playTrackFresh(playlist[nextVisibleIdx], nextVisibleIdx);
-      } else {
-        // No more visible tracks after, try from beginning
-        let firstVisibleIdx = -1;
+      // If none after, wrap and look before the current index.
+      if (nextVisibleIdx < 0) {
         for (let i = 0; i < currentIdx; i++) {
           if (!hiddenTrackIds.has(playlist[i].id) && playlist[i].id !== trackId) {
-            firstVisibleIdx = i;
+            nextVisibleIdx = i;
             break;
           }
         }
+      }
 
-        if (firstVisibleIdx >= 0) {
-          playTrackFresh(playlist[firstVisibleIdx], firstVisibleIdx);
-        } else {
-          // No visible tracks left, stop session
-          if (audioRef.current) audioRef.current.pause();
-          setCurrentTrack(null);
-          setIsPlaying(false);
-          setSessionRunning(false);
+      if (nextVisibleIdx >= 0) {
+        // Point at the next visible track and pre-load it PAUSED (no autoplay).
+        // Keeping audio.src + loadedUrlRef in sync with currentTrack means the
+        // play button / spacebar will resume this exact track from its start.
+        const nextTrack = playlist[nextVisibleIdx];
+        setCurrentIndex(nextVisibleIdx);
+        setCurrentTrack(nextTrack);
+        b2bRepeatedTrackIdRef.current = null;
+        setBackToBackPlayed(false);
+        if (audioRef.current && nextTrack.url) {
+          isTransitioningRef.current = true;
+          audioRef.current.src = nextTrack.url;
+          loadedUrlRef.current = nextTrack.url;
+          try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
+          isTransitioningRef.current = false;
         }
+      } else {
+        // No visible tracks left, stop session
+        if (audioRef.current) audioRef.current.pause();
+        setCurrentTrack(null);
+        setSessionRunning(false);
       }
     }
-    
+
     // Add to hidden set
     setHiddenTrackIds(prev => new Set([...prev, trackId]));
   };
@@ -3077,8 +3153,20 @@ export default function Page() {
         isGapPaused,
       }
     );
-    if (isPlaying && !isGapPaused && settings.showPauseWarning) {
-      setShowPauseConfirm(true);
+    if (isPlaying && !isGapPaused) {
+      if (settings.showPauseWarning) {
+        // Warning enabled — ask for confirmation before pausing.
+        setShowPauseConfirm(true);
+      } else {
+        // Warning disabled — pause immediately. We must NOT fall through to
+        // toggleSession() here, because toggleSession shows its own
+        // showStopConfirm dialog whenever isPlaying, which made the pause
+        // warning still appear even when this setting was turned off.
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
     } else {
       toggleSession();
     }
@@ -4450,13 +4538,20 @@ export default function Page() {
                     <p className="text-white/40 text-xs">No tracks in queue</p>
                   </div>
                 ) : (
-                  <div className="space-y-1 p-2">
+                  <div className="p-2">
+                    <SortableTrackList
+                      ids={playlist.map((t) => t.id)}
+                      onReorder={reorderPlaylistByIds}
+                    >
                     {playlist.map((track, idx) => {
                       const isCurrent = currentTrack?.id === track.id;
                       const isFinished = finishedTracks.has(track.id);
                       const isHidden = hiddenTrackIds.has(track.id);
                       return (
-                        <div key={track.id} onClick={() => { if (!isHidden) handleTrackSelect(track); }} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                        <SortableTrackItem key={track.id} id={track.id} onClick={() => { if (!isHidden) { setCurrentIndex(idx); togglePlayPause(track); } }} className={`flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg cursor-pointer transition ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                          <TrackDragHandle className="flex items-center justify-center shrink-0 -ml-0.5 text-white/25 hover:text-white/70 active:text-white bg-transparent border-0 p-0.5">
+                            <GripVertical size={14} />
+                          </TrackDragHandle>
                           <span className={`text-[10px] font-bold w-5 text-center ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
                           <p className={`text-xs truncate flex-1 ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
                           {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
@@ -4471,9 +4566,10 @@ export default function Page() {
                               <X size={12} className="text-white/40" />
                             </button>
                           )}
-                        </div>
+                        </SortableTrackItem>
                       );
                     })}
+                    </SortableTrackList>
                   </div>
                 )}
               </div>
@@ -4490,6 +4586,47 @@ export default function Page() {
 
           {/* Bottom Safe Area */}
           <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
+        </div>
+      )}
+
+      {/* Cancel Subscription Confirmation — top level so it renders in both the
+          desktop and mobile settings views (outside the fullscreen-only container,
+          which is display:none when not fullscreen and would hide a nested modal). */}
+      {showCancelSubConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
+            <h3 className="text-2xl font-bold text-white mb-2">Cancel subscription?</h3>
+            <p className="text-white/60 mb-6">
+              You&apos;ll keep full access to EQHO Player until the end of your current billing period. After that, your account returns to the free plan.
+            </p>
+            {subActionError && (
+              <p className="text-red-400 text-sm mb-4">{subActionError}</p>
+            )}
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowCancelSubConfirm(false)}
+                disabled={cancelSubLoading}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+              >
+                Keep subscription
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelSubLoading}
+                className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {cancelSubLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Canceling...
+                  </>
+                ) : (
+                  "Yes, cancel"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -5964,58 +6101,105 @@ export default function Page() {
                     </div>
                     <h2 className="text-lg font-bold">Subscription</h2>
                   </div>
+                  {(() => {
+                    const countdownTarget = getCountdownTarget(profile);
+                    const daysLeft = getDaysUntil(countdownTarget);
+                    const isTrial = profile?.subscription_status === "trialing";
+                    const pct = daysLeft !== null
+                      ? Math.max(0, Math.min(100, (daysLeft / TRIAL_LENGTH_DAYS) * 100))
+                      : 0;
+                    return (
                   <div className="space-y-3">
-                    {/* Free Trial Badge */}
+                    {/* Plan Badge */}
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Current Plan</span>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
                         <Crown className="h-3.5 w-3.5" />
-                        Free 14-Day Trial
+                        {isTrial ? "Free Trial" : "EQHO Player"}
                       </span>
                     </div>
-                    
-                    {/* Green Trial Status Bar */}
-                    <div className="rounded-xl bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 p-4 space-y-3">
+
+                    {/* Green Countdown Card */}
+                    <div className="rounded-xl bg-gradient-to-br from-emerald-500/15 to-green-600/10 border border-emerald-500/30 p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-emerald-300 text-sm font-semibold">Your free trial is active</span>
+                        <span className="text-emerald-300 text-sm font-semibold">
+                          {subCancelPending
+                            ? "Access until period ends"
+                            : isTrial
+                              ? "Your free trial is active"
+                              : "Your subscription is active"}
+                        </span>
                       </div>
-                      
-                      {/* Days Remaining */}
-                      {profile?.trial_end && getTrialDaysRemaining(profile.trial_end) !== null && (
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
-                                style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 14) * 100))}%` }}
-                            />
-                          </div>
-                          <span className="text-emerald-300 text-sm font-bold whitespace-nowrap">
-                            {getTrialDaysRemaining(profile.trial_end)} days remaining
+
+                      {/* Day-by-day countdown */}
+                      {daysLeft !== null && (
+                        <div className="flex items-end gap-2">
+                          <span className="text-emerald-400 text-5xl font-black leading-none tabular-nums drop-shadow-[0_0_16px_rgba(16,185,129,0.35)]">
+                            {daysLeft}
+                          </span>
+                          <span className="text-emerald-300/80 text-sm font-semibold pb-1">
+                            {daysLeft === 1 ? "day left" : "days left"}
                           </span>
                         </div>
                       )}
-                      
-                      {/* Renews On Date */}
-                      {profile?.trial_end && (
-                        <p className="text-white/60 text-xs">
-                          Renews on {formatTrialEndDate(profile.trial_end)}
+
+                      {/* Progress bar */}
+                      {daysLeft !== null && (
+                        <div className="h-2 bg-emerald-950/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Renewal date */}
+                      {countdownTarget && (
+                        <p className="text-emerald-100/70 text-xs">
+                          {subCancelPending ? "Ends on " : isTrial ? "Auto-renews on " : "Renews on "}
+                          <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                         </p>
                       )}
-                      
-                      {/* Auto-renewal message */}
-                      <p className="text-white/50 text-[11px] leading-relaxed">
-                        Your subscription will automatically renew at £3.99 per month when your 14-day trial ends.
-                      </p>
+
+                      {/* Auto-renewal note */}
+                      {!subCancelPending && (
+                        <p className="text-emerald-100/50 text-[11px] leading-relaxed">
+                          {isTrial
+                            ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
+                            : "Your subscription renews automatically. Cancel anytime."}
+                        </p>
+                      )}
                     </div>
-                    
-                    {/* Cancel Subscription Link */}
-                    <div className="text-center pt-1">
-                      <Link href="/billing" className="text-white/40 hover:text-white/60 text-xs underline underline-offset-2 transition-colors">
-                        Cancel subscription
-                      </Link>
+
+                    {/* Cancel / Resume (Stripe + Supabase) */}
+                    <div className="pt-0.5 space-y-2">
+                      {subCancelPending ? (
+                        <button
+                          onClick={handleResumeSubscription}
+                          disabled={resumeSubLoading}
+                          className="w-full py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                        >
+                          {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                          Resume subscription
+                        </button>
+                      ) : (
+                        <div className="text-center">
+                          <button
+                            onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
+                            className="text-white/40 hover:text-white/70 text-[11px] underline underline-offset-2 transition-colors"
+                          >
+                            Cancel subscription
+                          </button>
+                        </div>
+                      )}
+                      {subActionError && (
+                        <p className="text-red-400 text-[11px] text-center">{subActionError}</p>
+                      )}
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Playback Settings */}
@@ -6629,8 +6813,11 @@ export default function Page() {
 
       </div>
 
-      {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-150px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3">
+      {/* Mobile Layout - single column with tabs. The bottom space reserved for
+          the fixed control bar depends on whether it's expanded (~230px) or
+          collapsed (~91px), so the track list fills the gap instead of leaving
+          blank space above a collapsed bar. */}
+      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-232px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-96px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -7151,7 +7338,9 @@ export default function Page() {
                     >
                       <input
                         type="file"
-                        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/x-m4a,audio/mp4,audio/*,.mp3,.wav,.m4a"
+                        // @ts-expect-error - non-standard folder selection attributes
+                        webkitdirectory=""
+                        directory=""
                         multiple
                         onChange={(event) => {
                           const files = Array.from(event.target.files || []).filter((file) =>
@@ -7161,37 +7350,8 @@ export default function Page() {
                             file.name.endsWith(".m4a")
                           );
                           if (files.length > 0) {
-                            const playlistName = `Playlist ${savedPlaylists.length + 1}`;
-                            const newPlaylistId = crypto.randomUUID();
-                            const newTracks: Track[] = [];
-                            
-                            let processed = 0;
-                            files.forEach((file) => {
-                              const url = URL.createObjectURL(file);
-                              const audio = new Audio(url);
-                              audio.onloadedmetadata = async () => {
-                                const newTrack: Track = {
-                                  id: crypto.randomUUID(),
-                                  title: file.name.replace(/\.[^/.]+$/, ""),
-                                  sub: "Uploaded Track",
-                                  duration: formatDuration(Math.round(audio.duration)),
-                                  fileName: file.name,
-                                  url,
-                                  durationSeconds: Math.round(audio.duration),
-                                  uploadedAt: new Date().toISOString(),
-                                  file,
-                                };
-                                newTracks.push(newTrack);
-                                
-                                processed++;
-                                if (processed === files.length) {
-                                  setSavedPlaylists((prev) => [
-                                    ...prev,
-                                    { id: newPlaylistId, name: playlistName, tracks: newTracks },
-                                  ]);
-                                }
-                              };
-                            });
+                            // One playlist per folder, named after the folder (same as desktop).
+                            createPlaylistsFromFolderSelection(files);
                           }
                           event.target.value = "";
                         }}
@@ -7448,7 +7608,7 @@ export default function Page() {
                     </div>
                     
                     {/* Scrollable Content */}
-                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-16">
                     
                     {/* Playback Settings */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
@@ -7562,28 +7722,6 @@ export default function Page() {
                       </div>
                     </div>
 
-                    {/* Desktop App */}
-                    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/10 via-transparent to-[#ff8a00]/10 p-3 sm:p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
-                          <Download size={12} className="text-white" />
-                        </div>
-                        <span className="text-[11px] sm:text-xs font-bold text-white">Desktop App</span>
-                      </div>
-                      <p className="text-[10px] sm:text-[11px] text-white/60 mb-3 leading-relaxed">
-                        Run EQHO Player as a dedicated desktop application for Mac with improved performance and fullscreen support.
-                      </p>
-                      <a
-                        href="/downloads/eqho-player-mac.dmg"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-[11px] sm:text-xs font-bold hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition-all"
-                      >
-                        <Download size={14} />
-                        Download for Mac
-                      </a>
-                    </div>
-
                     {/* EQHO Cloud - Sync & Backup */}
                     <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-3">
                       <div className="flex items-center gap-2 mb-2">
@@ -7642,6 +7780,113 @@ export default function Page() {
                       </div>
                     </div>
 
+                    {/* Subscription (Stripe + Supabase) */}
+                    <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-green-600/5 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Crown size={14} className="text-emerald-400" />
+                          <span className="text-[10px] font-bold text-white">Subscription</span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                          <Crown className="h-2.5 w-2.5" />
+                          {isTrialing ? "Free Trial" : "EQHO Player"}
+                        </span>
+                      </div>
+                      {(() => {
+                        const countdownTarget = getCountdownTarget(profile);
+                        const daysLeft = getDaysUntil(countdownTarget);
+                        const pct = daysLeft !== null
+                          ? Math.max(0, Math.min(100, (daysLeft / TRIAL_LENGTH_DAYS) * 100))
+                          : 0;
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span className="text-emerald-300 text-[9px] font-semibold">
+                                {subCancelPending
+                                  ? "Access until period ends"
+                                  : isTrialing
+                                    ? "Your free trial is active"
+                                    : "Your subscription is active"}
+                              </span>
+                            </div>
+
+                            {/* Day-by-day countdown */}
+                            {daysLeft !== null && (
+                              <div className="flex items-end gap-1.5">
+                                <span className="text-emerald-400 text-3xl font-black leading-none tabular-nums drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]">
+                                  {daysLeft}
+                                </span>
+                                <span className="text-emerald-300/80 text-[10px] font-semibold pb-0.5">
+                                  {daysLeft === 1 ? "day left" : "days left"}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Progress bar */}
+                            {daysLeft !== null && (
+                              <div className="h-1.5 bg-emerald-950/40 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            )}
+
+                            {/* Renewal date */}
+                            {countdownTarget && (
+                              <p className="text-emerald-100/70 text-[9px]">
+                                {subCancelPending ? "Ends on " : isTrialing ? "Auto-renews on " : "Renews on "}
+                                <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
+                              </p>
+                            )}
+
+                            {!subCancelPending && (
+                              <p className="text-emerald-100/50 text-[9px] leading-relaxed">
+                                {isTrialing
+                                  ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
+                                  : "Your subscription renews automatically. Cancel anytime."}
+                              </p>
+                            )}
+
+                            {/* Cancel / Resume */}
+                            {subCancelPending ? (
+                              <button
+                                onClick={handleResumeSubscription}
+                                disabled={resumeSubLoading}
+                                className="w-full min-h-[44px] py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 active:bg-emerald-500/30 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                              >
+                                {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                                Resume Subscription
+                              </button>
+                            ) : (
+                              <div className="text-center pt-0.5">
+                                <button
+                                  onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
+                                  className="text-white/40 hover:text-white/70 active:text-white/80 text-[10px] underline underline-offset-2 transition-colors py-1"
+                                >
+                                  Cancel subscription
+                                </button>
+                              </div>
+                            )}
+                            {subActionError && (
+                              <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Legal / Privacy Policy */}
+                    <Link
+                      href="/privacy-policy"
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Shield size={14} className="text-white/60" />
+                      <span className="text-[11px] font-semibold text-white flex-1">Privacy Policy</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </Link>
+
                     {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 mt-1 mb-2">
                       <div className="flex items-center gap-2 mb-2">
@@ -7690,10 +7935,29 @@ export default function Page() {
 
       {/* Fixed Bottom Control Bar */}
       <div className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
-        <div className="session-bottom-divider" />
+        {/* Desktop divider (mobile uses the collapse handle below instead) */}
+        <div className="hidden md:block session-bottom-divider" />
+
+        {/* Mobile collapse handle — the orange line doubles as the toggle */}
+        <button
+          type="button"
+          onClick={() => setBottomBarExpanded((v) => !v)}
+          aria-expanded={bottomBarExpanded}
+          aria-label={bottomBarExpanded ? "Collapse session controls" : "Expand session controls"}
+          className="md:hidden group block w-full"
+        >
+          <div className="session-bottom-divider" />
+          <div className="flex items-center justify-center gap-1.5 py-1.5 text-white/50 group-active:text-white/80 transition-colors">
+            {bottomBarExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            <span className="text-[10px] font-medium tracking-wide uppercase">
+              {bottomBarExpanded ? "Hide controls" : "Session controls"}
+            </span>
+          </div>
+        </button>
 
         {/* Mobile Layout - Compact 2x2 Grid */}
-        <div className="flex md:hidden flex-col gap-2.5 px-3 py-2.5 pb-[calc(10px+env(safe-area-inset-bottom))]">
+        <div className="flex md:hidden flex-col gap-2.5 px-3 pb-[calc(10px+env(safe-area-inset-bottom))]">
+          {bottomBarExpanded && (
           <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
             {/* Gap Between Routines */}
             <div className="flex flex-col items-center">
@@ -7746,8 +8010,9 @@ export default function Page() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Session Button */}
+          {/* Session Button — always visible, even when collapsed */}
           <button
             onClick={handlePauseClick}
             disabled={!currentTrack && playlist.length === 0}
