@@ -2662,13 +2662,16 @@ export default function Page() {
     const track = playlist.find(t => t.id === trackId);
     if (!track) return;
     
-    // If this track is currently playing, stop and move to next visible track
+    // If this track is currently playing, stop playback. Hiding a track must
+    // NOT auto-play the next track — we pause and move the "Now Playing" pointer
+    // to the next visible track loaded but PAUSED, so the user decides when to
+    // resume (previously this auto-advanced and played the next track).
     if (currentTrack?.id === trackId) {
       if (audioRef.current) {
         audioRef.current.pause();
-        setIsPlaying(false);
       }
-      
+      setIsPlaying(false);
+
       // Find next visible track after current index (excluding the one being hidden)
       const currentIdx = playlist.findIndex(t => t.id === trackId);
       let nextVisibleIdx = -1;
@@ -2678,32 +2681,40 @@ export default function Page() {
           break;
         }
       }
-      
-      if (nextVisibleIdx >= 0) {
-        // Auto-play the next visible track (fresh back-to-back cycle).
-        playTrackFresh(playlist[nextVisibleIdx], nextVisibleIdx);
-      } else {
-        // No more visible tracks after, try from beginning
-        let firstVisibleIdx = -1;
+      // If none after, wrap and look before the current index.
+      if (nextVisibleIdx < 0) {
         for (let i = 0; i < currentIdx; i++) {
           if (!hiddenTrackIds.has(playlist[i].id) && playlist[i].id !== trackId) {
-            firstVisibleIdx = i;
+            nextVisibleIdx = i;
             break;
           }
         }
+      }
 
-        if (firstVisibleIdx >= 0) {
-          playTrackFresh(playlist[firstVisibleIdx], firstVisibleIdx);
-        } else {
-          // No visible tracks left, stop session
-          if (audioRef.current) audioRef.current.pause();
-          setCurrentTrack(null);
-          setIsPlaying(false);
-          setSessionRunning(false);
+      if (nextVisibleIdx >= 0) {
+        // Point at the next visible track and pre-load it PAUSED (no autoplay).
+        // Keeping audio.src + loadedUrlRef in sync with currentTrack means the
+        // play button / spacebar will resume this exact track from its start.
+        const nextTrack = playlist[nextVisibleIdx];
+        setCurrentIndex(nextVisibleIdx);
+        setCurrentTrack(nextTrack);
+        b2bRepeatedTrackIdRef.current = null;
+        setBackToBackPlayed(false);
+        if (audioRef.current && nextTrack.url) {
+          isTransitioningRef.current = true;
+          audioRef.current.src = nextTrack.url;
+          loadedUrlRef.current = nextTrack.url;
+          try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
+          isTransitioningRef.current = false;
         }
+      } else {
+        // No visible tracks left, stop session
+        if (audioRef.current) audioRef.current.pause();
+        setCurrentTrack(null);
+        setSessionRunning(false);
       }
     }
-    
+
     // Add to hidden set
     setHiddenTrackIds(prev => new Set([...prev, trackId]));
   };
@@ -4510,13 +4521,20 @@ export default function Page() {
                     <p className="text-white/40 text-xs">No tracks in queue</p>
                   </div>
                 ) : (
-                  <div className="space-y-1 p-2">
+                  <div className="p-2">
+                    <SortableTrackList
+                      ids={playlist.map((t) => t.id)}
+                      onReorder={reorderPlaylistByIds}
+                    >
                     {playlist.map((track, idx) => {
                       const isCurrent = currentTrack?.id === track.id;
                       const isFinished = finishedTracks.has(track.id);
                       const isHidden = hiddenTrackIds.has(track.id);
                       return (
-                        <div key={track.id} onClick={() => { if (!isHidden) handleTrackSelect(track); }} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                        <SortableTrackItem key={track.id} id={track.id} onClick={() => { if (!isHidden) { setCurrentIndex(idx); togglePlayPause(track); } }} className={`flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg cursor-pointer transition ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                          <TrackDragHandle className="flex items-center justify-center shrink-0 -ml-0.5 text-white/25 hover:text-white/70 active:text-white bg-transparent border-0 p-0.5">
+                            <GripVertical size={14} />
+                          </TrackDragHandle>
                           <span className={`text-[10px] font-bold w-5 text-center ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
                           <p className={`text-xs truncate flex-1 ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
                           {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
@@ -4531,9 +4549,10 @@ export default function Page() {
                               <X size={12} className="text-white/40" />
                             </button>
                           )}
-                        </div>
+                        </SortableTrackItem>
                       );
                     })}
+                    </SortableTrackList>
                   </div>
                 )}
               </div>
