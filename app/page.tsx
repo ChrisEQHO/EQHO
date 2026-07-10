@@ -6812,8 +6812,11 @@ export default function Page() {
 
       </div>
 
-      {/* Mobile Layout - single column with tabs */}
-      <div className="flex lg:hidden flex-col h-[calc(100dvh-150px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3">
+      {/* Mobile Layout - single column with tabs. The bottom space reserved for
+          the fixed control bar depends on whether it's expanded (~230px) or
+          collapsed (~91px), so the track list fills the gap instead of leaving
+          blank space above a collapsed bar. */}
+      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-232px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-96px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
