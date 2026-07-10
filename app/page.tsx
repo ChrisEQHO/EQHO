@@ -7596,7 +7596,7 @@ export default function Page() {
                     </div>
                     
                     {/* Scrollable Content */}
-                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-16">
                     
                     {/* Playback Settings */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
