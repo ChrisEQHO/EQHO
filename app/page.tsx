@@ -39,7 +39,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
-import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS } from "@/lib/subscription-types";
+import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS, hasActiveSubscription, SUBSCRIPTION_LAUNCH_LABEL } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
 import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
@@ -6102,9 +6102,10 @@ export default function Page() {
                     <h2 className="text-lg font-bold">Subscription</h2>
                   </div>
                   {(() => {
+                    // Only a genuine, active Stripe subscription counts as "active".
+                    if (hasActiveSubscription(profile)) {
                     const countdownTarget = getCountdownTarget(profile);
                     const daysLeft = getDaysUntil(countdownTarget);
-                    const isTrial = profile?.subscription_status === "trialing";
                     const pct = daysLeft !== null
                       ? Math.max(0, Math.min(100, (daysLeft / TRIAL_LENGTH_DAYS) * 100))
                       : 0;
@@ -6115,7 +6116,7 @@ export default function Page() {
                       <span className="text-white/70 text-sm">Current Plan</span>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
                         <Crown className="h-3.5 w-3.5" />
-                        {isTrial ? "Free Trial" : "EQHO Player"}
+                        EQHO Player
                       </span>
                     </div>
 
@@ -6126,9 +6127,7 @@ export default function Page() {
                         <span className="text-emerald-300 text-sm font-semibold">
                           {subCancelPending
                             ? "Access until period ends"
-                            : isTrial
-                              ? "Your free trial is active"
-                              : "Your subscription is active"}
+                            : "Your subscription is active"}
                         </span>
                       </div>
 
@@ -6157,7 +6156,7 @@ export default function Page() {
                       {/* Renewal date */}
                       {countdownTarget && (
                         <p className="text-emerald-100/70 text-xs">
-                          {subCancelPending ? "Ends on " : isTrial ? "Auto-renews on " : "Renews on "}
+                          {subCancelPending ? "Ends on " : "Renews on "}
                           <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                         </p>
                       )}
@@ -6165,9 +6164,7 @@ export default function Page() {
                       {/* Auto-renewal note */}
                       {!subCancelPending && (
                         <p className="text-emerald-100/50 text-[11px] leading-relaxed">
-                          {isTrial
-                            ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
-                            : "Your subscription renews automatically. Cancel anytime."}
+                          Your subscription renews automatically. Cancel anytime.
                         </p>
                       )}
                     </div>
@@ -6196,6 +6193,29 @@ export default function Page() {
                       {subActionError && (
                         <p className="text-red-400 text-[11px] text-center">{subActionError}</p>
                       )}
+                    </div>
+                  </div>
+                    );
+                    }
+                    // No active subscription — pre-launch informational state (no sign-up).
+                    return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70 text-sm">Current Plan</span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 text-white/70 border border-white/15">
+                        Free
+                      </span>
+                    </div>
+                    <div className="rounded-xl bg-gradient-to-br from-emerald-500/15 to-green-600/10 border border-emerald-500/30 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Crown size={16} className="text-emerald-400" />
+                        <span className="text-emerald-300 text-sm font-semibold">
+                          Subscription available from {SUBSCRIPTION_LAUNCH_LABEL}
+                        </span>
+                      </div>
+                      <p className="text-emerald-100/70 text-xs leading-relaxed">
+                        Your free version ends on <span className="font-semibold text-emerald-200">{SUBSCRIPTION_LAUNCH_LABEL}</span>.
+                      </p>
                     </div>
                   </div>
                     );
@@ -7790,12 +7810,20 @@ export default function Page() {
                           <Crown size={14} className="text-emerald-400" />
                           <span className="text-[10px] font-bold text-white">Subscription</span>
                         </div>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
-                          <Crown className="h-2.5 w-2.5" />
-                          {isTrialing ? "Free Trial" : "EQHO Player"}
-                        </span>
+                        {hasActiveSubscription(profile) ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                            <Crown className="h-2.5 w-2.5" />
+                            EQHO Player
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-white/10 text-white/70 border border-white/15">
+                            Free
+                          </span>
+                        )}
                       </div>
                       {(() => {
+                        // Only a genuine, active Stripe subscription counts as "active".
+                        if (hasActiveSubscription(profile)) {
                         const countdownTarget = getCountdownTarget(profile);
                         const daysLeft = getDaysUntil(countdownTarget);
                         const pct = daysLeft !== null
@@ -7808,9 +7836,7 @@ export default function Page() {
                               <span className="text-emerald-300 text-[9px] font-semibold">
                                 {subCancelPending
                                   ? "Access until period ends"
-                                  : isTrialing
-                                    ? "Your free trial is active"
-                                    : "Your subscription is active"}
+                                  : "Your subscription is active"}
                               </span>
                             </div>
 
@@ -7839,16 +7865,14 @@ export default function Page() {
                             {/* Renewal date */}
                             {countdownTarget && (
                               <p className="text-emerald-100/70 text-[9px]">
-                                {subCancelPending ? "Ends on " : isTrialing ? "Auto-renews on " : "Renews on "}
+                                {subCancelPending ? "Ends on " : "Renews on "}
                                 <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                               </p>
                             )}
 
                             {!subCancelPending && (
                               <p className="text-emerald-100/50 text-[9px] leading-relaxed">
-                                {isTrialing
-                                  ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
-                                  : "Your subscription renews automatically. Cancel anytime."}
+                                Your subscription renews automatically. Cancel anytime.
                               </p>
                             )}
 
@@ -7875,6 +7899,18 @@ export default function Page() {
                             {subActionError && (
                               <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
                             )}
+                          </div>
+                        );
+                        }
+                        // No active subscription — pre-launch informational state (no sign-up).
+                        return (
+                          <div className="space-y-1.5">
+                            <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
+                              Subscription available from {SUBSCRIPTION_LAUNCH_LABEL}
+                            </p>
+                            <p className="text-emerald-100/70 text-[9px] leading-relaxed">
+                              Your free version ends on <span className="font-semibold text-emerald-200">{SUBSCRIPTION_LAUNCH_LABEL}</span>.
+                            </p>
                           </div>
                         );
                       })()}
