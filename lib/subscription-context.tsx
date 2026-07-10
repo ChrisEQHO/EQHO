@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { isPro as checkIsPro, type ProfileSubscription, type SubscriptionContextValue, type SubscriptionStatus } from '@/lib/subscription-types'
+import { isV0Preview } from '@/lib/utils/preview'
 
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null)
 
@@ -12,6 +13,23 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const fetchSubscription = useCallback(async () => {
+    // In the v0 preview/dev there is no Supabase session, so seed a demo
+    // trialing profile (30-day trial, ~23 days left) purely so the subscription
+    // UI + countdown are visible. This never runs in production/mobile builds.
+    if (isV0Preview) {
+      const trialEnd = new Date(Date.now() + 23 * 24 * 60 * 60 * 1000).toISOString()
+      setProfile({
+        id: 'v0-preview-user',
+        stripe_customer_id: null,
+        subscription_status: 'trialing',
+        stripe_subscription_id: null,
+        trial_end: trialEnd,
+        current_period_end: trialEnd,
+      })
+      setIsLoading(false)
+      return
+    }
+
     const supabase = createClient()
     if (!supabase) {
       setIsLoading(false)

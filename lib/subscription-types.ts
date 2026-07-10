@@ -48,6 +48,10 @@ export function getStatusLabel(status: SubscriptionStatus): string {
   }
 }
 
+// Length of the free trial in days. Everyone who signs up gets this trial,
+// which then auto-renews into the paid plan (there is no permanent free tier).
+export const TRIAL_LENGTH_DAYS = 30
+
 export function getTrialDaysRemaining(trialEnd: string | null): number | null {
   if (!trialEnd) return null
   
@@ -57,6 +61,22 @@ export function getTrialDaysRemaining(trialEnd: string | null): number | null {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   
   return diffDays > 0 ? diffDays : 0
+}
+
+// Generic "days left until this date" — used for the paid renewal countdown
+// (current_period_end) as well as the trial countdown (trial_end).
+export function getDaysUntil(dateStr: string | null): number | null {
+  return getTrialDaysRemaining(dateStr)
+}
+
+// Resolve the single date the countdown should track for a profile:
+// during the trial it's trial_end; once paying it's the current period end.
+export function getCountdownTarget(
+  profile: { subscription_status: SubscriptionStatus; trial_end: string | null; current_period_end: string | null } | null,
+): string | null {
+  if (!profile) return null
+  if (profile.subscription_status === 'trialing') return profile.trial_end ?? profile.current_period_end
+  return profile.current_period_end ?? profile.trial_end
 }
 
 export function formatTrialEndDate(trialEnd: string | null): string | null {

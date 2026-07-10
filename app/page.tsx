@@ -39,7 +39,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/lib/subscription-context";
-import { getTrialDaysRemaining, formatTrialEndDate } from "@/lib/subscription-types";
+import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
 import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
@@ -6065,82 +6065,105 @@ export default function Page() {
                     </div>
                     <h2 className="text-lg font-bold">Subscription</h2>
                   </div>
+                  {(() => {
+                    const countdownTarget = getCountdownTarget(profile);
+                    const daysLeft = getDaysUntil(countdownTarget);
+                    const isTrial = profile?.subscription_status === "trialing";
+                    const pct = daysLeft !== null
+                      ? Math.max(0, Math.min(100, (daysLeft / TRIAL_LENGTH_DAYS) * 100))
+                      : 0;
+                    return (
                   <div className="space-y-3">
-                    {/* Free Trial Badge */}
+                    {/* Plan Badge */}
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Current Plan</span>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]">
                         <Crown className="h-3.5 w-3.5" />
-                        Free 14-Day Trial
+                        {isTrial ? "Free Trial" : "EQHO Player"}
                       </span>
                     </div>
-                    
-                    {/* Green Trial Status Bar */}
-                    <div className="rounded-xl bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 p-4 space-y-3">
+
+                    {/* Green Countdown Card */}
+                    <div className="rounded-xl bg-gradient-to-br from-emerald-500/15 to-green-600/10 border border-emerald-500/30 p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-emerald-300 text-sm font-semibold">Your free trial is active</span>
+                        <span className="text-emerald-300 text-sm font-semibold">
+                          {subCancelPending
+                            ? "Access until period ends"
+                            : isTrial
+                              ? "Your free trial is active"
+                              : "Your subscription is active"}
+                        </span>
                       </div>
-                      
-                      {/* Days Remaining */}
-                      {profile?.trial_end && getTrialDaysRemaining(profile.trial_end) !== null && (
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
-                                style={{ width: `${Math.max(0, Math.min(100, ((getTrialDaysRemaining(profile.trial_end) || 0) / 14) * 100))}%` }}
-                            />
-                          </div>
-                          <span className="text-emerald-300 text-sm font-bold whitespace-nowrap">
-                            {getTrialDaysRemaining(profile.trial_end)} days remaining
+
+                      {/* Day-by-day countdown */}
+                      {daysLeft !== null && (
+                        <div className="flex items-end gap-2">
+                          <span className="text-emerald-400 text-5xl font-black leading-none tabular-nums drop-shadow-[0_0_16px_rgba(16,185,129,0.35)]">
+                            {daysLeft}
+                          </span>
+                          <span className="text-emerald-300/80 text-sm font-semibold pb-1">
+                            {daysLeft === 1 ? "day left" : "days left"}
                           </span>
                         </div>
                       )}
-                      
-                      {/* Renews On Date */}
-                      {profile?.trial_end && (
-                        <p className="text-white/60 text-xs">
-                          Renews on {formatTrialEndDate(profile.trial_end)}
+
+                      {/* Progress bar */}
+                      {daysLeft !== null && (
+                        <div className="h-2 bg-emerald-950/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Renewal date */}
+                      {countdownTarget && (
+                        <p className="text-emerald-100/70 text-xs">
+                          {subCancelPending ? "Ends on " : isTrial ? "Auto-renews on " : "Renews on "}
+                          <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                         </p>
                       )}
-                      
-                      {/* Auto-renewal message */}
-                      <p className="text-white/50 text-[11px] leading-relaxed">
-                        Your subscription will automatically renew at £3.99 per month when your 14-day trial ends.
-                      </p>
+
+                      {/* Auto-renewal note */}
+                      {!subCancelPending && (
+                        <p className="text-emerald-100/50 text-[11px] leading-relaxed">
+                          {isTrial
+                            ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
+                            : "Your subscription renews automatically. Cancel anytime."}
+                        </p>
+                      )}
                     </div>
-                    
-                    {/* Cancel / Resume Subscription (Stripe + Supabase) */}
-                    <div className="pt-1 space-y-2">
+
+                    {/* Cancel / Resume (Stripe + Supabase) */}
+                    <div className="pt-0.5 space-y-2">
                       {subCancelPending ? (
-                        <>
-                          <div className="rounded-lg bg-[#ff8a00]/10 border border-[#ff8a00]/30 px-3 py-2">
-                            <p className="text-[#ff8a00] text-[11px] font-medium">
-                              Your subscription is set to cancel at the end of the billing period.
-                            </p>
-                          </div>
-                          <button
-                            onClick={handleResumeSubscription}
-                            disabled={resumeSubLoading}
-                            className="w-full py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-60"
-                          >
-                            {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                            Resume subscription
-                          </button>
-                        </>
-                      ) : (
                         <button
-                          onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
-                          className="w-full py-2 rounded-lg bg-transparent border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/10 transition"
+                          onClick={handleResumeSubscription}
+                          disabled={resumeSubLoading}
+                          className="w-full py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-60"
                         >
-                          Cancel subscription
+                          {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                          Resume subscription
                         </button>
+                      ) : (
+                        <div className="text-center">
+                          <button
+                            onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
+                            className="text-white/40 hover:text-white/70 text-[11px] underline underline-offset-2 transition-colors"
+                          >
+                            Cancel subscription
+                          </button>
+                        </div>
                       )}
                       {subActionError && (
                         <p className="text-red-400 text-[11px] text-center">{subActionError}</p>
                       )}
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Playback Settings */}
@@ -7768,32 +7791,76 @@ export default function Page() {
                     </div>
 
                     {/* Subscription (Stripe + Supabase) */}
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Crown size={14} className="text-emerald-400" />
-                        <span className="text-[10px] font-bold text-white">Subscription</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Current Plan</span>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold ${isPro ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white" : "bg-white/10 text-white/60"}`}>
-                            <Crown className="h-2.5 w-2.5" />
-                            {isTrialing ? "Free Trial" : isPro ? "EQHO Player" : "Free"}
-                          </span>
+                    <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-green-600/5 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Crown size={14} className="text-emerald-400" />
+                          <span className="text-[10px] font-bold text-white">Subscription</span>
                         </div>
-                        {isTrialing && profile?.trial_end && getTrialDaysRemaining(profile.trial_end) !== null && (
-                          <p className="text-emerald-300 text-[10px] font-medium">
-                            {getTrialDaysRemaining(profile.trial_end)} days remaining · renews {formatTrialEndDate(profile.trial_end)}
-                          </p>
-                        )}
-                        {isPro ? (
-                          subCancelPending ? (
-                            <>
-                              <div className="rounded-lg bg-[#ff8a00]/10 border border-[#ff8a00]/30 px-2 py-1.5">
-                                <p className="text-[#ff8a00] text-[9px] font-medium leading-relaxed">
-                                  Set to cancel at the end of your billing period.
-                                </p>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                          <Crown className="h-2.5 w-2.5" />
+                          {isTrialing ? "Free Trial" : "EQHO Player"}
+                        </span>
+                      </div>
+                      {(() => {
+                        const countdownTarget = getCountdownTarget(profile);
+                        const daysLeft = getDaysUntil(countdownTarget);
+                        const pct = daysLeft !== null
+                          ? Math.max(0, Math.min(100, (daysLeft / TRIAL_LENGTH_DAYS) * 100))
+                          : 0;
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span className="text-emerald-300 text-[9px] font-semibold">
+                                {subCancelPending
+                                  ? "Access until period ends"
+                                  : isTrialing
+                                    ? "Your free trial is active"
+                                    : "Your subscription is active"}
+                              </span>
+                            </div>
+
+                            {/* Day-by-day countdown */}
+                            {daysLeft !== null && (
+                              <div className="flex items-end gap-1.5">
+                                <span className="text-emerald-400 text-3xl font-black leading-none tabular-nums drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]">
+                                  {daysLeft}
+                                </span>
+                                <span className="text-emerald-300/80 text-[10px] font-semibold pb-0.5">
+                                  {daysLeft === 1 ? "day left" : "days left"}
+                                </span>
                               </div>
+                            )}
+
+                            {/* Progress bar */}
+                            {daysLeft !== null && (
+                              <div className="h-1.5 bg-emerald-950/40 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-400 to-green-400 rounded-full transition-all"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            )}
+
+                            {/* Renewal date */}
+                            {countdownTarget && (
+                              <p className="text-emerald-100/70 text-[9px]">
+                                {subCancelPending ? "Ends on " : isTrialing ? "Auto-renews on " : "Renews on "}
+                                <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
+                              </p>
+                            )}
+
+                            {!subCancelPending && (
+                              <p className="text-emerald-100/50 text-[9px] leading-relaxed">
+                                {isTrialing
+                                  ? "Your 30-day free trial automatically continues as a paid subscription when it ends. Cancel anytime before then."
+                                  : "Your subscription renews automatically. Cancel anytime."}
+                              </p>
+                            )}
+
+                            {/* Cancel / Resume */}
+                            {subCancelPending ? (
                               <button
                                 onClick={handleResumeSubscription}
                                 disabled={resumeSubLoading}
@@ -7802,24 +7869,22 @@ export default function Page() {
                                 {resumeSubLoading ? <Loader2 size={14} className="animate-spin" /> : null}
                                 Resume Subscription
                               </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
-                              className="w-full min-h-[44px] py-2 rounded-lg bg-transparent border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/10 active:bg-red-500/20 transition"
-                            >
-                              Cancel Subscription
-                            </button>
-                          )
-                        ) : (
-                          <p className="text-white/50 text-[9px] leading-relaxed">
-                            You&apos;re on the free plan. Upgrade to unlock cloud sync and cross-device access.
-                          </p>
-                        )}
-                        {subActionError && (
-                          <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
-                        )}
-                      </div>
+                            ) : (
+                              <div className="text-center pt-0.5">
+                                <button
+                                  onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
+                                  className="text-white/40 hover:text-white/70 active:text-white/80 text-[10px] underline underline-offset-2 transition-colors py-1"
+                                >
+                                  Cancel subscription
+                                </button>
+                              </div>
+                            )}
+                            {subActionError && (
+                              <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Account / Logout */}
