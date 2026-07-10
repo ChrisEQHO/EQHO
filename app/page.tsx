@@ -71,6 +71,7 @@ import {
   GripVertical,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Search,
   Upload,
   SlidersHorizontal,
@@ -7902,6 +7903,16 @@ export default function Page() {
                         );
                       })()}
                     </div>
+
+                    {/* Legal / Privacy Policy */}
+                    <Link
+                      href="/privacy-policy"
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Shield size={14} className="text-white/60" />
+                      <span className="text-[11px] font-semibold text-white flex-1">Privacy Policy</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </Link>
 
                     {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 mt-1 mb-2">
