@@ -6817,7 +6817,7 @@ export default function Page() {
           the fixed control bar depends on whether it's expanded (~230px) or
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
-      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-232px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-96px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
+      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-248px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-112px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -6865,7 +6865,7 @@ export default function Page() {
             </div>
 
             {/* Mobile Content Area */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {mobileTab === "nowplaying" && (
                 <div className="h-full flex flex-col overflow-hidden">
                   {/* Now Playing Section - Compact */}
@@ -7385,7 +7385,10 @@ export default function Page() {
                   )}
 
                   {/* Scrollable Playlists List */}
-                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  <div
+                    className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+                    style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+                  >
                     {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
                       <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
                         <Folder size={32} className="mx-auto mb-2 text-white/20" />
