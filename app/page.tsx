@@ -3187,7 +3187,11 @@ export default function Page() {
 
   // Handler for skip back button with warning check
   const handleSkipBackClick = () => {
-    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+    // Source of truth is the real <audio> element (React `isPlaying` can drift
+    // on mobile WebViews where onPlay/onPause don't fire reliably).
+    const audio = audioRef.current;
+    const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
+    if (actuallyPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipBackConfirm(true);
     } else {
       goToPreviousTrack();
@@ -3196,7 +3200,9 @@ export default function Page() {
 
   // Handler for skip forward button with warning check
   const handleSkipForwardClick = () => {
-    if (isPlaying && !isGapPaused && settings.showSkipWarning) {
+    const audio = audioRef.current;
+    const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
+    if (actuallyPlaying && !isGapPaused && settings.showSkipWarning) {
       setShowSkipForwardConfirm(true);
     } else {
       goToNextTrack();
@@ -4711,6 +4717,62 @@ export default function Page() {
                 className="px-5 py-2.5 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition text-sm"
               >
                 Yes, Pause
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Forward Confirmation - Mobile (outside isFullscreen container) */}
+      {showSkipForwardConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <StepForward size={40} className="mx-auto mb-3 text-pink-400" />
+            <h3 className="text-xl font-bold text-white mb-2">Skip to Next Track?</h3>
+            <p className="text-white/60 text-sm mb-5">Are you sure you want to skip to the next track?</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowSkipForwardConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowSkipForwardConfirm(false);
+                  setTimeout(() => goToNextTrack(), 50);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
+              >
+                Yes, Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Back Confirmation - Mobile (outside isFullscreen container) */}
+      {showSkipBackConfirm && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+          <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <StepBack size={40} className="mx-auto mb-3 text-cyan-400" />
+            <h3 className="text-xl font-bold text-white mb-2">Skip to Previous Track?</h3>
+            <p className="text-white/60 text-sm mb-5">Are you sure you want to go back to the previous track?</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowSkipBackConfirm(false)}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowSkipBackConfirm(false);
+                  setTimeout(() => goToPreviousTrack(), 50);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition text-sm"
+              >
+                Yes, Go Back
               </button>
             </div>
           </div>
