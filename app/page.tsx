@@ -2505,6 +2505,32 @@ export default function Page() {
     console.log(`[v0] safePlay(${context}) audio.currentSrc: "${(audio.currentSrc || "").slice(0, 48)}"`);
     console.log(`[v0] safePlay(${context}) audio.error (pre-play):`, audio.error);
 
+    // Attach ONE-SHOT lifecycle listeners for THIS load attempt so we can see, on
+    // device, exactly how far decoding gets: loadedmetadata -> canplay ->
+    // canplaythrough on success, or `error` (with the MediaError code) on failure.
+    // Each fires at most once and cleans up the whole group to avoid leaks.
+    const lifecycleEvents = ["loadedmetadata", "canplay", "canplaythrough", "error"] as const;
+    const onLifecycle = (e: Event) => {
+      if (e.type === "error") {
+        const code = audio.error?.code ?? "?";
+        const msg = audio.error?.message || "(no message)";
+        console.log(`[v0] safePlay(${context}) LOAD error — MediaError code ${code}: ${msg}`);
+        refreshAudioDiag(`load error code ${code}`, `MediaError ${code}: ${msg}`);
+      } else {
+        console.log(`[v0] safePlay(${context}) load event: ${e.type} (readyState ${audio.readyState})`);
+        refreshAudioDiag(`load: ${e.type}`);
+      }
+      // canplaythrough or error is terminal for this attempt — tear down.
+      if (e.type === "canplaythrough" || e.type === "error") {
+        lifecycleEvents.forEach((ev) => audio.removeEventListener(ev, onLifecycle));
+      }
+    };
+    lifecycleEvents.forEach((ev) => audio.addEventListener(ev, onLifecycle));
+    // Safety net: remove listeners after 10s even if no terminal event fires.
+    setTimeout(() => {
+      lifecycleEvents.forEach((ev) => audio.removeEventListener(ev, onLifecycle));
+    }, 10000);
+
     try {
       await audio.play();
     } catch (playErr) {
