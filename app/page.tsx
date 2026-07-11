@@ -349,17 +349,17 @@ function PlaylistTrackRows({
                 onPointerDown={(e) => { e.stopPropagation(); }}
                 onTouchStart={(e) => { e.stopPropagation(); }}
                 onClick={(e) => {
+                  // preventDefault + stopPropagation so the tap never reaches the
+                  // row (select/play) or any drag sensor; safe here because this is
+                  // a click (not touchstart), so it won't cancel the tap on iOS.
+                  e.preventDefault();
                   e.stopPropagation();
-                  console.log("[v0] DELETE BUTTON TAPPED", { trackId: track.id, title: track.title });
-                  if (e.currentTarget !== e.target) {
-                    console.log("[v0] DELETE tap target is a child element (icon) — bubbled to button OK");
-                  }
+                  console.log("[v0] DELETE TAP RECEIVED — selected track ID:", track.id, "title:", track.title);
                   try {
-                    console.log("[v0] DELETE handler started");
                     onRequestDelete(track.id);
-                    console.log("[v0] DELETE handler completed (confirm dialog requested)");
+                    console.log("[v0] DELETE confirmation opened for track ID:", track.id);
                   } catch (err) {
-                    console.error("[v0] DELETE handler error:", (err as Error)?.message || String(err));
+                    console.error("[v0] DELETE tap handler error:", (err as Error)?.message || String(err));
                   }
                 }}
                 disabled={isDeleting}
@@ -1566,7 +1566,11 @@ export default function Page() {
   //   3. On success, remove it from local state (the savedPlaylists effect
   //      re-persists IndexedDB) and refresh cloud playlists.
   const handleDeleteTrackPermanently = async (playlistId: string, track: Track) => {
+    console.log("[v0] DELETE request started", { trackId: track.id, title: track.title, playlistId });
     setDeletingTrackId(track.id);
+    // Stable identity key so we can also purge copies in the active session queue
+    // / library that may carry a different generated id than the saved-playlist row.
+    const wantKey = localTrackKey(track.title, track.fileName);
     try {
       const localPlaylist = savedPlaylists.find((p) => p.id === playlistId);
       const cloud = localPlaylist ? findCloudPlaylistFor(localPlaylist) : undefined;
@@ -1574,32 +1578,53 @@ export default function Page() {
       // Match the local track to its cloud row by id, else by title::fileName.
       let cloudTrack: CloudPlaylistTrack | undefined;
       if (cloud) {
-        const wantKey = localTrackKey(track.title, track.fileName);
         cloudTrack =
           cloud.tracks.find((ct) => ct.id === track.id) ||
           cloud.tracks.find((ct) => localTrackKey(ct.title, ct.fileName) === wantKey);
       }
 
       if (cloudTrack) {
+        // Authoritative cloud delete (Supabase metadata) + best-effort R2 object.
         const { supabaseOk, r2Ok } = await deleteTrackFromCloudDirect(cloudTrack.id, cloudTrack.storage_path);
+        console.log("[v0] DELETE storage records (cloud) result", { supabaseOk, r2Ok, storage_path: cloudTrack.storage_path });
         if (!supabaseOk) {
-          // Cloud deletion failed for an uploaded track — keep local copy intact.
-          setCloudSaveMessage(`Couldn't delete "${track.title}" from the cloud. Please try again.`);
+          // D.11: cloud deletion failed for an uploaded track — keep it everywhere
+          // and surface the exact failure. Do NOT pretend it succeeded.
+          setCloudSaveMessage(`Couldn't delete "${track.title}" from the cloud. It was NOT removed. Please try again.`);
           setCloudSaveSuccess(false);
           setTimeout(() => setCloudSaveMessage(null), 6000);
+          console.error("[v0] DELETE aborted: cloud metadata delete failed; track kept intact");
           return;
         }
         if (!r2Ok) {
-          console.warn(`[v0] track "${track.title}" metadata deleted; R2 object delete was best-effort and did not confirm`);
+          console.warn(`[v0] DELETE: track "${track.title}" metadata deleted; R2 object delete was best-effort and did not confirm`);
         }
+      } else {
+        console.log("[v0] DELETE: no cloud copy found — treating as local/offline-only track");
       }
 
-      // Remove locally (state change triggers the IndexedDB persist effect).
+      // Remove from the SAVED playlist (state change triggers the IndexedDB persist
+      // effect, which drops the stored File = offline copy for this track).
       setSavedPlaylists((prev) =>
         prev.map((p) =>
           p.id === playlistId ? { ...p, tracks: p.tracks.filter((t) => t.id !== track.id) } : p
         )
       );
+
+      // Remove any copy from the ACTIVE session queue and the uploaded-library, so
+      // it disappears from Now Playing / Up Next and the numbering recalculates
+      // (indices are derived from array position at render time).
+      const matches = (t: Track) => t.id === track.id || localTrackKey(t.title, t.fileName) === wantKey;
+      setPlaylist((prev) => prev.filter((t) => !matches(t)));
+      setOriginalPlaylistOrder((prev) => prev.filter((t) => !matches(t)));
+      setUploadedTracks((prev) => prev.filter((t) => !matches(t)));
+      // If the deleted track is the one loaded in the player, clear it.
+      if (currentTrack && matches(currentTrack)) {
+        const audio = audioRef.current;
+        if (audio) { try { audio.pause(); } catch {} }
+        setIsPlaying(false);
+        setCurrentTrack(null);
+      }
 
       // Refresh cloud playlists so counts/previews reflect the deletion.
       try {
@@ -1609,11 +1634,12 @@ export default function Page() {
         console.warn('[v0] handleDeleteTrackPermanently: failed to refresh cloud playlists', err);
       }
 
+      console.log("[v0] DELETE completed", { trackId: track.id, title: track.title });
       setCloudSaveMessage(`Deleted "${track.title}"`);
       setCloudSaveSuccess(true);
       setTimeout(() => setCloudSaveMessage(null), 3000);
     } catch (err) {
-      console.error('[v0] handleDeleteTrackPermanently failed:', err);
+      console.error('[v0] DELETE failed:', (err as Error)?.message || String(err));
       setCloudSaveMessage(`Couldn't delete "${track.title}". Please try again.`);
       setCloudSaveSuccess(false);
       setTimeout(() => setCloudSaveMessage(null), 6000);
@@ -4741,12 +4767,12 @@ export default function Page() {
           <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
             <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
-              <h3 className="text-2xl font-bold text-white mb-2">Delete Track?</h3>
-              <p className="text-white/60 mb-2">
-                Permanently delete &quot;{confirmDeleteTrack.track.title}&quot;?
+              <h3 className="text-2xl font-bold text-white mb-2">Delete this track permanently?</h3>
+              <p className="text-white/60 mb-2 font-medium">
+                &quot;{confirmDeleteTrack.track.title}&quot;
               </p>
               <p className="text-white/40 text-sm mb-6">
-                This removes it from this device and the cloud. This cannot be undone.
+                This will remove the track from the playlist, library, cloud storage and offline storage. This cannot be undone.
               </p>
               <div className="flex gap-4 justify-center">
                 <button
