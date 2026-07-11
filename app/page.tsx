@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
+import { isNativePlatform, fileToDataUrl, getSilentWavDataUrl } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -2307,32 +2308,119 @@ export default function Page() {
   // which is why play/pause appeared broken in the iPhone/iPad app.
   const loadedUrlRef = useRef<string>("");
 
-  // Single, reliable way to load a URL into the shared <audio> element and play it.
-  // Every play path (start, skip, auto-advance, back-to-back, repeat) goes through
-  // here so blob-backed audio always (re)assigns src - the only reliable way to
-  // (re)start playback for object URLs.
-  const loadAndPlay = (url: string, fromStart: boolean = true) => {
-    const audio = audioRef.current;
-    if (!audio || !url) return;
-    isTransitioningRef.current = true;
-    audio.src = url;
-    loadedUrlRef.current = url;
-    if (fromStart) {
-      try { audio.currentTime = 0; } catch { /* ignore */ }
+  // --- Native (Capacitor/iOS WKWebView) audio source handling -----------------
+  // WKWebView cannot reliably play blob: URLs in <audio> (media range requests
+  // over the capacitor:// scheme fail), so on native builds we play from a
+  // base64 data: URL derived from the track's File instead. These caches keep
+  // that conversion bounded and let us "unlock" audio on the first user tap.
+  const playableSrcCacheRef = useRef<Map<string, string>>(new Map()); // track.url -> data: URL
+  const audioUnlockedRef = useRef(false);
+
+  // Cache a resolved data URL, keeping only the most recent few entries so a
+  // large library never balloons memory with big base64 strings.
+  const cachePlayableSrc = (key: string, dataUrl: string) => {
+    const cache = playableSrcCacheRef.current;
+    cache.set(key, dataUrl);
+    while (cache.size > 4) {
+      const oldest = cache.keys().next().value as string | undefined;
+      if (oldest === undefined || oldest === key) break;
+      cache.delete(oldest);
     }
-    audio
-      .play()
-      .then(() => {
-        console.log("[v0] audio play promise: success (loadAndPlay)");
-        setIsPlaying(true);
-      })
-      .catch((error) => {
-        console.error("[v0] audio play promise: error (loadAndPlay):", error);
-        setIsPlaying(false);
-      })
-      .finally(() => {
-        isTransitioningRef.current = false;
-      });
+  };
+
+  // Play a tiny silent clip on the main element within a user gesture. Once any
+  // gesture-initiated playback succeeds on the element, WKWebView lets us swap
+  // its src and call play() programmatically for the rest of the session — this
+  // is what makes the async data-URL conversion path work on iOS.
+  const primeAudioElement = () => {
+    const audio = audioRef.current;
+    if (!audio || !isNativePlatform() || audioUnlockedRef.current) return;
+    try {
+      isTransitioningRef.current = true;
+      audio.src = getSilentWavDataUrl();
+      const p = audio.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => { audioUnlockedRef.current = true; }).catch(() => { /* ignore */ });
+      } else {
+        audioUnlockedRef.current = true;
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Warm the data URL for a track ahead of time (native only) so the actual play
+  // can assign src synchronously inside the tap gesture.
+  const warmPlayableSrc = (track?: Track | null) => {
+    if (!isNativePlatform() || !track?.url || !track.file) return;
+    if (playableSrcCacheRef.current.has(track.url)) return;
+    fileToDataUrl(track.file)
+      .then((dataUrl) => cachePlayableSrc(track.url!, dataUrl))
+      .catch(() => { /* ignore */ });
+  };
+
+  // Single, reliable way to load a track into the shared <audio> element and play
+  // it. Every play path (start, skip, auto-advance, back-to-back, repeat) goes
+  // through here. On the web it plays the blob URL directly; on native it plays a
+  // data: URL (cached, or converted on the fly after priming the element).
+  const loadAndPlay = (track: Track, fromStart: boolean = true) => {
+    const audio = audioRef.current;
+    const url = track?.url;
+    if (!audio || !url) return;
+
+    const startPlayback = (src: string) => {
+      isTransitioningRef.current = true;
+      audio.src = src;
+      // Always key on the original (blob) URL so resume/same-track checks stay
+      // consistent regardless of whether the element src is a blob or data URL.
+      loadedUrlRef.current = url;
+      if (fromStart) {
+        try { audio.currentTime = 0; } catch { /* ignore */ }
+      }
+      audio
+        .play()
+        .then(() => {
+          console.log("[v0] audio play promise: success (loadAndPlay)");
+          setIsPlaying(true);
+        })
+        .catch((error) => {
+          console.error("[v0] audio play promise: error (loadAndPlay):", error);
+          setIsPlaying(false);
+        })
+        .finally(() => {
+          isTransitioningRef.current = false;
+        });
+    };
+
+    // Web: blob URLs play fine and are memory-efficient.
+    if (!isNativePlatform()) {
+      startPlayback(url);
+      return;
+    }
+
+    // Native: prefer an already-converted data URL (synchronous, keeps the tap
+    // gesture intact). Otherwise prime the element with silence right now (in the
+    // gesture) and swap in the converted data URL as soon as it is ready.
+    const cached = playableSrcCacheRef.current.get(url);
+    if (cached) {
+      startPlayback(cached);
+      return;
+    }
+    if (track.file) {
+      primeAudioElement();
+      fileToDataUrl(track.file)
+        .then((dataUrl) => {
+          cachePlayableSrc(url, dataUrl);
+          startPlayback(dataUrl);
+        })
+        .catch((error) => {
+          console.error("[v0] data URL conversion failed, falling back to blob:", error);
+          startPlayback(url);
+        });
+      return;
+    }
+    // No File available (shouldn't happen for uploaded/restored tracks) — try blob.
+    startPlayback(url);
   };
 
   // Start a brand-new "current" track (manual selection, skip, hide-advance, and
@@ -2346,7 +2434,7 @@ export default function Page() {
     setBackToBackPlayed(false);
     setCurrentIndex(index);
     setCurrentTrack(track);
-    loadAndPlay(track.url, true);
+    loadAndPlay(track, true);
   };
 
   // End the session cleanly (used by skip-to-end and auto-advance end-of-playlist).
@@ -2424,30 +2512,36 @@ export default function Page() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentTrack, isPlaying]);
 
-  const handleUploadedTrackPlayPause = async (track: Track) => {
+  const handleUploadedTrackPlayPause = (track: Track) => {
     if (!audioRef.current || !track?.url) return;
 
+    const audio = audioRef.current;
     const isSameTrack = currentTrack?.id === track.id;
+    const actuallyPlaying = !audio.paused && !audio.ended;
 
-    try {
-      if (isSameTrack && isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-        return;
-      }
-
-      if (!isSameTrack) {
-        audioRef.current.src = track.url;
-        loadedUrlRef.current = track.url;
-        setCurrentTrack(track);
-      }
-
-      await audioRef.current.play();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error("Track play failed:", error);
+    // Same track already playing -> pause.
+    if (isSameTrack && actuallyPlaying) {
+      audio.pause();
       setIsPlaying(false);
+      return;
     }
+
+    // Same track, loaded, paused -> resume from position (element already holds
+    // a playable src, so play() works on both web and native).
+    if (isSameTrack && loadedUrlRef.current === track.url && !!audio.src) {
+      audio
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((error) => {
+          console.error("[v0] resume failed:", error);
+          setIsPlaying(false);
+        });
+      return;
+    }
+
+    // Different/unloaded track -> load fresh via the native-safe play path.
+    setCurrentTrack(track);
+    loadAndPlay(track, true);
   };
 
   const toggleSession = async () => {
@@ -2489,7 +2583,7 @@ export default function Page() {
         // Track changed while paused (e.g. after "Send to Session") - load it fresh.
         b2bRepeatedTrackIdRef.current = null;
         setBackToBackPlayed(false);
-        loadAndPlay(currentTrack.url, true);
+        loadAndPlay(currentTrack, true);
       }
       return;
     }
@@ -2793,14 +2887,27 @@ export default function Page() {
         setCurrentIndex(prevVisibleIdx);
         setCurrentTrack(prevTrack);
         if (wasPlaying) {
-          loadAndPlay(prevTrack.url, true);
+          loadAndPlay(prevTrack, true);
         } else {
-          // Load the track but stay paused at the start.
+          // Load the track but stay paused at the start. On native we can only
+          // preload a playable src if the data URL is already cached; otherwise
+          // we warm it and let the next play() resolve it (blob won't play in
+          // WKWebView). On web we preload the blob URL directly.
           isTransitioningRef.current = true;
-          audioRef.current.src = prevTrack.url;
           loadedUrlRef.current = prevTrack.url;
           try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
-          audioRef.current.load();
+          if (!isNativePlatform()) {
+            audioRef.current.src = prevTrack.url;
+            audioRef.current.load();
+          } else {
+            const cached = prevTrack.url ? playableSrcCacheRef.current.get(prevTrack.url) : undefined;
+            if (cached) {
+              audioRef.current.src = cached;
+              audioRef.current.load();
+            } else {
+              warmPlayableSrc(prevTrack);
+            }
+          }
           isTransitioningRef.current = false;
           setIsPlaying(false);
         }
@@ -2947,7 +3054,7 @@ export default function Page() {
       b2bRepeatedTrackIdRef.current = endedTrack.id;
       setBackToBackPlayed(true); // keep UI ("Up Next") state in sync
       playAfterGap(
-        () => loadAndPlay(endedTrack.url, true),
+        () => loadAndPlay(endedTrack, true),
         endedTrack.title || "",
         endedTrack.id || "",
       );
