@@ -1,6 +1,41 @@
 // Client-side R2 storage operations via API routes
 // All operations go through /api/r2 to keep credentials server-side
 
+import { createClient } from '@/lib/supabase/client'
+
+// The Capacitor mobile build is a STATIC EXPORT: it contains no /api routes and
+// no middleware (see scripts/prepare-mobile-build.js). A relative fetch like
+// `/api/r2` therefore resolves to the WebView's own origin and returns the SPA
+// `index.html` (text/html) — the exact reason downloads reported "N tracks
+// failed" and playback sometimes loaded HTML instead of an MP3.
+//
+// Fix: on mobile, send every R2 API call to the DEPLOYED production API over
+// full HTTPS, and authenticate with the Supabase access token as a Bearer
+// header (the cross-origin request carries no cookies). On web this base is ''
+// (same-origin) and the cookie session is used as before.
+const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+
+export function getApiBase(): string {
+  if (isMobileBuild) {
+    return (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://www.eqho-player.com').replace(/\/$/, '')
+  }
+  return ''
+}
+
+// Build the Authorization header from the current Supabase session. Harmless on
+// web (the API route still prefers the cookie session); required on mobile.
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const supabase = createClient()
+    if (!supabase) return {}
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 // Check if R2 is configured (client-side check via env var prefix)
 export function isR2Configured(): boolean {
   // On client side, we check if the API endpoint exists
@@ -37,8 +72,9 @@ export async function uploadTrackToR2(
     formData.append('title', metadata.title)
     formData.append('duration', String(metadata.duration))
 
-    const response = await fetch('/api/r2', {
+    const response = await fetch(`${getApiBase()}/api/r2`, {
       method: 'POST',
+      headers: await getAuthHeaders(),
       body: formData,
     })
 
@@ -90,7 +126,10 @@ export async function getSignedDownloadUrl(
   expiresIn: number = 3600
 ): Promise<string | null> {
   try {
-    const response = await fetch(`/api/r2?action=download-url&key=${encodeURIComponent(key)}`)
+    const response = await fetch(
+      `${getApiBase()}/api/r2?action=download-url&key=${encodeURIComponent(key)}`,
+      { headers: await getAuthHeaders() },
+    )
     
     if (!response.ok) {
       console.error('Failed to get signed URL')
@@ -177,9 +216,9 @@ export async function downloadTrackFromR2(key: string): Promise<File | null> {
   const fileName = key.split('/').pop() || 'track.mp3'
 
   // 1) Proxy download through our API (no browser->R2 CORS dependency).
-  const proxyUrl = `/api/r2?action=download&key=${encodeURIComponent(key)}`
+  const proxyUrl = `${getApiBase()}/api/r2?action=download&key=${encodeURIComponent(key)}`
   try {
-    const proxyResponse = await fetch(proxyUrl)
+    const proxyResponse = await fetch(proxyUrl, { headers: await getAuthHeaders() })
     const file = await responseToAudioFile(proxyResponse, key, fileName, proxyUrl, 'R2-proxy')
     if (file) return file
     console.warn(`[v0][cloud-restore] R2 proxy did not yield audio for ${key}, trying signed URL`)
@@ -225,9 +264,9 @@ export async function getPlaylistMetadataFromR2(
  */
 export async function deleteTrackFromR2(key: string): Promise<boolean> {
   try {
-    const response = await fetch('/api/r2', {
+    const response = await fetch(`${getApiBase()}/api/r2`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
       body: JSON.stringify({ key }),
     })
 
@@ -273,7 +312,9 @@ export async function listUserPlaylistsFromR2(
   userId: string
 ): Promise<string[]> {
   try {
-    const response = await fetch('/api/r2?action=list-playlists')
+    const response = await fetch(`${getApiBase()}/api/r2?action=list-playlists`, {
+      headers: await getAuthHeaders(),
+    })
     
     if (!response.ok) {
       return []
@@ -295,7 +336,10 @@ export async function listPlaylistTracksFromR2(
   playlistId: string
 ): Promise<Array<{ key: string; fileName: string }>> {
   try {
-    const response = await fetch(`/api/r2?action=list-tracks&playlistId=${encodeURIComponent(playlistId)}`)
+    const response = await fetch(
+      `${getApiBase()}/api/r2?action=list-tracks&playlistId=${encodeURIComponent(playlistId)}`,
+      { headers: await getAuthHeaders() },
+    )
     
     if (!response.ok) {
       return []
@@ -318,7 +362,10 @@ export async function probeTrackAccess(
   key: string
 ): Promise<{ ok: boolean; status: number; error?: string }> {
   try {
-    const response = await fetch(`/api/r2?action=download-url&key=${encodeURIComponent(key)}`)
+    const response = await fetch(
+      `${getApiBase()}/api/r2?action=download-url&key=${encodeURIComponent(key)}`,
+      { headers: await getAuthHeaders() },
+    )
     if (response.ok) return { ok: true, status: response.status }
     let error: string | undefined
     try { error = (await response.json())?.error } catch {}

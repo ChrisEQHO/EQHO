@@ -1135,6 +1135,37 @@ export default function Page() {
   // grid is expanded. When collapsed, only the session button remains, and the
   // orange divider line acts as the collapse/expand handle.
   const [bottomBarExpanded, setBottomBarExpanded] = useState(true);
+  // Ref to the fixed mobile session-controls bar. We MEASURE its real rendered
+  // height (which varies by device safe-area and expanded/collapsed state) and
+  // publish it as the CSS var `--mobile-controls-height`, so the scrollable
+  // page content can reserve exactly the right amount of space instead of a
+  // hardcoded guess that let the bar cover the final playlist on iPhone.
+  const mobileControlsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = mobileControlsRef.current;
+    if (!el) return;
+    const setVar = () => {
+      const h = el.offsetHeight;
+      if (h > 0) {
+        document.documentElement.style.setProperty("--mobile-controls-height", `${h}px`);
+      }
+    };
+    setVar();
+    // Re-measure whenever the bar itself resizes (expand/collapse, font scaling).
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(setVar) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", setVar);
+    window.addEventListener("orientationchange", setVar);
+    // A late relayout (safe-area insets settle after first paint on iOS) — remeasure.
+    const t = window.setTimeout(setVar, 300);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", setVar);
+      window.removeEventListener("orientationchange", setVar);
+      window.clearTimeout(t);
+    };
+  }, [bottomBarExpanded]);
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("below");
@@ -7817,7 +7848,18 @@ export default function Page() {
           the fixed control bar depends on whether it's expanded (~230px) or
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
-      <div className={`flex lg:hidden flex-col ${bottomBarExpanded ? "h-[calc(100dvh-248px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]" : "h-[calc(100dvh-112px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]"} landscape:h-[calc(100dvh-70px)] w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3`}>
+      <div
+        className="flex lg:hidden flex-col w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3"
+        style={{
+          // Reserve EXACTLY the measured height of the fixed controls bar (plus
+          // the top safe-area inset and the 8px top margin) so the content
+          // region always ends at the bar's top edge — no hardcoded guess that
+          // let the bar overlap the last playlist. Falls back to 112px before
+          // the first measurement.
+          height:
+            "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top) - 8px)",
+        }}
+      >
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
             {/* Mobile Tab Switcher */}
@@ -8387,7 +8429,14 @@ export default function Page() {
                   {/* Scrollable Playlists List */}
                   <div
                     className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
-                    style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+                    style={{
+                      WebkitOverflowScrolling: "touch",
+                      touchAction: "pan-y",
+                      // Extra clearance so the LAST playlist card (its download +
+                      // delete controls) scrolls comfortably clear of the fixed
+                      // controls bar / home indicator.
+                      paddingBottom: "calc(env(safe-area-inset-bottom) + 24px)",
+                    }}
                   >
                     {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
                       <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
@@ -8966,7 +9015,7 @@ export default function Page() {
       </div>
 
       {/* Fixed Bottom Control Bar */}
-      <div className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
+      <div ref={mobileControlsRef} className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
         {/* Desktop divider (mobile uses the collapse handle below instead) */}
         <div className="hidden md:block session-bottom-divider" />
 
