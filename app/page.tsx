@@ -8801,7 +8801,7 @@ export default function Page() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Crown size={14} className="text-emerald-400" />
-                          <span className="text-[10px] font-bold text-white">Subscription</span>
+                          <span className="text-[10px] font-bold text-white">INTRODUCTION MODE</span>
                         </div>
                         {hasActiveSubscription(profile) ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
@@ -8810,7 +8810,7 @@ export default function Page() {
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-white/10 text-white/70 border border-white/15">
-                            Free
+                            INTRODUCTION MODE
                           </span>
                         )}
                       </div>
@@ -8899,10 +8899,10 @@ export default function Page() {
                         return (
                           <div className="space-y-1.5">
                             <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
-                              Subscription available from {SUBSCRIPTION_LAUNCH_LABEL}
+                              Paid subscription starts on 1 September 2026.
                             </p>
                             <p className="text-emerald-100/70 text-[9px] leading-relaxed">
-                              Your free version ends on <span className="font-semibold text-emerald-200">{SUBSCRIPTION_LAUNCH_LABEL}</span>.
+                              Introduction Mode remains free until 31 August 2026.
                             </p>
                           </div>
                         );
