@@ -155,3 +155,136 @@ export const firstBytesHex = async (blob: Blob, n = 32): Promise<string> => {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join(" ");
 };
+
+// ---------------------------------------------------------------------------
+// Byte-level format detection (magic numbers) — the definitive iOS fix
+// ---------------------------------------------------------------------------
+// Extension/stored-MIME correction is not enough: a file may have the wrong
+// extension, or WKWebView may distrust a MIME that doesn't match the bytes. The
+// only reliable signal is the actual file header. We sniff the first bytes and
+// assign the MIME iOS expects for the REAL format.
+
+export type DetectedFormat =
+  | "mp3" | "mp4" | "wav" | "aiff" | "flac" | "ogg" | "opus" | "caf" | "unknown";
+
+const ascii = (bytes: Uint8Array, start: number, len: number): string => {
+  let s = "";
+  for (let i = start; i < start + len && i < bytes.length; i++) {
+    s += String.fromCharCode(bytes[i]);
+  }
+  return s;
+};
+
+// Inspect magic numbers and return the true container/codec format.
+export const detectAudioFormat = (bytes: Uint8Array): DetectedFormat => {
+  if (bytes.length < 4) return "unknown";
+  // MP3: "ID3" tag, or an MPEG audio frame sync (0xFF followed by 0xE0-0xFF).
+  if (ascii(bytes, 0, 3) === "ID3") return "mp3";
+  if (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return "mp3";
+  // WAV: "RIFF"...."WAVE"
+  if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WAVE") return "wav";
+  // AIFF: "FORM"...."AIFF"/"AIFC"
+  if (ascii(bytes, 0, 4) === "FORM") {
+    const form = ascii(bytes, 8, 4);
+    if (form === "AIFF" || form === "AIFC") return "aiff";
+  }
+  // MP4 / M4A / AAC-in-mp4: an "ftyp" box near the start (offset 4).
+  if (ascii(bytes, 4, 4) === "ftyp") return "mp4";
+  // FLAC: "fLaC"
+  if (ascii(bytes, 0, 4) === "fLaC") return "flac";
+  // Ogg (Vorbis/Opus): "OggS"
+  if (ascii(bytes, 0, 4) === "OggS") return "ogg";
+  // CAF (Core Audio Format): "caff"
+  if (ascii(bytes, 0, 4) === "caff") return "caf";
+  return "unknown";
+};
+
+// The MIME type iOS WKWebView wants for each detected format.
+export const mimeForFormat = (fmt: DetectedFormat): string => {
+  switch (fmt) {
+    case "mp3": return "audio/mpeg";
+    case "mp4": return "audio/mp4";
+    case "wav": return "audio/wav";
+    case "aiff": return "audio/aiff";
+    case "flac": return "audio/flac";
+    case "ogg": return "audio/ogg";
+    case "opus": return "audio/opus";
+    case "caf": return "audio/x-caf";
+    default: return "";
+  }
+};
+
+// Rich result describing exactly what we did, for on-device diagnostics.
+export interface PlayableBuildResult {
+  url: string;
+  filename: string;
+  ext: string;
+  originalMime: string;
+  detectedFormat: DetectedFormat;
+  correctedMime: string;
+  size: number;
+  first16Hex: string;
+  corrected: boolean;
+}
+
+// Cache the full diagnostic result so loadAndPlay can reuse a sniffed URL
+// synchronously inside the tap gesture on subsequent plays of the same track.
+const playableBuildCache = new Map<string, PlayableBuildResult>();
+
+// Synchronous peek: returns a previously-built (byte-sniffed) result if we have
+// one for this track key, so the play path stays inside the user's tap gesture.
+export const peekPlayableBuild = (key: string): PlayableBuildResult | null =>
+  (key ? playableBuildCache.get(key) : undefined) ?? null;
+
+// Definitive builder: read the file header, DETECT the real format from bytes,
+// choose the correct MIME (byte-detected format wins; falls back to extension,
+// then audio/mpeg), rebuild the Blob from a fresh ArrayBuffer with that MIME,
+// and create the object URL from the CORRECTED blob. Async because it must read
+// bytes; results are cached for synchronous reuse afterwards.
+export const buildCorrectedPlayableUrl = async (
+  file: File,
+  key: string,
+): Promise<PlayableBuildResult> => {
+  const cached = key ? playableBuildCache.get(key) : undefined;
+  if (cached) return cached;
+
+  const filename = file.name || "(unknown)";
+  const ext = (filename.split(".").pop() || "").toLowerCase();
+  const originalMime = file.type || "(empty)";
+
+  // Read the whole file once so we can both sniff and rebuild without re-reading.
+  const buffer = await file.arrayBuffer();
+  const head = new Uint8Array(buffer.slice(0, 16));
+  const first16Hex = Array.from(head)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join(" ");
+
+  const detectedFormat = detectAudioFormat(new Uint8Array(buffer.slice(0, 32)));
+
+  // Pick the MIME: prefer the byte-detected format, then the extension mapping,
+  // then a safe default of audio/mpeg (most stored tracks are MP3).
+  let correctedMime = mimeForFormat(detectedFormat);
+  if (!correctedMime) correctedMime = audioMimeFromName(filename);
+  if (!correctedMime) correctedMime = "audio/mpeg";
+
+  const corrected = correctedMime !== originalMime;
+
+  // Rebuild the Blob from a fresh copy of the bytes with the corrected MIME, so
+  // the object URL carries a type WKWebView will accept.
+  const blob = new Blob([buffer], { type: correctedMime });
+  const url = URL.createObjectURL(blob);
+
+  const result: PlayableBuildResult = {
+    url,
+    filename,
+    ext,
+    originalMime,
+    detectedFormat,
+    correctedMime,
+    size: blob.size,
+    first16Hex,
+    corrected,
+  };
+  if (key) playableBuildCache.set(key, result);
+  return result;
+};

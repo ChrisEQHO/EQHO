@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
-import { isNativePlatform, toPlayableUrl, peekPlayableUrl, buildPlayableUrlFromFile, firstBytesHex } from "@/lib/native-audio";
+import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -356,6 +356,12 @@ export default function Page() {
     mediaError: "-",
     blobType: "-",
     blobSize: -1,
+    filename: "-",
+    ext: "-",
+    detectedFormat: "-",
+    originalMime: "-",
+    correctedMime: "-",
+    first16Hex: "-",
     updatedAt: "-",
   });
 
@@ -363,6 +369,25 @@ export default function Page() {
   // bytes behind the current audio source).
   const setBlobDiag = (blobType: string, blobSize: number) => {
     setAudioDiag((prev) => ({ ...prev, blobType, blobSize }));
+  };
+
+  // Update the format-detection fields (called after byte-sniffing a track's
+  // File in buildCorrectedPlayableUrl).
+  const setFormatDiag = (info: {
+    filename: string; ext: string; detectedFormat: string;
+    originalMime: string; correctedMime: string; size: number; first16Hex: string;
+  }) => {
+    setAudioDiag((prev) => ({
+      ...prev,
+      filename: info.filename,
+      ext: info.ext || "(none)",
+      detectedFormat: info.detectedFormat,
+      originalMime: info.originalMime,
+      correctedMime: info.correctedMime,
+      blobType: info.correctedMime,
+      blobSize: info.size,
+      first16Hex: info.first16Hex,
+    }));
   };
 
   // Classify the current audio source so we can see (on device) whether we're
@@ -2427,15 +2452,31 @@ export default function Page() {
         });
     };
 
-    // NATIVE MIME FIX: on iOS, rebuild a blob URL with a CORRECT audio MIME type
-    // straight from the track's File (synchronous, keeps the tap gesture). This
-    // fixes MediaError code 4 caused by files stored with an empty or
-    // application/octet-stream type. Falls back to the URL paths below when no
-    // File is available (e.g. https: cloud tracks).
+    // NATIVE FORMAT FIX: on iOS, detect the REAL audio format from the file's
+    // magic-number bytes and rebuild the blob URL with the correct MIME. This
+    // fixes MediaError code 4 caused by files stored with an empty/generic or
+    // mismatched MIME type. Uses a cached byte-sniffed result synchronously when
+    // available (keeps the tap gesture); otherwise sniffs asynchronously.
     if (isNativePlatform() && track.file) {
-      const { url: fixedUrl, type, size, corrected } = buildPlayableUrlFromFile(track.file, url);
-      console.log(`[v0] loadAndPlay native MIME: type="${type}" size=${size} corrected=${corrected} name="${track.file.name}"`);
-      startPlayback(fixedUrl);
+      const cached = peekPlayableBuild(url);
+      if (cached) {
+        console.log(`[v0] loadAndPlay (cached) detected=${cached.detectedFormat} mime="${cached.correctedMime}" size=${cached.size} name="${cached.filename}"`);
+        setFormatDiag(cached);
+        startPlayback(cached.url);
+      } else {
+        buildCorrectedPlayableUrl(track.file, url)
+          .then((res) => {
+            console.log(`[v0] loadAndPlay sniff: name="${res.filename}" ext=${res.ext} detected=${res.detectedFormat} orig="${res.originalMime}" corrected="${res.correctedMime}" size=${res.size} first16=${res.first16Hex}`);
+            setFormatDiag(res);
+            startPlayback(res.url);
+          })
+          .catch((error) => {
+            const detail = `sniff failed: ${error?.message || String(error)}`;
+            console.error("[v0] loadAndPlay byte-sniff failed:", detail);
+            setIsPlaying(false);
+            refreshAudioDiag("sniff failed", detail);
+          });
+      }
       return;
     }
 
@@ -2471,11 +2512,18 @@ export default function Page() {
       try { audio.currentTime = 0; } catch { /* ignore */ }
       audio.load();
     };
-    // NATIVE MIME FIX: prefer a MIME-corrected blob URL built from the File so a
-    // later resume tap plays a decodable source (see buildPlayableUrlFromFile).
+    // NATIVE FORMAT FIX: prefer a byte-sniffed, MIME-corrected blob URL built
+    // from the File so a later resume tap plays a decodable source. Use the
+    // cached sniff result synchronously if present; otherwise sniff async.
     if (isNativePlatform() && file) {
-      const { url: fixedUrl } = buildPlayableUrlFromFile(file, url);
-      assign(fixedUrl);
+      const cached = peekPlayableBuild(url);
+      if (cached) {
+        assign(cached.url);
+      } else {
+        buildCorrectedPlayableUrl(file, url)
+          .then((res) => { setFormatDiag(res); assign(res.url); })
+          .catch(() => { /* ignore */ });
+      }
       return;
     }
     const sync = peekPlayableUrl(url);
@@ -2724,6 +2772,21 @@ export default function Page() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // NATIVE PRE-WARM: as soon as a track becomes current, byte-sniff its File and
+  // build the corrected blob URL in the background so the FIRST play tap can use
+  // the cached, decodable source synchronously (inside the iOS tap gesture).
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    if (!currentTrack?.file || !currentTrack.url) return;
+    buildCorrectedPlayableUrl(currentTrack.file, currentTrack.url)
+      .then((res) => {
+        console.log(`[v0] pre-warm sniff: name="${res.filename}" ext=${res.ext} detected=${res.detectedFormat} orig="${res.originalMime}" corrected="${res.correctedMime}" size=${res.size} first16=${res.first16Hex}`);
+        setFormatDiag(res);
+      })
+      .catch(() => { /* ignore; loadAndPlay will sniff on demand */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack?.id]);
 
   const handleUploadedTrackPlayPause = (track: Track) => {
     if (!audioRef.current || !track?.url) return;
@@ -3859,13 +3922,21 @@ export default function Page() {
             <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
             <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
             <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
-            <span className="text-white/50">blob.type</span><span className="text-yellow-300">{audioDiag.blobType}</span>
             <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
             <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
             <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
           </div>
+          <div className="mt-1 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-2 gap-y-0.5">
+            <span className="text-white/50">filename</span><span className="break-all">{audioDiag.filename}</span>
+            <span className="text-white/50">extension</span><span>{audioDiag.ext}</span>
+            <span className="text-white/50">detected fmt</span><span className={audioDiag.detectedFormat === "unknown" ? "text-red-300" : "text-green-300"}>{audioDiag.detectedFormat}</span>
+            <span className="text-white/50">original MIME</span><span className="break-all">{audioDiag.originalMime}</span>
+            <span className="text-white/50">corrected MIME</span><span className="text-green-300 break-all">{audioDiag.correctedMime}</span>
+          </div>
           <div className="mt-1 border-t border-white/10 pt-1">
-            <div className="text-white/50">play() error</div>
+            <div className="text-white/50">first 16 bytes</div>
+            <div className="break-all text-cyan-300">{audioDiag.first16Hex}</div>
+            <div className="mt-0.5 text-white/50">play() error</div>
             <div className="break-words text-red-300">{audioDiag.playError}</div>
             <div className="mt-0.5 text-white/50">media error</div>
             <div className="break-words text-red-300">{audioDiag.mediaError}</div>
