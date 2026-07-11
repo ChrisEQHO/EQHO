@@ -376,6 +376,10 @@ export default function Page() {
   // The track URL whose preparation is currently in flight (dedupes prep runs so
   // rapid track changes don't stack overlapping load()/decode work).
   const preparingRef = useRef<string | null>(null);
+  // Set synchronously whenever loadAndPlay starts a PROGRAMMATIC play (skip,
+  // auto-advance, repeat). The prepare-ahead effect checks this so it never
+  // races load()/currentTime against a play already in progress for that URL.
+  const programmaticPlayRef = useRef<string | null>(null);
 
   // Update just the blob probe fields (called from safePlay after fetching the
   // bytes behind the current audio source).
@@ -2578,6 +2582,10 @@ export default function Page() {
     const url = track?.url;
     if (!audio || !url) return;
 
+    // Tell the prepare-ahead effect to stand down for this URL — loadAndPlay owns
+    // the load()/play() for it. Cleared on the element's real play/pause/error.
+    programmaticPlayRef.current = url;
+
     // Inner routine: assign a KNOWN-playable src (never a data: URL) and play.
     // We always key loadedUrlRef on the ORIGINAL track.url so resume/same-track
     // checks stay consistent even when `src` is a converted blob URL.
@@ -2940,6 +2948,11 @@ export default function Page() {
       setPrepStatus("idle");
       return;
     }
+    // A programmatic play (skip/auto-advance/repeat via loadAndPlay) already owns
+    // load()/play() for this URL — don't race it with our own load().
+    if (programmaticPlayRef.current === currentTrack.url) {
+      return;
+    }
     // Don't disturb an actively playing element (e.g. auto-advance already
     // started this track programmatically); just reflect readiness.
     const audio = audioRef.current;
@@ -2973,9 +2986,16 @@ export default function Page() {
       return;
     }
 
-    // Different track -> make it current so it gets prepared, then request play.
+    // Different track -> make it current so the prepare-ahead effect loads its
+    // source. On web, keep one-tap start; on native the element still holds the
+    // old track, so we must not play() now — the coach taps Play again once the
+    // panel shows "audio ready" (preserves the iOS user gesture).
     setCurrentTrack(track);
-    requestPlay("uploaded new");
+    if (!isNativePlatform()) {
+      loadAndPlay(track, true);
+    } else {
+      setPrepStatus("preparing audio");
+    }
   };
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
@@ -3020,15 +3040,20 @@ export default function Page() {
       setGapCountdown(0);
       setShowSessionFinished(false);
       setSessionRunning(true);
-      // Begin a fresh back-to-back cycle and make this the current track so it is
-      // prepared. requestPlay plays it synchronously when ready (web falls back to
-      // the async load path for one-tap start; native starts on the next tap once
-      // the source is prepared, preserving the iOS user gesture).
+      // Begin a fresh back-to-back cycle and make this the current track so the
+      // prepare-ahead effect loads its source. On web keep one-tap start; on
+      // native the element does not yet hold this track, so we prepare now and the
+      // coach taps Play again once the panel shows "audio ready" (preserves the
+      // iOS user gesture).
       b2bRepeatedTrackIdRef.current = null;
       setBackToBackPlayed(false);
       setCurrentIndex(firstVisibleIdx);
       setCurrentTrack(firstTrack);
-      requestPlay("toggleSession start");
+      if (!isNativePlatform()) {
+        loadAndPlay(firstTrack, true);
+      } else {
+        setPrepStatus("preparing audio");
+      }
     }
   };
 
@@ -3409,9 +3434,16 @@ export default function Page() {
   // attempt fails.
   const handleAudioPlay = () => {
     setIsPlaying(true);
+    setAudioReady(true);
     setPrepStatus("play() resolved");
+    // The play attempt (programmatic or tapped) has begun — release the guard so
+    // future track changes prepare normally.
+    programmaticPlayRef.current = null;
   };
-  const handleAudioPlaying = () => setIsPlaying(true);
+  const handleAudioPlaying = () => {
+    setIsPlaying(true);
+    programmaticPlayRef.current = null;
+  };
   const handleAudioPause = () => {
     const audio = audioRef.current;
     if (!audio) return;
