@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
-import { isNativePlatform, toPlayableUrl, peekPlayableUrl } from "@/lib/native-audio";
+import { isNativePlatform, toPlayableUrl, peekPlayableUrl, buildPlayableUrlFromFile, firstBytesHex } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -354,8 +354,16 @@ export default function Page() {
     lastEvent: "-",
     playError: "-",
     mediaError: "-",
+    blobType: "-",
+    blobSize: -1,
     updatedAt: "-",
   });
+
+  // Update just the blob probe fields (called from safePlay after fetching the
+  // bytes behind the current audio source).
+  const setBlobDiag = (blobType: string, blobSize: number) => {
+    setAudioDiag((prev) => ({ ...prev, blobType, blobSize }));
+  };
 
   // Classify the current audio source so we can see (on device) whether we're
   // feeding the element a blob:, data:, https: or capacitor: URL.
@@ -2419,6 +2427,18 @@ export default function Page() {
         });
     };
 
+    // NATIVE MIME FIX: on iOS, rebuild a blob URL with a CORRECT audio MIME type
+    // straight from the track's File (synchronous, keeps the tap gesture). This
+    // fixes MediaError code 4 caused by files stored with an empty or
+    // application/octet-stream type. Falls back to the URL paths below when no
+    // File is available (e.g. https: cloud tracks).
+    if (isNativePlatform() && track.file) {
+      const { url: fixedUrl, type, size, corrected } = buildPlayableUrlFromFile(track.file, url);
+      console.log(`[v0] loadAndPlay native MIME: type="${type}" size=${size} corrected=${corrected} name="${track.file.name}"`);
+      startPlayback(fixedUrl);
+      return;
+    }
+
     // iOS WKWebView cannot play data: URLs. For the normal blob:/https:/file:
     // case peekPlayableUrl returns the URL unchanged (synchronous, keeps the tap
     // gesture intact). For a legacy data: URL we convert it to a blob URL first
@@ -2442,7 +2462,7 @@ export default function Page() {
   // (used by paused preload paths). Converts a legacy data: URL to a blob URL so
   // a later resume tap never hits an unplayable data: source. loadedUrlRef is
   // always keyed on the ORIGINAL url for resume/same-track consistency.
-  const preloadPausedSrc = (url: string) => {
+  const preloadPausedSrc = (url: string, file?: File | null) => {
     const audio = audioRef.current;
     if (!audio || !url) return;
     const assign = (playableSrc: string) => {
@@ -2451,6 +2471,13 @@ export default function Page() {
       try { audio.currentTime = 0; } catch { /* ignore */ }
       audio.load();
     };
+    // NATIVE MIME FIX: prefer a MIME-corrected blob URL built from the File so a
+    // later resume tap plays a decodable source (see buildPlayableUrlFromFile).
+    if (isNativePlatform() && file) {
+      const { url: fixedUrl } = buildPlayableUrlFromFile(file, url);
+      assign(fixedUrl);
+      return;
+    }
     const sync = peekPlayableUrl(url);
     if (sync) {
       assign(sync);
@@ -2480,7 +2507,101 @@ export default function Page() {
       src = blobUrl;
       console.log(`[v0] safePlay(${context}) converted src prefix: "${src.slice(0, 32)}"`);
     }
-    await audio.play();
+
+    // Inspect the actual bytes behind the current source so we can see whether
+    // the <audio> element is being handed decodable media on device. Fetching a
+    // blob:/https:/file: URL yields the underlying Blob (with its real MIME type
+    // and byte size); a size of 0 or an empty type points at a bad/expired source.
+    let probeBlob: Blob | null = null;
+    try {
+      const b = await fetch(src).then((res) => res.blob());
+      probeBlob = b;
+      console.log(`[v0] safePlay(${context}) blob.type: "${b.type}"`);
+      console.log(`[v0] safePlay(${context}) blob.size: ${b.size}`);
+      console.log(`[v0] safePlay(${context}) blob URL: "${src.slice(0, 48)}"`);
+      setBlobDiag(b.type || "(empty)", b.size);
+    } catch (probeErr) {
+      console.log(`[v0] safePlay(${context}) blob probe failed:`, probeErr);
+      setBlobDiag("probe failed", -1);
+    }
+    console.log(`[v0] safePlay(${context}) audio.currentSrc: "${(audio.currentSrc || "").slice(0, 48)}"`);
+    console.log(`[v0] safePlay(${context}) readyState after load(): ${audio.readyState}`);
+    console.log(`[v0] safePlay(${context}) networkState after load(): ${audio.networkState}`);
+    console.log(`[v0] safePlay(${context}) audio.error (pre-play):`, audio.error?.code, audio.error?.message);
+
+    // Attach ONE-SHOT lifecycle listeners for THIS load attempt so we can see, on
+    // device, exactly how far decoding gets: loadedmetadata -> canplay ->
+    // canplaythrough on success, or `error` (with the MediaError code) on failure.
+    // Each fires at most once and cleans up the whole group to avoid leaks.
+    const lifecycleEvents = ["loadedmetadata", "canplay", "canplaythrough", "error"] as const;
+    const onLifecycle = (e: Event) => {
+      if (e.type === "error") {
+        const code = audio.error?.code ?? "?";
+        const msg = audio.error?.message || "(no message)";
+        console.log(`[v0] safePlay(${context}) LOAD error — MediaError code ${code}: ${msg}`);
+        refreshAudioDiag(`load error code ${code}`, `MediaError ${code}: ${msg}`);
+      } else {
+        console.log(`[v0] safePlay(${context}) load event: ${e.type} (readyState ${audio.readyState})`);
+        refreshAudioDiag(`load: ${e.type}`);
+      }
+      // canplaythrough or error is terminal for this attempt — tear down.
+      if (e.type === "canplaythrough" || e.type === "error") {
+        lifecycleEvents.forEach((ev) => audio.removeEventListener(ev, onLifecycle));
+      }
+    };
+    lifecycleEvents.forEach((ev) => audio.addEventListener(ev, onLifecycle));
+    // Safety net: remove listeners after 10s even if no terminal event fires.
+    setTimeout(() => {
+      lifecycleEvents.forEach((ev) => audio.removeEventListener(ev, onLifecycle));
+    }, 10000);
+
+    // Requirement: wait for the element to actually be ready to play (metadata
+    // decoded) before calling play(), instead of racing play() against a source
+    // that has not finished loading. We resolve as soon as readyState reaches
+    // HAVE_CURRENT_DATA (>=2) or a canplay/loadedmetadata fires, with a bounded
+    // timeout so we never hang if the media stalls. This runs shortly after the
+    // user's tap; blob:/file: sources are local so readiness is near-instant.
+    if (audio.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          audio.removeEventListener("canplay", done);
+          audio.removeEventListener("loadedmetadata", done);
+          audio.removeEventListener("error", done);
+          resolve();
+        };
+        audio.addEventListener("canplay", done, { once: true });
+        audio.addEventListener("loadedmetadata", done, { once: true });
+        audio.addEventListener("error", done, { once: true });
+        setTimeout(done, 3000); // fail-safe: attempt play() regardless after 3s
+      });
+      console.log(`[v0] safePlay(${context}) readyState before play(): ${audio.readyState}`);
+    }
+
+    try {
+      await audio.play();
+    } catch (playErr) {
+      // Surface the MediaError that WKWebView attaches to the element — this is
+      // the most useful signal (code 4 = MEDIA_ERR_SRC_NOT_SUPPORTED on iOS).
+      const code = audio.error?.code ?? "?";
+      const msg = audio.error?.message || "(no message)";
+      console.log(`[v0] safePlay(${context}) audio.error (post-play): code ${code}: ${msg}`);
+      // Requirement 4: when playback fails, dump the exact MIME + first 32 bytes
+      // so we can verify the underlying file is a valid, recognizable audio file
+      // (e.g. "49 44 33" = "ID3" for MP3, "...66 74 79 70" = "ftyp" for MP4/M4A).
+      try {
+        const bytesBlob: Blob = probeBlob !== null ? probeBlob : await fetch(src).then((r) => r.blob());
+        const hex = await firstBytesHex(bytesBlob, 32);
+        console.log(`[v0] safePlay(${context}) FAILED blob.type="${bytesBlob.type}" size=${bytesBlob.size}`);
+        console.log(`[v0] safePlay(${context}) FAILED first 32 bytes: ${hex}`);
+        refreshAudioDiag(`play failed code ${code}`, `type=${bytesBlob.type} bytes=${hex.slice(0, 23)}…`);
+      } catch (dumpErr) {
+        console.log(`[v0] safePlay(${context}) byte dump failed:`, dumpErr);
+      }
+      throw playErr;
+    }
   };
 
   // Start a brand-new "current" track (manual selection, skip, hide-advance, and
@@ -2901,7 +3022,7 @@ export default function Page() {
         setBackToBackPlayed(false);
         if (audioRef.current && nextTrack.url) {
           isTransitioningRef.current = true;
-          preloadPausedSrc(nextTrack.url);
+          preloadPausedSrc(nextTrack.url, nextTrack.file);
           isTransitioningRef.current = false;
         }
       } else {
@@ -2984,7 +3105,7 @@ export default function Page() {
           // Load the track but stay paused at the start. preloadPausedSrc keeps
           // the source natively-playable (converting any legacy data: URL first).
           isTransitioningRef.current = true;
-          preloadPausedSrc(prevTrack.url);
+          preloadPausedSrc(prevTrack.url, prevTrack.file);
           isTransitioningRef.current = false;
           setIsPlaying(false);
         }
@@ -3738,6 +3859,8 @@ export default function Page() {
             <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
             <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
             <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
+            <span className="text-white/50">blob.type</span><span className="text-yellow-300">{audioDiag.blobType}</span>
+            <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
             <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
             <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
           </div>
