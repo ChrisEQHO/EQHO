@@ -343,7 +343,25 @@ function PlaylistTrackRows({
               <span className="text-white/25 shrink-0">{formatDuration(track.durationSeconds || 0)}</span>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); onRequestDelete(track.id); }}
+                // Stop the pointer/touch event before it can reach the row (select/
+                // play) or any drag/scroll sensor. Do NOT preventDefault here — that
+                // would cancel the subsequent click on iOS WKWebView.
+                onPointerDown={(e) => { e.stopPropagation(); }}
+                onTouchStart={(e) => { e.stopPropagation(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log("[v0] DELETE BUTTON TAPPED", { trackId: track.id, title: track.title });
+                  if (e.currentTarget !== e.target) {
+                    console.log("[v0] DELETE tap target is a child element (icon) — bubbled to button OK");
+                  }
+                  try {
+                    console.log("[v0] DELETE handler started");
+                    onRequestDelete(track.id);
+                    console.log("[v0] DELETE handler completed (confirm dialog requested)");
+                  } catch (err) {
+                    console.error("[v0] DELETE handler error:", (err as Error)?.message || String(err));
+                  }
+                }}
                 disabled={isDeleting}
                 title="Delete track permanently"
                 aria-label={`Delete ${track.title} permanently`}
@@ -638,6 +656,11 @@ export default function Page() {
   // Keyed by local playlist id -> { signature of the downloaded tracks, status }.
   // Used to drive the small Download button states (Downloaded / Update / Failed).
   const [deviceDownloads, setDeviceDownloads] = useState<Record<string, { signature: string; status: 'downloaded' | 'failed' }>>({});
+  // Inline result feedback for the cloud "Download to Device" buttons. The global
+  // cloudSaveMessage toast only renders on the Cloud page, so a download started
+  // from the Playlists page showed no success/error there. Keyed by cloud playlist
+  // id -> { ok, message } so each button can show its own green/red result inline.
+  const [cloudDownloadResult, setCloudDownloadResult] = useState<Record<string, { ok: boolean; message: string }>>({});
   // Download queue + live progress for the compact offline-download status icon.
   const [downloadQueue, setDownloadQueue] = useState<string[]>([]); // local playlist ids waiting to download
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({}); // local playlist id -> 0..100
@@ -1570,7 +1593,15 @@ export default function Page() {
   };
 
   const handleDownloadCloudPlaylist = async (playlistId: string) => {
+    console.log("[v0] DOWNLOAD handler started", { playlistId });
     setDownloadingPlaylistId(playlistId);
+    // Clear any previous inline result for this button so the spinner shows cleanly.
+    setCloudDownloadResult((prev) => {
+      if (!prev[playlistId]) return prev;
+      const next = { ...prev };
+      delete next[playlistId];
+      return next;
+    });
 
     try {
       const { playlist: localPlaylist, failedTracks, reason } = await fetchPlaylistWithFilesDetailed(playlistId);
@@ -1606,12 +1637,17 @@ export default function Page() {
         console.log(`[v0][cloud-restore] Final restored playlist count: 1 ("${newPlaylist.name}")`);
         if (failedTracks.length > 0) {
           console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
-          setCloudSaveMessage(`Restored ${newPlaylist.name} (${failedTracks.length} track${failedTracks.length === 1 ? '' : 's'} failed)`);
+          const msg = `Restored ${newPlaylist.name} (${failedTracks.length} track${failedTracks.length === 1 ? '' : 's'} failed)`;
+          setCloudSaveMessage(msg);
           setCloudSaveSuccess(false);
+          setCloudDownloadResult((prev) => ({ ...prev, [playlistId]: { ok: false, message: msg } }));
         } else {
-          setCloudSaveMessage(`Restored ${newPlaylist.name} from cloud`);
+          const msg = `Downloaded ${newPlaylist.name} to this device`;
+          setCloudSaveMessage(msg);
           setCloudSaveSuccess(true);
+          setCloudDownloadResult((prev) => ({ ...prev, [playlistId]: { ok: true, message: msg } }));
         }
+        console.log("[v0] DOWNLOAD handler completed", { playlistId, failed: failedTracks.length });
         setTimeout(() => setCloudSaveMessage(null), 5000);
       } else {
         // No audio could be downloaded — do not create an empty playlist folder.
@@ -1623,20 +1659,25 @@ export default function Page() {
           'missing': 'The audio files for this playlist are no longer in cloud storage.',
           'offline': 'Download failed. Check your connection and try again.',
         };
-        setCloudSaveMessage(
+        const failMsg =
           (reason && reasonMessage[reason]) ||
           (failedTracks.length > 0
             ? `Could not restore playlist — ${failedTracks.length} track(s) failed to download`
-            : 'Could not restore playlist from cloud')
-        );
+            : 'Could not restore playlist from cloud');
+        setCloudSaveMessage(failMsg);
         setCloudSaveSuccess(false);
+        setCloudDownloadResult((prev) => ({ ...prev, [playlistId]: { ok: false, message: failMsg } }));
+        console.log("[v0] DOWNLOAD handler completed (no audio downloaded)", { playlistId, reason });
         setTimeout(() => setCloudSaveMessage(null), 6000);
       }
     } catch (error) {
-      console.error("[v0][cloud-restore] Download failed:", error);
-      setCloudSaveMessage('Download failed. Check your connection.');
+      const detail = (error as Error)?.message || String(error);
+      console.error("[v0] DOWNLOAD handler error:", detail);
+      const failMsg = `Download failed: ${detail}`;
+      setCloudSaveMessage(failMsg);
       setCloudSaveSuccess(false);
-      setTimeout(() => setCloudSaveMessage(null), 4000);
+      setCloudDownloadResult((prev) => ({ ...prev, [playlistId]: { ok: false, message: failMsg } }));
+      setTimeout(() => setCloudSaveMessage(null), 6000);
     } finally {
       setDownloadingPlaylistId(null);
     }
@@ -4653,9 +4694,12 @@ export default function Page() {
           </div>
         )}
 
-        {/* Permanent Track Deletion Confirmation (from the Playlists library) */}
+        {/* Permanent Track Deletion Confirmation (from the Playlists library).
+            z-[400] so it renders ABOVE the fixed mobile player (z-[300]) and the
+            mobile bottom nav (z-40); at z-[200] the dialog opened behind the mobile
+            player and looked like the Delete button "did nothing". */}
         {confirmDeleteTrack && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
+          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
             <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
               <h3 className="text-2xl font-bold text-white mb-2">Delete Track?</h3>
@@ -6790,8 +6834,11 @@ export default function Page() {
 
                                   {/* Download to Device: downloads audio from R2 by storage_path */}
                                   <button
+                                    type="button"
+                                    onPointerDown={(e) => { e.stopPropagation(); }}
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      console.log("[v0] DOWNLOAD BUTTON TAPPED", { playlistId: cloudPlaylist.id, name: cloudPlaylist.name });
                                       handleDownloadCloudPlaylist(cloudPlaylist.id);
                                     }}
                                     disabled={isDownloading}
@@ -6801,6 +6848,12 @@ export default function Page() {
                                     {isDownloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                                     {isDownloading ? 'Downloading…' : 'Download to Device'}
                                   </button>
+                                  {cloudDownloadResult[cloudPlaylist.id] && !isDownloading && (
+                                    <p className={`mt-2 text-xs font-medium flex items-center gap-1.5 ${cloudDownloadResult[cloudPlaylist.id].ok ? 'text-green-400' : 'text-red-400'}`}>
+                                      {cloudDownloadResult[cloudPlaylist.id].ok ? <Check size={13} /> : <AlertCircle size={13} />}
+                                      {cloudDownloadResult[cloudPlaylist.id].message}
+                                    </p>
+                                  )}
                                 </div>
                               );
                             })}
@@ -8519,7 +8572,14 @@ export default function Page() {
                                       {/* Download to Device: downloads audio from R2 by storage_path,
                                           then the playlist appears in the local library as Synced. */}
                                       <button
-                                        onClick={() => handleDownloadCloudPlaylist(cloudPlaylist.id)}
+                                        type="button"
+                                        onPointerDown={(e) => { e.stopPropagation(); }}
+                                        onTouchStart={(e) => { e.stopPropagation(); }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          console.log("[v0] DOWNLOAD BUTTON TAPPED", { playlistId: cloudPlaylist.id, name: cloudPlaylist.name });
+                                          handleDownloadCloudPlaylist(cloudPlaylist.id);
+                                        }}
                                         disabled={isDownloading}
                                         className="w-full py-2 rounded-lg bg-cyan-500/15 
                                                    border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold
@@ -8529,6 +8589,12 @@ export default function Page() {
                                         {isDownloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                                         {isDownloading ? 'Downloading…' : 'Download to Device'}
                                       </button>
+                                      {cloudDownloadResult[cloudPlaylist.id] && !isDownloading && (
+                                        <p className={`mt-1.5 text-[10px] font-medium flex items-center gap-1 ${cloudDownloadResult[cloudPlaylist.id].ok ? 'text-green-400' : 'text-red-400'}`}>
+                                          {cloudDownloadResult[cloudPlaylist.id].ok ? <Check size={11} /> : <AlertCircle size={11} />}
+                                          {cloudDownloadResult[cloudPlaylist.id].message}
+                                        </p>
+                                      )}
                                     </div>
                                   );
                                 })}
