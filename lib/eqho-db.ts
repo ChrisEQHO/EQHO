@@ -373,17 +373,32 @@ const extractFileFromRecord = async (
       return { file: new File([audio.buffer as any], name, { type }), source: `Buffer@${key}` };
   }
 
-  // 2) Fall back to any string value that looks like a fetchable URL
+  // 2) Fall back to any string value that looks like a fetchable URL. Only trust
+  //    real remote/object URLs (blob:/https:/data:) — NEVER a bare relative path
+  //    like "/track.mp3", which in the Capacitor app resolves to the index.html
+  //    SPA fallback and would store an HTML page as "audio". Also validate the
+  //    response is genuinely audio (not text/html and not an HTML document body).
   for (const key of Object.keys(rec)) {
     const v = (rec as any)[key];
-    if (typeof v === "string" && /^(blob:|https?:|data:|\/)/.test(v)) {
+    if (typeof v === "string" && /^(blob:|https?:|data:)/.test(v)) {
       try {
         const res = await fetch(v);
-        if (res.ok) {
-          const blob = await res.blob();
-          if (blob.size > 0)
-            return { file: new File([blob], name, { type: blob.type || type }), source: `URL@${key}` };
+        const ct = (res.headers.get("content-type") || "").toLowerCase();
+        if (!res.ok) continue;
+        if (ct.includes("text/html") || ct.startsWith("text/") || ct.includes("application/xhtml")) {
+          console.warn(`[v0] extractFileFromRecord: rejecting non-audio content-type "${ct}" for`, name, "key", key);
+          continue;
         }
+        const blob = await res.blob();
+        if (blob.size === 0) continue;
+        const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+        const headAscii = String.fromCharCode(...head).toLowerCase();
+        if (headAscii.startsWith("<!doctype") || headAscii.startsWith("<html") || headAscii.startsWith("<?xml")) {
+          console.warn(`[v0] extractFileFromRecord: rejecting HTML document body for`, name, "key", key);
+          continue;
+        }
+        const resolvedType = ct.startsWith("audio/") ? ct : (blob.type || type);
+        return { file: new File([blob], name, { type: resolvedType }), source: `URL@${key}` };
       } catch (err) {
         console.log('[v0] extractFileFromRecord: failed to fetch url for', name, "key", key, err);
       }

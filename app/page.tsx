@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
-import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild } from "@/lib/native-audio";
+import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -2449,14 +2449,32 @@ export default function Page() {
     setPrepStatus("preparing audio");
 
     try {
-      // Resolve a source WKWebView will decode: on native, byte-sniff the File
-      // and rebuild a blob URL with the correct MIME; convert any legacy data:
-      // URL to a blob URL; otherwise use the blob:/https:/file: URL as-is.
+      // Resolve a source WKWebView will decode: on native, read the track's REAL
+      // File from IndexedDB (already loaded into track.file) and build a blob URL
+      // from those bytes; convert any legacy data: URL to a blob URL; otherwise
+      // use the blob:/https:/file: URL as-is. We never fetch a filename/route.
+      const retrievalMethod = track.file
+        ? "IndexedDB-File"
+        : track.url.startsWith("data:")
+          ? "data-url"
+          : track.url.startsWith("blob:")
+            ? "blob-url"
+            : track.url.startsWith("http")
+              ? "https-url"
+              : track.url.startsWith("file:") || track.url.startsWith("capacitor:")
+                ? "offline-file"
+                : "unknown";
+      console.log(
+        `[v0][audio-src] raw stored url="${track.url.slice(0, 64)}" retrieval=${retrievalMethod} hasFile=${!!track.file}` +
+          (track.file ? ` fileName="${track.file.name}" fileType="${track.file.type}" fileSize=${track.file.size}` : "")
+      );
+
       let playableSrc = track.url;
       if (isNativePlatform() && track.file) {
         const res = await buildCorrectedPlayableUrl(track.file, track.url);
         setFormatDiag(res);
         playableSrc = res.url;
+        console.log(`[v0][audio-src] final playable url type=blob: mime="${res.correctedMime}" size=${res.size}`);
       } else if (track.url.startsWith("data:")) {
         playableSrc = await toPlayableUrl(track.url);
       }
@@ -2510,8 +2528,17 @@ export default function Page() {
         refreshAudioDiag("audio ready");
       }
     } catch (err) {
+      const message = (err as Error)?.message || String(err);
       setAudioReady(false);
-      setPrepStatus(`prep failed: ${(err as Error)?.message || String(err)}`);
+      setPrepStatus(`prep failed: ${message}`);
+      // Non-audio content (HTML index.html fallback / corrupted download): tell
+      // the coach to re-download or re-upload, and do not attempt playback.
+      if (message === NOT_AUDIO_MESSAGE) {
+        setCloudSaveMessage(NOT_AUDIO_MESSAGE);
+        setCloudSaveSuccess(false);
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+        refreshAudioDiag("not audio", message);
+      }
     } finally {
       if (preparingRef.current === track.url) preparingRef.current = null;
     }
@@ -2636,10 +2663,17 @@ export default function Page() {
             startPlayback(res.url);
           })
           .catch((error) => {
-            const detail = `sniff failed: ${error?.message || String(error)}`;
-            console.error("[v0] loadAndPlay byte-sniff failed:", detail);
+            const message = (error as Error)?.message || String(error);
+            console.error("[v0] loadAndPlay byte-sniff failed:", message);
             setIsPlaying(false);
-            refreshAudioDiag("sniff failed", detail);
+            refreshAudioDiag("sniff failed", message);
+            // Non-audio content (HTML fallback / corrupted download): prompt the
+            // coach to re-download or re-upload instead of failing silently.
+            if (message === NOT_AUDIO_MESSAGE) {
+              setCloudSaveMessage(NOT_AUDIO_MESSAGE);
+              setCloudSaveSuccess(false);
+              setTimeout(() => setCloudSaveMessage(null), 6000);
+            }
           });
       }
       return;

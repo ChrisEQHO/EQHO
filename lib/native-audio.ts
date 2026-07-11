@@ -214,6 +214,39 @@ export const mimeForFormat = (fmt: DetectedFormat): string => {
   }
 };
 
+// User-facing message shown whenever a "track" turns out to be an HTML page (the
+// classic symptom of a relative URL resolving to index.html) or otherwise not
+// real audio. Thrown as an Error message so callers can surface it directly.
+export const NOT_AUDIO_MESSAGE =
+  "Audio file could not be found. Please re-download or re-upload this track.";
+
+// True when the given bytes are an HTML/XML document rather than audio. The
+// index.html SPA fallback starts with "<!DOCTYPE html>", "<html", or (after
+// optional whitespace/BOM) a "<" tag character — never a valid audio header.
+export const looksLikeHtmlOrText = (bytes: Uint8Array): boolean => {
+  if (!bytes || bytes.length === 0) return false;
+  let i = 0;
+  // Skip a UTF-8 BOM and leading ASCII whitespace.
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) i = 3;
+  while (i < bytes.length && (bytes[i] === 0x20 || bytes[i] === 0x09 || bytes[i] === 0x0a || bytes[i] === 0x0d)) i++;
+  const head = ascii(bytes, i, 14).toLowerCase();
+  return (
+    head.startsWith("<!doctype") ||
+    head.startsWith("<html") ||
+    head.startsWith("<?xml") ||
+    head.startsWith("<head") ||
+    head.startsWith("<body") ||
+    head.startsWith("<!--")
+  );
+};
+
+// True when a MIME type string indicates HTML/text rather than audio.
+export const isHtmlOrTextMime = (type: string | undefined | null): boolean => {
+  if (!type) return false;
+  const t = type.toLowerCase();
+  return t.includes("text/html") || t.includes("application/xhtml") || t.startsWith("text/");
+};
+
 // Rich result describing exactly what we did, for on-device diagnostics.
 export interface PlayableBuildResult {
   url: string;
@@ -259,7 +292,20 @@ export const buildCorrectedPlayableUrl = async (
     .map((b) => b.toString(16).padStart(2, "0"))
     .join(" ");
 
-  const detectedFormat = detectAudioFormat(new Uint8Array(buffer.slice(0, 32)));
+  const sniff = new Uint8Array(buffer.slice(0, 32));
+
+  // HARD GATE: never treat an HTML page or a text/html file as audio. This is
+  // the index.html fallback that a relative/broken URL resolves to. We must NOT
+  // "correct" text/html into audio/mpeg — changing the label does not turn HTML
+  // into MP3. Reject loudly so the caller can prompt a re-download/re-upload.
+  if (looksLikeHtmlOrText(sniff) || isHtmlOrTextMime(originalMime)) {
+    console.error(
+      `[v0][audio-validate] REJECT non-audio content name="${filename}" originalMime="${originalMime}" size=${buffer.byteLength} first16=${first16Hex}`
+    );
+    throw new Error(NOT_AUDIO_MESSAGE);
+  }
+
+  const detectedFormat = detectAudioFormat(sniff);
 
   // Pick the MIME: prefer the byte-detected format, then the extension mapping,
   // then a safe default of audio/mpeg (most stored tracks are MP3).
