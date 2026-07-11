@@ -33,7 +33,9 @@ import {
   isCloudStorageAvailable,
   fetchCloudPlaylistSignatures,
   localTrackKey,
+  deleteTrackFromCloudDirect,
   type CloudPlaylist,
+  type CloudPlaylistTrack,
   type SyncStatus 
 } from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
@@ -300,6 +302,76 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
+// Expandable track list for a playlist card, with a permanent-delete button on
+// every track row. Collapsed by default (shows 2 tracks); expanding reveals the
+// full, scrollable list. Used in both the desktop grid and the compact library
+// views so per-track deletion is available everywhere a playlist is shown.
+function PlaylistTrackRows({
+  tracks,
+  expanded,
+  onToggleExpand,
+  onRequestDelete,
+  deletingTrackId,
+  formatDuration,
+  compact = false,
+}: {
+  tracks: Array<{ id: string; title: string; durationSeconds?: number }>;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onRequestDelete: (trackId: string) => void;
+  deletingTrackId: string | null;
+  formatDuration: (seconds?: number) => string;
+  compact?: boolean;
+}) {
+  const rowText = compact ? "text-[10px]" : "text-[11px]";
+  const moreText = compact ? "text-[9px]" : "text-[10px]";
+  const visible = expanded ? tracks : tracks.slice(0, 2);
+  const hiddenCount = tracks.length - 2;
+
+  return (
+    <div className="mb-2">
+      <div className={expanded ? "space-y-0.5 max-h-52 overflow-y-auto pr-1" : "space-y-0.5"}>
+        {visible.map((track, idx) => {
+          const isDeleting = deletingTrackId === track.id;
+          return (
+            <div
+              key={track.id}
+              className={`group/track flex items-center gap-1.5 ${rowText} text-white/40 rounded px-1 py-0.5 hover:bg-white/5 transition`}
+            >
+              <span className="w-3 text-white/25 shrink-0">{idx + 1}.</span>
+              <span className="truncate flex-1">{track.title}</span>
+              <span className="text-white/25 shrink-0">{formatDuration(track.durationSeconds || 0)}</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRequestDelete(track.id); }}
+                disabled={isDeleting}
+                title="Delete track permanently"
+                aria-label={`Delete ${track.title} permanently`}
+                className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/15 transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {tracks.length > 2 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+          className={`mt-0.5 pl-4 flex items-center gap-1 ${moreText} text-cyan-400/70 hover:text-cyan-300 transition`}
+        >
+          {expanded ? (
+            <><ChevronUp size={10} /> Show less</>
+          ) : (
+            <><ChevronDown size={10} /> +{hiddenCount} more {hiddenCount === 1 ? "track" : "tracks"}</>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function DraggableTrackRow({ 
   track, 
   index, 
@@ -555,6 +627,12 @@ export default function Page() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<string | null>(null);
   const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
+  // Which playlist cards have their full track list expanded (by playlist id).
+  const [expandedPlaylistIds, setExpandedPlaylistIds] = useState<Set<string>>(new Set());
+  // Pending "delete this track permanently?" confirmation.
+  const [confirmDeleteTrack, setConfirmDeleteTrack] = useState<{ playlistId: string; track: Track } | null>(null);
+  // The track id currently being deleted (drives the per-row spinner).
+  const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
   const [downloadingPlaylistId, setDownloadingPlaylistId] = useState<string | null>(null);
   // Per-playlist "Download to Device" status for the main left playlist list.
   // Keyed by local playlist id -> { signature of the downloaded tracks, status }.
@@ -1413,6 +1491,82 @@ export default function Page() {
       setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
     }
     setShowDeletePlaylistConfirm(null);
+  };
+
+  // Toggle a playlist card's full track list (collapsed shows 2 tracks).
+  const togglePlaylistExpanded = (playlistId: string) => {
+    setExpandedPlaylistIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playlistId)) next.delete(playlistId);
+      else next.add(playlistId);
+      return next;
+    });
+  };
+
+  // Permanently delete ONE track from a playlist. Order matters:
+  //   1. If the track exists in the cloud, delete it there first (authoritative
+  //      Supabase metadata delete via supabase-js + best-effort R2 object delete).
+  //      If that Supabase delete fails, we DO NOT remove it locally and surface
+  //      an error — so the two never drift out of sync.
+  //   2. Local-only tracks (never uploaded) skip the cloud step entirely.
+  //   3. On success, remove it from local state (the savedPlaylists effect
+  //      re-persists IndexedDB) and refresh cloud playlists.
+  const handleDeleteTrackPermanently = async (playlistId: string, track: Track) => {
+    setDeletingTrackId(track.id);
+    try {
+      const localPlaylist = savedPlaylists.find((p) => p.id === playlistId);
+      const cloud = localPlaylist ? findCloudPlaylistFor(localPlaylist) : undefined;
+
+      // Match the local track to its cloud row by id, else by title::fileName.
+      let cloudTrack: CloudPlaylistTrack | undefined;
+      if (cloud) {
+        const wantKey = localTrackKey(track.title, track.fileName);
+        cloudTrack =
+          cloud.tracks.find((ct) => ct.id === track.id) ||
+          cloud.tracks.find((ct) => localTrackKey(ct.title, ct.fileName) === wantKey);
+      }
+
+      if (cloudTrack) {
+        const { supabaseOk, r2Ok } = await deleteTrackFromCloudDirect(cloudTrack.id, cloudTrack.storage_path);
+        if (!supabaseOk) {
+          // Cloud deletion failed for an uploaded track — keep local copy intact.
+          setCloudSaveMessage(`Couldn't delete "${track.title}" from the cloud. Please try again.`);
+          setCloudSaveSuccess(false);
+          setTimeout(() => setCloudSaveMessage(null), 6000);
+          return;
+        }
+        if (!r2Ok) {
+          console.warn(`[v0] track "${track.title}" metadata deleted; R2 object delete was best-effort and did not confirm`);
+        }
+      }
+
+      // Remove locally (state change triggers the IndexedDB persist effect).
+      setSavedPlaylists((prev) =>
+        prev.map((p) =>
+          p.id === playlistId ? { ...p, tracks: p.tracks.filter((t) => t.id !== track.id) } : p
+        )
+      );
+
+      // Refresh cloud playlists so counts/previews reflect the deletion.
+      try {
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } catch (err) {
+        console.warn('[v0] handleDeleteTrackPermanently: failed to refresh cloud playlists', err);
+      }
+
+      setCloudSaveMessage(`Deleted "${track.title}"`);
+      setCloudSaveSuccess(true);
+      setTimeout(() => setCloudSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('[v0] handleDeleteTrackPermanently failed:', err);
+      setCloudSaveMessage(`Couldn't delete "${track.title}". Please try again.`);
+      setCloudSaveSuccess(false);
+      setTimeout(() => setCloudSaveMessage(null), 6000);
+    } finally {
+      setDeletingTrackId(null);
+      setConfirmDeleteTrack(null);
+    }
   };
 
   const handleDownloadCloudPlaylist = async (playlistId: string) => {
@@ -4499,6 +4653,42 @@ export default function Page() {
           </div>
         )}
 
+        {/* Permanent Track Deletion Confirmation (from the Playlists library) */}
+        {confirmDeleteTrack && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+              <h3 className="text-2xl font-bold text-white mb-2">Delete Track?</h3>
+              <p className="text-white/60 mb-2">
+                Permanently delete &quot;{confirmDeleteTrack.track.title}&quot;?
+              </p>
+              <p className="text-white/40 text-sm mb-6">
+                This removes it from this device and the cloud. This cannot be undone.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setConfirmDeleteTrack(null)}
+                  disabled={deletingTrackId === confirmDeleteTrack.track.id}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteTrackPermanently(confirmDeleteTrack.playlistId, confirmDeleteTrack.track)}
+                  disabled={deletingTrackId === confirmDeleteTrack.track.id}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {deletingTrackId === confirmDeleteTrack.track.id ? (
+                    <><Loader2 size={16} className="animate-spin" /> Deleting…</>
+                  ) : (
+                    "Yes, Delete"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Remove Track Confirmation */}
         {showRemoveTrackConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -6540,18 +6730,17 @@ export default function Page() {
                               </button>
                             )}
                             
-                            <div className="space-y-0.5 mb-2">
-                              {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
-                                <div key={track.id} className="flex items-center gap-1.5 text-[11px] text-white/40">
-                                  <span className="w-3 text-white/25">{idx + 1}.</span>
-                                  <span className="truncate flex-1">{track.title}</span>
-                                  <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
-                                </div>
-                              ))}
-                              {localPlaylist.tracks.length > 2 && (
-                                <p className="text-[10px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more</p>
-                              )}
-                            </div>
+                            <PlaylistTrackRows
+                              tracks={localPlaylist.tracks}
+                              expanded={expandedPlaylistIds.has(localPlaylist.id)}
+                              onToggleExpand={() => togglePlaylistExpanded(localPlaylist.id)}
+                              onRequestDelete={(trackId) => {
+                                const t = localPlaylist.tracks.find((tr) => tr.id === trackId);
+                                if (t) setConfirmDeleteTrack({ playlistId: localPlaylist.id, track: t });
+                              }}
+                              deletingTrackId={deletingTrackId}
+                              formatDuration={formatDuration}
+                            />
                             
                             <button
                               onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
@@ -8223,19 +8412,19 @@ export default function Page() {
                                       </button>
                                     )}
                                     
-                                    {/* Track Preview */}
-                                    <div className="space-y-0.5 mb-2">
-                                      {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
-                                        <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
-                                          <span className="w-3 text-white/25">{idx + 1}.</span>
-                                          <span className="truncate flex-1">{track.title}</span>
-                                          <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
-                                        </div>
-                                      ))}
-                                      {localPlaylist.tracks.length > 2 && (
-                                        <p className="text-[9px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more tracks</p>
-                                      )}
-                                    </div>
+                                    {/* Track list with per-track permanent delete */}
+                                    <PlaylistTrackRows
+                                      tracks={localPlaylist.tracks}
+                                      expanded={expandedPlaylistIds.has(localPlaylist.id)}
+                                      onToggleExpand={() => togglePlaylistExpanded(localPlaylist.id)}
+                                      onRequestDelete={(trackId) => {
+                                        const t = localPlaylist.tracks.find((tr) => tr.id === trackId);
+                                        if (t) setConfirmDeleteTrack({ playlistId: localPlaylist.id, track: t });
+                                      }}
+                                      deletingTrackId={deletingTrackId}
+                                      formatDuration={formatDuration}
+                                      compact
+                                    />
                                     
                                     {/* Send to Session / Add Buttons */}
                                     <div className="flex gap-2">

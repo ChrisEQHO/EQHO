@@ -425,6 +425,62 @@ export async function uploadTrackToCloud(
   return row
 }
 
+// Permanently delete a single track from the cloud from ANY platform (web +
+// mobile). Supabase metadata deletion is authoritative and runs via supabase-js,
+// so it works on the iOS static export (which cannot reach the cookie-authed
+// /api/r2 route). R2 object deletion is BEST-EFFORT: on mobile the DELETE route
+// is unreachable, so an R2 failure must never block removal. The caller uses
+// `supabaseOk` to decide whether local removal may proceed.
+export async function deleteTrackFromCloudDirect(
+  trackId: string | null,
+  storagePath: string | null,
+): Promise<{ supabaseOk: boolean; r2Ok: boolean }> {
+  const supabase = createClient()
+  if (!supabase) {
+    console.error('[v0] deleteTrackFromCloudDirect: no Supabase client')
+    return { supabaseOk: false, r2Ok: false }
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    console.error('[v0] deleteTrackFromCloudDirect: no authenticated user')
+    return { supabaseOk: false, r2Ok: false }
+  }
+
+  // Best-effort R2 delete first (never blocks the authoritative metadata delete).
+  let r2Ok = false
+  if (storagePath) {
+    try {
+      r2Ok = await deleteTrackFromR2(storagePath)
+    } catch (err) {
+      console.warn('[v0] deleteTrackFromCloudDirect: R2 delete failed (best-effort)', err)
+      r2Ok = false
+    }
+  }
+
+  // Authoritative Supabase metadata delete, scoped to this user for RLS safety.
+  // Match by id when it is a real UUID, otherwise fall back to the unique
+  // storage_path (the R2 key embeds the track id, so it identifies one row).
+  let del = supabase.from('tracks').delete().eq('user_id', user.id)
+  if (trackId && isValidUuid(trackId)) {
+    del = del.eq('id', trackId)
+  } else if (storagePath) {
+    del = del.eq('storage_path', storagePath)
+  } else {
+    console.error('[v0] deleteTrackFromCloudDirect: no id or storage_path to delete by')
+    return { supabaseOk: false, r2Ok }
+  }
+
+  const { error } = await del
+  if (error) {
+    console.error('[v0] deleteTrackFromCloudDirect: Supabase delete failed', error.message)
+    return { supabaseOk: false, r2Ok }
+  }
+
+  console.log('[v0] deleteTrackFromCloudDirect: deleted', { trackId, storagePath, r2Ok })
+  return { supabaseOk: true, r2Ok }
+}
+
 export async function deleteTrackFromCloud(trackId: string): Promise<boolean> {
   if (isMobileBuild) return false // Read-only on mobile
 
