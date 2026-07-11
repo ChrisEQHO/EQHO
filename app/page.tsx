@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
-import { isNativePlatform, fileToDataUrl, getSilentWavDataUrl } from "@/lib/native-audio";
+import { isNativePlatform, fileToDataUrl } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -334,6 +334,66 @@ function DraggableTrackRow({
 
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Mirror of currentTrack for use inside stable event listeners / diagnostics.
+  const currentTrackRef = useRef<Track | null>(null);
+
+  // --- TEMPORARY on-device audio diagnostics ---------------------------------
+  // Visible panel for debugging why play/pause does nothing inside the Capacitor
+  // iPhone build (we cannot see the WebKit console on-device). Toggled from a
+  // small "Audio Debug" button on the player. Remove once playback is confirmed.
+  const [showAudioDiag, setShowAudioDiag] = useState(false);
+  const [audioDiag, setAudioDiag] = useState({
+    hasCurrentTrack: false,
+    hasAudioEl: false,
+    hasSrc: false,
+    srcType: "none" as "none" | "blob" | "https" | "http" | "data" | "file" | "capacitor" | "other",
+    readyState: -1,
+    networkState: -1,
+    paused: null as boolean | null,
+    isNative: false,
+    lastEvent: "-",
+    playError: "-",
+    mediaError: "-",
+    updatedAt: "-",
+  });
+
+  // Classify the current audio source so we can see (on device) whether we're
+  // feeding the element a blob:, data:, https: or capacitor: URL.
+  const classifySrc = (src: string): typeof audioDiag.srcType => {
+    if (!src) return "none";
+    if (src.startsWith("blob:")) return "blob";
+    if (src.startsWith("data:")) return "data";
+    if (src.startsWith("https:")) return "https";
+    if (src.startsWith("http:")) return "http";
+    if (src.startsWith("file:")) return "file";
+    if (src.startsWith("capacitor:")) return "capacitor";
+    return "other";
+  };
+
+  // Snapshot the live <audio> element + current track into the diagnostics panel.
+  const refreshAudioDiag = (event?: string, playError?: string) => {
+    const audio = audioRef.current;
+    const src = audio ? (audio.currentSrc || audio.src || "") : "";
+    const mediaErr = audio?.error
+      ? `code ${audio.error.code}: ${audio.error.message || "(no message)"}`
+      : "-";
+    setAudioDiag((prev) => ({
+      ...prev,
+      hasCurrentTrack: !!currentTrackRef.current,
+      hasAudioEl: !!audio,
+      hasSrc: !!src,
+      srcType: classifySrc(src),
+      readyState: audio ? audio.readyState : -1,
+      networkState: audio ? audio.networkState : -1,
+      paused: audio ? audio.paused : null,
+      isNative: isNativePlatform(),
+      lastEvent: event ?? prev.lastEvent,
+      playError: playError ?? prev.playError,
+      mediaError: mediaErr,
+      updatedAt: new Date().toLocaleTimeString(),
+    }));
+  };
+
   const [activePage, setActivePage] = useState("player");
   const { isPro, isTrialing, profile, isLoading: isSubscriptionLoading, refetch: refetchSubscription } = useSubscription();
 
@@ -403,6 +463,8 @@ export default function Page() {
   const router = useRouter();
   const supabase = createClient();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+  // Keep the ref in lockstep so stable listeners / diagnostics see the latest track.
+  currentTrackRef.current = currentTrack;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
@@ -2314,7 +2376,6 @@ export default function Page() {
   // base64 data: URL derived from the track's File instead. These caches keep
   // that conversion bounded and let us "unlock" audio on the first user tap.
   const playableSrcCacheRef = useRef<Map<string, string>>(new Map()); // track.url -> data: URL
-  const audioUnlockedRef = useRef(false);
 
   // Cache a resolved data URL, keeping only the most recent few entries so a
   // large library never balloons memory with big base64 strings.
@@ -2325,27 +2386,6 @@ export default function Page() {
       const oldest = cache.keys().next().value as string | undefined;
       if (oldest === undefined || oldest === key) break;
       cache.delete(oldest);
-    }
-  };
-
-  // Play a tiny silent clip on the main element within a user gesture. Once any
-  // gesture-initiated playback succeeds on the element, WKWebView lets us swap
-  // its src and call play() programmatically for the rest of the session — this
-  // is what makes the async data-URL conversion path work on iOS.
-  const primeAudioElement = () => {
-    const audio = audioRef.current;
-    if (!audio || !isNativePlatform() || audioUnlockedRef.current) return;
-    try {
-      isTransitioningRef.current = true;
-      audio.src = getSilentWavDataUrl();
-      const p = audio.play();
-      if (p && typeof p.then === "function") {
-        p.then(() => { audioUnlockedRef.current = true; }).catch(() => { /* ignore */ });
-      } else {
-        audioUnlockedRef.current = true;
-      }
-    } catch {
-      /* ignore */
     }
   };
 
@@ -2361,66 +2401,61 @@ export default function Page() {
 
   // Single, reliable way to load a track into the shared <audio> element and play
   // it. Every play path (start, skip, auto-advance, back-to-back, repeat) goes
-  // through here. On the web it plays the blob URL directly; on native it plays a
-  // data: URL (cached, or converted on the fly after priming the element).
+  // through here.
+  //
+  // CRITICAL for iOS/Capacitor: play() MUST be called synchronously inside the
+  // user's tap. We therefore NEVER await async work (e.g. FileReader) before
+  // play() — we assign the best source we have RIGHT NOW and play immediately.
+  // On native we prefer a pre-warmed data: URL (WKWebView plays those reliably),
+  // otherwise we play the blob URL synchronously and warm the data URL so the
+  // NEXT play of this track uses it.
   const loadAndPlay = (track: Track, fromStart: boolean = true) => {
     const audio = audioRef.current;
     const url = track?.url;
     if (!audio || !url) return;
 
-    const startPlayback = (src: string) => {
-      isTransitioningRef.current = true;
-      audio.src = src;
-      // Always key on the original (blob) URL so resume/same-track checks stay
-      // consistent regardless of whether the element src is a blob or data URL.
-      loadedUrlRef.current = url;
-      if (fromStart) {
-        try { audio.currentTime = 0; } catch { /* ignore */ }
+    // Choose the source synchronously.
+    let src = url;
+    if (isNativePlatform()) {
+      const cached = playableSrcCacheRef.current.get(url);
+      if (cached) {
+        src = cached;
+      } else {
+        // No data URL ready yet: play the blob now (keeps the gesture intact) and
+        // convert to a data URL in the background for the next play.
+        warmPlayableSrc(track);
       }
-      audio
-        .play()
-        .then(() => {
-          console.log("[v0] audio play promise: success (loadAndPlay)");
-          setIsPlaying(true);
-        })
-        .catch((error) => {
-          console.error("[v0] audio play promise: error (loadAndPlay):", error);
-          setIsPlaying(false);
-        })
-        .finally(() => {
-          isTransitioningRef.current = false;
-        });
-    };
-
-    // Web: blob URLs play fine and are memory-efficient.
-    if (!isNativePlatform()) {
-      startPlayback(url);
-      return;
     }
 
-    // Native: prefer an already-converted data URL (synchronous, keeps the tap
-    // gesture intact). Otherwise prime the element with silence right now (in the
-    // gesture) and swap in the converted data URL as soon as it is ready.
-    const cached = playableSrcCacheRef.current.get(url);
-    if (cached) {
-      startPlayback(cached);
-      return;
+    isTransitioningRef.current = true;
+    // Only (re)assign src when it actually changes, then load() the new source.
+    // Compare against the element's current src to avoid needless reloads.
+    if (audio.src !== src) {
+      audio.src = src;
+      audio.load();
     }
-    if (track.file) {
-      primeAudioElement();
-      fileToDataUrl(track.file)
-        .then((dataUrl) => {
-          cachePlayableSrc(url, dataUrl);
-          startPlayback(dataUrl);
-        })
-        .catch((error) => {
-          console.error("[v0] data URL conversion failed, falling back to blob:", error);
-          startPlayback(url);
-        });
-      return;
+    // Key resume/same-track checks on the ORIGINAL track url regardless of the
+    // element src (blob vs data), so those comparisons stay consistent.
+    loadedUrlRef.current = url;
+    if (fromStart) {
+      try { audio.currentTime = 0; } catch { /* ignore */ }
     }
-    // No File available (shouldn't happen for uploaded/restored tracks) — try blob.
-    startPlayback(url);
+    audio
+      .play()
+      .then(() => {
+        console.log("[v0] audio play promise: success (loadAndPlay)");
+        setIsPlaying(true);
+        refreshAudioDiag("play() ok", "none");
+      })
+      .catch((error) => {
+        const detail = `${error?.name || "Error"}: ${error?.message || String(error)}`;
+        console.error("[v0] audio play promise: error (loadAndPlay):", detail);
+        setIsPlaying(false);
+        refreshAudioDiag("play() rejected", detail);
+      })
+      .finally(() => {
+        isTransitioningRef.current = false;
+      });
   };
 
   // Start a brand-new "current" track (manual selection, skip, hide-advance, and
@@ -2476,9 +2511,12 @@ export default function Page() {
         await audio.play();
         console.log("[v0] audio play promise: success (togglePlayPause resume)");
         setIsPlaying(true);
+        refreshAudioDiag("resume ok", "none");
       } catch (error) {
-        console.error("[v0] audio play promise: error (togglePlayPause resume):", error);
+        const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
+        console.error("[v0] audio play promise: error (togglePlayPause resume):", detail);
         setIsPlaying(false);
+        refreshAudioDiag("resume rejected", detail);
       }
       return;
     }
@@ -2511,6 +2549,44 @@ export default function Page() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentTrack, isPlaying]);
+
+  // Native only: pre-convert the current track to a data: URL as soon as it
+  // becomes current, so the very FIRST play tap can assign a WKWebView-playable
+  // source synchronously (blob: URLs are unreliable in the iOS WebView).
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    warmPlayableSrc(currentTrack);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack]);
+
+  // TEMPORARY: attach diagnostic listeners to the single persistent <audio>
+  // element so the on-device debug panel reflects the element's real lifecycle
+  // (loadedmetadata, canplay, play, pause, ended, error, stalled, abort).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const events = [
+      "loadedmetadata",
+      "canplay",
+      "play",
+      "pause",
+      "ended",
+      "error",
+      "stalled",
+      "abort",
+    ] as const;
+    const handler = (e: Event) => {
+      // For error events, also surface the MediaError detail.
+      refreshAudioDiag(e.type);
+    };
+    events.forEach((ev) => audio.addEventListener(ev, handler));
+    // Prime the panel with the current state on mount.
+    refreshAudioDiag("mount");
+    return () => {
+      events.forEach((ev) => audio.removeEventListener(ev, handler));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleUploadedTrackPlayPause = (track: Track) => {
     if (!audioRef.current || !track?.url) return;
@@ -2575,9 +2651,12 @@ export default function Page() {
           await audioRef.current.play();
           console.log("[v0] audio play promise: success (resume)");
           setIsPlaying(true);
+          refreshAudioDiag("resume ok", "none");
         } catch (error) {
-          console.error("[v0] audio play promise: error (resume):", error);
+          const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
+          console.error("[v0] audio play promise: error (resume):", detail);
           setIsPlaying(false);
+          refreshAudioDiag("resume rejected", detail);
         }
       } else {
         // Track changed while paused (e.g. after "Send to Session") - load it fresh.
@@ -3623,8 +3702,55 @@ export default function Page() {
             setCloudSaveSuccess(false);
             setTimeout(() => setCloudSaveMessage(null), 5000);
           }
+          refreshAudioDiag("error");
         }}
       />
+
+      {/* TEMPORARY: on-device audio diagnostics. Toggle button + panel. Remove
+          once iPhone playback is confirmed working. */}
+      <button
+        type="button"
+        onClick={() => {
+          refreshAudioDiag("manual refresh");
+          setShowAudioDiag((v) => !v);
+        }}
+        className="fixed bottom-2 left-2 z-[999] rounded-md bg-black/70 px-2 py-1 text-[10px] font-mono text-lime-300 border border-lime-400/40"
+      >
+        {showAudioDiag ? "Hide" : "Audio Debug"}
+      </button>
+      {showAudioDiag && (
+        <div className="fixed bottom-10 left-2 z-[999] w-[min(92vw,340px)] rounded-lg bg-black/90 p-3 text-[11px] font-mono text-white border border-lime-400/40 shadow-xl">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-bold text-lime-300">AUDIO DIAGNOSTICS</span>
+            <button
+              type="button"
+              onClick={() => refreshAudioDiag("manual refresh")}
+              className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]"
+            >
+              Refresh
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+            <span className="text-white/50">native</span><span>{String(audioDiag.isNative)}</span>
+            <span className="text-white/50">current track</span><span>{String(audioDiag.hasCurrentTrack)}</span>
+            <span className="text-white/50">audio el</span><span>{String(audioDiag.hasAudioEl)}</span>
+            <span className="text-white/50">has src</span><span>{String(audioDiag.hasSrc)}</span>
+            <span className="text-white/50">src type</span><span className="text-yellow-300">{audioDiag.srcType}</span>
+            <span className="text-white/50">readyState</span><span>{audioDiag.readyState}</span>
+            <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
+            <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
+            <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
+            <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
+            <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
+          </div>
+          <div className="mt-1 border-t border-white/10 pt-1">
+            <div className="text-white/50">play() error</div>
+            <div className="break-words text-red-300">{audioDiag.playError}</div>
+            <div className="mt-0.5 text-white/50">media error</div>
+            <div className="break-words text-red-300">{audioDiag.mediaError}</div>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen Mode View */}
       <div
