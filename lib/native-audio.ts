@@ -1,17 +1,21 @@
 // Native (Capacitor) audio playback helpers.
 //
 // WHY THIS EXISTS:
-// On the iOS/iPadOS Capacitor build the app runs inside a WKWebView served from
-// the `capacitor://` scheme. WKWebView cannot reliably play `blob:` object URLs
-// in an <audio> element — the media loads via range requests that the custom
-// scheme handler does not satisfy, so `audio.play()` rejects (or the element
-// stalls) and the play/pause buttons appear completely dead on the phone even
-// though everything works in a normal browser.
+// On the iOS/iPadOS Capacitor build the app runs inside a WKWebView. Diagnostics
+// on real devices proved that assigning a `data:` (base64) URL to an <audio>
+// element FAILS on iOS with `NotSupportedError` / `MediaError` code 4
+// (readyState 0, networkState 3). WKWebView simply refuses to decode inline
+// base64 audio.
 //
-// The reliable, documented workaround is to feed the <audio> element a `data:`
-// URL (base64) built from the track's underlying File/Blob instead of a blob URL.
-// We only do this on native platforms; in the browser blob URLs are kept because
-// they are far more memory-efficient.
+// The sources that DO play reliably everywhere (iPhone app, iPad app, mobile
+// Safari, desktop) are:
+//   • blob:      URLs from URL.createObjectURL(File | Blob)
+//   • https:     URLs (Cloudflare R2 / signed download links)
+//   • file: / capacitor:  URLs from the Capacitor Filesystem
+//
+// So the rule is: NEVER hand a data: URL to <audio>. If we ever encounter one
+// (e.g. a track saved by an older app version that stored base64), we convert it
+// to a real Blob and create a blob: object URL from it, then play that instead.
 
 // True when running inside a Capacitor native shell (iOS/Android app), false in
 // a normal web browser.
@@ -27,48 +31,34 @@ export const isNativePlatform = (): boolean => {
   return !!cap.isNative;
 };
 
-// Convert a File/Blob into a base64 `data:` URL that WKWebView can play.
-export const fileToDataUrl = (file: Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+// Cache of original (data:) URL -> converted blob: URL, so a given data URL is
+// only ever fetched/converted once and can be reused synchronously afterwards.
+// The blob URLs live for the lifetime of the page (tracks that reference them
+// stay loaded), so we intentionally do NOT revoke them here.
+const dataUrlToBlobUrl = new Map<string, string>();
 
-// A tiny, always-playable silent WAV as a `data:` URL. Playing this on a user
-// tap "unlocks" audio on iOS: once any gesture-initiated playback succeeds,
-// WKWebView grants the document media-playback permission, so subsequent
-// programmatic play() calls (including ones that resolve a data URL a few ms
-// later) are allowed. Built lazily so it never runs during SSR.
-let cachedSilentWav: string | null = null;
-export const getSilentWavDataUrl = (): string => {
-  if (cachedSilentWav) return cachedSilentWav;
-  const sampleRate = 8000;
-  const numSamples = 16; // ~2ms of silence
-  const dataSize = numSamples * 2; // 16-bit mono
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-  };
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(8, "WAVE");
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, "data");
-  view.setUint32(40, dataSize, true);
-  // sample bytes are already zero (silence)
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  cachedSilentWav = "data:audio/wav;base64," + btoa(binary);
-  return cachedSilentWav;
+// Convert a `data:` audio URL into a real Blob object URL that iOS WKWebView can
+// play. `fetch()` on a data: URL yields a Blob whose `type` is taken from the
+// data URL's own MIME (e.g. audio/mpeg, audio/mp4, audio/wav), so the rebuilt
+// Blob already carries the correct MIME type — no manual mapping required.
+// Non-data URLs (blob:/https:/file:/capacitor:) are returned unchanged.
+export const toPlayableUrl = async (url: string): Promise<string> => {
+  if (!url || !url.startsWith("data:")) return url;
+  const cached = dataUrlToBlobUrl.get(url);
+  if (cached) return cached;
+  const blob = await fetch(url).then((res) => res.blob());
+  const blobUrl = URL.createObjectURL(blob);
+  dataUrlToBlobUrl.set(url, blobUrl);
+  return blobUrl;
+};
+
+// Synchronous lookup used inside the user's tap gesture: returns a
+// natively-playable URL immediately when possible.
+//   • non-data URL           -> returned unchanged
+//   • data URL already cached -> returns the converted blob: URL
+//   • data URL not yet cached -> returns null (caller must convert async)
+export const peekPlayableUrl = (url: string): string | null => {
+  if (!url) return null;
+  if (!url.startsWith("data:")) return url;
+  return dataUrlToBlobUrl.get(url) ?? null;
 };
