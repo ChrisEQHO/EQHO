@@ -3943,6 +3943,14 @@ export default function Page() {
     // Relying on stale `isPlaying` made a tap take the wrong branch (reloading a
     // track instead of pausing it), which looked like "the button does nothing".
     const actuallyPlaying = !!audio && !audio.paused && !audio.ended;
+    console.log("[v0] PLAY/PAUSE BUTTON TAPPED", {
+      isPlaying,
+      actuallyPlaying,
+      isGapPaused,
+      audioPaused: audio?.paused ?? null,
+      readyState: audio?.readyState ?? -1,
+      hasCurrentTrack: !!currentTrackRef.current,
+    });
     if (isGapPaused) {
       // During an inter-track gap, defer to the session toggle (handles the gap).
       toggleSession();
