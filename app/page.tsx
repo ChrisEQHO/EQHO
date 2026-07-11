@@ -354,8 +354,16 @@ export default function Page() {
     lastEvent: "-",
     playError: "-",
     mediaError: "-",
+    blobType: "-",
+    blobSize: -1,
     updatedAt: "-",
   });
+
+  // Update just the blob probe fields (called from safePlay after fetching the
+  // bytes behind the current audio source).
+  const setBlobDiag = (blobType: string, blobSize: number) => {
+    setAudioDiag((prev) => ({ ...prev, blobType, blobSize }));
+  };
 
   // Classify the current audio source so we can see (on device) whether we're
   // feeding the element a blob:, data:, https: or capacitor: URL.
@@ -2480,7 +2488,31 @@ export default function Page() {
       src = blobUrl;
       console.log(`[v0] safePlay(${context}) converted src prefix: "${src.slice(0, 32)}"`);
     }
-    await audio.play();
+
+    // Inspect the actual bytes behind the current source so we can see whether
+    // the <audio> element is being handed decodable media on device. Fetching a
+    // blob:/https:/file: URL yields the underlying Blob (with its real MIME type
+    // and byte size); a size of 0 or an empty type points at a bad/expired source.
+    try {
+      const probe = await fetch(src).then((res) => res.blob());
+      console.log(`[v0] safePlay(${context}) blob.type: "${probe.type}"`);
+      console.log(`[v0] safePlay(${context}) blob.size: ${probe.size}`);
+      setBlobDiag(probe.type || "(empty)", probe.size);
+    } catch (probeErr) {
+      console.log(`[v0] safePlay(${context}) blob probe failed:`, probeErr);
+      setBlobDiag("probe failed", -1);
+    }
+    console.log(`[v0] safePlay(${context}) audio.currentSrc: "${(audio.currentSrc || "").slice(0, 48)}"`);
+    console.log(`[v0] safePlay(${context}) audio.error (pre-play):`, audio.error);
+
+    try {
+      await audio.play();
+    } catch (playErr) {
+      // Surface the MediaError that WKWebView attaches to the element — this is
+      // the most useful signal (code 4 = MEDIA_ERR_SRC_NOT_SUPPORTED on iOS).
+      console.log(`[v0] safePlay(${context}) audio.error (post-play):`, audio.error);
+      throw playErr;
+    }
   };
 
   // Start a brand-new "current" track (manual selection, skip, hide-advance, and
@@ -3738,6 +3770,8 @@ export default function Page() {
             <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
             <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
             <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
+            <span className="text-white/50">blob.type</span><span className="text-yellow-300">{audioDiag.blobType}</span>
+            <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
             <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
             <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
           </div>
