@@ -2401,8 +2401,8 @@ export default function Page() {
       if (fromStart) {
         try { audio.currentTime = 0; } catch { /* ignore */ }
       }
-      audio
-        .play()
+      // safePlay logs the final src prefix and hard-guards against data: URLs.
+      safePlay("loadAndPlay")
         .then(() => {
           console.log("[v0] audio play promise: success (loadAndPlay)");
           setIsPlaying(true);
@@ -2459,6 +2459,30 @@ export default function Page() {
     }
   };
 
+  // HARD SAFETY GUARD — call this INSTEAD of audioRef.current.play() everywhere.
+  // Requirement: the final value assigned to HTMLAudioElement.src must NEVER begin
+  // with "data:" on iOS (WKWebView rejects data: audio -> NotSupportedError /
+  // MediaError code 4, readyState 0, networkState 3). Immediately before playing
+  // we (1) log the exact src prefix, and (2) if it is a data: URL, synchronously
+  // convert it to a blob: object URL and wait for that before calling play().
+  const safePlay = async (context: string): Promise<void> => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    let src = audio.currentSrc || audio.src || "";
+    // Log the exact prefix so the on-device panel / console shows what we play.
+    console.log(`[v0] safePlay(${context}) final src prefix: "${src.slice(0, 32)}"`);
+    if (src.startsWith("data:")) {
+      console.warn(`[v0] safePlay(${context}) BLOCKED data: URL — converting to blob: before play`);
+      refreshAudioDiag(`converting data: (${context})`);
+      const blobUrl = await toPlayableUrl(src); // fetch -> Blob -> object URL
+      audio.src = blobUrl;
+      audio.load();
+      src = blobUrl;
+      console.log(`[v0] safePlay(${context}) converted src prefix: "${src.slice(0, 32)}"`);
+    }
+    await audio.play();
+  };
+
   // Start a brand-new "current" track (manual selection, skip, hide-advance, and
   // auto-advance all use this). Starting a different track ALWAYS begins a fresh
   // back-to-back cycle, so we clear the "already repeated" flag here. This is the
@@ -2509,7 +2533,7 @@ export default function Page() {
     // Resume the same, already-loaded track from its current position.
     if (sameTrack && srcLoaded && !actuallyPlaying) {
       try {
-        await audio.play();
+        await safePlay("togglePlayPause resume");
         console.log("[v0] audio play promise: success (togglePlayPause resume)");
         setIsPlaying(true);
         refreshAudioDiag("resume ok", "none");
@@ -2540,8 +2564,7 @@ export default function Page() {
             audioRef.current.pause();
             setIsPlaying(false);
           } else if (audioRef.current && currentTrack.url) {
-            audioRef.current.play();
-            setIsPlaying(true);
+            safePlay("spacebar").then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
           }
         }
       }
@@ -2598,8 +2621,7 @@ export default function Page() {
     // Same track, loaded, paused -> resume from position (element already holds
     // a playable src, so play() works on both web and native).
     if (isSameTrack && loadedUrlRef.current === track.url && !!audio.src) {
-      audio
-        .play()
+      safePlay("uploaded resume")
         .then(() => setIsPlaying(true))
         .catch((error) => {
           console.error("[v0] resume failed:", error);
@@ -2641,7 +2663,7 @@ export default function Page() {
       if (srcLoaded) {
         // Same track already loaded - resume from the current position.
         try {
-          await audioRef.current.play();
+          await safePlay("toggleSession resume");
           console.log("[v0] audio play promise: success (resume)");
           setIsPlaying(true);
           refreshAudioDiag("resume ok", "none");
@@ -2973,7 +2995,7 @@ export default function Page() {
       b2bRepeatedTrackIdRef.current = null;
       setBackToBackPlayed(false);
       if (wasPlaying) {
-        audioRef.current.play().then(() => {
+        safePlay("restart current").then(() => {
           setIsPlaying(true);
         }).catch((err) => {
           console.error('Autoplay failed:', err);
