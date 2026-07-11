@@ -115,23 +115,74 @@ export async function getSignedDownloadUrl(
  *
  * Fallback: if the proxy route fails, try the presigned URL directly.
  */
+// Validate that a fetched Response actually contains audio bytes (not the SPA
+// index.html fallback that a broken/relative URL resolves to). Returns a File
+// only when the content-type is not HTML/text AND the leading bytes are not an
+// HTML document. Logs status, content-type, size, and first bytes per track.
+async function responseToAudioFile(
+  response: Response,
+  key: string,
+  fileName: string,
+  requestedUrl: string,
+  method: string,
+): Promise<File | null> {
+  const status = response.status
+  const contentType = (response.headers.get('content-type') || '').toLowerCase()
+  console.log(
+    `[v0][cloud-restore] ${method} url=${requestedUrl} status=${status} content-type="${contentType}" key=${key}`
+  )
+
+  if (!response.ok) {
+    console.warn(`[v0][cloud-restore] ${method} non-OK status ${status} for ${key}`)
+    return null
+  }
+
+  // Reject HTML/text responses outright — this is not audio.
+  if (contentType.includes('text/html') || contentType.startsWith('text/') || contentType.includes('application/xhtml')) {
+    console.error(`[v0][cloud-restore] ${method} REJECT: content-type "${contentType}" is not audio for ${key}`)
+    return null
+  }
+
+  const blob = await response.blob()
+  const headBuf = await blob.slice(0, 16).arrayBuffer()
+  const headBytes = new Uint8Array(headBuf)
+  const firstHex = Array.from(headBytes).map((b) => b.toString(16).padStart(2, '0')).join(' ')
+  const headAscii = String.fromCharCode(...headBytes).toLowerCase()
+  console.log(`[v0][cloud-restore] ${method} blob size=${blob.size} first16=${firstHex} for ${fileName}`)
+
+  if (blob.size === 0) {
+    console.warn(`[v0][cloud-restore] ${method} empty blob for ${key}`)
+    return null
+  }
+
+  // Reject an HTML document body regardless of the reported content-type.
+  if (
+    headAscii.startsWith('<!doctype') ||
+    headAscii.startsWith('<html') ||
+    headAscii.startsWith('<?xml') ||
+    headAscii.startsWith('<head') ||
+    headAscii.startsWith('<body')
+  ) {
+    console.error(`[v0][cloud-restore] ${method} REJECT: body starts with HTML markup for ${key} (${firstHex})`)
+    return null
+  }
+
+  // Preserve the real content-type when it is audio/*, otherwise leave it to the
+  // player's byte-level detection (do NOT stamp a fake audio type here).
+  const type = contentType.startsWith('audio/') ? contentType : (blob.type || '')
+  return new File([blob], fileName, { type })
+}
+
 export async function downloadTrackFromR2(key: string): Promise<File | null> {
   const fileName = key.split('/').pop() || 'track.mp3'
 
   // 1) Proxy download through our API (no browser->R2 CORS dependency).
+  const proxyUrl = `/api/r2?action=download&key=${encodeURIComponent(key)}`
   try {
-    const proxyResponse = await fetch(`/api/r2?action=download&key=${encodeURIComponent(key)}`)
-    console.log(`[v0][cloud-restore] R2 proxy download status: ${proxyResponse.status} for ${key}`)
-    if (proxyResponse.ok) {
-      const blob = await proxyResponse.blob()
-      console.log(`[v0][cloud-restore] R2 proxy blob size: ${blob.size} bytes for ${fileName}`)
-      if (blob.size > 0) {
-        return new File([blob], fileName, { type: blob.type || 'audio/mpeg' })
-      }
-      console.warn(`[v0][cloud-restore] R2 proxy returned empty blob for ${key}, trying signed URL`)
-    } else {
-      console.warn(`[v0][cloud-restore] R2 proxy download failed (${proxyResponse.status}), trying signed URL`)
-    }
+    const proxyResponse = await fetch(proxyUrl)
+    const file = await responseToAudioFile(proxyResponse, key, fileName, proxyUrl, 'R2-proxy')
+    if (file) return file
+    console.warn(`[v0][cloud-restore] R2 proxy did not yield audio for ${key}, trying signed URL`)
   } catch (error) {
     console.error('[v0][cloud-restore] R2 proxy download error, trying signed URL:', error)
   }
@@ -145,14 +196,8 @@ export async function downloadTrackFromR2(key: string): Promise<File | null> {
 
   try {
     const response = await fetch(signedUrl)
-    console.log(`[v0][cloud-restore] R2 signed-url download status: ${response.status} for ${key}`)
-    if (!response.ok) {
-      throw new Error(`Failed to download: ${response.statusText}`)
-    }
-
-    const blob = await response.blob()
-    console.log(`[v0][cloud-restore] R2 signed-url blob size: ${blob.size} bytes for ${fileName}`)
-    return new File([blob], fileName, { type: blob.type || 'audio/mpeg' })
+    const file = await responseToAudioFile(response, key, fileName, signedUrl, 'R2-signed')
+    return file
   } catch (error) {
     console.error('[v0][cloud-restore] Error downloading from R2 signed URL:', error)
     return null

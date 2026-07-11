@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
-import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild } from "@/lib/native-audio";
+import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -33,7 +33,9 @@ import {
   isCloudStorageAvailable,
   fetchCloudPlaylistSignatures,
   localTrackKey,
+  deleteTrackFromCloudDirect,
   type CloudPlaylist,
+  type CloudPlaylistTrack,
   type SyncStatus 
 } from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
@@ -300,6 +302,76 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
+// Expandable track list for a playlist card, with a permanent-delete button on
+// every track row. Collapsed by default (shows 2 tracks); expanding reveals the
+// full, scrollable list. Used in both the desktop grid and the compact library
+// views so per-track deletion is available everywhere a playlist is shown.
+function PlaylistTrackRows({
+  tracks,
+  expanded,
+  onToggleExpand,
+  onRequestDelete,
+  deletingTrackId,
+  formatDuration,
+  compact = false,
+}: {
+  tracks: Array<{ id: string; title: string; durationSeconds?: number }>;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onRequestDelete: (trackId: string) => void;
+  deletingTrackId: string | null;
+  formatDuration: (seconds?: number) => string;
+  compact?: boolean;
+}) {
+  const rowText = compact ? "text-[10px]" : "text-[11px]";
+  const moreText = compact ? "text-[9px]" : "text-[10px]";
+  const visible = expanded ? tracks : tracks.slice(0, 2);
+  const hiddenCount = tracks.length - 2;
+
+  return (
+    <div className="mb-2">
+      <div className={expanded ? "space-y-0.5 max-h-52 overflow-y-auto pr-1" : "space-y-0.5"}>
+        {visible.map((track, idx) => {
+          const isDeleting = deletingTrackId === track.id;
+          return (
+            <div
+              key={track.id}
+              className={`group/track flex items-center gap-1.5 ${rowText} text-white/40 rounded px-1 py-0.5 hover:bg-white/5 transition`}
+            >
+              <span className="w-3 text-white/25 shrink-0">{idx + 1}.</span>
+              <span className="truncate flex-1">{track.title}</span>
+              <span className="text-white/25 shrink-0">{formatDuration(track.durationSeconds || 0)}</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRequestDelete(track.id); }}
+                disabled={isDeleting}
+                title="Delete track permanently"
+                aria-label={`Delete ${track.title} permanently`}
+                className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/15 transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {tracks.length > 2 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+          className={`mt-0.5 pl-4 flex items-center gap-1 ${moreText} text-cyan-400/70 hover:text-cyan-300 transition`}
+        >
+          {expanded ? (
+            <><ChevronUp size={10} /> Show less</>
+          ) : (
+            <><ChevronDown size={10} /> +{hiddenCount} more {hiddenCount === 1 ? "track" : "tracks"}</>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function DraggableTrackRow({ 
   track, 
   index, 
@@ -364,6 +436,22 @@ export default function Page() {
     first16Hex: "-",
     updatedAt: "-",
   });
+
+  // Readiness of the CURRENT track's prepared source. audioReady === true means
+  // the persistent <audio> element already has the corrected source assigned,
+  // loaded and decoded enough to play, so the Play tap can call play()
+  // synchronously (inside the user gesture) without any async work first.
+  const [audioReady, setAudioReady] = useState(false);
+  // Human-readable status for the diagnostics panel: "idle" | "preparing audio"
+  // | "audio ready" | "play tapped" | "play() resolved" | "play() rejected: ...".
+  const [prepStatus, setPrepStatus] = useState("idle");
+  // The track URL whose preparation is currently in flight (dedupes prep runs so
+  // rapid track changes don't stack overlapping load()/decode work).
+  const preparingRef = useRef<string | null>(null);
+  // Set synchronously whenever loadAndPlay starts a PROGRAMMATIC play (skip,
+  // auto-advance, repeat). The prepare-ahead effect checks this so it never
+  // races load()/currentTime against a play already in progress for that URL.
+  const programmaticPlayRef = useRef<string | null>(null);
 
   // Update just the blob probe fields (called from safePlay after fetching the
   // bytes behind the current audio source).
@@ -539,6 +627,12 @@ export default function Page() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<string | null>(null);
   const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
+  // Which playlist cards have their full track list expanded (by playlist id).
+  const [expandedPlaylistIds, setExpandedPlaylistIds] = useState<Set<string>>(new Set());
+  // Pending "delete this track permanently?" confirmation.
+  const [confirmDeleteTrack, setConfirmDeleteTrack] = useState<{ playlistId: string; track: Track } | null>(null);
+  // The track id currently being deleted (drives the per-row spinner).
+  const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
   const [downloadingPlaylistId, setDownloadingPlaylistId] = useState<string | null>(null);
   // Per-playlist "Download to Device" status for the main left playlist list.
   // Keyed by local playlist id -> { signature of the downloaded tracks, status }.
@@ -1397,6 +1491,82 @@ export default function Page() {
       setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
     }
     setShowDeletePlaylistConfirm(null);
+  };
+
+  // Toggle a playlist card's full track list (collapsed shows 2 tracks).
+  const togglePlaylistExpanded = (playlistId: string) => {
+    setExpandedPlaylistIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playlistId)) next.delete(playlistId);
+      else next.add(playlistId);
+      return next;
+    });
+  };
+
+  // Permanently delete ONE track from a playlist. Order matters:
+  //   1. If the track exists in the cloud, delete it there first (authoritative
+  //      Supabase metadata delete via supabase-js + best-effort R2 object delete).
+  //      If that Supabase delete fails, we DO NOT remove it locally and surface
+  //      an error — so the two never drift out of sync.
+  //   2. Local-only tracks (never uploaded) skip the cloud step entirely.
+  //   3. On success, remove it from local state (the savedPlaylists effect
+  //      re-persists IndexedDB) and refresh cloud playlists.
+  const handleDeleteTrackPermanently = async (playlistId: string, track: Track) => {
+    setDeletingTrackId(track.id);
+    try {
+      const localPlaylist = savedPlaylists.find((p) => p.id === playlistId);
+      const cloud = localPlaylist ? findCloudPlaylistFor(localPlaylist) : undefined;
+
+      // Match the local track to its cloud row by id, else by title::fileName.
+      let cloudTrack: CloudPlaylistTrack | undefined;
+      if (cloud) {
+        const wantKey = localTrackKey(track.title, track.fileName);
+        cloudTrack =
+          cloud.tracks.find((ct) => ct.id === track.id) ||
+          cloud.tracks.find((ct) => localTrackKey(ct.title, ct.fileName) === wantKey);
+      }
+
+      if (cloudTrack) {
+        const { supabaseOk, r2Ok } = await deleteTrackFromCloudDirect(cloudTrack.id, cloudTrack.storage_path);
+        if (!supabaseOk) {
+          // Cloud deletion failed for an uploaded track — keep local copy intact.
+          setCloudSaveMessage(`Couldn't delete "${track.title}" from the cloud. Please try again.`);
+          setCloudSaveSuccess(false);
+          setTimeout(() => setCloudSaveMessage(null), 6000);
+          return;
+        }
+        if (!r2Ok) {
+          console.warn(`[v0] track "${track.title}" metadata deleted; R2 object delete was best-effort and did not confirm`);
+        }
+      }
+
+      // Remove locally (state change triggers the IndexedDB persist effect).
+      setSavedPlaylists((prev) =>
+        prev.map((p) =>
+          p.id === playlistId ? { ...p, tracks: p.tracks.filter((t) => t.id !== track.id) } : p
+        )
+      );
+
+      // Refresh cloud playlists so counts/previews reflect the deletion.
+      try {
+        const playlists = await fetchCloudPlaylists();
+        setCloudPlaylists(playlists);
+      } catch (err) {
+        console.warn('[v0] handleDeleteTrackPermanently: failed to refresh cloud playlists', err);
+      }
+
+      setCloudSaveMessage(`Deleted "${track.title}"`);
+      setCloudSaveSuccess(true);
+      setTimeout(() => setCloudSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('[v0] handleDeleteTrackPermanently failed:', err);
+      setCloudSaveMessage(`Couldn't delete "${track.title}". Please try again.`);
+      setCloudSaveSuccess(false);
+      setTimeout(() => setCloudSaveMessage(null), 6000);
+    } finally {
+      setDeletingTrackId(null);
+      setConfirmDeleteTrack(null);
+    }
   };
 
   const handleDownloadCloudPlaylist = async (playlistId: string) => {
@@ -2403,6 +2573,178 @@ export default function Page() {
   // which is why play/pause appeared broken in the iPhone/iPad app.
   const loadedUrlRef = useRef<string>("");
 
+  // ------------------------------------------------------------------------
+  // iOS-safe playback: PREPARE ahead of the tap, PLAY synchronously on tap.
+  // ------------------------------------------------------------------------
+  // The Capacitor/WKWebView bug is that any async work (fetch/blob build/decode
+  // wait) between the Play tap and audio.play() drops the iOS user-activation,
+  // so play() rejects and the button flickers. The fix is to do ALL source
+  // preparation when the track becomes current (below), and make the tap handler
+  // call audio.play() immediately with no async work in front of it.
+
+  // Prepare the persistent <audio> element for `track`: resolve a natively
+  // playable, MIME-correct source, assign it, load(), and wait until the element
+  // can actually play. Sets audioReady + prepStatus. Safe to call repeatedly; it
+  // no-ops when the track is already prepared and dedupes in-flight prep.
+  const prepareTrack = async (track: Track | null, resetPosition: boolean = true) => {
+    const audio = audioRef.current;
+    if (!audio || !track?.url) return;
+
+    // Already prepared this exact track (src assigned + decoded)? Just reflect it.
+    if (loadedUrlRef.current === track.url && !!audio.src && audio.readyState >= 2) {
+      setAudioReady(true);
+      setPrepStatus("audio ready");
+      return;
+    }
+    // Preparation already running for this URL — don't start a second pass.
+    if (preparingRef.current === track.url) return;
+    preparingRef.current = track.url;
+    setAudioReady(false);
+    setPrepStatus("preparing audio");
+
+    try {
+      // Resolve a source WKWebView will decode: on native, read the track's REAL
+      // File from IndexedDB (already loaded into track.file) and build a blob URL
+      // from those bytes; convert any legacy data: URL to a blob URL; otherwise
+      // use the blob:/https:/file: URL as-is. We never fetch a filename/route.
+      const retrievalMethod = track.file
+        ? "IndexedDB-File"
+        : track.url.startsWith("data:")
+          ? "data-url"
+          : track.url.startsWith("blob:")
+            ? "blob-url"
+            : track.url.startsWith("http")
+              ? "https-url"
+              : track.url.startsWith("file:") || track.url.startsWith("capacitor:")
+                ? "offline-file"
+                : "unknown";
+      console.log(
+        `[v0][audio-src] raw stored url="${track.url.slice(0, 64)}" retrieval=${retrievalMethod} hasFile=${!!track.file}` +
+          (track.file ? ` fileName="${track.file.name}" fileType="${track.file.type}" fileSize=${track.file.size}` : "")
+      );
+
+      let playableSrc = track.url;
+      if (isNativePlatform() && track.file) {
+        const res = await buildCorrectedPlayableUrl(track.file, track.url);
+        setFormatDiag(res);
+        playableSrc = res.url;
+        console.log(`[v0][audio-src] final playable url type=blob: mime="${res.correctedMime}" size=${res.size}`);
+      } else if (track.url.startsWith("data:")) {
+        playableSrc = await toPlayableUrl(track.url);
+      }
+
+      // The current track may have changed while we awaited above — abort if so.
+      if (currentTrackRef.current?.url !== track.url) {
+        preparingRef.current = null;
+        return;
+      }
+
+      // Assign + load the prepared source into the ONE persistent element.
+      isTransitioningRef.current = true;
+      if (audio.src !== playableSrc || loadedUrlRef.current !== track.url) {
+        audio.src = playableSrc;
+        loadedUrlRef.current = track.url;
+        audio.load();
+      }
+      if (resetPosition) {
+        try { audio.currentTime = 0; } catch { /* ignore */ }
+      }
+      isTransitioningRef.current = false;
+
+      // Wait until the element has decoded enough to play (loadedmetadata/
+      // canplay or readyState >= HAVE_CURRENT_DATA), with a fail-safe timeout.
+      if (audio.readyState < 2) {
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const done = () => {
+            if (settled) return;
+            settled = true;
+            audio.removeEventListener("canplay", done);
+            audio.removeEventListener("loadedmetadata", done);
+            audio.removeEventListener("error", done);
+            resolve();
+          };
+          audio.addEventListener("canplay", done, { once: true });
+          audio.addEventListener("loadedmetadata", done, { once: true });
+          audio.addEventListener("error", done, { once: true });
+          setTimeout(done, 8000);
+        });
+      }
+
+      if (audio.error) {
+        const code = audio.error.code;
+        setAudioReady(false);
+        setPrepStatus(`prep error code ${code}`);
+        refreshAudioDiag(`prep error ${code}`, `MediaError ${code}: ${audio.error.message || ""}`);
+      } else {
+        setAudioReady(true);
+        setPrepStatus("audio ready");
+        refreshAudioDiag("audio ready");
+      }
+    } catch (err) {
+      const message = (err as Error)?.message || String(err);
+      setAudioReady(false);
+      setPrepStatus(`prep failed: ${message}`);
+      // Non-audio content (HTML index.html fallback / corrupted download): tell
+      // the coach to re-download or re-upload, and do not attempt playback.
+      if (message === NOT_AUDIO_MESSAGE) {
+        setCloudSaveMessage(NOT_AUDIO_MESSAGE);
+        setCloudSaveSuccess(false);
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+        refreshAudioDiag("not audio", message);
+      }
+    } finally {
+      if (preparingRef.current === track.url) preparingRef.current = null;
+    }
+  };
+
+  // SYNCHRONOUS play entry for user taps. MUST be called directly inside the tap
+  // handler (before any await) so iOS keeps the user-activation. Never performs
+  // source conversion/loading before play(): it only calls play() on an already
+  // prepared element, or shows "preparing" and (on web) falls back to async load.
+  const requestPlay = (context: string) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const track = currentTrackRef.current;
+    const ready =
+      audio.readyState >= 2 &&
+      !!audio.src &&
+      (!track || loadedUrlRef.current === track.url);
+
+    if (ready) {
+      setPrepStatus("play tapped");
+      isTransitioningRef.current = false;
+      // Call play() immediately — this is the synchronous, gesture-preserving call.
+      const p = audio.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          console.log(`[v0] requestPlay(${context}) play() resolved`);
+          setPrepStatus("play() resolved");
+          refreshAudioDiag("play() ok", "none");
+        }).catch((err: unknown) => {
+          const detail = `${(err as Error)?.name || "Error"}: ${(err as Error)?.message || String(err)}`;
+          console.error(`[v0] requestPlay(${context}) play() rejected:`, detail);
+          setPrepStatus(`play() rejected: ${detail}`);
+          refreshAudioDiag("play() rejected", detail);
+        });
+      }
+      return;
+    }
+
+    // Not ready when tapped. Do NOT call play() (that would flicker the icon).
+    setPrepStatus("preparing audio");
+    if (!isNativePlatform() && track) {
+      // Web browsers allow autoplay after a click even across async work, so keep
+      // the familiar one-tap behaviour there via the existing async load path.
+      loadAndPlay(track, true);
+      return;
+    }
+    // Native (iOS): finish preparing now; the user taps again to start once the
+    // panel shows "audio ready". We must not auto-play after async prep because
+    // the original tap's user-activation has already expired in WKWebView.
+    if (track) void prepareTrack(track, false);
+  };
+
   // Single, reliable way to load a track into the shared <audio> element and play
   // it. Every play path (start, skip, auto-advance, back-to-back, repeat) goes
   // through here.
@@ -2421,6 +2763,10 @@ export default function Page() {
     const url = track?.url;
     if (!audio || !url) return;
 
+    // Tell the prepare-ahead effect to stand down for this URL — loadAndPlay owns
+    // the load()/play() for it. Cleared on the element's real play/pause/error.
+    programmaticPlayRef.current = url;
+
     // Inner routine: assign a KNOWN-playable src (never a data: URL) and play.
     // We always key loadedUrlRef on the ORIGINAL track.url so resume/same-track
     // checks stay consistent even when `src` is a converted blob URL.
@@ -2435,16 +2781,16 @@ export default function Page() {
         try { audio.currentTime = 0; } catch { /* ignore */ }
       }
       // safePlay logs the final src prefix and hard-guards against data: URLs.
+      // NOTE: we do NOT optimistically set isPlaying here — the shared isPlaying
+      // state is driven only by the element's real play/playing/pause events.
       safePlay("loadAndPlay")
         .then(() => {
           console.log("[v0] audio play promise: success (loadAndPlay)");
-          setIsPlaying(true);
           refreshAudioDiag("play() ok", "none");
         })
         .catch((error) => {
           const detail = `${error?.name || "Error"}: ${error?.message || String(error)}`;
           console.error("[v0] audio play promise: error (loadAndPlay):", detail);
-          setIsPlaying(false);
           refreshAudioDiag("play() rejected", detail);
         })
         .finally(() => {
@@ -2471,10 +2817,17 @@ export default function Page() {
             startPlayback(res.url);
           })
           .catch((error) => {
-            const detail = `sniff failed: ${error?.message || String(error)}`;
-            console.error("[v0] loadAndPlay byte-sniff failed:", detail);
+            const message = (error as Error)?.message || String(error);
+            console.error("[v0] loadAndPlay byte-sniff failed:", message);
             setIsPlaying(false);
-            refreshAudioDiag("sniff failed", detail);
+            refreshAudioDiag("sniff failed", message);
+            // Non-audio content (HTML fallback / corrupted download): prompt the
+            // coach to re-download or re-upload instead of failing silently.
+            if (message === NOT_AUDIO_MESSAGE) {
+              setCloudSaveMessage(NOT_AUDIO_MESSAGE);
+              setCloudSaveSuccess(false);
+              setTimeout(() => setCloudSaveMessage(null), 6000);
+            }
           });
       }
       return;
@@ -2678,46 +3031,46 @@ export default function Page() {
     setShowSessionFinished(true);
   };
 
-  const togglePlayPause = async (track: Track) => {
+  // Synchronous (no async before play()) so the iOS tap gesture is preserved.
+  const togglePlayPause = (track: Track) => {
     const audio = audioRef.current;
     if (!audio || !track || !track.url) return;
 
     const sameTrack = currentTrack?.id === track.id;
-    // Verify against the URL we actually loaded (tracked in loadedUrlRef), not the
-    // element's `.src` getter: state can drift from the loaded source (e.g. after
-    // "Send to Session" sets currentTrack without loading audio), and on the iOS
-    // Capacitor WKWebView `audio.src` is normalized so it won't string-match the
-    // stored blob URL. loadedUrlRef is the reliable source of truth.
-    const srcLoaded = !!audio.src && loadedUrlRef.current === track.url;
     // Real element state — not React `isPlaying`, which can drift on mobile.
     const actuallyPlaying = !audio.paused && !audio.ended;
 
-    // Pause toggle: only when the exact track is loaded AND currently playing.
-    if (sameTrack && srcLoaded && actuallyPlaying) {
+    // Pause toggle: same track currently playing. isPlaying flips off from the
+    // element's real "pause" event, not optimistically here.
+    if (sameTrack && actuallyPlaying) {
       audio.pause();
-      setIsPlaying(false);
       return;
     }
 
-    // Resume the same, already-loaded track from its current position.
-    if (sameTrack && srcLoaded && !actuallyPlaying) {
-      try {
-        await safePlay("togglePlayPause resume");
-        console.log("[v0] audio play promise: success (togglePlayPause resume)");
-        setIsPlaying(true);
-        refreshAudioDiag("resume ok", "none");
-      } catch (error) {
-        const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
-        console.error("[v0] audio play promise: error (togglePlayPause resume):", detail);
-        setIsPlaying(false);
-        refreshAudioDiag("resume rejected", detail);
-      }
+    // Same track, already current: play/resume synchronously on the prepared
+    // element (requestPlay calls audio.play() immediately inside this tap).
+    if (sameTrack) {
+      requestPlay("togglePlayPause");
       return;
     }
 
-    // A different track (or one not yet loaded): start it fresh.
+    // A different track: make it current so it gets prepared (the prepare-ahead
+    // effect assigns/loads its source). Starting a different track begins a fresh
+    // back-to-back cycle.
     const trackIndex = playlist.findIndex((t) => t.id === track.id);
-    playTrackFresh(track, trackIndex >= 0 ? trackIndex : currentIndex);
+    b2bRepeatedTrackIdRef.current = null;
+    setBackToBackPlayed(false);
+    setCurrentIndex(trackIndex >= 0 ? trackIndex : currentIndex);
+    setCurrentTrack(track);
+    if (!isNativePlatform()) {
+      // Web autoplay is lenient — keep the familiar one-tap start.
+      loadAndPlay(track, true);
+    } else {
+      // Native (iOS): the element still holds the previous track, so we must NOT
+      // call play() now. Prepare the new source; the coach taps Play again to
+      // start it once the panel shows "audio ready" (preserves the user gesture).
+      setPrepStatus("preparing audio");
+    }
   };
 
   // Spacebar to toggle play/pause
@@ -2729,11 +3082,11 @@ export default function Page() {
           !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
         if (currentTrack) {
-          if (isPlaying && audioRef.current) {
-            audioRef.current.pause();
-            setIsPlaying(false);
-          } else if (audioRef.current && currentTrack.url) {
-            safePlay("spacebar").then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+          const audio = audioRef.current;
+          if (audio && !audio.paused && !audio.ended) {
+            audio.pause();
+          } else if (audio && currentTrack.url) {
+            requestPlay("spacebar");
           }
         }
       }
@@ -2773,21 +3126,34 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // NATIVE PRE-WARM: as soon as a track becomes current, byte-sniff its File and
-  // build the corrected blob URL in the background so the FIRST play tap can use
-  // the cached, decodable source synchronously (inside the iOS tap gesture).
+  // PREPARE-AHEAD: whenever the current track changes, prepare the persistent
+  // <audio> element (resolve a decodable source, assign it, load(), wait until
+  // playable) BEFORE the user taps Play. This is what makes the Play tap able to
+  // call audio.play() synchronously and keeps the iOS user-activation intact.
   useEffect(() => {
-    if (!isNativePlatform()) return;
-    if (!currentTrack?.file || !currentTrack.url) return;
-    buildCorrectedPlayableUrl(currentTrack.file, currentTrack.url)
-      .then((res) => {
-        console.log(`[v0] pre-warm sniff: name="${res.filename}" ext=${res.ext} detected=${res.detectedFormat} orig="${res.originalMime}" corrected="${res.correctedMime}" size=${res.size} first16=${res.first16Hex}`);
-        setFormatDiag(res);
-      })
-      .catch(() => { /* ignore; loadAndPlay will sniff on demand */ });
+    if (!currentTrack?.url) {
+      setAudioReady(false);
+      setPrepStatus("idle");
+      return;
+    }
+    // A programmatic play (skip/auto-advance/repeat via loadAndPlay) already owns
+    // load()/play() for this URL — don't race it with our own load().
+    if (programmaticPlayRef.current === currentTrack.url) {
+      return;
+    }
+    // Don't disturb an actively playing element (e.g. auto-advance already
+    // started this track programmatically); just reflect readiness.
+    const audio = audioRef.current;
+    if (audio && loadedUrlRef.current === currentTrack.url && !audio.paused && !audio.ended) {
+      setAudioReady(true);
+      setPrepStatus("audio ready");
+      return;
+    }
+    void prepareTrack(currentTrack, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack?.id]);
 
+  // Synchronous (no async before play()) so the iOS tap gesture is preserved.
   const handleUploadedTrackPlayPause = (track: Track) => {
     if (!audioRef.current || !track?.url) return;
 
@@ -2795,31 +3161,33 @@ export default function Page() {
     const isSameTrack = currentTrack?.id === track.id;
     const actuallyPlaying = !audio.paused && !audio.ended;
 
-    // Same track already playing -> pause.
+    // Same track already playing -> pause (isPlaying flips off from real event).
     if (isSameTrack && actuallyPlaying) {
       audio.pause();
-      setIsPlaying(false);
       return;
     }
 
-    // Same track, loaded, paused -> resume from position (element already holds
-    // a playable src, so play() works on both web and native).
-    if (isSameTrack && loadedUrlRef.current === track.url && !!audio.src) {
-      safePlay("uploaded resume")
-        .then(() => setIsPlaying(true))
-        .catch((error) => {
-          console.error("[v0] resume failed:", error);
-          setIsPlaying(false);
-        });
+    // Same track, already current -> play/resume synchronously on the prepared
+    // element.
+    if (isSameTrack) {
+      requestPlay("uploaded");
       return;
     }
 
-    // Different/unloaded track -> load fresh via the native-safe play path.
+    // Different track -> make it current so the prepare-ahead effect loads its
+    // source. On web, keep one-tap start; on native the element still holds the
+    // old track, so we must not play() now — the coach taps Play again once the
+    // panel shows "audio ready" (preserves the iOS user gesture).
     setCurrentTrack(track);
-    loadAndPlay(track, true);
+    if (!isNativePlatform()) {
+      loadAndPlay(track, true);
+    } else {
+      setPrepStatus("preparing audio");
+    }
   };
 
-  const toggleSession = async () => {
+  // Synchronous (no async before play()) so the iOS tap gesture is preserved.
+  const toggleSession = () => {
     if (!audioRef.current) return;
 
     // Use the real <audio> element as source of truth (React `isPlaying` can
@@ -2834,35 +3202,12 @@ export default function Page() {
 
     // Check if all tracks are finished - need to restart fresh
     const allTracksFinished = finishedTracks.size === playlist.length && playlist.length > 0;
-    
-    // If paused with a current track loaded AND not all finished, resume.
+
+    // If paused with a current track loaded AND not all finished, resume/play the
+    // already-prepared current track synchronously inside this tap.
     if (currentTrack && currentTrack.url && !allTracksFinished) {
-      // Robust "is this track already loaded?" check: the element must have a src
-      // AND the URL we actually loaded (tracked in a ref) must match the current
-      // track. Using loadedUrlRef instead of `audio.src === url` avoids the iOS
-      // WKWebView src-normalization mismatch that broke resume in the app.
-      const srcLoaded =
-        !!audioRef.current.src && loadedUrlRef.current === currentTrack.url;
       setSessionRunning(true);
-      if (srcLoaded) {
-        // Same track already loaded - resume from the current position.
-        try {
-          await safePlay("toggleSession resume");
-          console.log("[v0] audio play promise: success (resume)");
-          setIsPlaying(true);
-          refreshAudioDiag("resume ok", "none");
-        } catch (error) {
-          const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
-          console.error("[v0] audio play promise: error (resume):", detail);
-          setIsPlaying(false);
-          refreshAudioDiag("resume rejected", detail);
-        }
-      } else {
-        // Track changed while paused (e.g. after "Send to Session") - load it fresh.
-        b2bRepeatedTrackIdRef.current = null;
-        setBackToBackPlayed(false);
-        loadAndPlay(currentTrack, true);
-      }
+      requestPlay("toggleSession");
       return;
     }
 
@@ -2883,8 +3228,20 @@ export default function Page() {
       setGapCountdown(0);
       setShowSessionFinished(false);
       setSessionRunning(true);
-      // playTrackFresh clears the back-to-back flag and starts the track.
-      playTrackFresh(firstTrack, firstVisibleIdx);
+      // Begin a fresh back-to-back cycle and make this the current track so the
+      // prepare-ahead effect loads its source. On web keep one-tap start; on
+      // native the element does not yet hold this track, so we prepare now and the
+      // coach taps Play again once the panel shows "audio ready" (preserves the
+      // iOS user gesture).
+      b2bRepeatedTrackIdRef.current = null;
+      setBackToBackPlayed(false);
+      setCurrentIndex(firstVisibleIdx);
+      setCurrentTrack(firstTrack);
+      if (!isNativePlatform()) {
+        loadAndPlay(firstTrack, true);
+      } else {
+        setPrepStatus("preparing audio");
+      }
     }
   };
 
@@ -3260,7 +3617,21 @@ export default function Page() {
   const handleAudioDurationChange = () => captureDuration();
   // Keep the shared isPlaying state in lockstep with the element's real state so
   // every view shows the correct play/pause status (and manual pauses stick).
-  const handleAudioPlay = () => setIsPlaying(true);
+  // isPlaying is set true ONLY from the real "play"/"playing" events (never
+  // optimistically), which is what stops the Play icon flickering when a play
+  // attempt fails.
+  const handleAudioPlay = () => {
+    setIsPlaying(true);
+    setAudioReady(true);
+    setPrepStatus("play() resolved");
+    // The play attempt (programmatic or tapped) has begun — release the guard so
+    // future track changes prepare normally.
+    programmaticPlayRef.current = null;
+  };
+  const handleAudioPlaying = () => {
+    setIsPlaying(true);
+    programmaticPlayRef.current = null;
+  };
   const handleAudioPause = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -3873,8 +4244,12 @@ export default function Page() {
         onCanPlay={handleAudioDurationChange}
         onLoadedData={handleAudioDurationChange}
         onPlay={handleAudioPlay}
+        onPlaying={handleAudioPlaying}
         onPause={handleAudioPause}
         onError={() => {
+          // A real element error means we are not playing — reflect that so the
+          // Play icon is correct (isPlaying is only ever cleared by pause/ended/error).
+          setIsPlaying(false);
           // If playback fails while offline and there is no local downloaded copy,
           // tell the user the track is not available on this device.
           const src = audioRef.current?.currentSrc || audioRef.current?.src || "";
@@ -3922,9 +4297,15 @@ export default function Page() {
             <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
             <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
             <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
+            <span className="text-white/50">audio ready</span><span className={audioReady ? "text-green-300" : "text-yellow-300"}>{String(audioReady)}</span>
+            <span className="text-white/50">blob MIME</span><span className="break-all">{audioDiag.blobType}</span>
             <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
             <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
             <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
+          </div>
+          <div className="mt-1 border-t border-white/10 pt-1">
+            <div className="text-white/50">prep / play status</div>
+            <div className="break-words text-lime-300">{prepStatus}</div>
           </div>
           <div className="mt-1 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-2 gap-y-0.5">
             <span className="text-white/50">filename</span><span className="break-all">{audioDiag.filename}</span>
@@ -4266,6 +4647,42 @@ export default function Page() {
                   className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition"
                 >
                   Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Permanent Track Deletion Confirmation (from the Playlists library) */}
+        {confirmDeleteTrack && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+              <h3 className="text-2xl font-bold text-white mb-2">Delete Track?</h3>
+              <p className="text-white/60 mb-2">
+                Permanently delete &quot;{confirmDeleteTrack.track.title}&quot;?
+              </p>
+              <p className="text-white/40 text-sm mb-6">
+                This removes it from this device and the cloud. This cannot be undone.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setConfirmDeleteTrack(null)}
+                  disabled={deletingTrackId === confirmDeleteTrack.track.id}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteTrackPermanently(confirmDeleteTrack.playlistId, confirmDeleteTrack.track)}
+                  disabled={deletingTrackId === confirmDeleteTrack.track.id}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {deletingTrackId === confirmDeleteTrack.track.id ? (
+                    <><Loader2 size={16} className="animate-spin" /> Deleting…</>
+                  ) : (
+                    "Yes, Delete"
+                  )}
                 </button>
               </div>
             </div>
@@ -6313,18 +6730,17 @@ export default function Page() {
                               </button>
                             )}
                             
-                            <div className="space-y-0.5 mb-2">
-                              {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
-                                <div key={track.id} className="flex items-center gap-1.5 text-[11px] text-white/40">
-                                  <span className="w-3 text-white/25">{idx + 1}.</span>
-                                  <span className="truncate flex-1">{track.title}</span>
-                                  <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
-                                </div>
-                              ))}
-                              {localPlaylist.tracks.length > 2 && (
-                                <p className="text-[10px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more</p>
-                              )}
-                            </div>
+                            <PlaylistTrackRows
+                              tracks={localPlaylist.tracks}
+                              expanded={expandedPlaylistIds.has(localPlaylist.id)}
+                              onToggleExpand={() => togglePlaylistExpanded(localPlaylist.id)}
+                              onRequestDelete={(trackId) => {
+                                const t = localPlaylist.tracks.find((tr) => tr.id === trackId);
+                                if (t) setConfirmDeleteTrack({ playlistId: localPlaylist.id, track: t });
+                              }}
+                              deletingTrackId={deletingTrackId}
+                              formatDuration={formatDuration}
+                            />
                             
                             <button
                               onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
@@ -7996,19 +8412,19 @@ export default function Page() {
                                       </button>
                                     )}
                                     
-                                    {/* Track Preview */}
-                                    <div className="space-y-0.5 mb-2">
-                                      {localPlaylist.tracks.slice(0, 2).map((track, idx) => (
-                                        <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
-                                          <span className="w-3 text-white/25">{idx + 1}.</span>
-                                          <span className="truncate flex-1">{track.title}</span>
-                                          <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
-                                        </div>
-                                      ))}
-                                      {localPlaylist.tracks.length > 2 && (
-                                        <p className="text-[9px] text-white/25 pl-4">+{localPlaylist.tracks.length - 2} more tracks</p>
-                                      )}
-                                    </div>
+                                    {/* Track list with per-track permanent delete */}
+                                    <PlaylistTrackRows
+                                      tracks={localPlaylist.tracks}
+                                      expanded={expandedPlaylistIds.has(localPlaylist.id)}
+                                      onToggleExpand={() => togglePlaylistExpanded(localPlaylist.id)}
+                                      onRequestDelete={(trackId) => {
+                                        const t = localPlaylist.tracks.find((tr) => tr.id === trackId);
+                                        if (t) setConfirmDeleteTrack({ playlistId: localPlaylist.id, track: t });
+                                      }}
+                                      deletingTrackId={deletingTrackId}
+                                      formatDuration={formatDuration}
+                                      compact
+                                    />
                                     
                                     {/* Send to Session / Add Buttons */}
                                     <div className="flex gap-2">
