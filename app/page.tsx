@@ -455,22 +455,6 @@ export default function Page() {
     updatedAt: "-",
   });
 
-  // Readiness of the CURRENT track's prepared source. audioReady === true means
-  // the persistent <audio> element already has the corrected source assigned,
-  // loaded and decoded enough to play, so the Play tap can call play()
-  // synchronously (inside the user gesture) without any async work first.
-  const [audioReady, setAudioReady] = useState(false);
-  // Human-readable status for the diagnostics panel: "idle" | "preparing audio"
-  // | "audio ready" | "play tapped" | "play() resolved" | "play() rejected: ...".
-  const [prepStatus, setPrepStatus] = useState("idle");
-  // The track URL whose preparation is currently in flight (dedupes prep runs so
-  // rapid track changes don't stack overlapping load()/decode work).
-  const preparingRef = useRef<string | null>(null);
-  // Set synchronously whenever loadAndPlay starts a PROGRAMMATIC play (skip,
-  // auto-advance, repeat). The prepare-ahead effect checks this so it never
-  // races load()/currentTime against a play already in progress for that URL.
-  const programmaticPlayRef = useRef<string | null>(null);
-
   // Update just the blob probe fields (called from safePlay after fetching the
   // bytes behind the current audio source).
   const setBlobDiag = (blobType: string, blobSize: number) => {
@@ -2671,178 +2655,6 @@ export default function Page() {
   // which is why play/pause appeared broken in the iPhone/iPad app.
   const loadedUrlRef = useRef<string>("");
 
-  // ------------------------------------------------------------------------
-  // iOS-safe playback: PREPARE ahead of the tap, PLAY synchronously on tap.
-  // ------------------------------------------------------------------------
-  // The Capacitor/WKWebView bug is that any async work (fetch/blob build/decode
-  // wait) between the Play tap and audio.play() drops the iOS user-activation,
-  // so play() rejects and the button flickers. The fix is to do ALL source
-  // preparation when the track becomes current (below), and make the tap handler
-  // call audio.play() immediately with no async work in front of it.
-
-  // Prepare the persistent <audio> element for `track`: resolve a natively
-  // playable, MIME-correct source, assign it, load(), and wait until the element
-  // can actually play. Sets audioReady + prepStatus. Safe to call repeatedly; it
-  // no-ops when the track is already prepared and dedupes in-flight prep.
-  const prepareTrack = async (track: Track | null, resetPosition: boolean = true) => {
-    const audio = audioRef.current;
-    if (!audio || !track?.url) return;
-
-    // Already prepared this exact track (src assigned + decoded)? Just reflect it.
-    if (loadedUrlRef.current === track.url && !!audio.src && audio.readyState >= 2) {
-      setAudioReady(true);
-      setPrepStatus("audio ready");
-      return;
-    }
-    // Preparation already running for this URL — don't start a second pass.
-    if (preparingRef.current === track.url) return;
-    preparingRef.current = track.url;
-    setAudioReady(false);
-    setPrepStatus("preparing audio");
-
-    try {
-      // Resolve a source WKWebView will decode: on native, read the track's REAL
-      // File from IndexedDB (already loaded into track.file) and build a blob URL
-      // from those bytes; convert any legacy data: URL to a blob URL; otherwise
-      // use the blob:/https:/file: URL as-is. We never fetch a filename/route.
-      const retrievalMethod = track.file
-        ? "IndexedDB-File"
-        : track.url.startsWith("data:")
-          ? "data-url"
-          : track.url.startsWith("blob:")
-            ? "blob-url"
-            : track.url.startsWith("http")
-              ? "https-url"
-              : track.url.startsWith("file:") || track.url.startsWith("capacitor:")
-                ? "offline-file"
-                : "unknown";
-      console.log(
-        `[v0][audio-src] raw stored url="${track.url.slice(0, 64)}" retrieval=${retrievalMethod} hasFile=${!!track.file}` +
-          (track.file ? ` fileName="${track.file.name}" fileType="${track.file.type}" fileSize=${track.file.size}` : "")
-      );
-
-      let playableSrc = track.url;
-      if (isNativePlatform() && track.file) {
-        const res = await buildCorrectedPlayableUrl(track.file, track.url);
-        setFormatDiag(res);
-        playableSrc = res.url;
-        console.log(`[v0][audio-src] final playable url type=blob: mime="${res.correctedMime}" size=${res.size}`);
-      } else if (track.url.startsWith("data:")) {
-        playableSrc = await toPlayableUrl(track.url);
-      }
-
-      // The current track may have changed while we awaited above — abort if so.
-      if (currentTrackRef.current?.url !== track.url) {
-        preparingRef.current = null;
-        return;
-      }
-
-      // Assign + load the prepared source into the ONE persistent element.
-      isTransitioningRef.current = true;
-      if (audio.src !== playableSrc || loadedUrlRef.current !== track.url) {
-        audio.src = playableSrc;
-        loadedUrlRef.current = track.url;
-        audio.load();
-      }
-      if (resetPosition) {
-        try { audio.currentTime = 0; } catch { /* ignore */ }
-      }
-      isTransitioningRef.current = false;
-
-      // Wait until the element has decoded enough to play (loadedmetadata/
-      // canplay or readyState >= HAVE_CURRENT_DATA), with a fail-safe timeout.
-      if (audio.readyState < 2) {
-        await new Promise<void>((resolve) => {
-          let settled = false;
-          const done = () => {
-            if (settled) return;
-            settled = true;
-            audio.removeEventListener("canplay", done);
-            audio.removeEventListener("loadedmetadata", done);
-            audio.removeEventListener("error", done);
-            resolve();
-          };
-          audio.addEventListener("canplay", done, { once: true });
-          audio.addEventListener("loadedmetadata", done, { once: true });
-          audio.addEventListener("error", done, { once: true });
-          setTimeout(done, 8000);
-        });
-      }
-
-      if (audio.error) {
-        const code = audio.error.code;
-        setAudioReady(false);
-        setPrepStatus(`prep error code ${code}`);
-        refreshAudioDiag(`prep error ${code}`, `MediaError ${code}: ${audio.error.message || ""}`);
-      } else {
-        setAudioReady(true);
-        setPrepStatus("audio ready");
-        refreshAudioDiag("audio ready");
-      }
-    } catch (err) {
-      const message = (err as Error)?.message || String(err);
-      setAudioReady(false);
-      setPrepStatus(`prep failed: ${message}`);
-      // Non-audio content (HTML index.html fallback / corrupted download): tell
-      // the coach to re-download or re-upload, and do not attempt playback.
-      if (message === NOT_AUDIO_MESSAGE) {
-        setCloudSaveMessage(NOT_AUDIO_MESSAGE);
-        setCloudSaveSuccess(false);
-        setTimeout(() => setCloudSaveMessage(null), 6000);
-        refreshAudioDiag("not audio", message);
-      }
-    } finally {
-      if (preparingRef.current === track.url) preparingRef.current = null;
-    }
-  };
-
-  // SYNCHRONOUS play entry for user taps. MUST be called directly inside the tap
-  // handler (before any await) so iOS keeps the user-activation. Never performs
-  // source conversion/loading before play(): it only calls play() on an already
-  // prepared element, or shows "preparing" and (on web) falls back to async load.
-  const requestPlay = (context: string) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const track = currentTrackRef.current;
-    const ready =
-      audio.readyState >= 2 &&
-      !!audio.src &&
-      (!track || loadedUrlRef.current === track.url);
-
-    if (ready) {
-      setPrepStatus("play tapped");
-      isTransitioningRef.current = false;
-      // Call play() immediately — this is the synchronous, gesture-preserving call.
-      const p = audio.play();
-      if (p && typeof p.then === "function") {
-        p.then(() => {
-          console.log(`[v0] requestPlay(${context}) play() resolved`);
-          setPrepStatus("play() resolved");
-          refreshAudioDiag("play() ok", "none");
-        }).catch((err: unknown) => {
-          const detail = `${(err as Error)?.name || "Error"}: ${(err as Error)?.message || String(err)}`;
-          console.error(`[v0] requestPlay(${context}) play() rejected:`, detail);
-          setPrepStatus(`play() rejected: ${detail}`);
-          refreshAudioDiag("play() rejected", detail);
-        });
-      }
-      return;
-    }
-
-    // Not ready when tapped. Do NOT call play() (that would flicker the icon).
-    setPrepStatus("preparing audio");
-    if (!isNativePlatform() && track) {
-      // Web browsers allow autoplay after a click even across async work, so keep
-      // the familiar one-tap behaviour there via the existing async load path.
-      loadAndPlay(track, true);
-      return;
-    }
-    // Native (iOS): finish preparing now; the user taps again to start once the
-    // panel shows "audio ready". We must not auto-play after async prep because
-    // the original tap's user-activation has already expired in WKWebView.
-    if (track) void prepareTrack(track, false);
-  };
-
   // Single, reliable way to load a track into the shared <audio> element and play
   // it. Every play path (start, skip, auto-advance, back-to-back, repeat) goes
   // through here.
@@ -2861,10 +2673,6 @@ export default function Page() {
     const url = track?.url;
     if (!audio || !url) return;
 
-    // Tell the prepare-ahead effect to stand down for this URL — loadAndPlay owns
-    // the load()/play() for it. Cleared on the element's real play/pause/error.
-    programmaticPlayRef.current = url;
-
     // Inner routine: assign a KNOWN-playable src (never a data: URL) and play.
     // We always key loadedUrlRef on the ORIGINAL track.url so resume/same-track
     // checks stay consistent even when `src` is a converted blob URL.
@@ -2879,16 +2687,16 @@ export default function Page() {
         try { audio.currentTime = 0; } catch { /* ignore */ }
       }
       // safePlay logs the final src prefix and hard-guards against data: URLs.
-      // NOTE: we do NOT optimistically set isPlaying here — the shared isPlaying
-      // state is driven only by the element's real play/playing/pause events.
       safePlay("loadAndPlay")
         .then(() => {
           console.log("[v0] audio play promise: success (loadAndPlay)");
+          setIsPlaying(true);
           refreshAudioDiag("play() ok", "none");
         })
         .catch((error) => {
           const detail = `${error?.name || "Error"}: ${error?.message || String(error)}`;
           console.error("[v0] audio play promise: error (loadAndPlay):", detail);
+          setIsPlaying(false);
           refreshAudioDiag("play() rejected", detail);
         })
         .finally(() => {
@@ -3130,45 +2938,46 @@ export default function Page() {
   };
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
-  const togglePlayPause = (track: Track) => {
+  const togglePlayPause = async (track: Track) => {
     const audio = audioRef.current;
     if (!audio || !track || !track.url) return;
 
     const sameTrack = currentTrack?.id === track.id;
+    // Verify against the URL we actually loaded (tracked in loadedUrlRef), not the
+    // element's `.src` getter: state can drift from the loaded source (e.g. after
+    // "Send to Session" sets currentTrack without loading audio), and on the iOS
+    // Capacitor WKWebView `audio.src` is normalized so it won't string-match the
+    // stored blob URL. loadedUrlRef is the reliable source of truth.
+    const srcLoaded = !!audio.src && loadedUrlRef.current === track.url;
     // Real element state — not React `isPlaying`, which can drift on mobile.
     const actuallyPlaying = !audio.paused && !audio.ended;
 
-    // Pause toggle: same track currently playing. isPlaying flips off from the
-    // element's real "pause" event, not optimistically here.
-    if (sameTrack && actuallyPlaying) {
+    // Pause toggle: only when the exact track is loaded AND currently playing.
+    if (sameTrack && srcLoaded && actuallyPlaying) {
       audio.pause();
+      setIsPlaying(false);
       return;
     }
 
-    // Same track, already current: play/resume synchronously on the prepared
-    // element (requestPlay calls audio.play() immediately inside this tap).
-    if (sameTrack) {
-      requestPlay("togglePlayPause");
+    // Resume the same, already-loaded track from its current position.
+    if (sameTrack && srcLoaded && !actuallyPlaying) {
+      try {
+        await safePlay("togglePlayPause resume");
+        console.log("[v0] audio play promise: success (togglePlayPause resume)");
+        setIsPlaying(true);
+        refreshAudioDiag("resume ok", "none");
+      } catch (error) {
+        const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
+        console.error("[v0] audio play promise: error (togglePlayPause resume):", detail);
+        setIsPlaying(false);
+        refreshAudioDiag("resume rejected", detail);
+      }
       return;
     }
 
-    // A different track: make it current so it gets prepared (the prepare-ahead
-    // effect assigns/loads its source). Starting a different track begins a fresh
-    // back-to-back cycle.
+    // A different track (or one not yet loaded): start it fresh.
     const trackIndex = playlist.findIndex((t) => t.id === track.id);
-    b2bRepeatedTrackIdRef.current = null;
-    setBackToBackPlayed(false);
-    setCurrentIndex(trackIndex >= 0 ? trackIndex : currentIndex);
-    setCurrentTrack(track);
-    if (!isNativePlatform()) {
-      // Web autoplay is lenient — keep the familiar one-tap start.
-      loadAndPlay(track, true);
-    } else {
-      // Native (iOS): the element still holds the previous track, so we must NOT
-      // call play() now. Prepare the new source; the coach taps Play again to
-      // start it once the panel shows "audio ready" (preserves the user gesture).
-      setPrepStatus("preparing audio");
-    }
+    playTrackFresh(track, trackIndex >= 0 ? trackIndex : currentIndex);
   };
 
   // Spacebar to toggle play/pause
@@ -3180,11 +2989,11 @@ export default function Page() {
           !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
         if (currentTrack) {
-          const audio = audioRef.current;
-          if (audio && !audio.paused && !audio.ended) {
-            audio.pause();
-          } else if (audio && currentTrack.url) {
-            requestPlay("spacebar");
+          if (isPlaying && audioRef.current) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+          } else if (audioRef.current && currentTrack.url) {
+            safePlay("spacebar").then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
           }
         }
       }
@@ -3224,34 +3033,21 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // PREPARE-AHEAD: whenever the current track changes, prepare the persistent
-  // <audio> element (resolve a decodable source, assign it, load(), wait until
-  // playable) BEFORE the user taps Play. This is what makes the Play tap able to
-  // call audio.play() synchronously and keeps the iOS user-activation intact.
+  // NATIVE PRE-WARM: as soon as a track becomes current, byte-sniff its File and
+  // build the corrected blob URL in the background so the FIRST play tap can use
+  // the cached, decodable source synchronously (inside the iOS tap gesture).
   useEffect(() => {
-    if (!currentTrack?.url) {
-      setAudioReady(false);
-      setPrepStatus("idle");
-      return;
-    }
-    // A programmatic play (skip/auto-advance/repeat via loadAndPlay) already owns
-    // load()/play() for this URL — don't race it with our own load().
-    if (programmaticPlayRef.current === currentTrack.url) {
-      return;
-    }
-    // Don't disturb an actively playing element (e.g. auto-advance already
-    // started this track programmatically); just reflect readiness.
-    const audio = audioRef.current;
-    if (audio && loadedUrlRef.current === currentTrack.url && !audio.paused && !audio.ended) {
-      setAudioReady(true);
-      setPrepStatus("audio ready");
-      return;
-    }
-    void prepareTrack(currentTrack, true);
+    if (!isNativePlatform()) return;
+    if (!currentTrack?.file || !currentTrack.url) return;
+    buildCorrectedPlayableUrl(currentTrack.file, currentTrack.url)
+      .then((res) => {
+        console.log(`[v0] pre-warm sniff: name="${res.filename}" ext=${res.ext} detected=${res.detectedFormat} orig="${res.originalMime}" corrected="${res.correctedMime}" size=${res.size} first16=${res.first16Hex}`);
+        setFormatDiag(res);
+      })
+      .catch(() => { /* ignore; loadAndPlay will sniff on demand */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack?.id]);
 
-  // Synchronous (no async before play()) so the iOS tap gesture is preserved.
   const handleUploadedTrackPlayPause = (track: Track) => {
     if (!audioRef.current || !track?.url) return;
 
@@ -3259,33 +3055,31 @@ export default function Page() {
     const isSameTrack = currentTrack?.id === track.id;
     const actuallyPlaying = !audio.paused && !audio.ended;
 
-    // Same track already playing -> pause (isPlaying flips off from real event).
+    // Same track already playing -> pause.
     if (isSameTrack && actuallyPlaying) {
       audio.pause();
+      setIsPlaying(false);
       return;
     }
 
-    // Same track, already current -> play/resume synchronously on the prepared
-    // element.
-    if (isSameTrack) {
-      requestPlay("uploaded");
+    // Same track, loaded, paused -> resume from position (element already holds
+    // a playable src, so play() works on both web and native).
+    if (isSameTrack && loadedUrlRef.current === track.url && !!audio.src) {
+      safePlay("uploaded resume")
+        .then(() => setIsPlaying(true))
+        .catch((error) => {
+          console.error("[v0] resume failed:", error);
+          setIsPlaying(false);
+        });
       return;
     }
 
-    // Different track -> make it current so the prepare-ahead effect loads its
-    // source. On web, keep one-tap start; on native the element still holds the
-    // old track, so we must not play() now — the coach taps Play again once the
-    // panel shows "audio ready" (preserves the iOS user gesture).
+    // Different/unloaded track -> load fresh via the native-safe play path.
     setCurrentTrack(track);
-    if (!isNativePlatform()) {
-      loadAndPlay(track, true);
-    } else {
-      setPrepStatus("preparing audio");
-    }
+    loadAndPlay(track, true);
   };
 
-  // Synchronous (no async before play()) so the iOS tap gesture is preserved.
-  const toggleSession = () => {
+  const toggleSession = async () => {
     if (!audioRef.current) return;
 
     // Use the real <audio> element as source of truth (React `isPlaying` can
@@ -3301,11 +3095,34 @@ export default function Page() {
     // Check if all tracks are finished - need to restart fresh
     const allTracksFinished = finishedTracks.size === playlist.length && playlist.length > 0;
 
-    // If paused with a current track loaded AND not all finished, resume/play the
-    // already-prepared current track synchronously inside this tap.
+    // If paused with a current track loaded AND not all finished, resume.
     if (currentTrack && currentTrack.url && !allTracksFinished) {
+      // Robust "is this track already loaded?" check: the element must have a src
+      // AND the URL we actually loaded (tracked in a ref) must match the current
+      // track. Using loadedUrlRef instead of `audio.src === url` avoids the iOS
+      // WKWebView src-normalization mismatch that broke resume in the app.
+      const srcLoaded =
+        !!audioRef.current.src && loadedUrlRef.current === currentTrack.url;
       setSessionRunning(true);
-      requestPlay("toggleSession");
+      if (srcLoaded) {
+        // Same track already loaded - resume from the current position.
+        try {
+          await safePlay("toggleSession resume");
+          console.log("[v0] audio play promise: success (resume)");
+          setIsPlaying(true);
+          refreshAudioDiag("resume ok", "none");
+        } catch (error) {
+          const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
+          console.error("[v0] audio play promise: error (resume):", detail);
+          setIsPlaying(false);
+          refreshAudioDiag("resume rejected", detail);
+        }
+      } else {
+        // Track changed while paused (e.g. after "Send to Session") - load it fresh.
+        b2bRepeatedTrackIdRef.current = null;
+        setBackToBackPlayed(false);
+        loadAndPlay(currentTrack, true);
+      }
       return;
     }
 
@@ -3326,20 +3143,8 @@ export default function Page() {
       setGapCountdown(0);
       setShowSessionFinished(false);
       setSessionRunning(true);
-      // Begin a fresh back-to-back cycle and make this the current track so the
-      // prepare-ahead effect loads its source. On web keep one-tap start; on
-      // native the element does not yet hold this track, so we prepare now and the
-      // coach taps Play again once the panel shows "audio ready" (preserves the
-      // iOS user gesture).
-      b2bRepeatedTrackIdRef.current = null;
-      setBackToBackPlayed(false);
-      setCurrentIndex(firstVisibleIdx);
-      setCurrentTrack(firstTrack);
-      if (!isNativePlatform()) {
-        loadAndPlay(firstTrack, true);
-      } else {
-        setPrepStatus("preparing audio");
-      }
+      // playTrackFresh clears the back-to-back flag and starts the track.
+      playTrackFresh(firstTrack, firstVisibleIdx);
     }
   };
 
@@ -3715,21 +3520,7 @@ export default function Page() {
   const handleAudioDurationChange = () => captureDuration();
   // Keep the shared isPlaying state in lockstep with the element's real state so
   // every view shows the correct play/pause status (and manual pauses stick).
-  // isPlaying is set true ONLY from the real "play"/"playing" events (never
-  // optimistically), which is what stops the Play icon flickering when a play
-  // attempt fails.
-  const handleAudioPlay = () => {
-    setIsPlaying(true);
-    setAudioReady(true);
-    setPrepStatus("play() resolved");
-    // The play attempt (programmatic or tapped) has begun — release the guard so
-    // future track changes prepare normally.
-    programmaticPlayRef.current = null;
-  };
-  const handleAudioPlaying = () => {
-    setIsPlaying(true);
-    programmaticPlayRef.current = null;
-  };
+  const handleAudioPlay = () => setIsPlaying(true);
   const handleAudioPause = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -4350,7 +4141,6 @@ export default function Page() {
         onCanPlay={handleAudioDurationChange}
         onLoadedData={handleAudioDurationChange}
         onPlay={handleAudioPlay}
-        onPlaying={handleAudioPlaying}
         onPause={handleAudioPause}
         onError={() => {
           // A real element error means we are not playing — reflect that so the
@@ -4403,15 +4193,10 @@ export default function Page() {
             <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
             <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
             <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
-            <span className="text-white/50">audio ready</span><span className={audioReady ? "text-green-300" : "text-yellow-300"}>{String(audioReady)}</span>
             <span className="text-white/50">blob MIME</span><span className="break-all">{audioDiag.blobType}</span>
             <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
             <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
             <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
-          </div>
-          <div className="mt-1 border-t border-white/10 pt-1">
-            <div className="text-white/50">prep / play status</div>
-            <div className="break-words text-lime-300">{prepStatus}</div>
           </div>
           <div className="mt-1 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-2 gap-y-0.5">
             <span className="text-white/50">filename</span><span className="break-all">{audioDiag.filename}</span>
