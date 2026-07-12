@@ -5119,7 +5119,7 @@ export default function Page() {
                             </div>
                           )}
                           {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          {isHidden ? (
+                          {isHidden && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -5132,17 +5132,6 @@ export default function Page() {
                               className="ml-1 px-2 py-1 rounded-lg text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                             >
                               Unhide
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                hideTrackFromSession(track.id);
-                              }}
-                              className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
-                              title="Hide from this session"
-                            >
-                              <X size={14} />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -5397,13 +5386,9 @@ export default function Page() {
                           {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
                           {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
                           {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                          {isHidden ? (
+                          {isHidden && (
                             <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
                               Unhide
-                            </button>
-                          ) : (
-                            <button onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }} className="p-1 rounded hover:bg-white/10">
-                              <X size={12} className="text-white/40" />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -6042,7 +6027,7 @@ export default function Page() {
                                 <div className="text-[10px]">Duration</div>
                                 <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
                               </div>
-                              {isHidden ? (
+                              {isHidden && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -6055,17 +6040,6 @@ export default function Page() {
                                   className="ml-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                 >
                                   Unhide
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    hideTrackFromSession(track.id);
-                                  }}
-                                  className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
-                                  title="Hide from this session (does not delete from playlist)"
-                                >
-                                  <X size={18} className="md:w-4 md:h-4" />
                                 </button>
                               )}
                           </SortableTrackItem>
@@ -8093,8 +8067,8 @@ export default function Page() {
                                     </div>
                                   )}
 
-                                  {/* Remove/Unhide Button */}
-                                  {isHidden ? (
+                                  {/* Unhide Button (shown only for already-hidden tracks) */}
+                                  {isHidden && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -8107,16 +8081,6 @@ export default function Page() {
                                       className="px-2 py-1 rounded-md text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                     >
                                       Unhide
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        hideTrackFromSession(track.id);
-                                      }}
-                                      className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
-                                    >
-                                      <X size={14} />
                                     </button>
                                   )}
                                 </SortableTrackItem>
