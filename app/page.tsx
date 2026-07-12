@@ -3631,12 +3631,20 @@ export default function Page() {
     endSession();
   };
 
-  // Sync volume and mute state with audio element
+  // Sync volume and mute state with the ONE persistent <audio> element. This
+  // runs whenever the volume/mute changes AND on the lifecycle transitions the
+  // spec requires (track change, playback start, fullscreen enter/exit) so the
+  // user's chosen level is never lost. We set BOTH properties: `volume` (0..1,
+  // clamped) for desktop/Android/most WebViews, and `muted` because iOS/iPadOS
+  // WKWebView honors the boolean `muted` flag even when it ignores fractional
+  // `volume`. Volume is NOT reset on track change — it always reflects `volume`.
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume / 100;
-    }
-  }, [volume, isMuted]);
+    const audio = audioRef.current;
+    if (!audio) return;
+    const normalized = Math.max(0, Math.min(1, volume / 100));
+    audio.volume = isMuted ? 0 : normalized;
+    audio.muted = isMuted || normalized === 0;
+  }, [volume, isMuted, currentTrack?.id, isPlaying, isFullscreen, showFullscreenMobilePlayer]);
 
   // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
