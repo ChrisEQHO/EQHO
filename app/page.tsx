@@ -545,6 +545,14 @@ export default function Page() {
   const [isGapPaused, setIsGapPaused] = useState(false);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
+  // Absolute wall-clock time (ms, Date.now()) at which the next track must start.
+  // The gap countdown is DERIVED from this timestamp rather than decremented once
+  // per second, so it stays correct even when iOS suspends/throttles JS timers
+  // while the app is backgrounded or the phone is locked. null = no gap pending.
+  const nextTrackStartAtRef = useRef<number | null>(null);
+  // Mirror of isGapPaused for the Capacitor app-state listener closure.
+  const isGapPausedRef = useRef(false);
+  isGapPausedRef.current = isGapPaused;
   // Title of the track that will actually play after the current gap.
   // Captured at the moment the gap is scheduled so back-to-back repeats
   // display the correct (same) track instead of skipping ahead.
@@ -3557,6 +3565,10 @@ export default function Page() {
         setGapCountdown(_gapSeconds);
         lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
         gapCallbackRef.current = playFn;
+        // Anchor the gap to a real wall-clock instant. The ticker + resume
+        // reconciler both derive the remaining time from this, so a suspended
+        // timer can never make the next track start late.
+        nextTrackStartAtRef.current = Date.now() + _gapSeconds * 1000;
       } else {
         playFn();
       }
@@ -3702,41 +3714,103 @@ export default function Page() {
     }
   }, []);
 
-  // Gap countdown ticker - ticks every second and auto-plays when reaching 0
-  useEffect(() => {
-    if (!isGapPaused || gapCountdown <= 0) {
-      if (isGapPaused && gapCountdown <= 0 && gapCallbackRef.current) {
-        const cb = gapCallbackRef.current;
-        gapCallbackRef.current = null;
-        setIsGapPaused(false);
-        lastBeepedCountdown.current = -1; // Reset beep tracking
-        cb();
-      }
-      return;
+  // Start the next track exactly once and clear all gap/beep state. Guards against
+  // a double fire (ticker + resume listener) by nulling the callback ref first.
+  const fireNextTrack = useCallback(() => {
+    const cb = gapCallbackRef.current;
+    gapCallbackRef.current = null;
+    nextTrackStartAtRef.current = null;
+    lastBeepedCountdown.current = -1;
+    setGapCountdown(0);
+    setIsGapPaused(false);
+    if (cb) cb();
+  }, []);
+
+  // Evaluate the timestamp-anchored gap against the WALL CLOCK (Date.now()):
+  //  - if the target start time has passed, start the next track now;
+  //  - otherwise update the displayed countdown and play the due beep, skipping
+  //    any beep whose real-time moment already elapsed (e.g. while backgrounded)
+  //    so a missed beep is never replayed late.
+  // Returns true if the next track was started.
+  const evaluateGap = useCallback((): boolean => {
+    if (!isGapPausedRef.current) return false;
+    const startAt = nextTrackStartAtRef.current;
+    if (startAt == null) return false;
+    const remainingMs = startAt - Date.now();
+    if (remainingMs <= 0) {
+      fireNextTrack();
+      return true;
     }
-    
-    // Audible "get ready" countdown before the next routine. Honors the
-    // "Show Countdown Timer" toggle and the configurable "Countdown Before Routine"
-    // length: beep only during the final `countdownSeconds` of the gap, and not at
-    // all when the countdown timer is disabled.
+    const remaining = Math.ceil(remainingMs / 1000);
+    setGapCountdown((prev) => (prev !== remaining ? remaining : prev));
+    // Audible "get ready" countdown. Honors the "Show Countdown Timer" toggle and
+    // the configurable "Countdown Before Routine" length. Because `remaining` is
+    // derived from the clock, a beep is only played at its true real-time second;
+    // seconds skipped during suspension are never beeped after the fact.
     if (
       showCountdownRef.current &&
       countdownSecondsRef.current > 0 &&
-      gapCountdown <= countdownSecondsRef.current &&
-      gapCountdown > 0 &&
-      lastBeepedCountdown.current !== gapCountdown
+      remaining <= countdownSecondsRef.current &&
+      remaining > 0 &&
+      lastBeepedCountdown.current !== remaining
     ) {
-      lastBeepedCountdown.current = gapCountdown;
-      const freq = gapCountdown === 1 ? 1100 : gapCountdown === 2 ? 880 : 660;
-      const isFinal = gapCountdown === 1;
-      playBeep(freq, 200, isFinal);
+      lastBeepedCountdown.current = remaining;
+      const freq = remaining === 1 ? 1100 : remaining === 2 ? 880 : 660;
+      playBeep(freq, 200, remaining === 1);
     }
-    
-    const timer = setTimeout(() => {
-      setGapCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [isGapPaused, gapCountdown, playBeep]);
+    return false;
+  }, [fireNextTrack, playBeep]);
+
+  // Gap countdown ticker - TIMESTAMP based (not a per-second decrement). It polls
+  // the wall clock every ~200ms and self-schedules, so after iOS unthrottles JS
+  // timers the countdown immediately snaps to the correct remaining time. Only one
+  // timer is ever live (cleaned up when the gap ends or the effect re-runs).
+  useEffect(() => {
+    if (!isGapPaused) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      if (evaluateGap()) return; // next track started - stop ticking
+      timer = setTimeout(tick, 200);
+    };
+    tick();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isGapPaused, evaluateGap]);
+
+  // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
+  // the app is backgrounded or the phone is locked, which would otherwise leave a
+  // stale countdown and fire delayed beeps on reopen. On RESUME we immediately
+  // reconcile from the wall clock: start the next track now if its time already
+  // passed (no late beeps), or resync the displayed countdown. On BACKGROUND we do
+  // nothing except preserve the timestamp. A single listener is maintained.
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    let removeListener: (() => void) | undefined;
+    let cancelled = false;
+    import("@capacitor/app")
+      .then(({ App }) => {
+        if (cancelled) return;
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive && isGapPausedRef.current) {
+            evaluateGap();
+          }
+        }).then((handle) => {
+          if (cancelled) handle.remove();
+          else removeListener = () => handle.remove();
+        });
+      })
+      .catch(() => {
+        /* @capacitor/app not available (e.g. web) - timers alone are fine there */
+      });
+    return () => {
+      cancelled = true;
+      removeListener?.();
+    };
+  }, [evaluateGap]);
 
   const [toastMessage, setToastMessage] = useState("");
 
