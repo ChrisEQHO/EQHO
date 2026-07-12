@@ -8,6 +8,61 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
+
+// ---------------------------------------------------------------------------
+// CORS
+// ---------------------------------------------------------------------------
+// The Capacitor iOS/Android app is a static export served from its own origin
+// (capacitor://localhost). It calls THIS route on the deployed domain over
+// full HTTPS, so the responses must be CORS-enabled. Auth is via a Bearer token
+// (not cookies), so a wildcard origin is safe here — no credentials are shared.
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Max-Age': '86400',
+}
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: CORS_HEADERS })
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
+// ---------------------------------------------------------------------------
+// Auth: cookie session (web) OR Bearer access token (mobile static export).
+// ---------------------------------------------------------------------------
+async function resolveUser(
+  request: NextRequest,
+  supabase: SupabaseClient,
+): Promise<User | null> {
+  // 1) Cookie-based session (web app).
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) return user
+  } catch {
+    /* fall through to bearer */
+  }
+
+  // 2) Bearer token (Capacitor app — cross-origin, no cookies). The token is a
+  // Supabase JWT from the SAME project, so getUser(jwt) validates it.
+  const authHeader = request.headers.get('authorization') || ''
+  const token = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : ''
+  if (token) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token)
+      if (user) return user
+    } catch {
+      /* invalid token */
+    }
+  }
+  return null
+}
 
 // R2 Configuration
 // Read env vars at request time (not module load) so credentials added to the
@@ -55,15 +110,18 @@ function createR2Client(): S3Client | null {
 // GET: Generate signed download URL or list objects
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
+  if (!supabase) {
+    return json({ error: 'Auth not configured' }, 500)
+  }
+  const user = await resolveUser(request, supabase)
+
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return json({ error: 'Unauthorized' }, 401)
   }
 
   const client = createR2Client()
   if (!client) {
-    return NextResponse.json({ error: 'R2 not configured' }, { status: 500 })
+    return json({ error: 'R2 not configured' }, 500)
   }
 
   const { searchParams } = new URL(request.url)
@@ -74,7 +132,7 @@ export async function GET(request: NextRequest) {
     if (action === 'download-url' && key) {
       // Verify the key belongs to this user
       if (!key.startsWith(`users/${user.id}/`)) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        return json({ error: 'Access denied' }, 403)
       }
 
       const command = new GetObjectCommand({
@@ -83,7 +141,7 @@ export async function GET(request: NextRequest) {
       })
 
       const signedUrl = await getSignedUrl(client, command, { expiresIn: 3600 })
-      return NextResponse.json({ url: signedUrl })
+      return json({ url: signedUrl })
     }
 
     // Proxy-download the actual audio bytes through this route. This avoids the
@@ -92,7 +150,7 @@ export async function GET(request: NextRequest) {
     // restore returning 0 playable tracks). The server streams the file back.
     if (action === 'download' && key) {
       if (!key.startsWith(`users/${user.id}/`)) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        return json({ error: 'Access denied' }, 403)
       }
 
       const command = new GetObjectCommand({
@@ -102,7 +160,7 @@ export async function GET(request: NextRequest) {
 
       const obj = await client.send(command)
       if (!obj.Body) {
-        return NextResponse.json({ error: 'Object not found' }, { status: 404 })
+        return json({ error: 'Object not found' }, 404)
       }
 
       // Body is a web ReadableStream in the Node 18+/edge-compatible runtime.
@@ -110,6 +168,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(body, {
         status: 200,
         headers: {
+          ...CORS_HEADERS,
           'Content-Type': obj.ContentType || 'audio/mpeg',
           ...(obj.ContentLength ? { 'Content-Length': String(obj.ContentLength) } : {}),
           'Cache-Control': 'private, max-age=0, no-store',
@@ -140,13 +199,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ playlistIds })
+      return json({ playlistIds })
     }
 
     if (action === 'list-tracks') {
       const playlistId = searchParams.get('playlistId')
       if (!playlistId) {
-        return NextResponse.json({ error: 'Missing playlistId' }, { status: 400 })
+        return json({ error: 'Missing playlistId' }, 400)
       }
 
       const prefix = `users/${user.id}/playlists/${playlistId}/tracks/`
@@ -171,28 +230,31 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ tracks })
+      return json({ tracks })
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    return json({ error: 'Invalid action' }, 400)
   } catch (error) {
     console.error('R2 GET error:', error)
-    return NextResponse.json({ error: 'R2 operation failed' }, { status: 500 })
+    return json({ error: 'R2 operation failed' }, 500)
   }
 }
 
 // POST: Upload file or get upload URL
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
+  if (!supabase) {
+    return json({ error: 'Auth not configured' }, 500)
+  }
+  const user = await resolveUser(request, supabase)
+
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return json({ error: 'Unauthorized' }, 401)
   }
 
   const client = createR2Client()
   if (!client) {
-    return NextResponse.json({ error: 'R2 not configured' }, { status: 500 })
+    return json({ error: 'R2 not configured' }, 500)
   }
 
   try {
@@ -208,7 +270,7 @@ export async function POST(request: NextRequest) {
       const duration = formData.get('duration') as string | null
 
       if (!file || !playlistId || !trackId) {
-        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        return json({ error: 'Missing required fields' }, 400)
       }
 
       const key = `users/${user.id}/playlists/${playlistId}/tracks/${trackId}/${file.name}`
@@ -233,14 +295,14 @@ export async function POST(request: NextRequest) {
       })
 
       await client.send(command)
-      return NextResponse.json({ success: true, key })
+      return json({ success: true, key })
     } else {
       // JSON request for presigned upload URL
       const body = await request.json()
       const { playlistId, trackId, fileName, contentType: fileContentType } = body
 
       if (!playlistId || !trackId || !fileName) {
-        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        return json({ error: 'Missing required fields' }, 400)
       }
 
       const key = `users/${user.id}/playlists/${playlistId}/tracks/${trackId}/${fileName}`
@@ -251,38 +313,41 @@ export async function POST(request: NextRequest) {
       })
 
       const uploadUrl = await getSignedUrl(client, command, { expiresIn: 3600 })
-      return NextResponse.json({ uploadUrl, key })
+      return json({ uploadUrl, key })
     }
   } catch (error) {
     console.error('R2 POST error:', error)
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    return json({ error: 'Upload failed' }, 500)
   }
 }
 
 // DELETE: Delete file from R2
 export async function DELETE(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
+  if (!supabase) {
+    return json({ error: 'Auth not configured' }, 500)
+  }
+  const user = await resolveUser(request, supabase)
+
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return json({ error: 'Unauthorized' }, 401)
   }
 
   const client = createR2Client()
   if (!client) {
-    return NextResponse.json({ error: 'R2 not configured' }, { status: 500 })
+    return json({ error: 'R2 not configured' }, 500)
   }
 
   try {
     const { key } = await request.json()
 
     if (!key) {
-      return NextResponse.json({ error: 'Missing key' }, { status: 400 })
+      return json({ error: 'Missing key' }, 400)
     }
 
     // Verify the key belongs to this user
     if (!key.startsWith(`users/${user.id}/`)) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      return json({ error: 'Access denied' }, 403)
     }
 
     const command = new DeleteObjectCommand({
@@ -291,9 +356,9 @@ export async function DELETE(request: NextRequest) {
     })
 
     await client.send(command)
-    return NextResponse.json({ success: true })
+    return json({ success: true })
   } catch (error) {
     console.error('R2 DELETE error:', error)
-    return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
+    return json({ error: 'Delete failed' }, 500)
   }
 }
