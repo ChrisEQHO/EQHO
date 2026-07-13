@@ -6219,7 +6219,7 @@ export default function Page() {
             {/* Playback Controls - Centered underneath track info */}
             <div className="mt-5 flex items-center justify-center gap-6">
               <button 
-                onClick={goToPreviousTrack}
+                onClick={handleSkipBackClick}
                 className="grid h-[44px] w-[44px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
               >
                 <StepBack size={20} />
@@ -6240,7 +6240,7 @@ export default function Page() {
               </button>
 
               <button 
-                onClick={goToNextTrack}
+                onClick={handleSkipForwardClick}
                 className="grid h-[44px] w-[44px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
               >
                 <StepForward size={20} />
