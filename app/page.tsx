@@ -427,6 +427,16 @@ function DraggableTrackRow({
 
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Web Audio volume control. iOS/iPadOS WKWebView makes HTMLMediaElement.volume
+  // READ-ONLY (writes are silently ignored), so the slider changed state/visuals
+  // but never the actual loudness. Routing the <audio> element through a GainNode
+  // lets us control real output level on ALL platforms, since GainNode.gain IS
+  // honored on iOS. Created lazily on the first play gesture (AudioContext must be
+  // resumed from a user gesture on iOS). createMediaElementSource can only run
+  // once per element, hence the refs/guard.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   // Mirror of currentTrack for use inside stable event listeners / diagnostics.
   const currentTrackRef = useRef<Track | null>(null);
 
@@ -2900,6 +2910,17 @@ export default function Page() {
       console.log(`[v0] safePlay(${context}) readyState before play(): ${audio.readyState}`);
     }
 
+    // Build/resume the Web Audio gain graph now, while we are still inside the
+    // user's play gesture (iOS only allows AudioContext to start from a gesture).
+    // Apply the current level immediately so the very first playback honors the
+    // slider instead of defaulting to unity gain for a frame.
+    const gain = ensureGainGraph();
+    if (gain && audioCtxRef.current) {
+      const normalized = Math.max(0, Math.min(1, volume / 100));
+      audio.volume = 1;
+      gain.gain.setValueAtTime(isMuted ? 0 : normalized, audioCtxRef.current.currentTime);
+    }
+
     try {
       await audio.play();
     } catch (playErr) {
@@ -3648,18 +3669,53 @@ export default function Page() {
     endSession();
   };
 
-  // Sync volume and mute state with the ONE persistent <audio> element. This
-  // runs whenever the volume/mute changes AND on the lifecycle transitions the
-  // spec requires (track change, playback start, fullscreen enter/exit) so the
-  // user's chosen level is never lost. We set BOTH properties: `volume` (0..1,
-  // clamped) for desktop/Android/most WebViews, and `muted` because iOS/iPadOS
-  // WKWebView honors the boolean `muted` flag even when it ignores fractional
-  // `volume`. Volume is NOT reset on track change — it always reflects `volume`.
+  // Lazily build (or reuse) the Web Audio graph: <audio> -> GainNode -> speakers.
+  // Must be invoked from a user gesture (the play tap) so iOS lets the context run.
+  // Safe to call repeatedly; createMediaElementSource is guarded to run only once.
+  const ensureGainGraph = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return null;
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtxRef.current = new Ctx();
+      }
+      const ctx = audioCtxRef.current;
+      if (!mediaSourceRef.current) {
+        mediaSourceRef.current = ctx.createMediaElementSource(audio);
+        gainNodeRef.current = ctx.createGain();
+        mediaSourceRef.current.connect(gainNodeRef.current);
+        gainNodeRef.current.connect(ctx.destination);
+      }
+      if (ctx.state === "suspended") void ctx.resume();
+      return gainNodeRef.current;
+    } catch (err) {
+      // If the graph can't be built (e.g. unsupported), fall back to element.volume.
+      console.log("[v0] ensureGainGraph failed, falling back to element.volume", err);
+      return null;
+    }
+  }, []);
+
+  // Sync volume + mute to the actual output. Runs on volume/mute change and on the
+  // lifecycle transitions where the level must be re-asserted (track change, play,
+  // fullscreen enter/exit). The GainNode is the reliable cross-platform control
+  // (iOS ignores element.volume); when the graph exists we drive gain and pin
+  // element.volume to 1 to avoid double attenuation. `muted` still uses the element
+  // flag (honored everywhere). Falls back to element.volume if no graph yet.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const normalized = Math.max(0, Math.min(1, volume / 100));
-    audio.volume = isMuted ? 0 : normalized;
+    const gain = gainNodeRef.current;
+    if (gain && audioCtxRef.current) {
+      audio.volume = 1;
+      gain.gain.setTargetAtTime(isMuted ? 0 : normalized, audioCtxRef.current.currentTime, 0.01);
+    } else {
+      audio.volume = isMuted ? 0 : normalized;
+    }
     audio.muted = isMuted || normalized === 0;
   }, [volume, isMuted, currentTrack?.id, isPlaying, isFullscreen, showFullscreenMobilePlayer]);
 
