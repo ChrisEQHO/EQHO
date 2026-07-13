@@ -428,10 +428,9 @@ export default function Page() {
   const currentTrackRef = useRef<Track | null>(null);
 
   // --- TEMPORARY on-device audio diagnostics ---------------------------------
-  // Visible panel for debugging why play/pause does nothing inside the Capacitor
-  // iPhone build (we cannot see the WebKit console on-device). Toggled from a
-  // small "Audio Debug" button on the player. Remove once playback is confirmed.
-  const [showAudioDiag, setShowAudioDiag] = useState(false);
+  // Internal audio diagnostics state. The on-screen debug panel was removed; the
+  // refreshAudioDiag() calls throughout playback remain as harmless no-op updates
+  // (kept to avoid a large, risky refactor of ~20 call sites).
   const [audioDiag, setAudioDiag] = useState({
     hasCurrentTrack: false,
     hasAudioEl: false,
@@ -545,6 +544,14 @@ export default function Page() {
   const [isGapPaused, setIsGapPaused] = useState(false);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
+  // Absolute wall-clock time (ms, Date.now()) at which the next track must start.
+  // The gap countdown is DERIVED from this timestamp rather than decremented once
+  // per second, so it stays correct even when iOS suspends/throttles JS timers
+  // while the app is backgrounded or the phone is locked. null = no gap pending.
+  const nextTrackStartAtRef = useRef<number | null>(null);
+  // Mirror of isGapPaused for the Capacitor app-state listener closure.
+  const isGapPausedRef = useRef(false);
+  isGapPausedRef.current = isGapPaused;
   // Title of the track that will actually play after the current gap.
   // Captured at the moment the gap is scheduled so back-to-back repeats
   // display the correct (same) track instead of skipping ahead.
@@ -3557,6 +3564,10 @@ export default function Page() {
         setGapCountdown(_gapSeconds);
         lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
         gapCallbackRef.current = playFn;
+        // Anchor the gap to a real wall-clock instant. The ticker + resume
+        // reconciler both derive the remaining time from this, so a suspended
+        // timer can never make the next track start late.
+        nextTrackStartAtRef.current = Date.now() + _gapSeconds * 1000;
       } else {
         playFn();
       }
@@ -3631,12 +3642,20 @@ export default function Page() {
     endSession();
   };
 
-  // Sync volume and mute state with audio element
+  // Sync volume and mute state with the ONE persistent <audio> element. This
+  // runs whenever the volume/mute changes AND on the lifecycle transitions the
+  // spec requires (track change, playback start, fullscreen enter/exit) so the
+  // user's chosen level is never lost. We set BOTH properties: `volume` (0..1,
+  // clamped) for desktop/Android/most WebViews, and `muted` because iOS/iPadOS
+  // WKWebView honors the boolean `muted` flag even when it ignores fractional
+  // `volume`. Volume is NOT reset on track change — it always reflects `volume`.
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume / 100;
-    }
-  }, [volume, isMuted]);
+    const audio = audioRef.current;
+    if (!audio) return;
+    const normalized = Math.max(0, Math.min(1, volume / 100));
+    audio.volume = isMuted ? 0 : normalized;
+    audio.muted = isMuted || normalized === 0;
+  }, [volume, isMuted, currentTrack?.id, isPlaying, isFullscreen, showFullscreenMobilePlayer]);
 
   // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
@@ -3694,41 +3713,103 @@ export default function Page() {
     }
   }, []);
 
-  // Gap countdown ticker - ticks every second and auto-plays when reaching 0
-  useEffect(() => {
-    if (!isGapPaused || gapCountdown <= 0) {
-      if (isGapPaused && gapCountdown <= 0 && gapCallbackRef.current) {
-        const cb = gapCallbackRef.current;
-        gapCallbackRef.current = null;
-        setIsGapPaused(false);
-        lastBeepedCountdown.current = -1; // Reset beep tracking
-        cb();
-      }
-      return;
+  // Start the next track exactly once and clear all gap/beep state. Guards against
+  // a double fire (ticker + resume listener) by nulling the callback ref first.
+  const fireNextTrack = useCallback(() => {
+    const cb = gapCallbackRef.current;
+    gapCallbackRef.current = null;
+    nextTrackStartAtRef.current = null;
+    lastBeepedCountdown.current = -1;
+    setGapCountdown(0);
+    setIsGapPaused(false);
+    if (cb) cb();
+  }, []);
+
+  // Evaluate the timestamp-anchored gap against the WALL CLOCK (Date.now()):
+  //  - if the target start time has passed, start the next track now;
+  //  - otherwise update the displayed countdown and play the due beep, skipping
+  //    any beep whose real-time moment already elapsed (e.g. while backgrounded)
+  //    so a missed beep is never replayed late.
+  // Returns true if the next track was started.
+  const evaluateGap = useCallback((): boolean => {
+    if (!isGapPausedRef.current) return false;
+    const startAt = nextTrackStartAtRef.current;
+    if (startAt == null) return false;
+    const remainingMs = startAt - Date.now();
+    if (remainingMs <= 0) {
+      fireNextTrack();
+      return true;
     }
-    
-    // Audible "get ready" countdown before the next routine. Honors the
-    // "Show Countdown Timer" toggle and the configurable "Countdown Before Routine"
-    // length: beep only during the final `countdownSeconds` of the gap, and not at
-    // all when the countdown timer is disabled.
+    const remaining = Math.ceil(remainingMs / 1000);
+    setGapCountdown((prev) => (prev !== remaining ? remaining : prev));
+    // Audible "get ready" countdown. Honors the "Show Countdown Timer" toggle and
+    // the configurable "Countdown Before Routine" length. Because `remaining` is
+    // derived from the clock, a beep is only played at its true real-time second;
+    // seconds skipped during suspension are never beeped after the fact.
     if (
       showCountdownRef.current &&
       countdownSecondsRef.current > 0 &&
-      gapCountdown <= countdownSecondsRef.current &&
-      gapCountdown > 0 &&
-      lastBeepedCountdown.current !== gapCountdown
+      remaining <= countdownSecondsRef.current &&
+      remaining > 0 &&
+      lastBeepedCountdown.current !== remaining
     ) {
-      lastBeepedCountdown.current = gapCountdown;
-      const freq = gapCountdown === 1 ? 1100 : gapCountdown === 2 ? 880 : 660;
-      const isFinal = gapCountdown === 1;
-      playBeep(freq, 200, isFinal);
+      lastBeepedCountdown.current = remaining;
+      const freq = remaining === 1 ? 1100 : remaining === 2 ? 880 : 660;
+      playBeep(freq, 200, remaining === 1);
     }
-    
-    const timer = setTimeout(() => {
-      setGapCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [isGapPaused, gapCountdown, playBeep]);
+    return false;
+  }, [fireNextTrack, playBeep]);
+
+  // Gap countdown ticker - TIMESTAMP based (not a per-second decrement). It polls
+  // the wall clock every ~200ms and self-schedules, so after iOS unthrottles JS
+  // timers the countdown immediately snaps to the correct remaining time. Only one
+  // timer is ever live (cleaned up when the gap ends or the effect re-runs).
+  useEffect(() => {
+    if (!isGapPaused) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      if (evaluateGap()) return; // next track started - stop ticking
+      timer = setTimeout(tick, 200);
+    };
+    tick();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isGapPaused, evaluateGap]);
+
+  // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
+  // the app is backgrounded or the phone is locked, which would otherwise leave a
+  // stale countdown and fire delayed beeps on reopen. On RESUME we immediately
+  // reconcile from the wall clock: start the next track now if its time already
+  // passed (no late beeps), or resync the displayed countdown. On BACKGROUND we do
+  // nothing except preserve the timestamp. A single listener is maintained.
+  useEffect(() => {
+    if (!isNativePlatform()) return;
+    let removeListener: (() => void) | undefined;
+    let cancelled = false;
+    import("@capacitor/app")
+      .then(({ App }) => {
+        if (cancelled) return;
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive && isGapPausedRef.current) {
+            evaluateGap();
+          }
+        }).then((handle) => {
+          if (cancelled) handle.remove();
+          else removeListener = () => handle.remove();
+        });
+      })
+      .catch(() => {
+        /* @capacitor/app not available (e.g. web) - timers alone are fine there */
+      });
+    return () => {
+      cancelled = true;
+      removeListener?.();
+    };
+  }, [evaluateGap]);
 
   const [toastMessage, setToastMessage] = useState("");
 
@@ -4158,63 +4239,6 @@ export default function Page() {
           refreshAudioDiag("error");
         }}
       />
-
-      {/* TEMPORARY: on-device audio diagnostics. Toggle button + panel. Remove
-          once iPhone playback is confirmed working. */}
-      <button
-        type="button"
-        onClick={() => {
-          refreshAudioDiag("manual refresh");
-          setShowAudioDiag((v) => !v);
-        }}
-        className="fixed bottom-2 left-2 z-[999] rounded-md bg-black/70 px-2 py-1 text-[10px] font-mono text-lime-300 border border-lime-400/40"
-      >
-        {showAudioDiag ? "Hide" : "Audio Debug"}
-      </button>
-      {showAudioDiag && (
-        <div className="fixed bottom-10 left-2 z-[999] w-[min(92vw,340px)] rounded-lg bg-black/90 p-3 text-[11px] font-mono text-white border border-lime-400/40 shadow-xl">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="font-bold text-lime-300">AUDIO DIAGNOSTICS</span>
-            <button
-              type="button"
-              onClick={() => refreshAudioDiag("manual refresh")}
-              className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]"
-            >
-              Refresh
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-            <span className="text-white/50">native</span><span>{String(audioDiag.isNative)}</span>
-            <span className="text-white/50">current track</span><span>{String(audioDiag.hasCurrentTrack)}</span>
-            <span className="text-white/50">audio el</span><span>{String(audioDiag.hasAudioEl)}</span>
-            <span className="text-white/50">has src</span><span>{String(audioDiag.hasSrc)}</span>
-            <span className="text-white/50">src type</span><span className="text-yellow-300">{audioDiag.srcType}</span>
-            <span className="text-white/50">readyState</span><span>{audioDiag.readyState}</span>
-            <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
-            <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
-            <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
-            <span className="text-white/50">blob MIME</span><span className="break-all">{audioDiag.blobType}</span>
-            <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
-            <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
-            <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
-          </div>
-          <div className="mt-1 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-2 gap-y-0.5">
-            <span className="text-white/50">filename</span><span className="break-all">{audioDiag.filename}</span>
-            <span className="text-white/50">extension</span><span>{audioDiag.ext}</span>
-            <span className="text-white/50">detected fmt</span><span className={audioDiag.detectedFormat === "unknown" ? "text-red-300" : "text-green-300"}>{audioDiag.detectedFormat}</span>
-            <span className="text-white/50">original MIME</span><span className="break-all">{audioDiag.originalMime}</span>
-            <span className="text-white/50">corrected MIME</span><span className="text-green-300 break-all">{audioDiag.correctedMime}</span>
-          </div>
-          <div className="mt-1 border-t border-white/10 pt-1">
-            <div className="text-white/50">first 16 bytes</div>
-            <div className="break-all text-cyan-300">{audioDiag.first16Hex}</div>
-            <div className="mt-0.5 text-white/50">play() error</div>
-            <div className="break-words text-red-300">{audioDiag.playError}</div>
-            <div className="mt-0.5 text-white/50">media error</div>
-            <div className="break-words text-red-300">{audioDiag.mediaError}</div>
-          </div>
-        </div>
-      )}
 
       {/* Fullscreen Mode View */}
       <div
@@ -5037,7 +5061,7 @@ export default function Page() {
                             </div>
                           )}
                           {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          {isHidden ? (
+                          {isHidden && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -5050,17 +5074,6 @@ export default function Page() {
                               className="ml-1 px-2 py-1 rounded-lg text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                             >
                               Unhide
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                hideTrackFromSession(track.id);
-                              }}
-                              className="ml-1 p-1.5 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition"
-                              title="Hide from this session"
-                            >
-                              <X size={14} />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -5315,13 +5328,9 @@ export default function Page() {
                           {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
                           {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
                           {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                          {isHidden ? (
+                          {isHidden && (
                             <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
                               Unhide
-                            </button>
-                          ) : (
-                            <button onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }} className="p-1 rounded hover:bg-white/10">
-                              <X size={12} className="text-white/40" />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -5333,11 +5342,69 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Volume Slider */}
+            {/* Volume Slider - matches the desktop on-brand drag-track control:
+                orange->pink gradient fill with the % centered inside, no thumb dot. */}
             <div className="flex items-center gap-3 py-3 justify-center shrink-0">
-              <Volume2 size={14} className="text-white/40" />
-              <input type="range" min={0} max={100} value={isMuted ? 0 : volume} onChange={(e) => { setVolume(Number(e.target.value)); if (Number(e.target.value) > 0) setIsMuted(false); }} className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full" />
-              <span className="text-[10px] text-white/40 w-8">{isMuted ? "0" : volume}%</span>
+              <button
+                type="button"
+                onClick={() => setIsMuted((m) => !m)}
+                aria-label={isMuted ? "Unmute" : "Mute"}
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition ${
+                  isMuted
+                    ? "border-red-500/60 bg-red-500/15 text-red-400"
+                    : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
+                }`}
+              >
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={15} />}
+              </button>
+              <div
+                className="group relative flex items-center w-[160px] h-9 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                onMouseDown={(e) => {
+                  const bar = e.currentTarget;
+                  const apply = (clientX: number) => {
+                    const rect = bar.getBoundingClientRect();
+                    const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+                    setVolume(pct);
+                    if (pct > 0 && isMuted) setIsMuted(false);
+                    if (pct === 0) setIsMuted(true);
+                  };
+                  apply(e.clientX);
+                  const handleMove = (ev: MouseEvent) => apply(ev.clientX);
+                  const handleUp = () => {
+                    document.removeEventListener("mousemove", handleMove);
+                    document.removeEventListener("mouseup", handleUp);
+                  };
+                  document.addEventListener("mousemove", handleMove);
+                  document.addEventListener("mouseup", handleUp);
+                }}
+                onTouchStart={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                  setVolume(pct);
+                  if (pct > 0 && isMuted) setIsMuted(false);
+                  if (pct === 0) setIsMuted(true);
+                }}
+                onTouchMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                  setVolume(pct);
+                  if (pct > 0 && isMuted) setIsMuted(false);
+                  if (pct === 0) setIsMuted(true);
+                }}
+                role="slider"
+                aria-label="Volume"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={isMuted ? 0 : volume}
+              >
+                <div
+                  className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
+                  style={{ width: `${isMuted ? 0 : volume}%` }}
+                />
+                <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">
+                  {isMuted ? "Muted" : `${volume}%`}
+                </span>
+              </div>
             </div>
           </div>
           )}
@@ -5960,7 +6027,7 @@ export default function Page() {
                                 <div className="text-[10px]">Duration</div>
                                 <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
                               </div>
-                              {isHidden ? (
+                              {isHidden && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -5973,17 +6040,6 @@ export default function Page() {
                                   className="ml-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                 >
                                   Unhide
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    hideTrackFromSession(track.id);
-                                  }}
-                                  className="ml-1 p-2.5 md:p-2 rounded-lg text-white/40 hover:text-orange-400 hover:bg-orange-500/15 active:bg-orange-500/25 transition touch-manipulation"
-                                  title="Hide from this session (does not delete from playlist)"
-                                >
-                                  <X size={18} className="md:w-4 md:h-4" />
                                 </button>
                               )}
                           </SortableTrackItem>
@@ -6163,7 +6219,7 @@ export default function Page() {
             {/* Playback Controls - Centered underneath track info */}
             <div className="mt-5 flex items-center justify-center gap-6">
               <button 
-                onClick={goToPreviousTrack}
+                onClick={handleSkipBackClick}
                 className="grid h-[44px] w-[44px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
               >
                 <StepBack size={20} />
@@ -6184,7 +6240,7 @@ export default function Page() {
               </button>
 
               <button 
-                onClick={goToNextTrack}
+                onClick={handleSkipForwardClick}
                 className="grid h-[44px] w-[44px] place-items-center rounded-full border border-white/20 bg-white/[0.06] text-white/85 hover:bg-white/15 hover:border-white/30 transition"
               >
                 <StepForward size={20} />
@@ -7660,15 +7716,16 @@ export default function Page() {
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
       <div
-        className="flex lg:hidden flex-col w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3"
+        className="flex lg:hidden flex-col w-full overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
         style={{
-          // Reserve EXACTLY the measured height of the fixed controls bar (plus
-          // the top safe-area inset and the 8px top margin) so the content
-          // region always ends at the bar's top edge — no hardcoded guess that
-          // let the bar overlap the last playlist. Falls back to 112px before
-          // the first measurement.
+          // Offset the content below the status bar by EXACTLY the top safe-area
+          // inset (applied once, now that the native WKWebView contentInset is
+          // 'never'). A small pt-2 gives a tidy breathing gap without a big void.
+          // Reserve the measured fixed-controls-bar height plus the top inset so
+          // the content region always ends at the bar's top edge. Falls back to
+          // 112px before the first measurement.
           height:
-            "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top) - 8px)",
+            "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top))",
         }}
       >
         {activePage === "player" && (
@@ -8011,8 +8068,8 @@ export default function Page() {
                                     </div>
                                   )}
 
-                                  {/* Remove/Unhide Button */}
-                                  {isHidden ? (
+                                  {/* Unhide Button (shown only for already-hidden tracks) */}
+                                  {isHidden && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -8025,16 +8082,6 @@ export default function Page() {
                                       className="px-2 py-1 rounded-md text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                     >
                                       Unhide
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        hideTrackFromSession(track.id);
-                                      }}
-                                      className="p-1.5 rounded-md text-white/30 hover:text-orange-400 hover:bg-orange-500/15 transition"
-                                    >
-                                      <X size={14} />
                                     </button>
                                   )}
                                 </SortableTrackItem>
