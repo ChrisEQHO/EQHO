@@ -428,10 +428,9 @@ export default function Page() {
   const currentTrackRef = useRef<Track | null>(null);
 
   // --- TEMPORARY on-device audio diagnostics ---------------------------------
-  // Visible panel for debugging why play/pause does nothing inside the Capacitor
-  // iPhone build (we cannot see the WebKit console on-device). Toggled from a
-  // small "Audio Debug" button on the player. Remove once playback is confirmed.
-  const [showAudioDiag, setShowAudioDiag] = useState(false);
+  // Internal audio diagnostics state. The on-screen debug panel was removed; the
+  // refreshAudioDiag() calls throughout playback remain as harmless no-op updates
+  // (kept to avoid a large, risky refactor of ~20 call sites).
   const [audioDiag, setAudioDiag] = useState({
     hasCurrentTrack: false,
     hasAudioEl: false,
@@ -4240,63 +4239,6 @@ export default function Page() {
           refreshAudioDiag("error");
         }}
       />
-
-      {/* TEMPORARY: on-device audio diagnostics. Toggle button + panel. Remove
-          once iPhone playback is confirmed working. */}
-      <button
-        type="button"
-        onClick={() => {
-          refreshAudioDiag("manual refresh");
-          setShowAudioDiag((v) => !v);
-        }}
-        className="fixed bottom-2 left-2 z-[999] rounded-md bg-black/70 px-2 py-1 text-[10px] font-mono text-lime-300 border border-lime-400/40"
-      >
-        {showAudioDiag ? "Hide" : "Audio Debug"}
-      </button>
-      {showAudioDiag && (
-        <div className="fixed bottom-10 left-2 z-[999] w-[min(92vw,340px)] rounded-lg bg-black/90 p-3 text-[11px] font-mono text-white border border-lime-400/40 shadow-xl">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="font-bold text-lime-300">AUDIO DIAGNOSTICS</span>
-            <button
-              type="button"
-              onClick={() => refreshAudioDiag("manual refresh")}
-              className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]"
-            >
-              Refresh
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-            <span className="text-white/50">native</span><span>{String(audioDiag.isNative)}</span>
-            <span className="text-white/50">current track</span><span>{String(audioDiag.hasCurrentTrack)}</span>
-            <span className="text-white/50">audio el</span><span>{String(audioDiag.hasAudioEl)}</span>
-            <span className="text-white/50">has src</span><span>{String(audioDiag.hasSrc)}</span>
-            <span className="text-white/50">src type</span><span className="text-yellow-300">{audioDiag.srcType}</span>
-            <span className="text-white/50">readyState</span><span>{audioDiag.readyState}</span>
-            <span className="text-white/50">networkState</span><span>{audioDiag.networkState}</span>
-            <span className="text-white/50">paused</span><span>{String(audioDiag.paused)}</span>
-            <span className="text-white/50">isPlaying</span><span>{String(isPlaying)}</span>
-            <span className="text-white/50">blob MIME</span><span className="break-all">{audioDiag.blobType}</span>
-            <span className="text-white/50">blob.size</span><span className={audioDiag.blobSize <= 0 ? "text-red-300" : "text-green-300"}>{audioDiag.blobSize}</span>
-            <span className="text-white/50">last event</span><span className="text-cyan-300">{audioDiag.lastEvent}</span>
-            <span className="text-white/50">updated</span><span>{audioDiag.updatedAt}</span>
-          </div>
-          <div className="mt-1 border-t border-white/10 pt-1 grid grid-cols-2 gap-x-2 gap-y-0.5">
-            <span className="text-white/50">filename</span><span className="break-all">{audioDiag.filename}</span>
-            <span className="text-white/50">extension</span><span>{audioDiag.ext}</span>
-            <span className="text-white/50">detected fmt</span><span className={audioDiag.detectedFormat === "unknown" ? "text-red-300" : "text-green-300"}>{audioDiag.detectedFormat}</span>
-            <span className="text-white/50">original MIME</span><span className="break-all">{audioDiag.originalMime}</span>
-            <span className="text-white/50">corrected MIME</span><span className="text-green-300 break-all">{audioDiag.correctedMime}</span>
-          </div>
-          <div className="mt-1 border-t border-white/10 pt-1">
-            <div className="text-white/50">first 16 bytes</div>
-            <div className="break-all text-cyan-300">{audioDiag.first16Hex}</div>
-            <div className="mt-0.5 text-white/50">play() error</div>
-            <div className="break-words text-red-300">{audioDiag.playError}</div>
-            <div className="mt-0.5 text-white/50">media error</div>
-            <div className="break-words text-red-300">{audioDiag.mediaError}</div>
-          </div>
-        </div>
-      )}
 
       {/* Fullscreen Mode View */}
       <div
