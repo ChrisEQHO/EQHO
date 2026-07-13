@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EQHO Player</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #050816;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Bootstrap fallback. The desktop wrapper normally opens the live site or the
+      offline screen directly from Rust, so this page is only reached as a safety
+      net. It forwards to the live EQHO Player.
+    -->
+    <script>
+      window.location.replace("https://www.eqho-player.com");
+    </script>
+  </body>
+</html>

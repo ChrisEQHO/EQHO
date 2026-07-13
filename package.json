@@ -10,7 +10,11 @@
     "lint": "eslint .",
     "cap:sync": "npm run build:mobile && npx cap sync",
     "cap:ios": "npm run build:mobile && npx cap sync ios && npx cap open ios",
-    "cap:android": "npm run build:mobile && npx cap sync android && npx cap open android"
+    "cap:android": "npm run build:mobile && npx cap sync android && npx cap open android",
+    "tauri": "npx --yes @tauri-apps/cli@latest",
+    "tauri:dev": "npx --yes @tauri-apps/cli@latest dev",
+    "tauri:build": "npx --yes @tauri-apps/cli@latest build",
+    "tauri:build:universal": "npx --yes @tauri-apps/cli@latest build --target universal-apple-darwin"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1062.0",

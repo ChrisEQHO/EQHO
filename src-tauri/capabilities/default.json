@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core capability for the EQHO Player main window. Because no `remote` field is declared, this capability applies ONLY to local (tauri://) content such as the offline screen. The remote live site (https://www.eqho-player.com) intentionally receives NO Tauri IPC access.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
