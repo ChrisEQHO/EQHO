@@ -46,6 +46,7 @@ import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS
 import { deleteAccount } from "@/app/actions/account";
 import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
+import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
   Home,
@@ -75,6 +76,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Search,
   Upload,
   SlidersHorizontal,
@@ -109,6 +111,7 @@ import {
   CloudDownload,
   FileDown,
   Shield,
+  Mail,
 } from "lucide-react";
 
 const uploads = [
@@ -526,6 +529,7 @@ export default function Page() {
     { icon: Cloud, page: "cloud", color: "pink" },
     { icon: Settings, page: "settings", color: "pink" },
     { icon: HelpCircle, page: "help", color: "pink" },
+    { icon: Mail, page: "contact", color: "pink" },
   ] as const;
 
   const activeColors: Record<string, string> = {
@@ -534,6 +538,8 @@ export default function Page() {
 
   // Mobile tab state
   const [mobileTab, setMobileTab] = useState<"nowplaying" | "playlists" | "settings">("nowplaying");
+  // Full-screen mobile contact/feedback overlay (opened from the mobile Settings tab).
+  const [showContactMobile, setShowContactMobile] = useState(false);
 
   const [playlistRepeats, setPlaylistRepeats] = useState(1);
   const [gapSeconds, setGapSeconds] = useState(10);
@@ -7709,6 +7715,24 @@ export default function Page() {
           </div>
         )}
 
+        {activePage === "contact" && (
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+            {/* Header */}
+            <div className="px-8 pt-6 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                  <Mail size={24} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">Contact & Feedback</h1>
+                  <p className="text-white/60 text-sm">Report issues, submit bugs, and share feedback</p>
+                </div>
+              </div>
+            </div>
+            <ContactPage userEmail={user?.email} />
+          </div>
+        )}
+
       </div>
 
       {/* Mobile Layout - single column with tabs. The bottom space reserved for
@@ -8816,6 +8840,16 @@ export default function Page() {
                       })()}
                     </div>
 
+                    {/* Contact & Feedback */}
+                    <button
+                      onClick={() => setShowContactMobile(true)}
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Mail size={14} className="text-[#ff8a00]" />
+                      <span className="text-[11px] font-semibold text-white flex-1 text-left">Contact & Feedback</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </button>
+
                     {/* Legal / Privacy Policy */}
                     <Link
                       href="/privacy-policy"
@@ -8871,6 +8905,36 @@ export default function Page() {
           </div>
         )}
       </div>
+
+      {/* Mobile Contact & Feedback full-screen overlay */}
+      {showContactMobile && (
+        <div className="lg:hidden fixed inset-0 z-[60] bg-[#050816] flex flex-col">
+          <div
+            className="flex items-center gap-3 px-4 pb-3 border-b border-white/10 shrink-0"
+            style={{ paddingTop: "calc(env(safe-area-inset-top) + 12px)" }}
+          >
+            <button
+              onClick={() => setShowContactMobile(false)}
+              aria-label="Back"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-white/70 hover:text-white transition"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                <Mail size={18} />
+              </div>
+              <div>
+                <h1 className="text-base font-bold leading-tight">Contact & Feedback</h1>
+                <p className="text-white/50 text-[11px]">Report issues & share feedback</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <ContactPage userEmail={user?.email} />
+          </div>
+        </div>
+      )}
 
       {/* Fixed Bottom Control Bar */}
       <div ref={mobileControlsRef} className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
