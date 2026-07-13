@@ -9018,7 +9018,12 @@ export default function Page() {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          {/* Scrollable form area. Bottom padding clears the iOS home indicator and
+              gives the Send button room to scroll above the software keyboard. */}
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 32px)" }}
+          >
             <ContactPage userEmail={user?.email} />
           </div>
         </div>
