@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles } from "@/lib/eqho-db";
+import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
@@ -1185,24 +1185,41 @@ export default function Page() {
   const [dropPosition, setDropPosition] = useState<"above" | "below">("below");
   const dropPositionRef = useRef<"above" | "below">("below");
 
-  // Save saved playlists to IndexedDB when they change (with full track data)
+  // Save saved playlists to IndexedDB when they change (with full track data).
+  // Skip the very first render (before the on-mount load effect has restored the
+  // cache) so we never clobber stored playlists with the initial empty array.
+  const savedPlaylistsHydrated = useRef(false);
   useEffect(() => {
-    if (savedPlaylists.length > 0) {
-      saveSavedPlaylistsWithTracks(
-        savedPlaylists.map((pl) => ({
-          id: pl.id,
-          name: pl.name,
-          tracks: pl.tracks.map((t) => ({
-            id: t.id,
-            title: t.title,
-            fileName: t.fileName,
-            durationSeconds: t.durationSeconds,
-            uploadedAt: t.uploadedAt,
-            file: t.file!,
-          })),
-        }))
-      );
+    // Ignore the initial empty state until the load effect has run once; after
+    // that, ALWAYS persist — including the empty array. Previously this was
+    // guarded by `savedPlaylists.length > 0`, which meant deleting your LAST
+    // playlist never wrote through, so IndexedDB kept the stale copy and the
+    // deletion "came back" on refresh/app restart.
+    if (!savedPlaylistsHydrated.current) {
+      savedPlaylistsHydrated.current = true;
+      if (savedPlaylists.length === 0) return; // nothing loaded yet — don't wipe
     }
+    if (savedPlaylists.length === 0) {
+      // Deleted the last playlist: empty the store so it stays deleted.
+      clearSavedPlaylists().catch((err) =>
+        console.error("[v0] DELETE persist: failed clearing saved playlists store", err)
+      );
+      return;
+    }
+    saveSavedPlaylistsWithTracks(
+      savedPlaylists.map((pl) => ({
+        id: pl.id,
+        name: pl.name,
+        tracks: pl.tracks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          fileName: t.fileName,
+          durationSeconds: t.durationSeconds,
+          uploadedAt: t.uploadedAt,
+          file: t.file!,
+        })),
+      }))
+    );
   }, [savedPlaylists]);
 
   // Load saved playlists from IndexedDB on mount
@@ -1547,18 +1564,6 @@ export default function Page() {
     setIsSyncingAll(false);
     setSyncAllProgress(null);
     setTimeout(() => setCloudSaveMessage(null), 6000);
-  };
-
-  const handleDeleteCloudPlaylist = async (playlistId: string) => {
-    if (isMobileBuild) return; // Read-only on mobile
-
-    const success = await deleteCloudPlaylist(playlistId);
-    if (success) {
-      setCloudPlaylists(prev => prev.filter(p => p.id !== playlistId));
-      // Also remove from local if exists
-      setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
-    }
-    setShowDeletePlaylistConfirm(null);
   };
 
   // Toggle a playlist card's full track list (collapsed shows 2 tracks).
@@ -4625,33 +4630,56 @@ export default function Page() {
           </div>
         )}
 
-        {/* Delete Playlist Confirmation */}
+        {/* Delete Playlist Confirmation.
+            z-[400] so it renders ABOVE the fixed mobile player (z-[300]) and the
+            mobile bottom nav (z-40). At the old z-[200] this dialog opened BEHIND
+            the mobile player, so tapping the trash icon looked like it "did nothing"
+            on iPhone/iPad. (Same fix already applied to the track-delete dialog.) */}
         {showDeletePlaylistConfirm && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
             <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
-              <h3 className="text-2xl font-bold text-white mb-2">Delete Playlist?</h3>
+              <h3 className="text-2xl font-bold text-white mb-2">Delete this playlist permanently?</h3>
               <p className="text-white/60 mb-6">
-                Delete &quot;{showDeletePlaylistConfirm.name}&quot;? This will remove the playlist and all its tracks permanently.
+                This will remove &quot;{showDeletePlaylistConfirm.name}&quot; and its saved setup. Tracks used by other playlists will not be deleted.
               </p>
               <div className="flex gap-4 justify-center">
                 <button
+                  type="button"
                   onClick={() => setShowDeletePlaylistConfirm(null)}
                   className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     const playlistId = showDeletePlaylistConfirm.id;
-                    // Delete from local
+                    const playlistName = showDeletePlaylistConfirm.name;
+                    console.log("[v0] DELETE PLAYLIST confirmation accepted", { playlistId, playlistName });
+                    // Remove from BOTH local and cloud UI state immediately so the card
+                    // disappears everywhere it is rendered (savedPlaylists + cloudPlaylists).
+                    // The savedPlaylists persist effect writes the change through to
+                    // IndexedDB (clearing the store when this was the last playlist).
                     setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
-                    // Delete from cloud if exists
-                    if (cloudPlaylists.some(cp => cp.id === playlistId)) {
-                      handleDeleteCloudPlaylist(playlistId);
-                    } else {
-                      setShowDeletePlaylistConfirm(null);
+                    setCloudPlaylists(prev => prev.filter(p => p.id !== playlistId));
+                    // If the deleted playlist is loaded in the session, clear Now Playing.
+                    if (currentPlaylistName === playlistName) {
+                      const audio = audioRef.current;
+                      if (audio) { try { audio.pause(); } catch {} }
+                      setIsPlaying(false);
                     }
+                    // Best-effort authoritative cloud metadata delete (desktop only; the
+                    // handler itself no-ops on the read-only mobile build). Fire and forget
+                    // — the local removal above already updated the UI + persistence.
+                    if (!isMobileBuild) {
+                      void deleteCloudPlaylist(playlistId)
+                        .then((ok) => console.log("[v0] DELETE PLAYLIST cloud metadata delete result", { ok }))
+                        .catch((err) => console.error("[v0] DELETE PLAYLIST cloud delete failed", (err as Error)?.message || String(err)));
+                    }
+                    // Always close the dialog (previously the mobile early-return path in
+                    // handleDeleteCloudPlaylist left this dialog stuck open).
+                    setShowDeletePlaylistConfirm(null);
                   }}
                   className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition"
                 >
