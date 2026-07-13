@@ -9,8 +9,12 @@ const config: CapacitorConfig = {
     iosScheme: 'https',
   },
   ios: {
-    // Full screen for iPhone notches and iPad
-    contentInset: 'automatic',
+    // Edge-to-edge under the translucent status bar. Use 'never' (NOT 'automatic')
+    // so WKWebView does NOT auto-inset its content by the safe area — otherwise the
+    // top inset is applied twice (native content inset + our CSS env(safe-area-inset-top)),
+    // which is what caused the oversized empty gap under the status bar. With 'never'
+    // the CSS env() insets own the safe-area spacing exactly once.
+    contentInset: 'never',
     allowsLinkPreview: false,
     scrollEnabled: false,
     // Prefer edge-to-edge layout

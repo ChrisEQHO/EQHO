@@ -7658,15 +7658,16 @@ export default function Page() {
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
       <div
-        className="flex lg:hidden flex-col w-full overflow-hidden mt-[calc(env(safe-area-inset-top)+8px)] pt-3 landscape:pt-1 px-2 sm:px-3"
+        className="flex lg:hidden flex-col w-full overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
         style={{
-          // Reserve EXACTLY the measured height of the fixed controls bar (plus
-          // the top safe-area inset and the 8px top margin) so the content
-          // region always ends at the bar's top edge — no hardcoded guess that
-          // let the bar overlap the last playlist. Falls back to 112px before
-          // the first measurement.
+          // Offset the content below the status bar by EXACTLY the top safe-area
+          // inset (applied once, now that the native WKWebView contentInset is
+          // 'never'). A small pt-2 gives a tidy breathing gap without a big void.
+          // Reserve the measured fixed-controls-bar height plus the top inset so
+          // the content region always ends at the bar's top edge. Falls back to
+          // 112px before the first measurement.
           height:
-            "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top) - 8px)",
+            "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top))",
         }}
       >
         {activePage === "player" && (
