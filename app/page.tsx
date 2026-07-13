@@ -5342,11 +5342,69 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Volume Slider */}
+            {/* Volume Slider - matches the desktop on-brand drag-track control:
+                orange->pink gradient fill with the % centered inside, no thumb dot. */}
             <div className="flex items-center gap-3 py-3 justify-center shrink-0">
-              <Volume2 size={14} className="text-white/40" />
-              <input type="range" min={0} max={100} value={isMuted ? 0 : volume} onChange={(e) => { setVolume(Number(e.target.value)); if (Number(e.target.value) > 0) setIsMuted(false); }} className="w-32 h-1 rounded-full appearance-none bg-white/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full" />
-              <span className="text-[10px] text-white/40 w-8">{isMuted ? "0" : volume}%</span>
+              <button
+                type="button"
+                onClick={() => setIsMuted((m) => !m)}
+                aria-label={isMuted ? "Unmute" : "Mute"}
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition ${
+                  isMuted
+                    ? "border-red-500/60 bg-red-500/15 text-red-400"
+                    : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
+                }`}
+              >
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={15} />}
+              </button>
+              <div
+                className="group relative flex items-center w-[160px] h-9 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                onMouseDown={(e) => {
+                  const bar = e.currentTarget;
+                  const apply = (clientX: number) => {
+                    const rect = bar.getBoundingClientRect();
+                    const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+                    setVolume(pct);
+                    if (pct > 0 && isMuted) setIsMuted(false);
+                    if (pct === 0) setIsMuted(true);
+                  };
+                  apply(e.clientX);
+                  const handleMove = (ev: MouseEvent) => apply(ev.clientX);
+                  const handleUp = () => {
+                    document.removeEventListener("mousemove", handleMove);
+                    document.removeEventListener("mouseup", handleUp);
+                  };
+                  document.addEventListener("mousemove", handleMove);
+                  document.addEventListener("mouseup", handleUp);
+                }}
+                onTouchStart={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                  setVolume(pct);
+                  if (pct > 0 && isMuted) setIsMuted(false);
+                  if (pct === 0) setIsMuted(true);
+                }}
+                onTouchMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
+                  setVolume(pct);
+                  if (pct > 0 && isMuted) setIsMuted(false);
+                  if (pct === 0) setIsMuted(true);
+                }}
+                role="slider"
+                aria-label="Volume"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={isMuted ? 0 : volume}
+              >
+                <div
+                  className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
+                  style={{ width: `${isMuted ? 0 : volume}%` }}
+                />
+                <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">
+                  {isMuted ? "Muted" : `${volume}%`}
+                </span>
+              </div>
             </div>
           </div>
           )}
