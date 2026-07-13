@@ -437,6 +437,13 @@ export default function Page() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  // Cached result of "does writing element.volume actually change loudness?".
+  // Desktop + Android honor element.volume (and it routes correctly to Bluetooth/
+  // AirPlay); iOS/iPadOS WKWebView silently ignores it. We ONLY fall back to the
+  // Web Audio GainNode when element.volume is proven ineffective, because routing
+  // audio through createMediaElementSource breaks Bluetooth/AirPlay output — which
+  // was the cause of the "no volume over Bluetooth" regression. null = untested.
+  const volumeWritableRef = useRef<boolean | null>(null);
   // Mirror of currentTrack for use inside stable event listeners / diagnostics.
   const currentTrackRef = useRef<Track | null>(null);
 
@@ -3669,12 +3676,37 @@ export default function Page() {
     endSession();
   };
 
+  // Detect (once) whether writing element.volume actually takes effect. We set a
+  // sentinel value and read it back synchronously: platforms that honor it (desktop,
+  // Android) report the new value; iOS/iPadOS keep it pinned at 1. Result is cached.
+  const isElementVolumeWritable = useCallback(() => {
+    if (volumeWritableRef.current !== null) return volumeWritableRef.current;
+    const audio = audioRef.current;
+    if (!audio) return true; // assume writable until we have an element to test
+    let writable = true;
+    try {
+      const prev = audio.volume;
+      audio.volume = 0.123;
+      writable = Math.abs(audio.volume - 0.123) < 0.02;
+      audio.volume = prev;
+    } catch {
+      writable = false;
+    }
+    volumeWritableRef.current = writable;
+    console.log(`[v0] element.volume writable: ${writable}`);
+    return writable;
+  }, []);
+
   // Lazily build (or reuse) the Web Audio graph: <audio> -> GainNode -> speakers.
+  // ONLY used on platforms where element.volume is ineffective (iOS), because
+  // routing through createMediaElementSource breaks Bluetooth/AirPlay output.
   // Must be invoked from a user gesture (the play tap) so iOS lets the context run.
   // Safe to call repeatedly; createMediaElementSource is guarded to run only once.
   const ensureGainGraph = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return null;
+    // Bluetooth-safe path: if the element honors volume, never touch Web Audio.
+    if (isElementVolumeWritable()) return null;
     try {
       if (!audioCtxRef.current) {
         const Ctx =
@@ -3697,7 +3729,7 @@ export default function Page() {
       console.log("[v0] ensureGainGraph failed, falling back to element.volume", err);
       return null;
     }
-  }, []);
+  }, [isElementVolumeWritable]);
 
   // Sync volume + mute to the actual output. Runs on volume/mute change and on the
   // lifecycle transitions where the level must be re-asserted (track change, play,
