@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EQHO Player</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #050816;
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        text-align: center;
+        padding: 24px;
+      }
+      .card {
+        max-width: 440px;
+        width: 100%;
+      }
+      .logo {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 24px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #ff4fa3, #ff8a00);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .logo svg {
+        width: 36px;
+        height: 36px;
+        color: #ffffff;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0 0 12px;
+      }
+      p {
+        font-size: 14px;
+        line-height: 1.6;
+        color: rgba(255, 255, 255, 0.65);
+        margin: 0 0 24px;
+      }
+      button {
+        appearance: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 700;
+        color: #ffffff;
+        padding: 12px 28px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #ff4fa3, #ff8a00);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .status {
+        margin-top: 16px;
+        font-size: 12px;
+        min-height: 16px;
+        color: #ff6b6b;
+      }
+      .diag {
+        margin-top: 24px;
+        text-align: left;
+        font: 11px/1.5 monospace;
+        color: #a3e635;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(163, 230, 53, 0.3);
+        border-radius: 8px;
+        padding: 10px 12px;
+        display: none;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 10v3" />
+          <path d="M6 6v11" />
+          <path d="M10 3v18" />
+          <path d="M14 8v7" />
+          <path d="M18 5v13" />
+          <path d="M22 10v3" />
+        </svg>
+      </div>
+      <h1>EQHO Player</h1>
+      <p>
+        EQHO Player could not connect. Check your internet connection and try again.
+      </p>
+      <button id="retry" type="button">Retry</button>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <div id="diag" class="diag"></div>
+    </main>
+
+    <script>
+      const retryBtn = document.getElementById("retry");
+      const statusEl = document.getElementById("status");
+      const diagEl = document.getElementById("diag");
+
+      function invoke(cmd) {
+        // withGlobalTauri exposes the API on this local page.
+        if (window.__TAURI__ && window.__TAURI__.core) {
+          return window.__TAURI__.core.invoke(cmd);
+        }
+        return Promise.reject(new Error("Tauri API unavailable"));
+      }
+
+      async function maybeShowDiagnostics() {
+        try {
+          const on = await invoke("diagnostics_state");
+          if (on) {
+            diagEl.style.display = "block";
+            diagEl.textContent =
+              "EQHO DIAG\nscreen: offline\nnavigator.onLine: " + navigator.onLine;
+          }
+        } catch (_) {
+          /* diagnostics unavailable */
+        }
+      }
+
+      async function retry() {
+        retryBtn.disabled = true;
+        statusEl.style.color = "rgba(255,255,255,0.5)";
+        statusEl.textContent = "Reconnecting\u2026";
+        try {
+          const online = await invoke("retry_connection");
+          if (!online) {
+            statusEl.style.color = "#ff6b6b";
+            statusEl.textContent = "Still offline. Please check your connection.";
+          }
+          // If online, the Rust side navigates this window to the live site.
+        } catch (err) {
+          statusEl.style.color = "#ff6b6b";
+          statusEl.textContent = "Could not reconnect.";
+        } finally {
+          retryBtn.disabled = false;
+        }
+      }
+
+      retryBtn.addEventListener("click", retry);
+      window.addEventListener("online", retry);
+      maybeShowDiagnostics();
+    </script>
+  </body>
+</html>
