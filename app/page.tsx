@@ -5277,7 +5277,7 @@ export default function Page() {
                             </div>
                           )}
                           {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          {isHidden && (
+                          {isHidden ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -5290,6 +5290,18 @@ export default function Page() {
                               className="ml-1 px-2 py-1 rounded-lg text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                             >
                               Unhide
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                hideTrackFromSession(track.id);
+                              }}
+                              aria-label={`Hide ${track.title} from this session`}
+                              title="Hide from this session"
+                              className="ml-1 flex items-center justify-center w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition shrink-0"
+                            >
+                              <X size={14} />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -6306,7 +6318,7 @@ export default function Page() {
                                 <div className="text-[10px]">Duration</div>
                                 <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
                               </div>
-                              {isHidden && (
+                              {isHidden ? (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -6319,6 +6331,18 @@ export default function Page() {
                                   className="ml-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                 >
                                   Unhide
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    hideTrackFromSession(track.id);
+                                  }}
+                                  aria-label={`Hide ${track.title} from this session`}
+                                  title="Hide from this session"
+                                  className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition"
+                                >
+                                  <X size={16} />
                                 </button>
                               )}
                           </SortableTrackItem>
@@ -8364,7 +8388,7 @@ export default function Page() {
                                   )}
 
                                   {/* Unhide Button (shown only for already-hidden tracks) */}
-                                  {isHidden && (
+                                  {isHidden ? (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -8377,6 +8401,18 @@ export default function Page() {
                                       className="px-2 py-1 rounded-md text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                     >
                                       Unhide
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        hideTrackFromSession(track.id);
+                                      }}
+                                      aria-label={`Hide ${track.title} from this session`}
+                                      title="Hide from this session"
+                                      className="flex items-center justify-center w-8 h-8 rounded-md text-white/40 hover:text-white hover:bg-white/10 active:bg-white/15 transition shrink-0"
+                                    >
+                                      <X size={18} />
                                     </button>
                                   )}
                                 </SortableTrackItem>
