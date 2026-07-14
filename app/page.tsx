@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
-import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
+import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { useNativeSession } from "@/lib/use-native-session";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
@@ -593,6 +593,15 @@ export default function Page() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
+  // True only in the Capacitor iOS/iPadOS app, where JS cannot control playback
+  // loudness (iOS routes it to the hardware volume buttons). Set after mount to
+  // avoid an SSR/hydration mismatch. When true, the in-app percentage volume
+  // slider is replaced by guidance to use the device volume buttons; every other
+  // platform (desktop, macOS wrapper, real browsers) keeps the working slider.
+  const [iosVolumeControl, setIosVolumeControl] = useState(false);
+  useEffect(() => {
+    setIosVolumeControl(isNativeIOS());
+  }, []);
   const [sessionRunning, setSessionRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [trackDuration, setTrackDuration] = useState(0);
@@ -5025,6 +5034,11 @@ export default function Page() {
                 >
                   {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
+                {iosVolumeControl ? (
+                  <span className="text-[11px] leading-tight text-white/60 max-w-[160px]">
+                    Use your device volume buttons to adjust playback volume.
+                  </span>
+                ) : (
                 <div
                   className="group relative flex items-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                   onMouseDown={(e) => {
@@ -5075,6 +5089,7 @@ export default function Page() {
                   />
                   <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">{isMuted ? "Muted" : `${volume}%`}</span>
                 </div>
+                )}
                 {/* Exit Fullscreen */}
                 <button
                   onClick={toggleFullscreen}
@@ -5648,6 +5663,11 @@ export default function Page() {
               >
                 {isMuted ? <VolumeX size={16} /> : <Volume2 size={15} />}
               </button>
+              {iosVolumeControl ? (
+                <span className="text-xs leading-tight text-white/60 max-w-[220px] text-center">
+                  Use your device volume buttons to adjust playback volume.
+                </span>
+              ) : (
               <div
                 className="group relative flex items-center w-[160px] h-9 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                 onMouseDown={(e) => {
@@ -5696,6 +5716,7 @@ export default function Page() {
                   {isMuted ? "Muted" : `${volume}%`}
                 </span>
               </div>
+              )}
             </div>
           </div>
           )}
@@ -6484,6 +6505,11 @@ export default function Page() {
                   {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                 </button>
 
+                {iosVolumeControl ? (
+                  <span className="text-[11px] leading-tight text-white/60 max-w-[180px]">
+                    Use your device volume buttons to adjust playback volume.
+                  </span>
+                ) : (
                 <div
                   className="group relative flex items-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                   onMouseDown={(e) => {
@@ -6534,6 +6560,7 @@ export default function Page() {
                     {isMuted ? "0" : volume}%
                   </span>
                 </div>
+                )}
 
                 <button
                   onClick={() => {
@@ -7476,7 +7503,11 @@ export default function Page() {
                     <h2 className="text-lg font-bold">Playback</h2>
                   </div>
                   <div className="space-y-4">
-                    <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
+                    {iosVolumeControl ? (
+                      <p className="text-sm text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
+                    ) : (
+                      <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
+                    )}
                     <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
                   </div>
                 </div>
@@ -8181,6 +8212,11 @@ export default function Page() {
                             >
                               {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
                             </button>
+                            {iosVolumeControl ? (
+                              <span className="text-[9px] leading-tight text-white/60 max-w-[150px]">
+                                Use your device volume buttons to adjust playback volume.
+                              </span>
+                            ) : (
                             <div
                               className="relative flex items-center w-[64px] h-[28px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                               onTouchStart={(e) => {
@@ -8217,6 +8253,7 @@ export default function Page() {
                                 {isMuted ? "0" : volume}%
                               </span>
                             </div>
+                            )}
                             <button
                               onClick={() => setShowFullscreenMobilePlayer(true)}
                               className="grid h-[28px] w-[28px] place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white transition"
@@ -8937,6 +8974,9 @@ export default function Page() {
                         <span className="text-[10px] font-bold text-white">Playback</span>
                       </div>
                       <div className="space-y-2">
+                        {iosVolumeControl ? (
+                          <p className="text-[10px] text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
+                        ) : (
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-white/70">Default Volume</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
@@ -8945,6 +8985,7 @@ export default function Page() {
                             <button onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-white/70">Autoplay Next Track</span>
                           <button onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex items-center">
