@@ -57,7 +57,7 @@ export interface GapStartedEvent {
   nextTitle: string;
 }
 export interface GapTickEvent { remaining: number }
-export interface PositionEvent { position: number; duration: number }
+export interface PositionEvent { index: number; currentTime: number; duration: number }
 export interface PlayStateEvent { isPlaying: boolean }
 export interface SessionFinishedEvent { reason: 'completed' | 'stopped' }
 export interface ErrorEvent { message: string; trackId?: string }
@@ -79,7 +79,7 @@ export interface EqhoAudioPlugin {
   addListener(eventName: 'gapStarted', cb: (e: GapStartedEvent) => void): Promise<PluginListenerHandle>;
   addListener(eventName: 'gapTick', cb: (e: GapTickEvent) => void): Promise<PluginListenerHandle>;
   addListener(eventName: 'gapEnded', cb: () => void): Promise<PluginListenerHandle>;
-  addListener(eventName: 'positionUpdate', cb: (e: PositionEvent) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'position', cb: (e: PositionEvent) => void): Promise<PluginListenerHandle>;
   addListener(eventName: 'playStateChanged', cb: (e: PlayStateEvent) => void): Promise<PluginListenerHandle>;
   addListener(eventName: 'sessionFinished', cb: (e: SessionFinishedEvent) => void): Promise<PluginListenerHandle>;
   addListener(eventName: 'remoteCommand', cb: (e: { command: string }) => void): Promise<PluginListenerHandle>;

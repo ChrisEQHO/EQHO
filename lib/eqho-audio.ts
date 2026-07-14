@@ -63,8 +63,10 @@ export const nativeQueue = {
   onGapStarted: (cb: (e: GapStartedEvent) => void) => EqhoAudio.addListener("gapStarted", cb),
   onGapTick: (cb: (e: GapTickEvent) => void) => EqhoAudio.addListener("gapTick", cb),
   onGapEnded: (cb: () => void) => EqhoAudio.addListener("gapEnded", cb),
+  onPosition: (cb: (e: PositionEvent) => void) => EqhoAudio.addListener("position", cb),
   onPlayStateChanged: (cb: (e: PlayStateEvent) => void) => EqhoAudio.addListener("playStateChanged", cb),
   onSessionFinished: (cb: (e: SessionFinishedEvent) => void) => EqhoAudio.addListener("sessionFinished", cb),
+  onRemoteCommand: (cb: (e: { command: string }) => void) => EqhoAudio.addListener("remoteCommand", cb),
   onError: (cb: (e: EqhoErrorEvent) => void) => EqhoAudio.addListener("error", cb),
   removeAllListeners: () => EqhoAudio.removeAllListeners(),
 };

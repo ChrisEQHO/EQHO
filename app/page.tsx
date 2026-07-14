@@ -15,6 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
+import { useNativeSession } from "@/lib/use-native-session";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -2985,6 +2986,20 @@ export default function Page() {
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
   const togglePlayPause = async (track: Track) => {
+    // Native locked-screen session active: route controls to the native engine
+    // instead of the JS <audio> element. Same track toggles pause/resume; a
+    // different track restarts the native queue from that track's index.
+    if (nativeSessionRef.current.activeRef.current) {
+      if (currentTrack?.id === track.id) {
+        if (isPlaying) await nativeSessionRef.current.pause();
+        else await nativeSessionRef.current.play();
+      } else {
+        const idx = playlistRef.current.findIndex((t) => t.id === track.id);
+        await startNativeSessionIfPossible(idx >= 0 ? idx : 0);
+      }
+      return;
+    }
+
     const audio = audioRef.current;
     if (!audio || !track || !track.url) return;
 
@@ -3126,6 +3141,37 @@ export default function Page() {
   };
 
   const toggleSession = async () => {
+    // Native locked-screen session path (iOS/Android shell). Native owns the
+    // whole sequence, so Start begins a native session and the button toggles
+    // native pause/resume thereafter.
+    if (nativeSessionRef.current.available) {
+      if (nativeSessionRef.current.activeRef.current) {
+        if (isPlaying) {
+          // Respect the same pause-warning flow as the JS path.
+          setShowStopConfirm(true);
+        } else {
+          await nativeSessionRef.current.play();
+        }
+        return;
+      }
+      if (playlist.length > 0) {
+        let firstVisibleIdx = 0;
+        while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
+          firstVisibleIdx++;
+        }
+        if (firstVisibleIdx >= playlist.length) return; // all hidden
+        setPlaylistRound(1);
+        setFinishedTracks(new Set());
+        setIsGapPaused(false);
+        setGapCountdown(0);
+        setShowSessionFinished(false);
+        setSessionRunning(true);
+        const started = await startNativeSessionIfPossible(firstVisibleIdx);
+        if (started) return;
+        // Couldn't materialize any files - fall through to the JS <audio> path.
+      }
+    }
+
     if (!audioRef.current) return;
 
     // Use the real <audio> element as source of truth (React `isPlaying` can
@@ -3195,6 +3241,12 @@ export default function Page() {
   };
 
   const confirmPauseSession = () => {
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.pause();
+      setIsPlaying(false);
+      setShowStopConfirm(false);
+      return;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -3414,6 +3466,12 @@ export default function Page() {
   const goToNextTrack = () => {
     if (playlist.length === 0) return;
 
+    // Native session handles skip + gap/repeat logic itself.
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.next();
+      return;
+    }
+
     // Find next non-hidden track. Skipping forward always starts the next track
     // fresh (playTrackFresh clears the back-to-back flag).
     let nextIdx = currentIndex + 1;
@@ -3444,7 +3502,15 @@ export default function Page() {
   };
 
   const goToPreviousTrack = () => {
-    if (playlist.length === 0 || !audioRef.current) return;
+    if (playlist.length === 0) return;
+
+    // Native session handles previous/restart logic itself.
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.previous();
+      return;
+    }
+
+    if (!audioRef.current) return;
 
     // Preserve the current playback state before changing track.
     // Only auto-play after skip-back if the player was already playing.
@@ -3512,6 +3578,68 @@ export default function Page() {
   currentIndexRef.current = currentIndex;
   const playlistRef = useRef(playlist);
   playlistRef.current = playlist;
+
+  // Native locked-screen sequencer (iOS/Android Capacitor shell only). On web and
+  // the desktop wrapper `nativeSession.available` is false and this is fully inert,
+  // so the existing JS <audio> + setInterval sequencer below stays in control.
+  // When active, NATIVE owns sequencing (advancing tracks, gap timing, countdown
+  // beeps) and keeps running while the device is LOCKED; these callbacks only
+  // mirror native events back into React state so the UI matches what's playing.
+  const nativeSession = useNativeSession({
+    onTrackChanged: ({ index, duration }) => {
+      setCurrentIndex(index);
+      const t = playlistRef.current[index];
+      if (t) setCurrentTrack(t);
+      setTrackDuration(duration || 0);
+      setCurrentTime(0);
+      setIsGapPaused(false);
+      setGapCountdown(0);
+      setIsPlaying(true);
+    },
+    onGapStarted: ({ seconds }) => {
+      setIsGapPaused(true);
+      setGapCountdown(seconds);
+    },
+    onGapTick: (remaining) => setGapCountdown(remaining),
+    onGapEnded: () => {
+      setIsGapPaused(false);
+      setGapCountdown(0);
+    },
+    onPosition: ({ currentTime, duration }) => {
+      setCurrentTime(currentTime);
+      if (duration) setTrackDuration(duration);
+    },
+    onPlayStateChanged: (playing) => setIsPlaying(playing),
+    onSessionFinished: (reason) => {
+      setIsPlaying(false);
+      setIsGapPaused(false);
+      setGapCountdown(0);
+      if (reason === "completed") setShowSessionFinished(true);
+    },
+    onError: (message) => console.log("[v0] native audio error:", message),
+  });
+  const nativeSessionRef = useRef(nativeSession);
+  nativeSessionRef.current = nativeSession;
+
+  // Start a native locked-screen session from the CURRENT playlist, beginning at
+  // `startIndex`. Returns true if native took over (caller then skips the JS path),
+  // false on web/desktop or if no track files could be materialized. Reads live
+  // values (settings/volume) at call time, so it is intentionally not memoized.
+  const startNativeSessionIfPossible = async (startIndex: number): Promise<boolean> => {
+    if (!nativeSessionRef.current.available) return false;
+    const tracks = playlistRef.current
+      .filter((t) => !hiddenTrackIdsRef.current.has(t.id))
+      .map((t) => ({ id: t.id, title: t.title, fileName: t.fileName, file: t.file }));
+    if (tracks.length === 0) return false;
+    return nativeSessionRef.current.start(tracks, startIndex, {
+      gapSeconds,
+      repeats: playlistRepeats,
+      backToBack,
+      countdownBeeps: showCountdownRef.current,
+      countdownSeconds: countdownSecondsRef.current,
+      volume: Math.max(0, Math.min(1, volume / 100)),
+    });
+  };
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
   // Keeps the "Autoplay Next Track" setting readable inside the onEnded handler
@@ -3581,6 +3709,10 @@ export default function Page() {
   // live audio DOM node (no addEventListener/ref timing or remount fragility).
   // Reads latest values from refs to avoid stale closures.
   const handleTrackEnded = () => {
+    // When the native session is driving playback, the JS <audio> element is not
+    // the source of truth — native handles end-of-track advance, gaps and repeats.
+    if (nativeSessionRef.current.activeRef.current) return;
+
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -3743,9 +3875,14 @@ export default function Page() {
   // element.volume to 1 to avoid double attenuation. `muted` still uses the element
   // flag (honored everywhere). Falls back to element.volume if no graph yet.
   useEffect(() => {
+    const normalized = Math.max(0, Math.min(1, volume / 100));
+    // Native session: drive the native player's volume (its AVAudioPlayer owns
+    // output). Still fall through to also set the element so state stays coherent.
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.setVolume(isMuted ? 0 : normalized);
+    }
     const audio = audioRef.current;
     if (!audio) return;
-    const normalized = Math.max(0, Math.min(1, volume / 100));
     const gain = gainNodeRef.current;
     if (gain && audioCtxRef.current) {
       audio.volume = 1;
