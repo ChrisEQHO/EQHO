@@ -31,6 +31,27 @@ export const isNativePlatform = (): boolean => {
   return !!cap.isNative;
 };
 
+// True ONLY when running inside the Capacitor iOS/iPadOS native app (WKWebView).
+// This is the one environment where JavaScript cannot control
+// HTMLMediaElement.volume: iOS routes playback loudness to the physical/system
+// volume buttons, so an in-app percentage slider is dishonest there. We use
+// Capacitor's own platform string ("ios") rather than user-agent sniffing, and
+// require the native shell so mobile Safari (a normal browser) is unaffected.
+export const isNativeIOS = (): boolean => {
+  if (typeof window === "undefined") return false;
+  const cap = (window as unknown as {
+    Capacitor?: { getPlatform?: () => string; isNativePlatform?: () => boolean; isNative?: boolean };
+  }).Capacitor;
+  if (!cap) return false;
+  try {
+    const platform = typeof cap.getPlatform === "function" ? cap.getPlatform() : "";
+    const native = typeof cap.isNativePlatform === "function" ? cap.isNativePlatform() : !!cap.isNative;
+    return native && platform === "ios";
+  } catch {
+    return false;
+  }
+};
+
 // Cache of original (data:) URL -> converted blob: URL, so a given data URL is
 // only ever fetched/converted once and can be reused synchronously afterwards.
 // The blob URLs live for the lifetime of the page (tracks that reference them
