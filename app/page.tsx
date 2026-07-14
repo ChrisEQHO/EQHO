@@ -15,6 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
+import { useNativeSession } from "@/lib/use-native-session";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified } from "@/lib/access";
@@ -2985,6 +2986,20 @@ export default function Page() {
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
   const togglePlayPause = async (track: Track) => {
+    // Native locked-screen session active: route controls to the native engine
+    // instead of the JS <audio> element. Same track toggles pause/resume; a
+    // different track restarts the native queue from that track's index.
+    if (nativeSessionRef.current.activeRef.current) {
+      if (currentTrack?.id === track.id) {
+        if (isPlaying) await nativeSessionRef.current.pause();
+        else await nativeSessionRef.current.play();
+      } else {
+        const idx = playlistRef.current.findIndex((t) => t.id === track.id);
+        await startNativeSessionIfPossible(idx >= 0 ? idx : 0);
+      }
+      return;
+    }
+
     const audio = audioRef.current;
     if (!audio || !track || !track.url) return;
 
@@ -3126,6 +3141,37 @@ export default function Page() {
   };
 
   const toggleSession = async () => {
+    // Native locked-screen session path (iOS/Android shell). Native owns the
+    // whole sequence, so Start begins a native session and the button toggles
+    // native pause/resume thereafter.
+    if (nativeSessionRef.current.available) {
+      if (nativeSessionRef.current.activeRef.current) {
+        if (isPlaying) {
+          // Respect the same pause-warning flow as the JS path.
+          setShowStopConfirm(true);
+        } else {
+          await nativeSessionRef.current.play();
+        }
+        return;
+      }
+      if (playlist.length > 0) {
+        let firstVisibleIdx = 0;
+        while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
+          firstVisibleIdx++;
+        }
+        if (firstVisibleIdx >= playlist.length) return; // all hidden
+        setPlaylistRound(1);
+        setFinishedTracks(new Set());
+        setIsGapPaused(false);
+        setGapCountdown(0);
+        setShowSessionFinished(false);
+        setSessionRunning(true);
+        const started = await startNativeSessionIfPossible(firstVisibleIdx);
+        if (started) return;
+        // Couldn't materialize any files - fall through to the JS <audio> path.
+      }
+    }
+
     if (!audioRef.current) return;
 
     // Use the real <audio> element as source of truth (React `isPlaying` can
@@ -3195,6 +3241,12 @@ export default function Page() {
   };
 
   const confirmPauseSession = () => {
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.pause();
+      setIsPlaying(false);
+      setShowStopConfirm(false);
+      return;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -3414,6 +3466,12 @@ export default function Page() {
   const goToNextTrack = () => {
     if (playlist.length === 0) return;
 
+    // Native session handles skip + gap/repeat logic itself.
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.next();
+      return;
+    }
+
     // Find next non-hidden track. Skipping forward always starts the next track
     // fresh (playTrackFresh clears the back-to-back flag).
     let nextIdx = currentIndex + 1;
@@ -3444,7 +3502,15 @@ export default function Page() {
   };
 
   const goToPreviousTrack = () => {
-    if (playlist.length === 0 || !audioRef.current) return;
+    if (playlist.length === 0) return;
+
+    // Native session handles previous/restart logic itself.
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.previous();
+      return;
+    }
+
+    if (!audioRef.current) return;
 
     // Preserve the current playback state before changing track.
     // Only auto-play after skip-back if the player was already playing.
@@ -3512,6 +3578,83 @@ export default function Page() {
   currentIndexRef.current = currentIndex;
   const playlistRef = useRef(playlist);
   playlistRef.current = playlist;
+
+  // Native locked-screen sequencer (iOS/Android Capacitor shell only). On web and
+  // the desktop wrapper `nativeSession.available` is false and this is fully inert,
+  // so the existing JS <audio> + setInterval sequencer below stays in control.
+  // When active, NATIVE owns sequencing (advancing tracks, gap timing, countdown
+  // beeps) and keeps running while the device is LOCKED; these callbacks only
+  // mirror native events back into React state so the UI matches what's playing.
+  const nativeSession = useNativeSession({
+    onTrackChanged: ({ index, duration }) => {
+      setCurrentIndex(index);
+      const t = playlistRef.current[index];
+      if (t) setCurrentTrack(t);
+      setTrackDuration(duration || 0);
+      setCurrentTime(0);
+      setIsGapPaused(false);
+      setGapCountdown(0);
+      setIsPlaying(true);
+    },
+    onGapStarted: ({ seconds }) => {
+      setIsGapPaused(true);
+      setGapCountdown(seconds);
+    },
+    onGapTick: (remaining) => setGapCountdown(remaining),
+    onGapEnded: () => {
+      setIsGapPaused(false);
+      setGapCountdown(0);
+    },
+    onPosition: ({ currentTime, duration }) => {
+      setCurrentTime(currentTime);
+      if (duration) setTrackDuration(duration);
+    },
+    onPlayStateChanged: (playing) => setIsPlaying(playing),
+    onSessionFinished: (reason) => {
+      setIsPlaying(false);
+      setIsGapPaused(false);
+      setGapCountdown(0);
+      if (reason === "completed") setShowSessionFinished(true);
+    },
+    onError: (message) => console.log("[v0] native audio error:", message),
+  });
+  const nativeSessionRef = useRef(nativeSession);
+  nativeSessionRef.current = nativeSession;
+
+  // Start a native locked-screen session from the CURRENT playlist, beginning at
+  // `startIndex`. Returns true if native took over (caller then skips the JS path),
+  // false on web/desktop or if no track files could be materialized. Reads live
+  // values (settings/volume) at call time, so it is intentionally not memoized.
+  const startNativeSessionIfPossible = async (startIndex: number): Promise<boolean> => {
+    if (!nativeSessionRef.current.available) return false;
+    const tracks = playlistRef.current
+      .filter((t) => !hiddenTrackIdsRef.current.has(t.id))
+      .map((t) => ({ id: t.id, title: t.title, fileName: t.fileName, file: t.file }));
+    if (tracks.length === 0) return false;
+    return nativeSessionRef.current.start(tracks, startIndex, {
+      gapSeconds,
+      repeats: playlistRepeats,
+      backToBack,
+      countdownBeeps: showCountdownRef.current,
+      countdownSeconds: countdownSecondsRef.current,
+      volume: Math.max(0, Math.min(1, volume / 100)),
+    });
+  };
+
+  // Seek helper shared by every progress-bar scrub handler. Routes to the native
+  // engine when a native session is active, otherwise to the JS <audio> element.
+  const seekToSeconds = (seconds: number) => {
+    const clamped = Math.max(0, Math.min(seconds, trackDuration || 0));
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.seek(clamped);
+      setCurrentTime(clamped);
+      return;
+    }
+    if (audioRef.current) {
+      audioRef.current.currentTime = clamped;
+      setCurrentTime(clamped);
+    }
+  };
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
   // Keeps the "Autoplay Next Track" setting readable inside the onEnded handler
@@ -3581,6 +3724,10 @@ export default function Page() {
   // live audio DOM node (no addEventListener/ref timing or remount fragility).
   // Reads latest values from refs to avoid stale closures.
   const handleTrackEnded = () => {
+    // When the native session is driving playback, the JS <audio> element is not
+    // the source of truth — native handles end-of-track advance, gaps and repeats.
+    if (nativeSessionRef.current.activeRef.current) return;
+
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -3743,9 +3890,14 @@ export default function Page() {
   // element.volume to 1 to avoid double attenuation. `muted` still uses the element
   // flag (honored everywhere). Falls back to element.volume if no graph yet.
   useEffect(() => {
+    const normalized = Math.max(0, Math.min(1, volume / 100));
+    // Native session: drive the native player's volume (its AVAudioPlayer owns
+    // output). Still fall through to also set the element so state stays coherent.
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.setVolume(isMuted ? 0 : normalized);
+    }
     const audio = audioRef.current;
     if (!audio) return;
-    const normalized = Math.max(0, Math.min(1, volume / 100));
     const gain = gainNodeRef.current;
     if (gain && audioCtxRef.current) {
       audio.volume = 1;
@@ -4405,64 +4557,6 @@ export default function Page() {
           </div>
         )}
 
-        {showSkipBackConfirm && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
-              <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
-              <p className="text-white/60 mb-6">Are you sure you want to go back to the previous track?</p>
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => setShowSkipBackConfirm(false)}
-                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSkipBackConfirm(false);
-                    // Small delay to ensure state update completes
-                    setTimeout(() => goToPreviousTrack(), 50);
-                  }}
-                  className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition"
-                >
-                  Yes, Go Back
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showSkipForwardConfirm && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
-              <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
-              <p className="text-white/60 mb-6">Are you sure you want to skip to the next track?</p>
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => setShowSkipForwardConfirm(false)}
-                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSkipForwardConfirm(false);
-                    // Small delay to ensure state update completes
-                    setTimeout(() => goToNextTrack(), 50);
-                  }}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
-                >
-                  Yes, Skip
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Queue Playlist Modal */}
         {showFullscreenQueuePlaylist && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -5047,11 +5141,11 @@ export default function Page() {
               <div
                 className="relative flex h-12 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
                 onClick={(e) => {
-                  if (!audioRef.current || trackDuration === 0) return;
+                  if (trackDuration === 0) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const x = e.clientX - rect.left;
                   const pct = x / rect.width;
-                  audioRef.current.currentTime = pct * trackDuration;
+                  seekToSeconds(pct * trackDuration);
                 }}
               >
                 {Array.from({ length: 80 }).map((_, i) => {
@@ -5183,7 +5277,7 @@ export default function Page() {
                             </div>
                           )}
                           {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          {isHidden && (
+                          {isHidden ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -5196,6 +5290,18 @@ export default function Page() {
                               className="ml-1 px-2 py-1 rounded-lg text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                             >
                               Unhide
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                hideTrackFromSession(track.id);
+                              }}
+                              aria-label={`Hide ${track.title} from this session`}
+                              title="Hide from this session"
+                              className="ml-1 flex items-center justify-center w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition shrink-0"
+                            >
+                              <X size={14} />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -5392,10 +5498,10 @@ export default function Page() {
             <div
               className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 mb-3"
               onClick={(e) => {
-                if (!audioRef.current || trackDuration === 0) return;
+                if (trackDuration === 0) return;
                 const rect = e.currentTarget.getBoundingClientRect();
                 const pct = (e.clientX - rect.left) / rect.width;
-                audioRef.current.currentTime = pct * trackDuration;
+                seekToSeconds(pct * trackDuration);
               }}
             >
               {Array.from({ length: 50 }).map((_, i) => {
@@ -5699,6 +5805,69 @@ export default function Page() {
                   setTimeout(() => goToPreviousTrack(), 50);
                 }}
                 className="px-5 py-2.5 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition text-sm"
+              >
+                Yes, Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Forward Confirmation - Desktop (outside isFullscreen container).
+          Rendered here (not inside the fullscreen view) so it appears on the normal
+          desktop main screen too. Previously the only desktop copy lived inside the
+          isFullscreen container, which is `hidden` off-fullscreen — so the confirm
+          state was set but never shown and the skip button appeared to do nothing.
+          z-[400] keeps it above the z-[100] fullscreen view when fullscreen IS open. */}
+      {showSkipForwardConfirm && (
+        <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+          <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
+            <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
+            <p className="text-white/60 mb-6">Are you sure you want to skip to the next track?</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowSkipForwardConfirm(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSkipForwardConfirm(false);
+                  setTimeout(() => goToNextTrack(), 50);
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+              >
+                Yes, Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Back Confirmation - Desktop (outside isFullscreen container) */}
+      {showSkipBackConfirm && (
+        <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+          <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
+            <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
+            <p className="text-white/60 mb-6">Are you sure you want to go back to the previous track?</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => setShowSkipBackConfirm(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSkipBackConfirm(false);
+                  setTimeout(() => goToPreviousTrack(), 50);
+                }}
+                className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition"
               >
                 Yes, Go Back
               </button>
@@ -6149,7 +6318,7 @@ export default function Page() {
                                 <div className="text-[10px]">Duration</div>
                                 <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
                               </div>
-                              {isHidden && (
+                              {isHidden ? (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -6162,6 +6331,18 @@ export default function Page() {
                                   className="ml-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                 >
                                   Unhide
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    hideTrackFromSession(track.id);
+                                  }}
+                                  aria-label={`Hide ${track.title} from this session`}
+                                  title="Hide from this session"
+                                  className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition"
+                                >
+                                  <X size={16} />
                                 </button>
                               )}
                           </SortableTrackItem>
@@ -6373,23 +6554,21 @@ export default function Page() {
             <div
               className="relative mt-4 md:mt-6 flex h-12 md:h-14 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
               onClick={(e) => {
-                if (!audioRef.current || !trackDuration) return;
+                if (!trackDuration) return;
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const pct = Math.max(0, Math.min(1, x / rect.width));
-                audioRef.current.currentTime = pct * trackDuration;
-                setCurrentTime(pct * trackDuration);
+                seekToSeconds(pct * trackDuration);
               }}
               onMouseDown={(e) => {
                 if (!currentTrack) return;
                 const bar = e.currentTarget;
                 const handleMove = (ev: MouseEvent) => {
-                  if (!audioRef.current || !trackDuration) return;
+                  if (!trackDuration) return;
                   const rect = bar.getBoundingClientRect();
                   const x = ev.clientX - rect.left;
                   const pct = Math.max(0, Math.min(1, x / rect.width));
-                  audioRef.current.currentTime = pct * trackDuration;
-                  setCurrentTime(pct * trackDuration);
+                  seekToSeconds(pct * trackDuration);
                 };
                 const handleUp = () => {
                   document.removeEventListener("mousemove", handleMove);
@@ -8209,7 +8388,7 @@ export default function Page() {
                                   )}
 
                                   {/* Unhide Button (shown only for already-hidden tracks) */}
-                                  {isHidden && (
+                                  {isHidden ? (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -8222,6 +8401,18 @@ export default function Page() {
                                       className="px-2 py-1 rounded-md text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
                                     >
                                       Unhide
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        hideTrackFromSession(track.id);
+                                      }}
+                                      aria-label={`Hide ${track.title} from this session`}
+                                      title="Hide from this session"
+                                      className="flex items-center justify-center w-8 h-8 rounded-md text-white/40 hover:text-white hover:bg-white/10 active:bg-white/15 transition shrink-0"
+                                    >
+                                      <X size={18} />
                                     </button>
                                   )}
                                 </SortableTrackItem>

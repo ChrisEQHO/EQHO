@@ -1,0 +1,28 @@
+{
+  "name": "eqho-audio",
+  "version": "1.0.0",
+  "description": "Native AVFoundation audio-queue engine for EQHO Player: gap sequencing, countdown beeps, playlist repeats and back-to-back, with lock-screen playback that keeps advancing tracks while the iPhone/iPad is locked.",
+  "main": "index.js",
+  "module": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "ios/",
+    "EqhoAudio.podspec"
+  ],
+  "keywords": [
+    "capacitor",
+    "plugin",
+    "native",
+    "audio"
+  ],
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^8.0.0"
+  }
+}
