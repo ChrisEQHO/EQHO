@@ -3640,6 +3640,21 @@ export default function Page() {
       volume: Math.max(0, Math.min(1, volume / 100)),
     });
   };
+
+  // Seek helper shared by every progress-bar scrub handler. Routes to the native
+  // engine when a native session is active, otherwise to the JS <audio> element.
+  const seekToSeconds = (seconds: number) => {
+    const clamped = Math.max(0, Math.min(seconds, trackDuration || 0));
+    if (nativeSessionRef.current.activeRef.current) {
+      void nativeSessionRef.current.seek(clamped);
+      setCurrentTime(clamped);
+      return;
+    }
+    if (audioRef.current) {
+      audioRef.current.currentTime = clamped;
+      setCurrentTime(clamped);
+    }
+  };
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
   // Keeps the "Autoplay Next Track" setting readable inside the onEnded handler
@@ -5126,11 +5141,11 @@ export default function Page() {
               <div
                 className="relative flex h-12 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
                 onClick={(e) => {
-                  if (!audioRef.current || trackDuration === 0) return;
+                  if (trackDuration === 0) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const x = e.clientX - rect.left;
                   const pct = x / rect.width;
-                  audioRef.current.currentTime = pct * trackDuration;
+                  seekToSeconds(pct * trackDuration);
                 }}
               >
                 {Array.from({ length: 80 }).map((_, i) => {
@@ -5471,10 +5486,10 @@ export default function Page() {
             <div
               className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 mb-3"
               onClick={(e) => {
-                if (!audioRef.current || trackDuration === 0) return;
+                if (trackDuration === 0) return;
                 const rect = e.currentTarget.getBoundingClientRect();
                 const pct = (e.clientX - rect.left) / rect.width;
-                audioRef.current.currentTime = pct * trackDuration;
+                seekToSeconds(pct * trackDuration);
               }}
             >
               {Array.from({ length: 50 }).map((_, i) => {
@@ -6515,23 +6530,21 @@ export default function Page() {
             <div
               className="relative mt-4 md:mt-6 flex h-12 md:h-14 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 select-none"
               onClick={(e) => {
-                if (!audioRef.current || !trackDuration) return;
+                if (!trackDuration) return;
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const pct = Math.max(0, Math.min(1, x / rect.width));
-                audioRef.current.currentTime = pct * trackDuration;
-                setCurrentTime(pct * trackDuration);
+                seekToSeconds(pct * trackDuration);
               }}
               onMouseDown={(e) => {
                 if (!currentTrack) return;
                 const bar = e.currentTarget;
                 const handleMove = (ev: MouseEvent) => {
-                  if (!audioRef.current || !trackDuration) return;
+                  if (!trackDuration) return;
                   const rect = bar.getBoundingClientRect();
                   const x = ev.clientX - rect.left;
                   const pct = Math.max(0, Math.min(1, x / rect.width));
-                  audioRef.current.currentTime = pct * trackDuration;
-                  setCurrentTime(pct * trackDuration);
+                  seekToSeconds(pct * trackDuration);
                 };
                 const handleUp = () => {
                   document.removeEventListener("mousemove", handleMove);
