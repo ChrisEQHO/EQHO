@@ -4557,6 +4557,69 @@ export default function Page() {
           </div>
         )}
 
+        {/* Skip Forward Confirmation - INSIDE fullscreen container.
+            Desktop fullscreen uses the browser Fullscreen API (requestFullscreen on
+            fullscreenRef), which renders ONLY this element's subtree. A skip modal
+            rendered as a sibling outside this container is invisible while the browser
+            is in real fullscreen, so the skip appeared to "do nothing". This copy lives
+            inside fullscreenRef so it shows during real fullscreen. */}
+        {showSkipForwardConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
+              <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
+              <p className="text-white/60 mb-6">Are you sure you want to skip to the next track?</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowSkipForwardConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSkipForwardConfirm(false);
+                    setTimeout(() => goToNextTrack(), 50);
+                  }}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
+                >
+                  Yes, Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Skip Back Confirmation - INSIDE fullscreen container (see note above). */}
+        {showSkipBackConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
+              <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
+              <p className="text-white/60 mb-6">Are you sure you want to go back to the previous track?</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowSkipBackConfirm(false)}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSkipBackConfirm(false);
+                    setTimeout(() => goToPreviousTrack(), 50);
+                  }}
+                  className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition"
+                >
+                  Yes, Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Queue Playlist Modal */}
         {showFullscreenQueuePlaylist && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -5818,8 +5881,10 @@ export default function Page() {
           desktop main screen too. Previously the only desktop copy lived inside the
           isFullscreen container, which is `hidden` off-fullscreen — so the confirm
           state was set but never shown and the skip button appeared to do nothing.
-          z-[400] keeps it above the z-[100] fullscreen view when fullscreen IS open. */}
-      {showSkipForwardConfirm && (
+          Gated on !isFullscreen: while desktop fullscreen is active the in-container
+          copy (inside fullscreenRef) handles it, since the browser Fullscreen API only
+          renders that subtree. This avoids a doubled overlay in the CSS-fallback case. */}
+      {showSkipForwardConfirm && !isFullscreen && (
         <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
           <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
@@ -5847,8 +5912,9 @@ export default function Page() {
         </div>
       )}
 
-      {/* Skip Back Confirmation - Desktop (outside isFullscreen container) */}
-      {showSkipBackConfirm && (
+      {/* Skip Back Confirmation - Desktop (outside isFullscreen container).
+          Gated on !isFullscreen; the in-fullscreen copy handles real browser fullscreen. */}
+      {showSkipBackConfirm && !isFullscreen && (
         <div className="fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
           <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
