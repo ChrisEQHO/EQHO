@@ -54,7 +54,7 @@ function BulletList({ items }: { items: string[] }) {
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="relative min-h-screen w-full overflow-hidden bg-[#020617] font-sans">
+    <main className="relative min-h-screen w-full bg-[#020617] font-sans">
       {/* Neon gradient background accents */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -top-40 -left-32 h-96 w-96 rounded-full bg-gradient-to-br from-[#ff4fa3]/20 to-transparent blur-3xl" />
