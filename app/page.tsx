@@ -4461,7 +4461,7 @@ export default function Page() {
   }
 
   return (
-    <div className="h-screen w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
+    <div className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -6084,8 +6084,14 @@ export default function Page() {
         </div>
       )}
 
-      {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
-          <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
+      {/* Main Content Area - Desktop: 4-column grid, Mobile: single column.
+          Below xl (1280px) the fixed columns are narrowed so landscape iPads and the
+          12.9" portrait iPad (1024px) get a comfortable center panel instead of a
+          cramped one (old fixed cols consumed ~780px, leaving ~244px at 1024px). The
+          xl: overrides restore the exact original widths/gaps/padding, so desktop
+          (>=1280px) is byte-for-byte unchanged. Height uses dvh so iPad Safari's
+          dynamic toolbars don't clip the bottom row. */}
+          <div className="hidden lg:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0">
 
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
@@ -8132,7 +8138,7 @@ export default function Page() {
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
       <div
-        className="flex lg:hidden flex-col w-full overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
+        className="flex lg:hidden flex-col w-full md:max-w-3xl md:mx-auto overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
         style={{
           // Offset the content below the status bar by EXACTLY the top safe-area
           // inset (applied once, now that the native WKWebView contentInset is
