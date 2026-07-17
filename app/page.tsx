@@ -6401,8 +6401,17 @@ export default function Page() {
           dynamic toolbars don't clip the bottom row. */}
           <div
             data-normal-layout="desktop"
-            className="hidden desktop:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0"
-            style={coachViewActive ? { display: 'none' } : undefined}
+            className="hidden desktop:grid w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0"
+          style={{
+            // Reserve the MEASURED height of the fixed session-controls bar (same var
+            // the mobile layout uses) instead of a hardcoded 100px. The desktop bar is
+            // `flex-wrap`, so with a full active-session control set, at narrower widths,
+            // or with larger accessibility fonts it wraps to 2+ rows and exceeds 100px —
+            // which previously covered the bottom of the grid (e.g. the last playlist's
+            // Download/delete buttons). The ResizeObserver keeps this var in sync.
+            height: "calc(100dvh - var(--mobile-controls-height, 100px))",
+            ...(coachViewActive ? { display: "none" } : {}),
+          }}
           >
 
         {/* ICON RAIL - col-start-1 (desktop only) */}
@@ -7485,7 +7494,7 @@ export default function Page() {
                 
                 {/* EQHO Cloud Page */}
                 {activePage === "cloud" && (
-                <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+                <div className="col-span-3 col-start-2 h-full overflow-y-auto pb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
                   {/* Header */}
                   <div className="px-8 pt-6 pb-4 border-b border-white/10">
                     <div className="flex items-center gap-3">
@@ -7660,7 +7669,7 @@ export default function Page() {
                 )}
 
                 {activePage === "settings" && (
-          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto pb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -8000,7 +8009,7 @@ export default function Page() {
         )}
 
         {activePage === "help" && (
-          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto pb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">
@@ -8433,7 +8442,7 @@ export default function Page() {
         )}
 
         {activePage === "contact" && (
-          <div className="col-span-3 col-start-2 h-full overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+          <div className="col-span-3 col-start-2 h-full overflow-y-auto pb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">

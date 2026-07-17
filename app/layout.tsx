@@ -48,17 +48,26 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-[#020617] overflow-x-hidden" suppressHydrationWarning>
       <head>
-        {/* Layout-split pointer detection. Runs before first paint so the correct
+        {/* Layout-split device detection. Runs before first paint so the correct
             layout (desktop grid vs mobile stack) renders immediately with no flash.
-            Sets data-fine-pointer on <html> for non-coarse (mouse/trackpad) pointers;
-            iPads/phones report a coarse pointer and are left without it, so the CSS
-            `desktop:` variant (see globals.css) routes them to the mobile layout. This
-            attribute is not part of React's tree, and <html> has suppressHydrationWarning,
+            Sets data-fine-pointer on <html> ONLY for true desktop-class devices; the
+            CSS `desktop:` variant (globals.css) also requires width >= 1024px.
+
+            iPad fix: an iPad with a Magic Keyboard/trackpad reports `pointer: fine`
+            (NOT coarse), so a pointer-only test wrongly flagged it as desktop and sent
+            landscape/large iPads into the desktop grid — whose footer space is a
+            hardcoded 100px while the real wrapping control bar is ~140px, causing the
+            Coach queue to sit under the session-controls bar. We therefore explicitly
+            EXCLUDE iPadOS (incl. iPadOS masquerading as "Macintosh" with touch points)
+            and other touch phones/tablets, so every iPad uses the mobile layout, which
+            reserves the *measured* control-bar height and never overlaps. Desktop
+            (mouse, non-touch) and iPhone (already <1024px) behaviour is unchanged.
+            The attribute is outside React's tree and <html> has suppressHydrationWarning,
             so it never causes a hydration mismatch. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{if(window.matchMedia&&!window.matchMedia('(pointer: coarse)').matches){document.documentElement.setAttribute('data-fine-pointer','')}}catch(e){}",
+              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isIpad&&!isPhoneOrTablet){d.setAttribute('data-fine-pointer','')}}catch(e){}",
           }}
         />
         <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
