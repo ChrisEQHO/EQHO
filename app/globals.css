@@ -17,6 +17,26 @@ body {
   box-sizing: border-box;
 }
 
+/* ── iPad confirmation/warning dialog touch reliability ──────────────────────
+   On iPad Safari a `backdrop-filter` (backdrop-blur) card intermittently breaks
+   touch hit-testing on its descendant interactive elements, so confirmation
+   dialog buttons "appear but don't respond" to taps. Promoting the buttons into
+   their own layer (position + z-index) restores reliable hit-testing above the
+   blur, and `touch-action: manipulation` removes the tap delay / double-tap-zoom
+   interference. This is scoped ONLY to `.eqho-dialog` overlays (warning/confirm
+   modals) — it never touches player transport controls or playback logic, and it
+   changes no colours, spacing, or animations. */
+.eqho-dialog {
+  touch-action: manipulation;
+}
+.eqho-dialog button {
+  position: relative;
+  z-index: 1;
+  touch-action: manipulation;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* EQHO Player Global Color System */
 :root {
   /* Backgrounds */
