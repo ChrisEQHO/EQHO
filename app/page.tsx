@@ -1147,6 +1147,78 @@ export default function Page() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Coach Mode body scroll-lock. When either the mobile/iPad Coach overlay
+  // (showFullscreenMobilePlayer) or the desktop Coach overlay (isFullscreen) is
+  // active we lock the underlying document so the hidden Playing page cannot be
+  // scrolled or "peek" behind the overlay on iPad Safari, then restore the exact
+  // prior scroll position on close. This does NOT touch the <audio> element or any
+  // playback state — it only freezes the background document.
+  useEffect(() => {
+    const coachActive = isFullscreen || showFullscreenMobilePlayer;
+    if (!coachActive) return;
+
+    const scrollY = window.scrollY;
+    const { body } = document;
+    const prev = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+    };
+    // Fully immobilise the background document (belt-and-braces for iOS Safari,
+    // where `overflow: hidden` alone does not always stop touch scrolling).
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+
+    let raf = 0;
+    if (process.env.NODE_ENV !== 'production') {
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      console.log('[v0] IPAD COACH MODE OPEN', {
+        coachModeActive: coachActive,
+        isFullscreen,
+        showFullscreenMobilePlayer,
+        viewportW: window.innerWidth,
+        viewportH: window.innerHeight,
+        visualViewportW: vv?.width,
+        visualViewportH: vv?.height,
+        orientation:
+          window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait',
+      });
+      // Count VISIBLE (not display:none) coach overlays vs normal layouts after
+      // paint. When Coach Mode is active this must be exactly 1 coach root and 0
+      // visible normal layouts — proving the "replace, don't overlay" behaviour.
+      raf = requestAnimationFrame(() => {
+        const isVisible = (el: Element) => (el as HTMLElement).offsetParent !== null
+          || getComputedStyle(el as HTMLElement).position === 'fixed';
+        const coachRoots = [...document.querySelectorAll('[data-coach-overlay]')]
+          .filter((el) => getComputedStyle(el as HTMLElement).display !== 'none');
+        const normalVisible = [...document.querySelectorAll('[data-normal-layout]')]
+          .filter(isVisible);
+        console.log('[v0] IPAD COACH MODE DOM COUNTS', {
+          coachRootsMounted: coachRoots.length,
+          normalLayoutsVisible: normalVisible.length,
+          expected: 'coachRootsMounted=1, normalLayoutsVisible=0',
+        });
+      });
+    }
+
+    // Single unified cleanup: cancel any pending diagnostic frame AND restore the
+    // background document exactly as it was, including the prior scroll position.
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      body.style.overflow = prev.overflow;
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.width = prev.width;
+      window.scrollTo(0, scrollY);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[v0] IPAD COACH MODE CLOSE', { restoredScrollY: scrollY });
+      }
+    };
+  }, [isFullscreen, showFullscreenMobilePlayer]);
+
   const trackProgress =
     Number.isFinite(trackDuration) && trackDuration > 0
       ? Math.min(Math.max((currentTime / trackDuration) * 100, 0), 100)
@@ -4574,6 +4646,15 @@ export default function Page() {
     );
   }
 
+  // A Coach/fullscreen overlay is active (mobile/iPad OR desktop). Used to fully
+  // UNMOUNT the normal Playing layouts so they can never render beneath the opaque
+  // Coach overlay — the root cause of the iPad Safari "page shows through with
+  // duplicated controls" bug. The overlays are `position: fixed`, but a fixed
+  // element only maps to the viewport when no ancestor establishes a containing
+  // block; forcing the background layouts to `display:none` makes the replace
+  // behaviour bulletproof regardless of Safari's fixed-positioning quirks.
+  const coachViewActive = isFullscreen || showFullscreenMobilePlayer;
+
   return (
     <div className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
       {/* Ambient background glow effects */}
@@ -4617,6 +4698,7 @@ export default function Page() {
       {/* Fullscreen Mode View */}
       <div
         ref={fullscreenRef}
+        data-coach-overlay="desktop"
         className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
         {/* Safety Confirmation Dialogs */}
@@ -5524,7 +5606,11 @@ export default function Page() {
 
       {/* Fullscreen Mobile Player - Rendered outside isFullscreen container so it shows on mobile */}
       {showFullscreenMobilePlayer && (
-        <div className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset">
+        <div
+          data-coach-overlay="mobile"
+          className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset"
+          style={{ height: "100dvh" }}
+        >
           {/* Session Finished Mobile Takeover */}
           {showSessionFinished && (
             <div className="absolute inset-0 z-[350] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#120a20] to-[#0a1020] px-6">
@@ -5586,7 +5672,7 @@ export default function Page() {
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2 pt-[env(safe-area-inset-top)] shrink-0">
-            <button onClick={() => setShowFullscreenMobilePlayer(false)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+            <button type="button" onClick={() => setShowFullscreenMobilePlayer(false)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center relative z-10">
               <X size={18} className="text-white" />
             </button>
             <h2 className="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
@@ -6301,7 +6387,11 @@ export default function Page() {
           xl: overrides restore the exact original widths/gaps/padding, so desktop
           (>=1280px) is byte-for-byte unchanged. Height uses dvh so iPad Safari's
           dynamic toolbars don't clip the bottom row. */}
-          <div className="hidden desktop:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0">
+          <div
+            data-normal-layout="desktop"
+            className="hidden desktop:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0"
+            style={coachViewActive ? { display: 'none' } : undefined}
+          >
 
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
@@ -8355,6 +8445,7 @@ export default function Page() {
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
       <div
+        data-normal-layout="mobile"
         className="flex desktop:hidden flex-col w-full md:max-w-3xl md:mx-auto overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
         style={{
           // Offset the content below the status bar by EXACTLY the top safe-area
@@ -8365,6 +8456,10 @@ export default function Page() {
           // 112px before the first measurement.
           height:
             "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top))",
+          // When a Coach overlay is open, fully hide this normal layout so it can
+          // never show through beneath the overlay on iPad Safari. Inline display
+          // wins over the base `flex`/`desktop:hidden` classes.
+          ...(coachViewActive ? { display: "none" } : {}),
         }}
       >
         {activePage === "player" && (
