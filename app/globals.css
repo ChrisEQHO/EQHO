@@ -11,16 +11,27 @@
    which forced every iPad — 12.9" portrait (1024px) and ALL landscape iPads — into
    the cramped desktop grid, causing the overlapping controls/queue seen on iPad.
 
-   `desktop` requires the primary pointer to NOT be coarse. iPads/phones report a
-   COARSE touch pointer, so they never match `desktop` and fall through to the mobile
-   layout — regardless of their (large) landscape width, including the 1366px iPad
-   Pro. The condition is written as `not (pointer: coarse)` (rather than
-   `pointer: fine`) so it FAILS SAFE toward desktop: a real desktop always keeps the
-   desktop grid even in the rare case its browser reports `pointer: none`. For real
-   desktops (≥1024px, non-coarse) and phones (<1024px) this is IDENTICAL to the old
-   `lg:` behaviour, so desktop and iPhone rendering are unchanged. Every layout-split
-   gate below uses `desktop:` instead of `lg:` for consistency. */
-@custom-variant desktop (@media (min-width: 1024px) and (not (pointer: coarse)));
+   `desktop` = width ≥ 1024px AND a non-coarse (mouse/trackpad) primary pointer.
+   iPads/phones report a COARSE touch pointer, so they never match `desktop` and fall
+   through to the mobile layout — regardless of their (large) landscape width,
+   including the 1366px iPad Pro.
+
+   IMPLEMENTATION: the pointer test is a `[data-fine-pointer]` attribute set on <html>
+   by a tiny inline script in layout.tsx (before first paint). We do NOT put
+   `pointer`/`not()` inside the CSS @media because this project's CSS downleveler
+   (for older Safari) strips `not(...)` from media queries, which silently inverted
+   the logic. A plain `min-width` media query + attribute selector is downleveler-safe
+   and keeps width reactivity (a desktop window resized < 1024px still gets the mobile
+   layout, exactly like the old `lg:`). For real desktops (≥1024px, mouse) and phones
+   (<1024px) this matches the old `lg:` behaviour, so desktop and iPhone are unchanged.
+   Every layout-split gate uses `desktop:` instead of `lg:` for consistency. */
+@custom-variant desktop {
+  @media (width >= 1024px) {
+    &:where([data-fine-pointer] *) {
+      @slot;
+    }
+  }
+}
 
 /* Global overflow prevention */
 html,
