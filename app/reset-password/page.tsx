@@ -144,6 +144,15 @@ export default function ResetPasswordPage() {
         return
       }
 
+      // Securely end the temporary recovery session so the user must sign in
+      // fresh with their new password (returns them to the normal login flow).
+      // scope:'local' clears this device reliably without needing a network call.
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch {
+        // Non-fatal: the password was already updated successfully.
+      }
+
       setStatus('done')
       setLoading(false)
     } catch {
