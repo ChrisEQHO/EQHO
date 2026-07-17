@@ -5702,9 +5702,18 @@ export default function Page() {
             </div>
           )}
 
-          {/* Main Content - Scrollable (only show when session is loaded) */}
+          {/* Main Content (only show when session is loaded).
+              iPad Safari fix: a 3-row CSS grid (auto / minmax(0,1fr) / auto) reliably
+              bounds the middle row so the queue's own scroll area scrolls instead of
+              growing to fit content (the old nested flex `min-h-0` chain did not bound
+              height on iOS, so the queue overlapped the bottom controls and clipped the
+              last rows). Row 1 = header/now-playing block, row 2 = scrollable queue,
+              row 3 = volume/bottom controls — controls are a real grid row, never
+              layered over the queue. */}
           {(currentTrack || playlist.length > 0) && (
-          <div className="flex-1 flex flex-col overflow-hidden px-4">
+          <div className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden px-4">
+            {/* ROW 1: Now Playing block (timer, track info, controls, waveform) */}
+            <div className="min-h-0">
             {/* Session Remaining Timer - Large */}
             <div className="text-center py-4">
               <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Session Remaining</p>
@@ -5794,8 +5803,11 @@ export default function Page() {
               <div className="absolute bottom-0.5 right-2 text-[9px] text-white/60">{trackDuration > 0 ? formatDuration(trackDuration) : "--:--"}</div>
             </div>
 
-            {/* Up Next Queue */}
-            <div className="flex-1 min-h-0 flex flex-col bg-[#090f1c]/60 rounded-xl border border-white/10 overflow-hidden">
+            </div>
+            {/* ROW 2: Up Next Queue — the single flexible, independently scrollable
+                area. `min-h-0 h-full` lets the grid row (minmax(0,1fr)) bound it so its
+                inner list scrolls rather than expanding over the controls below. */}
+            <div className="min-h-0 h-full flex flex-col bg-[#090f1c]/60 rounded-xl border border-white/10 overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0">
                 <h3 className="text-[10px] font-bold tracking-widest text-[#ff8a00]">UP NEXT</h3>
                 <div className="flex items-center gap-2">
@@ -5808,14 +5820,14 @@ export default function Page() {
                   <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
                 {visiblePlaylist.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full py-6">
                     <ListMusic size={32} className="text-white/20 mb-2" />
                     <p className="text-white/40 text-xs">No tracks in queue</p>
                   </div>
                 ) : (
-                  <div className="p-2">
+                  <div className="p-2 pb-3">
                     <SortableTrackList
                       ids={playlist.map((t) => t.id)}
                       onReorder={reorderPlaylistByIds}
@@ -5825,12 +5837,12 @@ export default function Page() {
                       const isFinished = finishedTracks.has(track.id);
                       const isHidden = hiddenTrackIds.has(track.id);
                       return (
-                        <SortableTrackItem key={track.id} id={track.id} onClick={() => { if (!isHidden) { setCurrentIndex(idx); togglePlayPause(track); } }} className={`flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg cursor-pointer transition ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                        <SortableTrackItem key={track.id} id={track.id} onClick={() => { if (!isHidden) { setCurrentIndex(idx); togglePlayPause(track); } }} className={`flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg cursor-pointer transition shrink-0 min-h-[44px] ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
                           <TrackDragHandle className="flex items-center justify-center shrink-0 -ml-0.5 text-white/25 hover:text-white/70 active:text-white bg-transparent border-0 p-0.5">
                             <GripVertical size={14} />
                           </TrackDragHandle>
-                          <span className={`text-[10px] font-bold w-5 text-center ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
-                          <p className={`text-xs truncate flex-1 ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
+                          <span className={`text-[10px] font-bold w-5 text-center shrink-0 ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
+                          <p className={`text-xs truncate flex-1 min-w-0 ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
                           {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
                           {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
                           {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
