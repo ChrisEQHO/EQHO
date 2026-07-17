@@ -5,6 +5,34 @@
 @custom-variant landscape (@media (orientation: landscape));
 @custom-variant portrait (@media (orientation: portrait));
 
+/* ── Layout split: "desktop" vs everything-else (phones + tablets) ───────────
+   The player has two top-level layouts: a fixed multi-column DESKTOP grid and a
+   stacked MOBILE layout. Previously the split used `lg:` (min-width: 1024px),
+   which forced every iPad — 12.9" portrait (1024px) and ALL landscape iPads — into
+   the cramped desktop grid, causing the overlapping controls/queue seen on iPad.
+
+   `desktop` = width ≥ 1024px AND a non-coarse (mouse/trackpad) primary pointer.
+   iPads/phones report a COARSE touch pointer, so they never match `desktop` and fall
+   through to the mobile layout — regardless of their (large) landscape width,
+   including the 1366px iPad Pro.
+
+   IMPLEMENTATION: the pointer test is a `[data-fine-pointer]` attribute set on <html>
+   by a tiny inline script in layout.tsx (before first paint). We do NOT put
+   `pointer`/`not()` inside the CSS @media because this project's CSS downleveler
+   (for older Safari) strips `not(...)` from media queries, which silently inverted
+   the logic. A plain `min-width` media query + attribute selector is downleveler-safe
+   and keeps width reactivity (a desktop window resized < 1024px still gets the mobile
+   layout, exactly like the old `lg:`). For real desktops (≥1024px, mouse) and phones
+   (<1024px) this matches the old `lg:` behaviour, so desktop and iPhone are unchanged.
+   Every layout-split gate uses `desktop:` instead of `lg:` for consistency. */
+@custom-variant desktop {
+  @media (width >= 1024px) {
+    &:where([data-fine-pointer] *) {
+      @slot;
+    }
+  }
+}
+
 /* Global overflow prevention */
 html,
 body {
@@ -15,6 +43,26 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+/* ── iPad confirmation/warning dialog touch reliability ──────────────────────
+   On iPad Safari a `backdrop-filter` (backdrop-blur) card intermittently breaks
+   touch hit-testing on its descendant interactive elements, so confirmation
+   dialog buttons "appear but don't respond" to taps. Promoting the buttons into
+   their own layer (position + z-index) restores reliable hit-testing above the
+   blur, and `touch-action: manipulation` removes the tap delay / double-tap-zoom
+   interference. This is scoped ONLY to `.eqho-dialog` overlays (warning/confirm
+   modals) — it never touches player transport controls or playback logic, and it
+   changes no colours, spacing, or animations. */
+.eqho-dialog {
+  touch-action: manipulation;
+}
+.eqho-dialog button {
+  position: relative;
+  z-index: 1;
+  touch-action: manipulation;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* EQHO Player Global Color System */

@@ -48,6 +48,19 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-[#020617] overflow-x-hidden" suppressHydrationWarning>
       <head>
+        {/* Layout-split pointer detection. Runs before first paint so the correct
+            layout (desktop grid vs mobile stack) renders immediately with no flash.
+            Sets data-fine-pointer on <html> for non-coarse (mouse/trackpad) pointers;
+            iPads/phones report a coarse pointer and are left without it, so the CSS
+            `desktop:` variant (see globals.css) routes them to the mobile layout. This
+            attribute is not part of React's tree, and <html> has suppressHydrationWarning,
+            so it never causes a hydration mismatch. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(window.matchMedia&&!window.matchMedia('(pointer: coarse)').matches){document.documentElement.setAttribute('data-fine-pointer','')}}catch(e){}",
+          }}
+        />
         <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href={isMobileBuild ? '/apple-icon.png' : '/apple-icon'} />
         {/* iOS status bar styling */}
