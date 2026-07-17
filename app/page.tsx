@@ -113,6 +113,7 @@ import {
   FileDown,
   Shield,
   Mail,
+  KeyRound,
 } from "lucide-react";
 
 const uploads = [
@@ -657,6 +658,17 @@ export default function Page() {
   // "Sign out failed" error message on the Sign Out buttons.
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  // Change Password (Settings): email-confirmed flow. Tapping "Change Password"
+  // never edits the password directly — it sends a Supabase recovery link to the
+  // signed-in user's own email (proving email ownership), and the actual update
+  // happens on /reset-password. 'confirm' shows the "send link?" dialog, 'sent'
+  // shows the "check your email" state. A resend cooldown throttles repeat sends.
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [changePwStep, setChangePwStep] = useState<'confirm' | 'sent'>('confirm');
+  const [changePwEmail, setChangePwEmail] = useState<string | null>(null);
+  const [changePwLoading, setChangePwLoading] = useState(false);
+  const [changePwError, setChangePwError] = useState<string | null>(null);
+  const [changePwCooldown, setChangePwCooldown] = useState(0);
   const [showSendToSessionConfirm, setShowSendToSessionConfirm] = useState<{ name: string; tracks: Track[] } | null>(null);
   const [showRemoveTrackConfirm, setShowRemoveTrackConfirm] = useState<{ track: Track; originalIndex: number } | null>(null);
 
@@ -837,6 +849,108 @@ export default function Page() {
       setIsSigningOut(false);
     }
   };
+
+  // Mask an email for display, e.g. "chris@example.com" -> "c***@example.com".
+  const maskEmail = (email: string) => {
+    const [local, domain] = email.split('@');
+    if (!domain) return email;
+    const first = local.slice(0, 1);
+    return `${first}${'*'.repeat(Math.max(1, local.length - 1))}@${domain}`;
+  };
+
+  // Open the Change Password dialog. We resolve the authenticated email fresh
+  // from Supabase (never trust only cached state) so the confirmation shows the
+  // real account address the link will be sent to.
+  const openChangePassword = async () => {
+    setChangePwError(null);
+    setChangePwStep('confirm');
+
+    if (isV0Preview) {
+      setChangePwEmail(user?.email ?? 'you@example.com');
+      setShowChangePasswordModal(true);
+      return;
+    }
+
+    if (!supabase) {
+      setChangePwEmail(user?.email ?? null);
+      setShowChangePasswordModal(true);
+      return;
+    }
+
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const email = authUser?.email ?? user?.email ?? null;
+      setChangePwEmail(email);
+    } catch {
+      setChangePwEmail(user?.email ?? null);
+    }
+    setShowChangePasswordModal(true);
+  };
+
+  // Send the email-ownership confirmation link. This is the SAME Supabase
+  // recovery mechanism as Forgot Password (no custom token system); the actual
+  // password change only happens on /reset-password. `?source=settings` lets the
+  // reset page tailor its copy. A 60s cooldown throttles repeated sends.
+  const sendChangePasswordEmail = async () => {
+    if (changePwCooldown > 0 || changePwLoading) return;
+    setChangePwError(null);
+    setChangePwLoading(true);
+
+    const email = changePwEmail;
+    if (!email) {
+      setChangePwError('Unable to send the confirmation email. Please try again.');
+      setChangePwLoading(false);
+      return;
+    }
+
+    if (isV0Preview) {
+      setChangePwStep('sent');
+      setChangePwLoading(false);
+      setChangePwCooldown(60);
+      return;
+    }
+
+    if (!supabase) {
+      setChangePwError('Unable to send the confirmation email. Please try again.');
+      setChangePwLoading(false);
+      return;
+    }
+
+    // Inside Capacitor, window.location.origin is capacitor://localhost (not a
+    // valid redirect), so the mobile build always points at the production web
+    // reset page. On web we use the current origin so local + prod both work.
+    const isMobileBuildLocal = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile';
+    const redirectTo = isMobileBuildLocal
+      ? 'https://www.eqho-player.com/reset-password?source=settings'
+      : `${window.location.origin}/reset-password?source=settings`;
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (resetError) {
+        const message = (resetError.message || '').toLowerCase();
+        if (message.includes('rate') || message.includes('too many') || (resetError as { status?: number }).status === 429) {
+          setChangePwError('Too many attempts. Please wait a few minutes before requesting another email.');
+        } else {
+          setChangePwError('Unable to send the confirmation email. Please try again.');
+        }
+        setChangePwLoading(false);
+        return;
+      }
+      setChangePwStep('sent');
+      setChangePwLoading(false);
+      setChangePwCooldown(60);
+    } catch {
+      setChangePwError('Unable to send the confirmation email. Please try again.');
+      setChangePwLoading(false);
+    }
+  };
+
+  // Resend cooldown ticker.
+  useEffect(() => {
+    if (changePwCooldown <= 0) return;
+    const t = setTimeout(() => setChangePwCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [changePwCooldown]);
 
   const handleDeleteAccount = async () => {
     setDeleteAccountLoading(true);
@@ -4461,7 +4575,7 @@ export default function Page() {
   }
 
   return (
-    <div className="h-screen w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
+    <div className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -4749,6 +4863,98 @@ export default function Page() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Change Password (email-confirmed) */}
+        {showChangePasswordModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/15 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              {changePwStep === 'confirm' ? (
+                <>
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                    <KeyRound size={26} className="text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Confirm password change</h3>
+                  <p className="text-white/60 mb-2">
+                    For your security, we&apos;ll send a password-change link to:
+                  </p>
+                  <p className="text-white font-semibold mb-6 break-all">
+                    {changePwEmail ?? 'your account email'}
+                  </p>
+                  {changePwError && (
+                    <p className="text-red-400 text-sm mb-4">{changePwError}</p>
+                  )}
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={() => setShowChangePasswordModal(false)}
+                      disabled={changePwLoading}
+                      className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={sendChangePasswordEmail}
+                      disabled={changePwLoading || !changePwEmail}
+                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:scale-[1.02] transition flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+                    >
+                      {changePwLoading ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Sending…
+                        </>
+                      ) : (
+                        <>
+                          <Mail size={18} />
+                          Send confirmation email
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                    <Mail size={26} className="text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Check your email</h3>
+                  <p className="text-white/60 mb-6">
+                    We&apos;ve sent a secure password-change link to{' '}
+                    <span className="text-white font-semibold break-all">
+                      {changePwEmail ? maskEmail(changePwEmail) : 'your email'}
+                    </span>
+                    . Open the link to choose a new password.
+                  </p>
+                  {changePwError && (
+                    <p className="text-red-400 text-sm mb-4">{changePwError}</p>
+                  )}
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={sendChangePasswordEmail}
+                      disabled={changePwCooldown > 0 || changePwLoading}
+                      className="w-full py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {changePwLoading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Sending…
+                        </>
+                      ) : changePwCooldown > 0 ? (
+                        `Resend email (${changePwCooldown}s)`
+                      ) : (
+                        'Resend email'
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setShowChangePasswordModal(false)}
+                      className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition"
+                    >
+                      Back to Settings
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -6084,8 +6290,14 @@ export default function Page() {
         </div>
       )}
 
-      {/* Main Content Area - Desktop: 4-column grid, Mobile: single column */}
-          <div className="hidden lg:grid h-[calc(100vh-100px)] w-full grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-3 overflow-hidden p-3 pb-0">
+      {/* Main Content Area - Desktop: 4-column grid, Mobile: single column.
+          Below xl (1280px) the fixed columns are narrowed so landscape iPads and the
+          12.9" portrait iPad (1024px) get a comfortable center panel instead of a
+          cramped one (old fixed cols consumed ~780px, leaving ~244px at 1024px). The
+          xl: overrides restore the exact original widths/gaps/padding, so desktop
+          (>=1280px) is byte-for-byte unchanged. Height uses dvh so iPad Safari's
+          dynamic toolbars don't clip the bottom row. */}
+          <div className="hidden lg:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0">
 
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
@@ -7629,6 +7841,13 @@ export default function Page() {
                     Sign out of EQHO Player on this device and return to the login screen.
                   </p>
                   <button
+                    onClick={openChangePassword}
+                    className="w-full min-h-[44px] py-3 mb-3 rounded-xl bg-white/5 border border-white/15 text-white text-sm font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2"
+                  >
+                    <KeyRound size={16} />
+                    Change Password
+                  </button>
+                  <button
                     onClick={handleLogout}
                     disabled={isSigningOut}
                     className="w-full min-h-[44px] py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -8132,7 +8351,7 @@ export default function Page() {
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
       <div
-        className="flex lg:hidden flex-col w-full overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
+        className="flex lg:hidden flex-col w-full md:max-w-3xl md:mx-auto overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
         style={{
           // Offset the content below the status bar by EXACTLY the top safe-area
           // inset (applied once, now that the native WKWebView contentInset is
@@ -9281,6 +9500,13 @@ export default function Page() {
                         <span className="text-[10px] font-bold text-white">Account</span>
                       </div>
                       <div className="flex flex-col gap-2">
+                        <button
+                          onClick={openChangePassword}
+                          className="w-full min-h-[44px] py-2.5 rounded-lg bg-white/5 border border-white/15 text-white text-xs font-semibold hover:bg-white/10 active:bg-white/15 transition flex items-center justify-center gap-2"
+                        >
+                          <KeyRound size={14} />
+                          Change Password
+                        </button>
                         <button
                           onClick={handleLogout}
                           disabled={isSigningOut}
