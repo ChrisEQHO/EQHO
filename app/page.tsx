@@ -4867,98 +4867,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Change Password (email-confirmed) */}
-        {showChangePasswordModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/15 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              {changePwStep === 'confirm' ? (
-                <>
-                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                    <KeyRound size={26} className="text-white" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Confirm password change</h3>
-                  <p className="text-white/60 mb-2">
-                    For your security, we&apos;ll send a password-change link to:
-                  </p>
-                  <p className="text-white font-semibold mb-6 break-all">
-                    {changePwEmail ?? 'your account email'}
-                  </p>
-                  {changePwError && (
-                    <p className="text-red-400 text-sm mb-4">{changePwError}</p>
-                  )}
-                  <div className="flex gap-4 justify-center">
-                    <button
-                      onClick={() => setShowChangePasswordModal(false)}
-                      disabled={changePwLoading}
-                      className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={sendChangePasswordEmail}
-                      disabled={changePwLoading || !changePwEmail}
-                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:scale-[1.02] transition flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
-                    >
-                      {changePwLoading ? (
-                        <>
-                          <Loader2 size={18} className="animate-spin" />
-                          Sending…
-                        </>
-                      ) : (
-                        <>
-                          <Mail size={18} />
-                          Send confirmation email
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                    <Mail size={26} className="text-white" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Check your email</h3>
-                  <p className="text-white/60 mb-6">
-                    We&apos;ve sent a secure password-change link to{' '}
-                    <span className="text-white font-semibold break-all">
-                      {changePwEmail ? maskEmail(changePwEmail) : 'your email'}
-                    </span>
-                    . Open the link to choose a new password.
-                  </p>
-                  {changePwError && (
-                    <p className="text-red-400 text-sm mb-4">{changePwError}</p>
-                  )}
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={sendChangePasswordEmail}
-                      disabled={changePwCooldown > 0 || changePwLoading}
-                      className="w-full py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {changePwLoading ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />
-                          Sending…
-                        </>
-                      ) : changePwCooldown > 0 ? (
-                        `Resend email (${changePwCooldown}s)`
-                      ) : (
-                        'Resend email'
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setShowChangePasswordModal(false)}
-                      className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition"
-                    >
-                      Back to Settings
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Send to Session Confirmation */}
         {showSendToSessionConfirm && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
@@ -5929,6 +5837,102 @@ export default function Page() {
 
           {/* Bottom Safe Area */}
           <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
+        </div>
+      )}
+
+      {/* Change Password (email-confirmed) — top level so it renders in both the
+          desktop and mobile settings views. It was previously nested inside the
+          fullscreen-only container (display:none when not fullscreen), so tapping
+          "Change Password" from Settings appeared to do nothing. z-[400] keeps it
+          above the fixed mobile player (z-[300]) and settings screens. */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/15 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            {changePwStep === 'confirm' ? (
+              <>
+                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                  <KeyRound size={26} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Confirm password change</h3>
+                <p className="text-white/60 mb-2">
+                  For your security, we&apos;ll send a password-change link to:
+                </p>
+                <p className="text-white font-semibold mb-6 break-all">
+                  {changePwEmail ?? 'your account email'}
+                </p>
+                {changePwError && (
+                  <p className="text-red-400 text-sm mb-4">{changePwError}</p>
+                )}
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => setShowChangePasswordModal(false)}
+                    disabled={changePwLoading}
+                    className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={sendChangePasswordEmail}
+                    disabled={changePwLoading || !changePwEmail}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:scale-[1.02] transition flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+                  >
+                    {changePwLoading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Sending…
+                      </>
+                    ) : (
+                      <>
+                        <Mail size={18} />
+                        Send confirmation email
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                  <Mail size={26} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Check your email</h3>
+                <p className="text-white/60 mb-6">
+                  We&apos;ve sent a secure password-change link to{' '}
+                  <span className="text-white font-semibold break-all">
+                    {changePwEmail ? maskEmail(changePwEmail) : 'your email'}
+                  </span>
+                  . Open the link to choose a new password.
+                </p>
+                {changePwError && (
+                  <p className="text-red-400 text-sm mb-4">{changePwError}</p>
+                )}
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={sendChangePasswordEmail}
+                    disabled={changePwCooldown > 0 || changePwLoading}
+                    className="w-full py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {changePwLoading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Sending…
+                      </>
+                    ) : changePwCooldown > 0 ? (
+                      `Resend email (${changePwCooldown}s)`
+                    ) : (
+                      'Resend email'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowChangePasswordModal(false)}
+                    className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition"
+                  >
+                    Back to Settings
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
