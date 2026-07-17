@@ -5,6 +5,23 @@
 @custom-variant landscape (@media (orientation: landscape));
 @custom-variant portrait (@media (orientation: portrait));
 
+/* ── Layout split: "desktop" vs everything-else (phones + tablets) ───────────
+   The player has two top-level layouts: a fixed multi-column DESKTOP grid and a
+   stacked MOBILE layout. Previously the split used `lg:` (min-width: 1024px),
+   which forced every iPad — 12.9" portrait (1024px) and ALL landscape iPads — into
+   the cramped desktop grid, causing the overlapping controls/queue seen on iPad.
+
+   `desktop` requires the primary pointer to NOT be coarse. iPads/phones report a
+   COARSE touch pointer, so they never match `desktop` and fall through to the mobile
+   layout — regardless of their (large) landscape width, including the 1366px iPad
+   Pro. The condition is written as `not (pointer: coarse)` (rather than
+   `pointer: fine`) so it FAILS SAFE toward desktop: a real desktop always keeps the
+   desktop grid even in the rare case its browser reports `pointer: none`. For real
+   desktops (≥1024px, non-coarse) and phones (<1024px) this is IDENTICAL to the old
+   `lg:` behaviour, so desktop and iPhone rendering are unchanged. Every layout-split
+   gate below uses `desktop:` instead of `lg:` for consistency. */
+@custom-variant desktop (@media (min-width: 1024px) and (not (pointer: coarse)));
+
 /* Global overflow prevention */
 html,
 body {

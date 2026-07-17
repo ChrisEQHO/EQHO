@@ -5979,7 +5979,7 @@ export default function Page() {
 
       {/* Send to Session Confirmation - Mobile (outside isFullscreen container) */}
       {showSendToSessionConfirm && (
-        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 desktop:hidden">
           <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <ListMusic size={40} className="mx-auto mb-3 text-[#ff8a00]" />
             <h3 className="text-xl font-bold text-white mb-2">Replace Current Playlist?</h3>
@@ -6022,7 +6022,7 @@ export default function Page() {
 
       {/* Pause Confirmation - Mobile (outside isFullscreen container) */}
       {showPauseConfirm && (
-        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 desktop:hidden">
           <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <AlertTriangle size={40} className="mx-auto mb-3 text-orange-400" />
             <h3 className="text-xl font-bold text-white mb-2">Pause Playback?</h3>
@@ -6053,7 +6053,7 @@ export default function Page() {
 
       {/* Skip Forward Confirmation - Mobile (outside isFullscreen container) */}
       {showSkipForwardConfirm && (
-        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 desktop:hidden">
           <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <StepForward size={40} className="mx-auto mb-3 text-pink-400" />
             <h3 className="text-xl font-bold text-white mb-2">Skip to Next Track?</h3>
@@ -6081,7 +6081,7 @@ export default function Page() {
 
       {/* Skip Back Confirmation - Mobile (outside isFullscreen container) */}
       {showSkipBackConfirm && (
-        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 desktop:hidden">
           <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <StepBack size={40} className="mx-auto mb-3 text-cyan-400" />
             <h3 className="text-xl font-bold text-white mb-2">Skip to Previous Track?</h3>
@@ -6116,7 +6116,7 @@ export default function Page() {
           copy (inside fullscreenRef) handles it, since the browser Fullscreen API only
           renders that subtree. This avoids a doubled overlay in the CSS-fallback case. */}
       {showSkipForwardConfirm && !isFullscreen && (
-        <div className="eqho-dialog fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+        <div className="eqho-dialog fixed inset-0 z-[400] hidden desktop:flex items-center justify-center bg-black/70">
           <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <StepForward size={48} className="mx-auto mb-4 text-pink-400" />
             <h3 className="text-2xl font-bold text-white mb-2">Skip to Next Track?</h3>
@@ -6146,7 +6146,7 @@ export default function Page() {
       {/* Skip Back Confirmation - Desktop (outside isFullscreen container).
           Gated on !isFullscreen; the in-fullscreen copy handles real browser fullscreen. */}
       {showSkipBackConfirm && !isFullscreen && (
-        <div className="eqho-dialog fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+        <div className="eqho-dialog fixed inset-0 z-[400] hidden desktop:flex items-center justify-center bg-black/70">
           <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <StepBack size={48} className="mx-auto mb-4 text-cyan-400" />
             <h3 className="text-2xl font-bold text-white mb-2">Skip to Previous Track?</h3>
@@ -6175,7 +6175,7 @@ export default function Page() {
 
       {/* Clear Playlist Confirmation - Mobile (outside isFullscreen container) */}
       {showClearPlaylistConfirm && (
-        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 lg:hidden">
+        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 desktop:hidden">
           <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 mx-4 max-w-sm text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <AlertTriangle size={40} className="mx-auto mb-3 text-[#ff8a00]" />
             <h3 className="text-xl font-bold text-white mb-2">Clear Playlist?</h3>
@@ -6232,7 +6232,7 @@ export default function Page() {
 
       {/* Clear Playlist Confirmation - Desktop main screen (outside fullscreen container) */}
       {showClearPlaylistConfirm && (
-        <div className="eqho-dialog fixed inset-0 z-[400] hidden lg:flex items-center justify-center bg-black/70">
+        <div className="eqho-dialog fixed inset-0 z-[400] hidden desktop:flex items-center justify-center bg-black/70">
           <div className="bg-[#090f1c]/95 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
             <AlertTriangle size={48} className="mx-auto mb-4 text-[#ff8a00]" />
             <h3 className="text-2xl font-bold text-white mb-2">Clear Playlist?</h3>
@@ -6301,7 +6301,7 @@ export default function Page() {
           xl: overrides restore the exact original widths/gaps/padding, so desktop
           (>=1280px) is byte-for-byte unchanged. Height uses dvh so iPad Safari's
           dynamic toolbars don't clip the bottom row. */}
-          <div className="hidden lg:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0">
+          <div className="hidden desktop:grid h-[calc(100dvh-100px)] w-full grid-cols-[56px_200px_minmax(0,1fr)_280px] xl:grid-cols-[72px_268px_minmax(0,1fr)_380px] gap-2 xl:gap-3 overflow-hidden p-2 xl:p-3 pb-0">
 
         {/* ICON RAIL - col-start-1 (desktop only) */}
         <aside className="relative col-start-1 h-full overflow-hidden">
@@ -8355,7 +8355,7 @@ export default function Page() {
           collapsed (~91px), so the track list fills the gap instead of leaving
           blank space above a collapsed bar. */}
       <div
-        className="flex lg:hidden flex-col w-full md:max-w-3xl md:mx-auto overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
+        className="flex desktop:hidden flex-col w-full md:max-w-3xl md:mx-auto overflow-hidden mt-[env(safe-area-inset-top)] pt-2 landscape:pt-1 px-2 sm:px-3"
         style={{
           // Offset the content below the status bar by EXACTLY the top safe-area
           // inset (applied once, now that the native WKWebView contentInset is
@@ -9552,7 +9552,7 @@ export default function Page() {
 
       {/* Mobile Contact & Feedback full-screen overlay */}
       {showContactMobile && (
-        <div className="lg:hidden fixed inset-0 z-[60] bg-[#050816] flex flex-col">
+        <div className="desktop:hidden fixed inset-0 z-[60] bg-[#050816] flex flex-col">
           <div
             className="flex items-center gap-3 px-4 pb-3 border-b border-white/10 shrink-0"
             style={{ paddingTop: "calc(env(safe-area-inset-top) + 12px)" }}
