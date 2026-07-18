@@ -14,7 +14,14 @@ node_modules
 .next/
 .DS_Store
 
-# Capacitor mobile builds
-ios/
-android/
-out/
+# Capacitor mobile builds — generated ROOT-level native projects only.
+# Anchored with a leading slash so these do NOT also match the custom
+# eqho-audio plugin's own committed sources under native/eqho-audio/.
+/ios/
+/android/
+/out/
+
+# Always keep the custom plugin's native sources (they must reach the Mac so
+# `cap sync` can find Package.swift and the Swift sources).
+!/native/eqho-audio/ios/
+!/native/eqho-audio/android/
