@@ -427,6 +427,18 @@ function DraggableTrackRow({
   );
 }
 
+// Selectable countdown beep styles for the web players (iPhone Safari + iPad
+// Safari). All three are generated with the Web Audio API and are driven by the
+// same last-N-seconds countdown logic, so the beeps stay perfectly in sync with
+// the on-screen numbers regardless of which style is chosen. "classic" is the
+// recommended default: it is the brightest and most audible over music.
+type BeepSoundId = "classic" | "chime" | "tick";
+const BEEP_SOUNDS: { id: BeepSoundId; label: string; description: string }[] = [
+  { id: "classic", label: "Classic Beep", description: "Bright, punchy — best over music (recommended)" },
+  { id: "chime", label: "Soft Chime", description: "Warm, musical rising tones" },
+  { id: "tick", label: "Sharp Tick", description: "Crisp, minimal digital blips" },
+];
+
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Web Audio volume control. iOS/iPadOS WKWebView makes HTMLMediaElement.volume
@@ -3990,6 +4002,9 @@ export default function Page() {
   // countdownSecondsRef sets how many final gap seconds beep as a "get ready" cue.
   const showCountdownRef = useRef(true);
   const countdownSecondsRef = useRef(3);
+  // Selected countdown beep style, read inside playBeep (which runs from refs, not
+  // closures). Kept in sync with settings.beepSound below.
+  const beepSoundRef = useRef<BeepSoundId>("classic");
   // Authoritative back-to-back tracker: holds the id of the track that has ALREADY
   // played its back-to-back repeat. This is keyed by the actually-playing track id
   // (read at the moment the track ends), so the decision can never desync the way a
@@ -4234,59 +4249,93 @@ export default function Page() {
 
   // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
-  const playBeep = useCallback((frequency: number = 880, duration: number = 100, isFinalBeep: boolean = false) => {
-    try {
-      const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      
-      // Primary oscillator - square wave for sharper, more noticeable sound
-      const oscillator1 = audioContext.createOscillator();
-      const gainNode1 = audioContext.createGain();
-      oscillator1.connect(gainNode1);
-      gainNode1.connect(audioContext.destination);
-      oscillator1.frequency.value = frequency;
-      oscillator1.type = "square";
-      
-      // Secondary oscillator - adds richness with slight detune
-      const oscillator2 = audioContext.createOscillator();
-      const gainNode2 = audioContext.createGain();
-      oscillator2.connect(gainNode2);
-      gainNode2.connect(audioContext.destination);
-      oscillator2.frequency.value = frequency * 1.5; // Fifth harmonic
-      oscillator2.type = "sine";
-      
-      // Louder volume for distinctiveness
-      const baseVolume = isFinalBeep ? 0.7 : 0.5;
-      const secondaryVolume = isFinalBeep ? 0.4 : 0.25;
-      const actualDuration = isFinalBeep ? duration * 1.5 : duration;
-      
-      gainNode1.gain.setValueAtTime(baseVolume, audioContext.currentTime);
-      gainNode1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + actualDuration / 1000);
-      
-      gainNode2.gain.setValueAtTime(secondaryVolume, audioContext.currentTime);
-      gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + actualDuration / 1000);
-      
-      oscillator1.start(audioContext.currentTime);
-      oscillator1.stop(audioContext.currentTime + actualDuration / 1000);
-      oscillator2.start(audioContext.currentTime);
-      oscillator2.stop(audioContext.currentTime + actualDuration / 1000);
-      
-      // For final beep, add a third higher-pitched ping for extra emphasis
-      if (isFinalBeep) {
-        const oscillator3 = audioContext.createOscillator();
-        const gainNode3 = audioContext.createGain();
-        oscillator3.connect(gainNode3);
-        gainNode3.connect(audioContext.destination);
-        oscillator3.frequency.value = frequency * 2;
-        oscillator3.type = "sine";
-        gainNode3.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode3.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + actualDuration / 1000);
-        oscillator3.start(audioContext.currentTime);
-        oscillator3.stop(audioContext.currentTime + actualDuration / 1000);
+
+  // Core Web Audio beep generator, parameterized by style so all three share the
+  // same envelope/scheduling code. `frequency` is the base pitch chosen by the
+  // countdown (660/880/1100 for 3/2/1); each style reinterprets it with its own
+  // timbre. Kept as a plain function (not a hook) so both the live countdown and
+  // the settings preview button can call it with an explicit style.
+  const emitBeep = useCallback(
+    (style: BeepSoundId, frequency: number, duration: number, isFinalBeep: boolean) => {
+      try {
+        const ctx = new (window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const now = ctx.currentTime;
+
+        // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
+        const tone = (
+          type: OscillatorType,
+          freq: number,
+          peak: number,
+          lenMs: number,
+          offsetMs = 0,
+        ) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = type;
+          osc.frequency.value = freq;
+          const start = now + offsetMs / 1000;
+          const end = start + lenMs / 1000;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(peak, start + 0.008);
+          gain.gain.exponentialRampToValueAtTime(0.0001, end);
+          osc.start(start);
+          osc.stop(end + 0.02);
+        };
+
+        if (style === "chime") {
+          // Warm, musical: pure sine fundamental + octave shimmer, longer smooth
+          // decay. Final adds a perfect-fifth for a pleasant resolved chord.
+          const len = isFinalBeep ? duration * 2.2 : duration * 1.6;
+          tone("sine", frequency, isFinalBeep ? 0.5 : 0.38, len);
+          tone("sine", frequency * 2, isFinalBeep ? 0.22 : 0.16, len);
+          if (isFinalBeep) tone("sine", frequency * 1.5, 0.28, len);
+        } else if (style === "tick") {
+          // Crisp digital blip: short triangle attack. Final is a quick double-tick
+          // with a bright ping so the "go" moment is unmistakable.
+          const len = isFinalBeep ? duration * 0.5 : duration * 0.4;
+          tone("triangle", frequency * 1.2, isFinalBeep ? 0.6 : 0.45, len);
+          if (isFinalBeep) {
+            tone("triangle", frequency * 1.2, 0.5, len, 110);
+            tone("sine", frequency * 2.5, 0.35, len * 1.4, 110);
+          }
+        } else {
+          // "classic" (default): square fundamental + sine fifth harmonic, loud and
+          // bright to cut through music. Final adds an octave ping for emphasis.
+          const len = isFinalBeep ? duration * 1.5 : duration;
+          tone("square", frequency, isFinalBeep ? 0.7 : 0.5, len);
+          tone("sine", frequency * 1.5, isFinalBeep ? 0.4 : 0.25, len);
+          if (isFinalBeep) tone("sine", frequency * 2, 0.3, len);
+        }
+      } catch (e) {
+        // Audio context not supported
       }
-    } catch (e) {
-      // Audio context not supported
-    }
-  }, []);
+    },
+    [],
+  );
+
+  // Live countdown beep — reads the user's selected style from the ref so the
+  // gap ticker doesn't need to depend on settings state.
+  const playBeep = useCallback(
+    (frequency: number = 880, duration: number = 100, isFinalBeep: boolean = false) => {
+      emitBeep(beepSoundRef.current, frequency, duration, isFinalBeep);
+    },
+    [emitBeep],
+  );
+
+  // Settings preview: plays a short representative 3-2-1 of the given style so the
+  // user can compare sounds before choosing. Uses the same generator as the live
+  // countdown, so what they hear is exactly what plays during a session.
+  const previewBeepSound = useCallback(
+    (style: BeepSoundId) => {
+      emitBeep(style, 660, 200, false);
+      window.setTimeout(() => emitBeep(style, 880, 200, false), 320);
+      window.setTimeout(() => emitBeep(style, 1100, 200, true), 640);
+    },
+    [emitBeep],
+  );
 
   // Start the next track exactly once and clear all gap/beep state. Guards against
   // a double fire (ticker + resume listener) by nulling the callback ref first.
@@ -4419,12 +4468,14 @@ export default function Page() {
     showCountdown: true,
     showPauseWarning: true,
     showSkipWarning: true,
+    beepSound: "classic" as BeepSoundId,
   });
 
   // Keep the playback-engine refs in sync with the live settings every render.
   autoplayNextRef.current = settings.autoplayNext;
   showCountdownRef.current = settings.showCountdown;
   countdownSecondsRef.current = settings.countdownSeconds;
+  beepSoundRef.current = settings.beepSound;
 
   const updateSetting = (key: string, value: any) => {
     setSettings((current) => ({
@@ -5480,7 +5531,7 @@ export default function Page() {
                 <p className="text-base text-white/40 uppercase tracking-widest mb-3">Session Remaining</p>
                 <div className="text-[10rem] font-black tracking-tight tabular-nums leading-none">
                   {isGapPaused ? (
-                    <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>
+                    <span className="countdown-flash bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent" key={gapCountdown}>
                       {gapCountdown}
                     </span>
                   ) : (
@@ -5607,7 +5658,7 @@ export default function Page() {
                       key={i}
                       className={`flex-1 rounded-sm transition-colors ${
                         isPlayed
-                          ? "bg-gradient-to-t from-pink-500 to-orange-400"
+                          ? "bg-gradient-to-t from-[#ff4fa3] to-[#ff8a00]"
                           : "bg-white/15"
                       }`}
                       style={{ height: `${h}%` }}
@@ -5830,15 +5881,16 @@ export default function Page() {
           {/* Gap Countdown Overlay - shows during entire gap */}
           {isGapPaused && (
             <div className="absolute inset-0 z-[320] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-              {/* Solid brand color (NOT gradient bg-clip-text): iPad Safari fails to
-                  paint gradient-clipped text at huge font sizes, rendering it fully
-                  transparent/invisible. A solid color + glow always paints. */}
+              {/* Solid brand PINK (#ff4fa3), NOT gradient bg-clip-text: iPad Safari
+                  fails to paint gradient-clipped text at huge font sizes, rendering it
+                  fully transparent/invisible. A solid fill + a pink→orange glow keeps
+                  both brand colors present while guaranteeing the number is visible. */}
               <div
                 key={gapCountdown}
-                className={`font-black leading-none text-[#ff5a8a] ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`}
+                className={`font-black leading-none text-[#ff4fa3] ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`}
                 style={{
                   animation: gapCountdown <= 3 ? 'countdownPulse 1s ease-out' : 'none',
-                  textShadow: '0 0 60px rgba(255,90,138,0.55), 0 0 120px rgba(255,138,0,0.35)',
+                  textShadow: '0 0 60px rgba(255,79,163,0.55), 0 0 120px rgba(255,138,0,0.4)',
                 }}
               >
                 {gapCountdown}
@@ -5908,7 +5960,7 @@ export default function Page() {
               <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Session Remaining</p>
               <div className="text-5xl font-black tracking-tight tabular-nums leading-none">
                 {isGapPaused ? (
-                  <span className="countdown-flash bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent" key={gapCountdown}>{gapCountdown}</span>
+                  <span className="countdown-flash bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent" key={gapCountdown}>{gapCountdown}</span>
                 ) : (
                   <span className="text-white">{formatSessionTime(remainingSeconds)}</span>
                 )}
@@ -5999,7 +6051,7 @@ export default function Page() {
                 const isPlayed = barProgress <= trackProgress;
                 const heights = [40, 60, 80, 55, 70, 45, 85, 50, 65, 75];
                 return (
-                  <div key={i} className={`flex-1 rounded-sm transition-colors ${isPlayed ? "bg-gradient-to-t from-pink-500 to-orange-400" : "bg-white/15"}`} style={{ height: `${heights[i % heights.length]}%` }} />
+                  <div key={i} className={`flex-1 rounded-sm transition-colors ${isPlayed ? "bg-gradient-to-t from-[#ff4fa3] to-[#ff8a00]" : "bg-white/15"}`} style={{ height: `${heights[i % heights.length]}%` }} />
                 );
               })}
               <div className="absolute bottom-0.5 left-2 text-[9px] text-white/60">{formatDuration(currentTime)}</div>
@@ -8138,6 +8190,42 @@ export default function Page() {
                   <div className="space-y-4">
                     <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
                     <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
+
+                    {/* Countdown Sound — pick one of three beep styles. The preview
+                        button plays a 3-2-1 using the same generator as the live
+                        countdown, so it sounds identical in a real session. */}
+                    <div className="space-y-2">
+                      <span className="text-sm text-white/80">Countdown Sound</span>
+                      <div className="grid gap-2">
+                        {BEEP_SOUNDS.map((opt) => {
+                          const active = settings.beepSound === opt.id;
+                          return (
+                            <div
+                              key={opt.id}
+                              className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
+                            >
+                              <button onClick={() => updateSetting("beepSound", opt.id)} className="flex-1 flex items-center gap-3 text-left">
+                                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
+                                  {active && <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]" />}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-semibold text-white">{opt.label}</span>
+                                  <span className="block text-xs text-white/50">{opt.description}</span>
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => previewBeepSound(opt.id)}
+                                className="shrink-0 grid h-8 w-8 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-[#ff8a00] hover:bg-[#ff8a00]/20 transition"
+                                title="Preview sound"
+                                aria-label={`Preview ${opt.label}`}
+                              >
+                                <Play size={14} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -8893,16 +8981,15 @@ export default function Page() {
                             </button>
                           </div>
                         </div>
-                        {/* Timer — during the gap between routines, show a prominent
-                            countdown number (solid brand color so it always paints on
-                            iPad Safari) instead of the elapsed-time readout. */}
+                        {/* Timer — during the gap, show a prominent countdown number.
+                            At 48px the pink→orange gradient text renders reliably on
+                            iPad Safari (only the giant 30-50vh Coach number needs a
+                            solid fill), so this matches the brand gradient used
+                            elsewhere in the player. */}
                         {isGapPaused ? (
                           <div className="text-center">
                             <p className="text-[10px] uppercase tracking-widest text-white/50 mb-0.5">Next in</p>
-                            <span
-                              className="text-5xl font-black text-[#ff5a8a] tabular-nums leading-none"
-                              style={{ textShadow: '0 0 24px rgba(255,90,138,0.5)' }}
-                            >
+                            <span className="text-5xl font-black bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent tabular-nums leading-none">
                               {gapCountdown}
                             </span>
                             <span className="text-white/40 text-sm ml-1">s</span>
@@ -8954,7 +9041,7 @@ export default function Page() {
                                 key={i}
                                 className={`flex-1 rounded-sm transition-colors ${
                                   isPlayed
-                                    ? "bg-gradient-to-t from-pink-500 to-orange-400"
+                                    ? "bg-gradient-to-t from-[#ff4fa3] to-[#ff8a00]"
                                     : "bg-white/15"
                                 }`}
                                 style={{ height: `${h}%` }}
@@ -9696,6 +9783,37 @@ export default function Page() {
                             <button onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
                             <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.countdownSeconds}s</span>
                             <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+
+                        {/* Countdown Sound selector (compact). Tap a row to select;
+                            tap the play icon to preview the 3-2-1 for that style. */}
+                        <div className="pt-1">
+                          <span className="text-[10px] text-white/70">Countdown Sound</span>
+                          <div className="mt-1 grid gap-1">
+                            {BEEP_SOUNDS.map((opt) => {
+                              const active = settings.beepSound === opt.id;
+                              return (
+                                <div
+                                  key={opt.id}
+                                  className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
+                                >
+                                  <button onClick={() => updateSetting("beepSound", opt.id)} className="flex-1 flex items-center gap-2 text-left">
+                                    <span className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
+                                      {active && <span className="h-1.5 w-1.5 rounded-full bg-[#ff4fa3]" />}
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-white">{opt.label}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => previewBeepSound(opt.id)}
+                                    className="shrink-0 grid h-6 w-6 place-items-center rounded-md border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-[#ff8a00]"
+                                    aria-label={`Preview ${opt.label}`}
+                                  >
+                                    <Play size={10} />
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
