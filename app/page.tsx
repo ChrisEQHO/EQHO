@@ -594,14 +594,25 @@ export default function Page() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
-  // True only in the Capacitor iOS/iPadOS app, where JS cannot control playback
-  // loudness (iOS routes it to the hardware volume buttons). Set after mount to
+  // True on iPadOS/iOS, where JS cannot control playback loudness (iOS routes it
+  // to the hardware volume buttons) — this now covers BOTH the Capacitor app and
+  // iPad Safari, since the web page has the same limitation. Set after mount to
   // avoid an SSR/hydration mismatch. When true, the in-app percentage volume
-  // slider is replaced by guidance to use the device volume buttons; every other
-  // platform (desktop, macOS wrapper, real browsers) keeps the working slider.
+  // slider is replaced by guidance to use the device volume buttons. iPhone Safari
+  // keeps the working slider (its narrow layout relies on it) and desktop / macOS
+  // wrapper are unchanged.
   const [iosVolumeControl, setIosVolumeControl] = useState(false);
   useEffect(() => {
-    setIosVolumeControl(isNativeIOS());
+    // iPad detection mirrors app/layout.tsx: real iPads plus iPadOS masquerading
+    // as "Macintosh"/"MacIntel" with multi-touch. iPhone is intentionally excluded
+    // here (handled by its own slider layout) and only picks up the message via the
+    // native-app check below.
+    const ua = navigator.userAgent || "";
+    const isIpad =
+      /iPad/.test(ua) ||
+      ((/Macintosh/.test(ua) || navigator.platform === "MacIntel") &&
+        (navigator.maxTouchPoints || 0) > 1);
+    setIosVolumeControl(isNativeIOS() || isIpad);
   }, []);
   const [sessionRunning, setSessionRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -3964,6 +3975,10 @@ export default function Page() {
       setCurrentTime(clamped);
     }
   };
+  // Tracks an in-progress drag on the shared mobile waveform so pointermove only
+  // seeks while the finger/mouse is actually down. Purely additive to the existing
+  // tap-to-seek; a plain tap is just pointerdown+pointerup with no movement.
+  const waveformScrubbingRef = useRef(false);
   const hiddenTrackIdsRef = useRef(hiddenTrackIds);
   hiddenTrackIdsRef.current = hiddenTrackIds;
   // Keeps the "Autoplay Next Track" setting readable inside the onEnded handler
@@ -5945,15 +5960,29 @@ export default function Page() {
               </button>
             </div>
 
-            {/* Waveform Progress Bar */}
+            {/* Waveform Progress Bar — tap OR drag to seek (Pointer Events, same as
+                the main mobile player). touch-none prevents mid-scrub page scroll. */}
             <div
-              className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 mb-3"
-              onClick={(e) => {
+              className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-xl border border-white/5 bg-white/[0.02] px-2 pb-2 pt-2 mb-3 touch-none select-none"
+              onPointerDown={(e) => {
                 if (trackDuration === 0) return;
+                waveformScrubbingRef.current = true;
+                e.currentTarget.setPointerCapture(e.pointerId);
                 const rect = e.currentTarget.getBoundingClientRect();
-                const pct = (e.clientX - rect.left) / rect.width;
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                 seekToSeconds(pct * trackDuration);
               }}
+              onPointerMove={(e) => {
+                if (!waveformScrubbingRef.current || trackDuration === 0) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                seekToSeconds(pct * trackDuration);
+              }}
+              onPointerUp={(e) => {
+                waveformScrubbingRef.current = false;
+                if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+              }}
+              onPointerCancel={() => { waveformScrubbingRef.current = false; }}
             >
               {Array.from({ length: 50 }).map((_, i) => {
                 const barProgress = (i / 50) * 100;
@@ -8862,16 +8891,33 @@ export default function Page() {
                           <span className="text-white/40 text-sm ml-2">/ {formatDuration(currentTrack.durationSeconds)}</span>
                         </div>
                         
-                        {/* Waveform Progress Bar */}
+                        {/* Waveform Progress Bar — tap OR drag to seek. Uses Pointer
+                            Events so a single code path covers touch (iPad/iPhone) and
+                            mouse. `touch-none` stops the page from scrolling mid-scrub.
+                            Routes through seekToSeconds so it also drives the native
+                            engine on the iPad/iPhone app. Tap is unchanged: it's just a
+                            pointerdown+up with no move. */}
                         <div
-                          className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-lg border border-white/10 bg-white/[0.02] px-2 pb-1.5 pt-1.5 select-none"
-                          onClick={(e) => {
-                            if (!audioRef.current || trackDuration === 0) return;
+                          className="relative flex h-10 w-full cursor-pointer items-end gap-[2px] rounded-lg border border-white/10 bg-white/[0.02] px-2 pb-1.5 pt-1.5 select-none touch-none"
+                          onPointerDown={(e) => {
+                            if (trackDuration === 0) return;
+                            waveformScrubbingRef.current = true;
+                            e.currentTarget.setPointerCapture(e.pointerId);
                             const rect = e.currentTarget.getBoundingClientRect();
-                            const x = e.clientX - rect.left;
-                            const pct = x / rect.width;
-                            audioRef.current.currentTime = pct * trackDuration;
+                            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                            seekToSeconds(pct * trackDuration);
                           }}
+                          onPointerMove={(e) => {
+                            if (!waveformScrubbingRef.current || trackDuration === 0) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                            seekToSeconds(pct * trackDuration);
+                          }}
+                          onPointerUp={(e) => {
+                            waveformScrubbingRef.current = false;
+                            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+                          }}
+                          onPointerCancel={() => { waveformScrubbingRef.current = false; }}
                         >
                           {Array.from({ length: 50 }).map((_, i) => {
                             const barProgress = (i / 50) * 100;
