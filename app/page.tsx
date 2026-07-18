@@ -6852,16 +6852,19 @@ export default function Page() {
                   </div>
                 )}
 
-            <div className="mb-3 md:mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+            <div className="mb-3 md:mb-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+              <h2 className="text-xs md:text-sm font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent whitespace-nowrap">
                 NOW PLAYING
               </h2>
 
-              {/* Volume Control & Fullscreen */}
-              <div className="flex items-center gap-1 flex-wrap">
+              {/* Volume Control & Fullscreen — kept as a single non-wrapping unit so the
+                  expand button never drops onto its own row beneath the volume button.
+                  When the column is too narrow for label + controls, the whole cluster
+                  wraps below the heading together (via the parent's flex-wrap). */}
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
-                  className={`grid h-[32px] w-[32px] place-items-center rounded-lg border transition ${
+                  className={`grid h-[32px] w-[32px] shrink-0 place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
@@ -6876,7 +6879,7 @@ export default function Page() {
                   </span>
                 ) : (
                 <div
-                  className="group relative flex items-center w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                  className="group relative flex items-center shrink-0 w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
                   onMouseDown={(e) => {
                     const bar = e.currentTarget;
                     const apply = (clientX: number) => {
@@ -6936,7 +6939,7 @@ export default function Page() {
                       toggleFullscreen();
                     }
                   }}
-                  className="grid h-[32px] w-[32px] place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
+                  className="grid h-[32px] w-[32px] shrink-0 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white hover:border-[#ff8a00]/70 hover:bg-[#ff8a00]/20 transition"
                   title="Enter fullscreen mode"
                 >
                   <Maximize2 size={14} />
