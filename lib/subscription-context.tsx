@@ -36,9 +36,31 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Mobile (Capacitor) runs as a static export: there are no Next.js API routes
+    // to call, and its session lives in localStorage (not cookies), so a relative
+    // fetch('/api/...') hits capacitor://localhost and can fail or hang. On mobile
+    // we therefore read the profile directly from Supabase and skip the local API.
+    const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+
+    // Never let a hung auth/network call keep the provider loading forever.
+    const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T> =>
+      Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('SUB_TIMEOUT')), ms)),
+      ])
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
+      // Prefer the verified user; on timeout/offline fall back to the local
+      // session so entitlement reads still work without a hard network dependency.
+      let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null
+      try {
+        const res = await withTimeout(supabase.auth.getUser(), 8000)
+        user = res.data.user
+      } catch {
+        const { data: { session } } = await supabase.auth.getSession()
+        user = session?.user ?? null
+      }
+
       if (!user) {
         console.log('[v0][SUB-FRONTEND] No authenticated user; returning free')
         setProfile(null)
@@ -50,13 +72,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
       // Ensure a profiles row exists for this user BEFORE reading subscription.
       // This guarantees auth users are always mirrored into public.profiles.
-      // Safe + idempotent: never overwrites existing (paid) data.
-      try {
-        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
-        const ensureJson = await ensureRes.json().catch(() => null)
-        console.log('[v0][SUB-FRONTEND] ensure-profile result:', JSON.stringify(ensureJson))
-      } catch (ensureErr) {
-        console.error('[v0][SUB-FRONTEND] ensure-profile call failed:', ensureErr)
+      // Safe + idempotent: never overwrites existing (paid) data. Web only — see
+      // the isMobileBuild note above; the direct profile read below covers mobile.
+      if (!isMobileBuild) {
+        try {
+          const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
+          const ensureJson = await ensureRes.json().catch(() => null)
+          console.log('[v0][SUB-FRONTEND] ensure-profile result:', JSON.stringify(ensureJson))
+        } catch (ensureErr) {
+          console.error('[v0][SUB-FRONTEND] ensure-profile call failed:', ensureErr)
+        }
       }
 
       // Fetch from profiles table which has subscription fields.

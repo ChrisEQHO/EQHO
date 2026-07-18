@@ -18,7 +18,7 @@ import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstByt
 import { useNativeSession } from "@/lib/use-native-session";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
-import { clearEntitlementVerified } from "@/lib/access";
+import { clearEntitlementVerified, recordEntitlementVerified } from "@/lib/access";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -621,9 +621,12 @@ export default function Page() {
   // Free access, but login is required. The gate starts "checking" until the
   // Supabase auth check resolves: logged-in users are "granted", logged-out users
   // are redirected to /login. (No subscription/trial check - login alone is enough.)
-  const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline">(
+  const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline" | "error">(
     isV0Preview ? "granted" : "checking"
   );
+  // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
+  // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
+  const [accessRetryToken, setAccessRetryToken] = useState(0);
   const router = useRouter();
   const supabase = createClient();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -728,7 +731,18 @@ export default function Page() {
   // Get the visible index for a track (for display numbering)
   const getVisibleIndex = (trackId: string) => visiblePlaylist.findIndex(t => t.id === trackId);
 
-  // Fetch user on mount
+  // Fetch user on mount.
+  //
+  // iPad Capacitor fix: this MUST be finite. The old code awaited
+  // supabase.auth.getUser() (a NETWORK call with no timeout) before anything
+  // else; on a static export with flaky network or a broken stored refresh
+  // token that await could hang forever, so `setAuthChecked(true)` never ran and
+  // the app was stuck on "Checking your access…". We now:
+  //   1. Read the LOCAL session first (getSession — reliable, storage-based).
+  //   2. Race everything against an 8s timeout so startup can never hang.
+  //   3. Recover from invalid/expired stored sessions by signing out locally.
+  //   4. Always resolve loading in `finally`; show a recoverable error screen
+  //      (Try Again / Sign Out) instead of an endless spinner if we time out.
   useEffect(() => {
     // V0 Preview: use mock user, do not call Supabase
     if (isV0Preview) {
@@ -736,45 +750,108 @@ export default function Page() {
       setAuthChecked(true);
       return;
     }
-    
+
     if (!supabase) {
       setAuthChecked(true);
       return;
     }
-    
-    const getUser = async () => {
+
+    let cancelled = false;
+    const STARTUP_TIMEOUT_MS = 8000;
+
+    // Reject after `ms` so a hung Supabase/network call can never block startup.
+    const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T> =>
+      Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error("ACCESS_CHECK_TIMEOUT")), ms)
+        ),
+      ]);
+
+    // Stored session is unusable (expired / revoked / not found). We must clear it
+    // locally and treat the user as logged out rather than retrying forever.
+    const isInvalidSessionError = (msg: string | undefined | null): boolean => {
+      if (!msg) return false;
+      const m = msg.toLowerCase();
+      return (
+        m.includes("refresh token") ||
+        m.includes("session") && m.includes("expired") ||
+        m.includes("invalid") && m.includes("token") ||
+        m.includes("jwt expired") ||
+        m.includes("user not found")
+      );
+    };
+
+    const bootstrapAccess = async () => {
+      console.log("[v0] ACCESS CHECK STARTED");
+      console.log("[v0] PLATFORM", isMobileBuild ? "native" : "web");
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUser(user);
-        } else {
-          // No validated user - fall back to any locally-stored session so an
-          // offline (but previously logged-in) device keeps access to downloads.
-          const { data: { session } } = await supabase.auth.getSession();
-          setUser(session?.user ?? null);
-        }
-      } catch {
-        // Offline / network error: read the persisted local session (no network)
-        // rather than forcing a logout on every connection blip.
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          setUser(session?.user ?? null);
-        } catch {
+        // 1. Local session read first (no hard network dependency).
+        const { data: { session }, error: sessionError } = await withTimeout(
+          supabase.auth.getSession(),
+          STARTUP_TIMEOUT_MS
+        );
+
+        if (cancelled) return;
+
+        // 2. Recover from a broken stored session -> normal logged-out state.
+        if (sessionError && isInvalidSessionError(sessionError.message)) {
+          console.log("[v0] ACCESS CHECK ERROR invalid stored session; clearing");
+          try { await supabase.auth.signOut({ scope: "local" }); } catch {}
+          if (cancelled) return;
           setUser(null);
+          return;
         }
+
+        console.log("[v0] SESSION FOUND", !!session);
+
+        // 3. No session -> logged out (the gate effect sends them to /login).
+        if (!session) {
+          setUser(null);
+          return;
+        }
+
+        // 4. Valid local session -> logged in. Render the shell immediately and
+        //    record that we verified access while we had connectivity.
+        setUser(session.user);
+        recordEntitlementVerified();
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        if (message === "ACCESS_CHECK_TIMEOUT") {
+          console.log("[v0] ACCESS CHECK TIMEOUT");
+        } else {
+          console.log("[v0] ACCESS CHECK ERROR", message);
+        }
+        // If we can't confirm anything, show a recoverable error (not a white
+        // screen / infinite spinner). authChecked is still set in `finally`;
+        // the gate effect below leaves "error" untouched.
+        setGate("error");
       } finally {
-        setAuthChecked(true);
+        if (!cancelled) setAuthChecked(true);
+        console.log("[v0] ACCESS CHECK COMPLETE");
       }
     };
-    getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    bootstrapAccess();
+
+    // React to later auth changes (sign in/out, token refresh) so the gate stays
+    // correct after the initial bootstrap. This is event-driven, never awaited.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+      } else {
+        setUser(session?.user ?? null);
+      }
       setAuthChecked(true);
     });
 
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [supabase, accessRetryToken]);
 
   // -------------------------------------------------------------------------
   // Client-side login gate.
@@ -790,6 +867,11 @@ export default function Page() {
     // Wait for the initial auth check to settle before deciding.
     if (!authChecked) return;
 
+    // A recoverable startup error is showing (timeout / unverifiable). Leave it
+    // in place — the user recovers via its Try Again / Sign Out buttons — instead
+    // of bouncing to /login and hiding the network error.
+    if (gate === "error") return;
+
     if (user) {
       setGate("granted");
     } else {
@@ -797,7 +879,7 @@ export default function Page() {
       setGate("checking");
       router.replace("/login");
     }
-  }, [authChecked, user, router]);
+  }, [authChecked, user, router, gate]);
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
@@ -4673,6 +4755,52 @@ export default function Page() {
           >
             Try Again
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Startup verification failed or timed out (e.g. no connection on launch).
+  // Recoverable: never a white screen or an endless spinner. Uses EQHO styling.
+  if (gate === "error") {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#050814] text-white p-6">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
+          <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
+        </div>
+        <div className="relative z-10 max-w-md text-center bg-[#090f1c]/95 backdrop-blur-xl border border-[#ff8a00]/30 rounded-2xl p-8">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center mx-auto mb-5">
+            <AlertTriangle size={26} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2 text-balance">Unable to verify your account</h1>
+          <p className="text-white/60 mb-6 text-pretty">
+            EQHO Player could not confirm your access. Check your internet
+            connection and try again.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                // Re-run the bootstrap in place (a full reload can re-hang on
+                // iPad Capacitor): reset to the loader and bump the retry token.
+                setGate("checking");
+                setAuthChecked(false);
+                setAccessRetryToken((n) => n + 1);
+              }}
+              className="w-full min-h-[48px] py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition flex items-center justify-center gap-2"
+            >
+              <RefreshCw size={18} />
+              Try Again
+            </button>
+            <button
+              onClick={handleLogout}
+              disabled={isSigningOut}
+              className="w-full min-h-[48px] py-3 rounded-xl border border-white/15 bg-white/5 text-white/80 font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {isSigningOut ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />}
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
     );
