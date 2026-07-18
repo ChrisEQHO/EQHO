@@ -8,7 +8,10 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "Package.swift",
     "ios/",
+    "android/",
+    "src/",
     "EqhoAudio.podspec"
   ],
   "keywords": [
