@@ -5875,7 +5875,7 @@ export default function Page() {
               row 3 = volume/bottom controls — controls are a real grid row, never
               layered over the queue. */}
           {(currentTrack || playlist.length > 0) && (
-          <div className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden px-4">
+          <div className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden px-4">
             {/* ROW 1: Now Playing block (timer, track info, controls, waveform) */}
             <div className="min-h-0">
             {/* Session Remaining Timer - Large */}
@@ -6026,9 +6026,74 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Volume Slider - matches the desktop on-brand drag-track control:
+            {/* ROW 3: Session controls — Gap, Back-to-Back, Total Session Time and
+                Repeats, restored into Coach View. This is a real grid row (auto
+                height), so the queue (row 2) shrinks to fit and these controls never
+                overlap it. Styling, icons and handlers mirror the main player's
+                session bar so branding stays consistent. 2-up on narrow/portrait,
+                4-up across on wider iPads. */}
+            <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              {/* Gap Between Routines */}
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#090f1c]/60 px-2 py-1.5">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/50 text-white/80">
+                  <Users size={14} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[8px] font-semibold tracking-wide text-white/50 uppercase leading-none mb-1">Gap</div>
+                  <div className="flex items-center rounded-md border border-white/15 bg-white/5">
+                    <button type="button" onClick={() => updateGapSeconds((v) => Math.max(0, v - 5))} className="grid h-7 w-7 place-items-center text-white/70 active:bg-white/10 rounded-l-md"><Minus size={12} /></button>
+                    <span className="px-1 text-xs font-bold text-white tabular-nums min-w-[32px] text-center">{gapSeconds}s</span>
+                    <button type="button" onClick={() => updateGapSeconds((v) => Math.min(120, v + 5))} className="grid h-7 w-7 place-items-center text-white/70 active:bg-white/10 rounded-r-md"><Plus size={12} /></button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Back to Back */}
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#090f1c]/60 px-2 py-1.5">
+                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border ${backToBack ? "border-pink-500 text-pink-500" : "border-pink-500/50 text-pink-500/50"}`}>
+                  <RefreshCw size={14} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[8px] font-semibold tracking-wide text-white/50 uppercase leading-none mb-1">B2B</div>
+                  <button type="button" onClick={() => updateBackToBack((v) => !v)} className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-white">{backToBack ? "On" : "Off"}</span>
+                    <div className={`h-5 w-9 rounded-full border p-0.5 transition-colors ${backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/10"}`}>
+                      <div className={`h-4 w-4 rounded-full transition-transform ${backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/40"}`} />
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Total Session Time */}
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#090f1c]/60 px-2 py-1.5">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-orange-400 text-orange-400">
+                  <Clock size={15} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[8px] font-semibold tracking-wide text-white/50 uppercase leading-none mb-1">Time</div>
+                  <div className="text-sm font-bold text-white tabular-nums leading-none">{formatSessionTime(totalSessionSeconds)}</div>
+                </div>
+              </div>
+
+              {/* Repeat Playlist */}
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#090f1c]/60 px-2 py-1.5">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-400 text-cyan-400">
+                  <Repeat size={14} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[8px] font-semibold tracking-wide text-white/50 uppercase leading-none mb-1">Reps</div>
+                  <div className="flex items-center rounded-md border border-cyan-400/30 bg-cyan-400/5">
+                    <button type="button" onClick={() => updatePlaylistRepeats((v) => Math.max(1, v - 1))} className="grid h-7 w-7 place-items-center text-cyan-300 active:bg-cyan-400/10 rounded-l-md"><Minus size={12} /></button>
+                    <span className="px-1 text-xs font-bold text-white tabular-nums min-w-[30px] text-center">{playlistRepeats === 1 ? "Off" : `${playlistRepeats}x`}</span>
+                    <button type="button" onClick={() => updatePlaylistRepeats((v) => Math.min(99, v + 1))} className="grid h-7 w-7 place-items-center text-cyan-300 active:bg-cyan-400/10 rounded-r-md"><Plus size={12} /></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 4: Volume Slider - matches the desktop on-brand drag-track control:
                 orange->pink gradient fill with the % centered inside, no thumb dot. */}
-            <div className="flex items-center gap-3 py-3 justify-center shrink-0">
+            <div className="flex items-center gap-3 py-2 justify-center shrink-0">
               <button
                 type="button"
                 onClick={() => setIsMuted((m) => !m)}
