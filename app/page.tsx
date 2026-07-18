@@ -5830,7 +5830,17 @@ export default function Page() {
           {/* Gap Countdown Overlay - shows during entire gap */}
           {isGapPaused && (
             <div className="absolute inset-0 z-[320] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-              <div key={gapCountdown} className={`font-black leading-none bg-gradient-to-br from-[#ff4fa3] via-[#ff6b6b] to-[#ff8a00] bg-clip-text text-transparent ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`} style={{ animation: gapCountdown <= 3 ? 'countdownPulse 1s ease-out' : 'none' }}>
+              {/* Solid brand color (NOT gradient bg-clip-text): iPad Safari fails to
+                  paint gradient-clipped text at huge font sizes, rendering it fully
+                  transparent/invisible. A solid color + glow always paints. */}
+              <div
+                key={gapCountdown}
+                className={`font-black leading-none text-[#ff5a8a] ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`}
+                style={{
+                  animation: gapCountdown <= 3 ? 'countdownPulse 1s ease-out' : 'none',
+                  textShadow: '0 0 60px rgba(255,90,138,0.55), 0 0 120px rgba(255,138,0,0.35)',
+                }}
+              >
                 {gapCountdown}
               </div>
               <div className="mt-4 text-center">
@@ -8883,13 +8893,28 @@ export default function Page() {
                             </button>
                           </div>
                         </div>
-                        {/* Timer */}
-                        <div className="text-center">
-                          <span className="text-2xl font-black text-white tabular-nums">
-                            {String(Math.floor(currentTime / 60)).padStart(2, "0")}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
-                          </span>
-                          <span className="text-white/40 text-sm ml-2">/ {formatDuration(currentTrack.durationSeconds)}</span>
-                        </div>
+                        {/* Timer — during the gap between routines, show a prominent
+                            countdown number (solid brand color so it always paints on
+                            iPad Safari) instead of the elapsed-time readout. */}
+                        {isGapPaused ? (
+                          <div className="text-center">
+                            <p className="text-[10px] uppercase tracking-widest text-white/50 mb-0.5">Next in</p>
+                            <span
+                              className="text-5xl font-black text-[#ff5a8a] tabular-nums leading-none"
+                              style={{ textShadow: '0 0 24px rgba(255,90,138,0.5)' }}
+                            >
+                              {gapCountdown}
+                            </span>
+                            <span className="text-white/40 text-sm ml-1">s</span>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <span className="text-2xl font-black text-white tabular-nums">
+                              {String(Math.floor(currentTime / 60)).padStart(2, "0")}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
+                            </span>
+                            <span className="text-white/40 text-sm ml-2">/ {formatDuration(currentTrack.durationSeconds)}</span>
+                          </div>
+                        )}
                         
                         {/* Waveform Progress Bar — tap OR drag to seek. Uses Pointer
                             Events so a single code path covers touch (iPad/iPhone) and
