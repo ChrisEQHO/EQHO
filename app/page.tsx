@@ -1147,6 +1147,38 @@ export default function Page() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // iPad Safari Coach View height (section 6). `100dvh` is unreliable across iPadOS
+  // Safari versions as the toolbar shows/hides: the Coach overlay could grow taller
+  // than the visible viewport, pushing its own bottom controls off-screen. While a
+  // Coach view is active we publish the REAL visual-viewport height as
+  // `--coach-viewport-height` and recompute it on resize / orientationchange /
+  // visualViewport resize+scroll. The overlay uses this var (falling back to 100dvh),
+  // so its bottom controls always sit inside the visible area. Scoped to Coach only.
+  useEffect(() => {
+    const coachActive = isFullscreen || showFullscreenMobilePlayer;
+    if (!coachActive || typeof window === "undefined") return;
+    const vv = window.visualViewport;
+    const setVH = () => {
+      const h = vv?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty(
+        "--coach-viewport-height",
+        `${Math.round(h)}px`,
+      );
+    };
+    setVH();
+    window.addEventListener("resize", setVH);
+    window.addEventListener("orientationchange", setVH);
+    vv?.addEventListener("resize", setVH);
+    vv?.addEventListener("scroll", setVH);
+    return () => {
+      window.removeEventListener("resize", setVH);
+      window.removeEventListener("orientationchange", setVH);
+      vv?.removeEventListener("resize", setVH);
+      vv?.removeEventListener("scroll", setVH);
+      document.documentElement.style.removeProperty("--coach-viewport-height");
+    };
+  }, [isFullscreen, showFullscreenMobilePlayer]);
+
   // Coach Mode body scroll-lock. When either the mobile/iPad Coach overlay
   // (showFullscreenMobilePlayer) or the desktop Coach overlay (isFullscreen) is
   // active we lock the underlying document so the hidden Playing page cannot be
@@ -5609,7 +5641,11 @@ export default function Page() {
         <div
           data-coach-overlay="mobile"
           className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset"
-          style={{ height: "100dvh" }}
+          // Height tracks the real visual viewport on iPad Safari (see the
+          // --coach-viewport-height effect), falling back to 100dvh elsewhere. This
+          // keeps the row-3 bottom controls inside the visible area so the queue never
+          // has to scroll under an off-screen control row.
+          style={{ height: "var(--coach-viewport-height, 100dvh)", maxHeight: "var(--coach-viewport-height, 100dvh)" }}
         >
           {/* Session Finished Mobile Takeover */}
           {showSessionFinished && (
@@ -5820,7 +5856,7 @@ export default function Page() {
                   <button onClick={() => { if (sessionRunning || isPlaying) { setShowClearPlaylistConfirm(true); } else { clearPlaylist(); } }} className="px-2 py-1 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold">Clear</button>
                 </div>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
                 {visiblePlaylist.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full py-6">
                     <ListMusic size={32} className="text-white/20 mb-2" />
@@ -5837,20 +5873,22 @@ export default function Page() {
                       const isFinished = finishedTracks.has(track.id);
                       const isHidden = hiddenTrackIds.has(track.id);
                       return (
-                        <SortableTrackItem key={track.id} id={track.id} onClick={() => { if (!isHidden) { setCurrentIndex(idx); togglePlayPause(track); } }} className={`flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg cursor-pointer transition shrink-0 min-h-[44px] ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
-                          <TrackDragHandle className="flex items-center justify-center shrink-0 -ml-0.5 text-white/25 hover:text-white/70 active:text-white bg-transparent border-0 p-0.5">
+                        <SortableTrackItem key={track.id} id={track.id} onClick={() => { if (!isHidden) { setCurrentIndex(idx); togglePlayPause(track); } }} className={`grid grid-cols-[20px_28px_minmax(0,1fr)_auto] items-center gap-2 px-2 py-1.5 mb-1 rounded-lg cursor-pointer transition min-h-[52px] ${isHidden ? "opacity-40 border border-dashed border-white/10" : isCurrent ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30" : isFinished ? "bg-green-500/10 border border-green-500/20" : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05]"}`}>
+                          <TrackDragHandle className="flex items-center justify-center -ml-0.5 text-white/25 hover:text-white/70 active:text-white bg-transparent border-0 p-0.5">
                             <GripVertical size={14} />
                           </TrackDragHandle>
-                          <span className={`text-[10px] font-bold w-5 text-center shrink-0 ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
-                          <p className={`text-xs truncate flex-1 min-w-0 ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
-                          {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
-                          {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
-                          {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                          {isHidden && (
-                            <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
-                              Unhide
-                            </button>
-                          )}
+                          <span className={`text-[10px] font-bold text-center ${isHidden ? "text-white/20" : isCurrent ? "text-pink-400" : isFinished ? "text-green-400" : "text-white/40"}`}>{idx + 1}</span>
+                          <p className={`text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap ${isHidden ? "text-white/25 line-through" : isCurrent ? "text-white font-semibold" : isFinished ? "text-green-300" : "text-white/70"}`}>{track.title}</p>
+                          <div className="flex items-center justify-end gap-1">
+                            {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
+                            {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
+                            {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
+                            {isHidden && (
+                              <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
+                                Unhide
+                              </button>
+                            )}
+                          </div>
                         </SortableTrackItem>
                       );
                     })}
@@ -9701,8 +9739,23 @@ export default function Page() {
         </div>
       )}
 
-      {/* Fixed Bottom Control Bar */}
-      <div ref={mobileControlsRef} className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10">
+      {/* Fixed Bottom Control Bar.
+          iPad Safari Coach View fix (section 7 — mutually exclusive rendering): this
+          global footer (Gap Between Routines, Back to Back, Total Session Time, Repeat
+          Playlist, Resume Session) is a top-level element that stays mounted on every
+          page. When a Coach View is open its opaque overlay should cover this, but on
+          iPad Safari the overlay's viewport height can differ from this viewport-fixed
+          bar, leaving it visible OVER the Coach queue — the exact controls users saw
+          overlapping the track list. We therefore hide it entirely while Coach is
+          active so there is exactly ONE bottom control bar (the Coach overlay's own).
+          `display:none` keeps the node mounted so the ResizeObserver ref stays valid;
+          the `h > 0` guard in the measuring effect prevents the height var from being
+          clobbered to 0. Normal (non-Coach) pages are completely unaffected. */}
+      <div
+        ref={mobileControlsRef}
+        style={coachViewActive ? { display: "none" } : undefined}
+        className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10"
+      >
         {/* Desktop divider (mobile uses the collapse handle below instead) */}
         <div className="hidden md:block session-bottom-divider" />
 
