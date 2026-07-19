@@ -427,17 +427,17 @@ function DraggableTrackRow({
   );
 }
 
-// Selectable countdown beep styles for the web players (iPhone Safari + iPad
-// Safari). All three are generated with the Web Audio API and are driven by the
-// same last-N-seconds countdown logic, so the beeps stay perfectly in sync with
-// the on-screen numbers regardless of which style is chosen. "classic" is the
-// recommended default: it is the brightest and most audible over music.
-type BeepSoundId = "classic" | "chime" | "tick";
+// Selectable countdown beep styles. All three are generated with the Web Audio
+// API and driven by the SAME last-N-seconds countdown logic, so they have
+// identical timing and only differ in timbre. "classic" is the restored original
+// working beep and the default (and the fallback if a style can't be produced).
+type BeepSoundId = "classic" | "digital" | "competition";
 const BEEP_SOUNDS: { id: BeepSoundId; label: string; description: string }[] = [
-  { id: "classic", label: "Classic Beep", description: "Bright, punchy — best over music (recommended)" },
-  { id: "chime", label: "Soft Chime", description: "Warm, musical rising tones" },
-  { id: "tick", label: "Sharp Tick", description: "Crisp, minimal digital blips" },
+  { id: "classic", label: "Classic Countdown", description: "The original EQHO countdown beep (default)" },
+  { id: "digital", label: "Digital Beep", description: "Clean modern electronic tone — great for coaching" },
+  { id: "competition", label: "Competition Beep", description: "Sharper, higher-pitched competition-style warning" },
 ];
+const DEFAULT_BEEP_SOUND: BeepSoundId = "classic";
 
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -3978,7 +3978,7 @@ export default function Page() {
       gapSeconds,
       repeats: playlistRepeats,
       backToBack,
-      countdownBeeps: showCountdownRef.current,
+      countdownBeeps: countdownSoundRef.current,
       countdownSeconds: countdownSecondsRef.current,
       volume: Math.max(0, Math.min(1, volume / 100)),
     });
@@ -4015,7 +4015,15 @@ export default function Page() {
   const countdownSecondsRef = useRef(3);
   // Selected countdown beep style, read inside playBeep (which runs from refs, not
   // closures). Kept in sync with settings.beepSound below.
-  const beepSoundRef = useRef<BeepSoundId>("classic");
+  const beepSoundRef = useRef<BeepSoundId>(DEFAULT_BEEP_SOUND);
+  // Countdown SOUND on/off. Deliberately SEPARATE from showCountdown (the visual
+  // toggle): when this is false the beeps are silenced but the on-screen countdown
+  // and the next-track transition still run exactly as before. Kept in sync with
+  // settings.countdownSound below.
+  const countdownSoundRef = useRef(true);
+  // Pending preview beep timers, so a newly-started preview can cancel the one
+  // in progress (only one preview may play at a time — spec §3).
+  const previewTimersRef = useRef<number[]>([]);
   // Authoritative back-to-back tracker: holds the id of the track that has ALREADY
   // played its back-to-back repeat. This is keyed by the actually-playing track id
   // (read at the moment the track ends), so the decision can never desync the way a
@@ -4322,25 +4330,27 @@ export default function Page() {
           osc.stop(end + 0.02);
         };
 
-        if (style === "chime") {
-          // Warm, musical: pure sine fundamental + octave shimmer, longer smooth
-          // decay. Final adds a perfect-fifth for a pleasant resolved chord.
-          const len = isFinalBeep ? duration * 2.2 : duration * 1.6;
-          tone("sine", frequency, isFinalBeep ? 0.5 : 0.38, len);
-          tone("sine", frequency * 2, isFinalBeep ? 0.22 : 0.16, len);
-          if (isFinalBeep) tone("sine", frequency * 1.5, 0.28, len);
-        } else if (style === "tick") {
-          // Crisp digital blip: short triangle attack. Final is a quick double-tick
-          // with a bright ping so the "go" moment is unmistakable.
-          const len = isFinalBeep ? duration * 0.5 : duration * 0.4;
-          tone("triangle", frequency * 1.2, isFinalBeep ? 0.6 : 0.45, len);
-          if (isFinalBeep) {
-            tone("triangle", frequency * 1.2, 0.5, len, 110);
-            tone("sine", frequency * 2.5, 0.35, len * 1.4, 110);
-          }
+        if (style === "digital") {
+          // Digital Beep: clean modern electronic tone — a pure sine with a subtle
+          // triangle edge, short and unobtrusive for coaching. Same `len` timing as
+          // Classic's non-final beeps so only the timbre differs.
+          const len = isFinalBeep ? duration * 1.5 : duration;
+          tone("sine", frequency, isFinalBeep ? 0.62 : 0.44, len);
+          tone("triangle", frequency, isFinalBeep ? 0.2 : 0.14, len);
+          if (isFinalBeep) tone("sine", frequency * 2, 0.3, len);
+        } else if (style === "competition") {
+          // Competition Beep: sharper warning tone using a sawtooth for bite,
+          // pitched slightly higher than Classic. Uses the IDENTICAL `len` formula
+          // as Classic so the duration matches exactly — only pitch/timbre differ.
+          const len = isFinalBeep ? duration * 1.5 : duration;
+          tone("sawtooth", frequency * 1.2, isFinalBeep ? 0.6 : 0.44, len);
+          tone("square", frequency * 1.2, isFinalBeep ? 0.3 : 0.2, len);
+          if (isFinalBeep) tone("sawtooth", frequency * 2.4, 0.3, len);
         } else {
-          // "classic" (default): square fundamental + sine fifth harmonic, loud and
-          // bright to cut through music. Final adds an octave ping for emphasis.
+          // "classic" (default) — the restored original EQHO beep: square
+          // fundamental + sine fifth harmonic, loud and bright to cut through
+          // music, with an octave ping on the final beep. This branch also serves
+          // as the FALLBACK (§8) for any unrecognized style id.
           const len = isFinalBeep ? duration * 1.5 : duration;
           tone("square", frequency, isFinalBeep ? 0.7 : 0.5, len);
           tone("sine", frequency * 1.5, isFinalBeep ? 0.4 : 0.25, len);
@@ -4364,12 +4374,18 @@ export default function Page() {
 
   // Settings preview: plays a short representative 3-2-1 of the given style so the
   // user can compare sounds before choosing. Uses the same generator as the live
-  // countdown, so what they hear is exactly what plays during a session.
+  // countdown, so what they hear is exactly what plays during a session. Does NOT
+  // touch music playback. Only one preview may play at a time (§3): starting a new
+  // preview cancels any still-scheduled tones from the previous one.
   const previewBeepSound = useCallback(
     (style: BeepSoundId) => {
+      // Cancel any in-progress preview first.
+      previewTimersRef.current.forEach((id) => window.clearTimeout(id));
+      previewTimersRef.current = [];
+      // Same 3-2-1 frequencies as the live countdown.
       emitBeep(style, 660, 200, false);
-      window.setTimeout(() => emitBeep(style, 880, 200, false), 320);
-      window.setTimeout(() => emitBeep(style, 1100, 200, true), 640);
+      previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 880, 200, false), 320));
+      previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 1100, 200, true), 640));
     },
     [emitBeep],
   );
@@ -4403,12 +4419,14 @@ export default function Page() {
     }
     const remaining = Math.ceil(remainingMs / 1000);
     setGapCountdown((prev) => (prev !== remaining ? remaining : prev));
-    // Audible "get ready" countdown. Honors the "Show Countdown Timer" toggle and
-    // the configurable "Countdown Before Routine" length. Because `remaining` is
-    // derived from the clock, a beep is only played at its true real-time second;
-    // seconds skipped during suspension are never beeped after the fact.
+    // Audible "get ready" countdown. Gated by the SOUND toggle (countdownSound),
+    // NOT the visual toggle — so turning sound off keeps the on-screen countdown
+    // and the transition intact. Still honors the configurable "Countdown Before
+    // Routine" length. Because `remaining` is derived from the clock, a beep is
+    // only played at its true real-time second; seconds skipped during suspension
+    // are never beeped after the fact.
     if (
-      showCountdownRef.current &&
+      countdownSoundRef.current &&
       countdownSecondsRef.current > 0 &&
       remaining <= countdownSecondsRef.current &&
       remaining > 0 &&
@@ -4505,7 +4523,8 @@ export default function Page() {
     showCountdown: true,
     showPauseWarning: true,
     showSkipWarning: true,
-    beepSound: "classic" as BeepSoundId,
+    beepSound: DEFAULT_BEEP_SOUND,
+    countdownSound: true,
   });
 
   // Keep the playback-engine refs in sync with the live settings every render.
@@ -4513,24 +4532,39 @@ export default function Page() {
   showCountdownRef.current = settings.showCountdown;
   countdownSecondsRef.current = settings.countdownSeconds;
   beepSoundRef.current = settings.beepSound;
+  countdownSoundRef.current = settings.countdownSound;
 
-  // Persist ONLY the beep preference (sound style + on/off) so the user's choice
-  // survives refresh, restart and re-login. Scoped to beeps on purpose: gap,
-  // repeat, volume and countdown-length are deliberately NOT persisted here (they
-  // are owned by other state / cloud-sync). Uses the same `eqho-*` localStorage
-  // convention as the rest of the app — not a new settings store.
+  // Persist ONLY the countdown-sound preferences (selected sound + sound on/off)
+  // so the user's choice survives refresh, restart and re-login. Scoped to sound
+  // on purpose: gap, repeat, volume and countdown-length are owned elsewhere.
+  // Uses the same `eqho-*` localStorage convention as the rest of the app.
   const beepPrefsLoadedRef = useRef(false);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("eqho-beep-prefs");
       if (raw) {
-        const saved = JSON.parse(raw) as { beepSound?: BeepSoundId; showCountdown?: boolean };
+        const saved = JSON.parse(raw) as {
+          beepSound?: string;
+          countdownSound?: boolean;
+          showCountdown?: boolean; // legacy key from an earlier build
+        };
+        // Validate the stored sound id against the current catalog; unknown/renamed
+        // ids (e.g. old "chime"/"tick") fall back to the default (§8).
+        const validSound = BEEP_SOUNDS.some((b) => b.id === saved.beepSound)
+          ? (saved.beepSound as BeepSoundId)
+          : undefined;
+        // On/off: prefer the new key, migrate from the legacy `showCountdown` if the
+        // new one is absent.
+        const soundOn =
+          typeof saved.countdownSound === "boolean"
+            ? saved.countdownSound
+            : typeof saved.showCountdown === "boolean"
+              ? saved.showCountdown
+              : undefined;
         setSettings((s) => ({
           ...s,
-          ...(saved.beepSound && BEEP_SOUNDS.some((b) => b.id === saved.beepSound)
-            ? { beepSound: saved.beepSound }
-            : {}),
-          ...(typeof saved.showCountdown === "boolean" ? { showCountdown: saved.showCountdown } : {}),
+          ...(validSound ? { beepSound: validSound } : {}),
+          ...(typeof soundOn === "boolean" ? { countdownSound: soundOn } : {}),
         }));
       }
     } catch {
@@ -4545,12 +4579,12 @@ export default function Page() {
     try {
       localStorage.setItem(
         "eqho-beep-prefs",
-        JSON.stringify({ beepSound: settings.beepSound, showCountdown: settings.showCountdown }),
+        JSON.stringify({ beepSound: settings.beepSound, countdownSound: settings.countdownSound }),
       );
     } catch {
       // ignore storage write failures (private mode, quota)
     }
-  }, [settings.beepSound, settings.showCountdown]);
+  }, [settings.beepSound, settings.countdownSound]);
 
   const updateSetting = (key: string, value: any) => {
     setSettings((current) => ({
@@ -8265,13 +8299,26 @@ export default function Page() {
                   <div className="space-y-4">
                     <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
                     <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
+                  </div>
+                </div>
 
-                    {/* Countdown Sound — pick one of three beep styles. The preview
-                        button plays a 3-2-1 using the same generator as the live
-                        countdown, so it sounds identical in a real session. */}
-                    <div className="space-y-2">
+                {/* Countdown Timer Sound — dedicated section. The ON/OFF toggle
+                    controls SOUND ONLY (the visual countdown above still runs when
+                    off). The radio list picks which beep plays; each row has a
+                    preview that uses the same generator as the live countdown. */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Volume2 size={18} />
+                    </div>
+                    <h2 className="text-lg font-bold">Countdown Timer Sound</h2>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
+
+                    <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
                       <span className="text-sm text-white/80">Countdown Sound</span>
-                      <div className="grid gap-2">
+                      <div role="radiogroup" aria-label="Countdown sound" className="grid gap-2">
                         {BEEP_SOUNDS.map((opt) => {
                           const active = settings.beepSound === opt.id;
                           return (
@@ -8279,7 +8326,13 @@ export default function Page() {
                               key={opt.id}
                               className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
                             >
-                              <button onClick={() => updateSetting("beepSound", opt.id)} className="flex-1 flex items-center gap-3 text-left">
+                              <button
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => updateSetting("beepSound", opt.id)}
+                                className="flex-1 flex items-center gap-3 text-left min-h-[44px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]"
+                              >
                                 <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
                                   {active && <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]" />}
                                 </span>
@@ -8289,12 +8342,14 @@ export default function Page() {
                                 </span>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => previewBeepSound(opt.id)}
-                                className="shrink-0 grid h-8 w-8 place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-[#ff8a00] hover:bg-[#ff8a00]/20 transition"
-                                title="Preview sound"
+                                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 px-3 min-h-[44px] text-[#ff8a00] hover:bg-[#ff8a00]/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00]"
+                                title={`Preview ${opt.label}`}
                                 aria-label={`Preview ${opt.label}`}
                               >
                                 <Play size={14} />
+                                <span className="text-xs font-semibold">Preview</span>
                               </button>
                             </div>
                           );
@@ -9861,30 +9916,53 @@ export default function Page() {
                           </div>
                         </div>
 
-                        {/* Countdown Sound selector (compact). Tap a row to select;
-                            tap the play icon to preview the 3-2-1 for that style. */}
-                        <div className="pt-1">
-                          <span className="text-[10px] text-white/70">Countdown Sound</span>
-                          <div className="mt-1 grid gap-1">
+                        {/* Countdown Timer Sound (compact). ON/OFF controls SOUND
+                            only — the visual countdown still runs when off. Tap a row
+                            to select; tap Preview to hear the 3-2-1 for that style. */}
+                        <div className="pt-2 mt-1 border-t border-white/10">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-white">Countdown Sound</span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={settings.countdownSound}
+                              aria-label="Countdown sound on/off"
+                              onClick={() => updateSetting("countdownSound", !settings.countdownSound)}
+                              className="flex items-center"
+                            >
+                              <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.countdownSound ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                                <div className={`h-3 w-3 rounded-full transition-transform ${settings.countdownSound ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                              </div>
+                            </button>
+                          </div>
+                          <div role="radiogroup" aria-label="Countdown sound" className={`mt-1.5 grid gap-1 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
                             {BEEP_SOUNDS.map((opt) => {
                               const active = settings.beepSound === opt.id;
                               return (
                                 <div
                                   key={opt.id}
-                                  className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
+                                  className={`flex items-center gap-2 rounded-lg border px-2 py-1 ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
                                 >
-                                  <button onClick={() => updateSetting("beepSound", opt.id)} className="flex-1 flex items-center gap-2 text-left">
+                                  <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={active}
+                                    onClick={() => updateSetting("beepSound", opt.id)}
+                                    className="flex-1 flex items-center gap-2 text-left min-h-[40px]"
+                                  >
                                     <span className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
                                       {active && <span className="h-1.5 w-1.5 rounded-full bg-[#ff4fa3]" />}
                                     </span>
                                     <span className="text-[10px] font-semibold text-white">{opt.label}</span>
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => previewBeepSound(opt.id)}
-                                    className="shrink-0 grid h-6 w-6 place-items-center rounded-md border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-[#ff8a00]"
+                                    className="shrink-0 flex items-center gap-1 rounded-md border border-[#ff8a00]/40 bg-[#ff8a00]/10 px-2 min-h-[40px] text-[#ff8a00]"
                                     aria-label={`Preview ${opt.label}`}
                                   >
                                     <Play size={10} />
+                                    <span className="text-[9px] font-semibold">Preview</span>
                                   </button>
                                 </div>
                               );
