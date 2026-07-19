@@ -432,10 +432,13 @@ function DraggableTrackRow({
 // identical timing and only differ in timbre. "classic" is the restored original
 // working beep and the default (and the fallback if a style can't be produced).
 type BeepSoundId = "classic" | "digital" | "competition";
-const BEEP_SOUNDS: { id: BeepSoundId; label: string; description: string }[] = [
-  { id: "classic", label: "Classic Countdown", description: "The original EQHO countdown beep (default)" },
-  { id: "digital", label: "Digital Beep", description: "Clean modern electronic tone — great for coaching" },
-  { id: "competition", label: "Competition Beep", description: "Sharper, higher-pitched competition-style warning" },
+// Named simply Beep 1/2/3 per branding — no descriptions. The `id` values are kept
+// stable so previously-saved preferences still map correctly: Beep 1 = the restored
+// original ("classic", default), Beep 2 = "digital", Beep 3 = "competition".
+const BEEP_SOUNDS: { id: BeepSoundId; label: string }[] = [
+  { id: "classic", label: "Beep 1" },
+  { id: "digital", label: "Beep 2" },
+  { id: "competition", label: "Beep 3" },
 ];
 const DEFAULT_BEEP_SOUND: BeepSoundId = "classic";
 
@@ -4331,7 +4334,7 @@ export default function Page() {
         };
 
         if (style === "digital") {
-          // Digital Beep: clean modern electronic tone — a pure sine with a subtle
+          // Digital Beep: clean modern electronic tone ��� a pure sine with a subtle
           // triangle edge, short and unobtrusive for coaching. Same `len` timing as
           // Classic's non-final beeps so only the timbre differs.
           const len = isFinalBeep ? duration * 1.5 : duration;
@@ -8338,7 +8341,6 @@ export default function Page() {
                                 </span>
                                 <span className="min-w-0">
                                   <span className="block text-sm font-semibold text-white">{opt.label}</span>
-                                  <span className="block text-xs text-white/50">{opt.description}</span>
                                 </span>
                               </button>
                               <button
