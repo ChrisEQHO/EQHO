@@ -451,6 +451,14 @@ export default function Page() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  // SINGLE persistent AudioContext dedicated to countdown/notification beeps.
+  // Created once and reused for every beep (never `new AudioContext()` per beep):
+  // on iOS a context created outside a user gesture starts "suspended" and stays
+  // silent, and Safari caps the number of live contexts — both of which silenced
+  // fresh-per-beep contexts. This one is unlocked on the play gesture (safePlay)
+  // and resumed before each beep, so beeps are audible on all four platforms
+  // (iPhone/iPad, app + Safari) and overlay the music without touching playback.
+  const beepCtxRef = useRef<AudioContext | null>(null);
   // Cached result of "does writing element.volume actually change loudness?".
   // Desktop + Android honor element.volume (and it routes correctly to Bluetooth/
   // AirPlay); iOS/iPadOS WKWebView silently ignores it. We ONLY fall back to the
@@ -3265,6 +3273,9 @@ export default function Page() {
       audio.volume = 1;
       gain.gain.setValueAtTime(isMuted ? 0 : normalized, audioCtxRef.current.currentTime);
     }
+    // Unlock the shared beep context in the SAME gesture so countdown beeps are
+    // audible later (iOS requires the context to start from a user gesture).
+    unlockBeepAudio();
 
     try {
       await audio.play();
@@ -4250,16 +4261,42 @@ export default function Page() {
   // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
 
+  // Lazily create (once) and return the single shared beep AudioContext, resuming
+  // it if the browser/OS suspended it. Returns null only if Web Audio is missing.
+  const getBeepCtx = useCallback((): AudioContext | null => {
+    try {
+      if (!beepCtxRef.current) {
+        const Ctx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return null;
+        beepCtxRef.current = new Ctx();
+      }
+      const ctx = beepCtxRef.current;
+      if (ctx.state === "suspended") void ctx.resume();
+      return ctx;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Unlock the beep context from a user gesture (called in safePlay). iOS only
+  // lets an AudioContext transition to "running" from within a gesture, so doing
+  // this on the play tap guarantees later countdown beeps (which fire without a
+  // gesture) are audible.
+  const unlockBeepAudio = useCallback(() => {
+    getBeepCtx();
+  }, [getBeepCtx]);
+
   // Core Web Audio beep generator, parameterized by style so all three share the
   // same envelope/scheduling code. `frequency` is the base pitch chosen by the
   // countdown (660/880/1100 for 3/2/1); each style reinterprets it with its own
-  // timbre. Kept as a plain function (not a hook) so both the live countdown and
-  // the settings preview button can call it with an explicit style.
+  // timbre. Reuses the single shared beep context (never allocates per beep).
   const emitBeep = useCallback(
     (style: BeepSoundId, frequency: number, duration: number, isFinalBeep: boolean) => {
       try {
-        const ctx = new (window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const ctx = getBeepCtx();
+        if (!ctx) return;
         const now = ctx.currentTime;
 
         // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
@@ -4313,7 +4350,7 @@ export default function Page() {
         // Audio context not supported
       }
     },
-    [],
+    [getBeepCtx],
   );
 
   // Live countdown beep — reads the user's selected style from the ref so the
@@ -4476,6 +4513,44 @@ export default function Page() {
   showCountdownRef.current = settings.showCountdown;
   countdownSecondsRef.current = settings.countdownSeconds;
   beepSoundRef.current = settings.beepSound;
+
+  // Persist ONLY the beep preference (sound style + on/off) so the user's choice
+  // survives refresh, restart and re-login. Scoped to beeps on purpose: gap,
+  // repeat, volume and countdown-length are deliberately NOT persisted here (they
+  // are owned by other state / cloud-sync). Uses the same `eqho-*` localStorage
+  // convention as the rest of the app — not a new settings store.
+  const beepPrefsLoadedRef = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("eqho-beep-prefs");
+      if (raw) {
+        const saved = JSON.parse(raw) as { beepSound?: BeepSoundId; showCountdown?: boolean };
+        setSettings((s) => ({
+          ...s,
+          ...(saved.beepSound && BEEP_SOUNDS.some((b) => b.id === saved.beepSound)
+            ? { beepSound: saved.beepSound }
+            : {}),
+          ...(typeof saved.showCountdown === "boolean" ? { showCountdown: saved.showCountdown } : {}),
+        }));
+      }
+    } catch {
+      // ignore malformed/unavailable storage
+    } finally {
+      beepPrefsLoadedRef.current = true;
+    }
+  }, []);
+  useEffect(() => {
+    // Don't overwrite storage until after the initial load has run.
+    if (!beepPrefsLoadedRef.current) return;
+    try {
+      localStorage.setItem(
+        "eqho-beep-prefs",
+        JSON.stringify({ beepSound: settings.beepSound, showCountdown: settings.showCountdown }),
+      );
+    } catch {
+      // ignore storage write failures (private mode, quota)
+    }
+  }, [settings.beepSound, settings.showCountdown]);
 
   const updateSetting = (key: string, value: any) => {
     setSettings((current) => ({
