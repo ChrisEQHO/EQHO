@@ -4385,10 +4385,12 @@ export default function Page() {
       // Cancel any in-progress preview first.
       previewTimersRef.current.forEach((id) => window.clearTimeout(id));
       previewTimersRef.current = [];
-      // Same 3-2-1 frequencies as the live countdown.
+      // Exactly matches the live countdown: same 3-2-1 frequencies AND the same
+      // real-time pacing (one beep per second, not sped up), so the preview sounds
+      // identical to what plays during an actual gap.
       emitBeep(style, 660, 200, false);
-      previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 880, 200, false), 320));
-      previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 1100, 200, true), 640));
+      previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 880, 200, false), 1000));
+      previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 1100, 200, true), 2000));
     },
     [emitBeep],
   );
