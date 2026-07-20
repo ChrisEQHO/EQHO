@@ -84,7 +84,6 @@ import {
   AlertTriangle,
   AlertCircle,
   Headphones,
-  Save,
   Repeat,
   Maximize2,
   Minimize2,
@@ -8111,20 +8110,16 @@ export default function Page() {
           <div className="col-span-3 col-start-2 h-full overflow-y-auto pb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
-                      EQHO System Settings
-                    </p>
-                    <h1 className="text-3xl font-black mt-1">Settings</h1>
-                  </div>
-                  <ProBadge />
+              {/* Settings auto-save the moment each control changes, so there is no
+                  explicit save action here. */}
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
+                    EQHO System Settings
+                  </p>
+                  <h1 className="text-3xl font-black mt-1">Settings</h1>
                 </div>
-                <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 text-sm">
-                  <Save size={16} className="inline mr-2" />
-                  Save Settings
-                </button>
+                <ProBadge />
               </div>
             </div>
 
