@@ -41,7 +41,8 @@ import {
 } from "@/lib/cloud-sync";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { ProBadge } from "@/components/pro-badge";
+  import { ProBadge } from "@/components/pro-badge";
+  import { PlayCountBadge } from "@/components/play-count-badge";
 import { useSubscription } from "@/lib/subscription-context";
 import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS, hasActiveSubscription, SUBSCRIPTION_LAUNCH_LABEL } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
@@ -84,7 +85,6 @@ import {
   AlertTriangle,
   AlertCircle,
   Headphones,
-  Save,
   Repeat,
   Maximize2,
   Minimize2,
@@ -3925,6 +3925,20 @@ export default function Page() {
   const playlistRef = useRef(playlist);
   playlistRef.current = playlist;
 
+  // Per-track count of COMPLETED routines this session — i.e. how many times each
+  // track has been played all the way through to its natural end. Keyed by track
+  // id and kept in memory for the session (resets on reload, matching "in a
+  // session"). Skipping or restarting a track does NOT increment it; only a full
+  // play to the end does (see handleTrackEnded for web and the native onPosition
+  // near-end detector below).
+  const [completionCounts, setCompletionCounts] = useState<Record<string, number>>({});
+  const markTrackCompleted = useCallback((trackId?: string | null) => {
+    if (!trackId) return;
+    setCompletionCounts((prev) => ({ ...prev, [trackId]: (prev[trackId] || 0) + 1 }));
+  }, []);
+  // Guards the native completion detector so each full play is counted once.
+  const nativeTrackCompletedRef = useRef(false);
+
   // Native locked-screen sequencer (iOS/Android Capacitor shell only). On web and
   // the desktop wrapper `nativeSession.available` is false and this is fully inert,
   // so the existing JS <audio> + setInterval sequencer below stays in control.
@@ -3941,10 +3955,15 @@ export default function Page() {
       setIsGapPaused(false);
       setGapCountdown(0);
       setIsPlaying(true);
+      // New track started — arm the completion detector for it.
+      nativeTrackCompletedRef.current = false;
     },
     onGapStarted: ({ seconds }) => {
       setIsGapPaused(true);
       setGapCountdown(seconds);
+      // The gap begins after a track finishes; re-arm for the upcoming track (also
+      // covers back-to-back replays of the same track between gaps).
+      nativeTrackCompletedRef.current = false;
     },
     onGapTick: (remaining) => setGapCountdown(remaining),
     onGapEnded: () => {
@@ -3954,6 +3973,17 @@ export default function Page() {
     onPosition: ({ currentTime, duration }) => {
       setCurrentTime(currentTime);
       if (duration) setTrackDuration(duration);
+      // Completion detection for the NATIVE sequencer. Counts one full play when
+      // playback reaches the track's natural end. A skip advances (onTrackChanged)
+      // before reaching the end, so it never false-counts. Re-arm if position
+      // drops back to the start (a restart/replay of the same track).
+      if (currentTime < 1 && nativeTrackCompletedRef.current) {
+        nativeTrackCompletedRef.current = false;
+      }
+      if (duration > 0 && currentTime >= duration - 1 && !nativeTrackCompletedRef.current) {
+        nativeTrackCompletedRef.current = true;
+        markTrackCompleted(playlistRef.current[currentIndexRef.current]?.id);
+      }
     },
     onPlayStateChanged: (playing) => setIsPlaying(playing),
     onSessionFinished: (reason) => {
@@ -4100,6 +4130,12 @@ export default function Page() {
     const _currentIndex = currentIndexRef.current;
     const _playlist = playlistRef.current;
     const _hiddenTrackIds = hiddenTrackIdsRef.current;
+
+    // Count a COMPLETED routine. This handler fires only when a track reaches its
+    // natural end (skips call skip handlers, restarts seek to 0 — neither triggers
+    // this), so every call represents exactly one full play. Back-to-back replays
+    // end naturally too, so a track played fully N times counts N completions.
+    markTrackCompleted(_playlist[_currentIndex]?.id);
 
     // Runs `playFn` now, or after the inter-track gap countdown when a gap is set.
     const playAfterGap = (playFn: () => void, upcomingTitle: string, upcomingId: string) => {
@@ -4272,10 +4308,19 @@ export default function Page() {
   // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
 
-  // Lazily create (once) and return the single shared beep AudioContext, resuming
-  // it if the browser/OS suspended it. Returns null only if Web Audio is missing.
+  // Return the AudioContext to synthesize beeps on. PREFER the live playback
+  // context (audioCtxRef) when it exists: on iOS a second AudioContext is often
+  // left suspended/silent while the media-playback context is the active one, so
+  // reusing that proven-running context is the most reliable way to make beeps
+  // audible on the mobile web player. Fall back to a dedicated context (created
+  // once) when playback hasn't built its graph yet (e.g. previewing in settings).
   const getBeepCtx = useCallback((): AudioContext | null => {
     try {
+      if (audioCtxRef.current) {
+        const pc = audioCtxRef.current;
+        if (pc.state === "suspended") void pc.resume();
+        return pc;
+      }
       if (!beepCtxRef.current) {
         const Ctx =
           window.AudioContext ||
@@ -4291,13 +4336,55 @@ export default function Page() {
     }
   }, []);
 
-  // Unlock the beep context from a user gesture (called in safePlay). iOS only
-  // lets an AudioContext transition to "running" from within a gesture, so doing
-  // this on the play tap guarantees later countdown beeps (which fire without a
-  // gesture) are audible.
+  // Unlock the beep context from a user gesture (called in safePlay AND from a
+  // one-time global gesture listener below). On mobile Safari (iPhone/iPad web),
+  // calling ctx.resume() alone is NOT enough to make a context audible — the
+  // context only truly transitions to "running" if an actual source node is
+  // started during the gesture. So we play a 1-sample SILENT buffer here. Because
+  // the countdown beeps fire later (without a gesture), this gesture-time unlock
+  // is what makes them audible on the mobile web player.
+  const beepUnlockedRef = useRef(false);
   const unlockBeepAudio = useCallback(() => {
-    getBeepCtx();
+    const ctx = getBeepCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") void ctx.resume();
+    // Kickstart with a silent buffer once — this is the piece mobile Safari needs.
+    if (!beepUnlockedRef.current) {
+      try {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        beepUnlockedRef.current = true;
+      } catch {
+        // ignore — resume() above is still applied
+      }
+    }
   }, [getBeepCtx]);
+
+  // Safety net: unlock the beep context on the FIRST user interaction anywhere in
+  // the app, regardless of which play control the mobile web player uses. iOS
+  // requires the unlock to happen inside a real gesture; this guarantees it even
+  // if a particular play path doesn't route through safePlay.
+  useEffect(() => {
+    const handler = () => {
+      unlockBeepAudio();
+      if (beepUnlockedRef.current) {
+        window.removeEventListener("touchend", handler);
+        window.removeEventListener("pointerdown", handler);
+        window.removeEventListener("click", handler);
+      }
+    };
+    window.addEventListener("touchend", handler, { passive: true });
+    window.addEventListener("pointerdown", handler, { passive: true });
+    window.addEventListener("click", handler);
+    return () => {
+      window.removeEventListener("touchend", handler);
+      window.removeEventListener("pointerdown", handler);
+      window.removeEventListener("click", handler);
+    };
+  }, [unlockBeepAudio]);
 
   // Core Web Audio beep generator, parameterized by style so all three share the
   // same envelope/scheduling code. `frequency` is the base pitch chosen by the
@@ -5678,6 +5765,11 @@ export default function Page() {
                   : (currentTrack?.title || "No Track Selected")
                 }
               </h3>
+              {!isGapPaused && currentTrack && (completionCounts[currentTrack.id] || 0) > 0 && (
+                <div className="flex justify-center mb-3">
+                  <PlayCountBadge count={completionCounts[currentTrack.id] || 0} size="lg" />
+                </div>
+              )}
               
               {/* Track Timer - Larger */}
               <p className="text-3xl text-white/70 tabular-nums mb-3">
@@ -5878,9 +5970,12 @@ export default function Page() {
                           </TrackDragHandle>
                           <span className={`text-sm font-black w-6 ${isHidden ? "text-white/20" : colour}`}>{originalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
-                              {track.title}
-                            </p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
+                                {track.title}
+                              </p>
+                              <PlayCountBadge count={completionCounts[track.id] || 0} />
+                            </div>
                             <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>{isHidden ? "Hidden" : formatDuration(track.durationSeconds)}</p>
                           </div>
                           {!isHidden && isActiveTrack && isPlaying && (
@@ -6104,6 +6199,11 @@ export default function Page() {
                   : (currentTrack?.title || "No Track Selected")
                 }
               </h1>
+              {!isGapPaused && currentTrack && (completionCounts[currentTrack.id] || 0) > 0 && (
+                <div className="flex justify-center mt-1.5">
+                  <PlayCountBadge count={completionCounts[currentTrack.id] || 0} />
+                </div>
+              )}
               <p className="text-sm text-white/70 tabular-nums mt-1">
                 {currentTime > 0 || isPlaying ? `${String(Math.floor(currentTime / 60)).padStart(2, "0")}:${String(Math.floor(currentTime % 60)).padStart(2, "0")}` : "00:00"}
                 {trackDuration > 0 && <span className="text-white/40"> / {formatDuration(trackDuration)}</span>}
@@ -7158,8 +7258,11 @@ export default function Page() {
                                 <GripVertical size={15} className="text-white/75 hover:text-white" />
                               </TrackDragHandle>
                               <div className={`text-[34px] font-black ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
-                              <div>
-                                <div className={`text-base font-semibold ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className={`text-base font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
+                                  <PlayCountBadge count={completionCounts[track.id] || 0} />
+                                </div>
                                 <div className={`text-xs ${isHidden ? "text-white/20" : "text-white/85"}`}>
                                   {isHidden ? "Hidden from session" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
@@ -8111,20 +8214,16 @@ export default function Page() {
           <div className="col-span-3 col-start-2 h-full overflow-y-auto pb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
             {/* Header */}
             <div className="px-8 pt-6 pb-4 border-b border-white/10">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
-                      EQHO System Settings
-                    </p>
-                    <h1 className="text-3xl font-black mt-1">Settings</h1>
-                  </div>
-                  <ProBadge />
+              {/* Settings auto-save the moment each control changes, so there is no
+                  explicit save action here. */}
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-cyan-300 uppercase tracking-[0.25em] text-xs font-bold">
+                    EQHO System Settings
+                  </p>
+                  <h1 className="text-3xl font-black mt-1">Settings</h1>
                 </div>
-                <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 font-bold shadow-lg shadow-pink-500/20 shrink-0 text-sm">
-                  <Save size={16} className="inline mr-2" />
-                  Save Settings
-                </button>
+                <ProBadge />
               </div>
             </div>
 
@@ -9100,7 +9199,10 @@ export default function Page() {
                         {/* Track Info & Controls Row */}
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
+                              <PlayCountBadge count={completionCounts[currentTrack.id] || 0} />
+                            </div>
                             <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -9309,9 +9411,12 @@ export default function Page() {
                                   
                                   {/* Track Info */}
                                   <div className="flex-1 min-w-0">
-                                    <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
-                                      {track.title}
-                                    </p>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                        {track.title}
+                                      </p>
+                                      <PlayCountBadge count={completionCounts[track.id] || 0} />
+                                    </div>
                                     <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>
                                       {isHidden ? "Hidden" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
                                     </p>
