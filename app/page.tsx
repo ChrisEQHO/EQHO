@@ -4395,7 +4395,12 @@ export default function Page() {
       try {
         const ctx = getBeepCtx();
         if (!ctx) return;
-        const now = ctx.currentTime;
+        if (ctx.state === "suspended") void ctx.resume();
+        // Small scheduling lookahead. On mobile Safari (iPhone/iPad web) a context
+        // that was just resumed drops oscillators scheduled at the exact current
+        // time, so previews and the first countdown beep were silent. Starting ~60ms
+        // in the future lands after the resume settles and is imperceptible.
+        const now = ctx.currentTime + 0.06;
 
         // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
         const tone = (
@@ -4469,6 +4474,10 @@ export default function Page() {
   // preview cancels any still-scheduled tones from the previous one.
   const previewBeepSound = useCallback(
     (style: BeepSoundId) => {
+      // The preview tap IS a user gesture — unlock the audio context here so the
+      // very first preview is audible on the mobile/iPad web player (iOS requires
+      // the unlock to happen inside a gesture).
+      unlockBeepAudio();
       // Cancel any in-progress preview first.
       previewTimersRef.current.forEach((id) => window.clearTimeout(id));
       previewTimersRef.current = [];
@@ -4479,7 +4488,7 @@ export default function Page() {
       previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 880, 200, false), 1000));
       previewTimersRef.current.push(window.setTimeout(() => emitBeep(style, 1100, 200, true), 2000));
     },
-    [emitBeep],
+    [emitBeep, unlockBeepAudio],
   );
 
   // Start the next track exactly once and clear all gap/beep state. Guards against
@@ -7467,7 +7476,14 @@ export default function Page() {
                 {/* Track Elapsed Timer */}
                 <div className="mt-2">
                   {isGapPaused ? (
-                    <div className="text-3xl sm:text-4xl font-black tracking-wider text-white tabular-nums countdown-flash" key={gapCountdown}>
+                    // Branded countdown — matches the mobile app: solid brand pink
+                    // (#ff4fa3) with a pink→orange glow, so the "get ready" number
+                    // reads as EQHO across every web surface.
+                    <div
+                      className="text-3xl sm:text-4xl font-black tracking-wider text-[#ff4fa3] tabular-nums countdown-flash"
+                      key={gapCountdown}
+                      style={{ textShadow: "0 0 18px rgba(255,79,163,0.55), 0 0 36px rgba(255,138,0,0.35)" }}
+                    >
                       {gapCountdown}
                     </div>
                   ) : (
