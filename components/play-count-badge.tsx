@@ -1,5 +1,3 @@
-import { Repeat } from "lucide-react";
-
 /**
  * Small branded badge showing how many times a track has been played fully to the
  * end (i.e. completed routines) in the current session. Renders nothing until the
@@ -27,9 +25,7 @@ export function PlayCountBadge({
       title={label}
       aria-label={label}
     >
-      <Repeat size={isLg ? 14 : 10} className="shrink-0" aria-hidden="true" />
       {count}
-      <span aria-hidden="true">×</span>
     </span>
   );
 }
