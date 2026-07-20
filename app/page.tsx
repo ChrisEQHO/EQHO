@@ -4308,10 +4308,19 @@ export default function Page() {
   // Distinctive beep sound for countdown - loud and noticeable
   const lastBeepedCountdown = useRef<number>(-1);
 
-  // Lazily create (once) and return the single shared beep AudioContext, resuming
-  // it if the browser/OS suspended it. Returns null only if Web Audio is missing.
+  // Return the AudioContext to synthesize beeps on. PREFER the live playback
+  // context (audioCtxRef) when it exists: on iOS a second AudioContext is often
+  // left suspended/silent while the media-playback context is the active one, so
+  // reusing that proven-running context is the most reliable way to make beeps
+  // audible on the mobile web player. Fall back to a dedicated context (created
+  // once) when playback hasn't built its graph yet (e.g. previewing in settings).
   const getBeepCtx = useCallback((): AudioContext | null => {
     try {
+      if (audioCtxRef.current) {
+        const pc = audioCtxRef.current;
+        if (pc.state === "suspended") void pc.resume();
+        return pc;
+      }
       if (!beepCtxRef.current) {
         const Ctx =
           window.AudioContext ||
@@ -4327,13 +4336,55 @@ export default function Page() {
     }
   }, []);
 
-  // Unlock the beep context from a user gesture (called in safePlay). iOS only
-  // lets an AudioContext transition to "running" from within a gesture, so doing
-  // this on the play tap guarantees later countdown beeps (which fire without a
-  // gesture) are audible.
+  // Unlock the beep context from a user gesture (called in safePlay AND from a
+  // one-time global gesture listener below). On mobile Safari (iPhone/iPad web),
+  // calling ctx.resume() alone is NOT enough to make a context audible — the
+  // context only truly transitions to "running" if an actual source node is
+  // started during the gesture. So we play a 1-sample SILENT buffer here. Because
+  // the countdown beeps fire later (without a gesture), this gesture-time unlock
+  // is what makes them audible on the mobile web player.
+  const beepUnlockedRef = useRef(false);
   const unlockBeepAudio = useCallback(() => {
-    getBeepCtx();
+    const ctx = getBeepCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") void ctx.resume();
+    // Kickstart with a silent buffer once — this is the piece mobile Safari needs.
+    if (!beepUnlockedRef.current) {
+      try {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        beepUnlockedRef.current = true;
+      } catch {
+        // ignore — resume() above is still applied
+      }
+    }
   }, [getBeepCtx]);
+
+  // Safety net: unlock the beep context on the FIRST user interaction anywhere in
+  // the app, regardless of which play control the mobile web player uses. iOS
+  // requires the unlock to happen inside a real gesture; this guarantees it even
+  // if a particular play path doesn't route through safePlay.
+  useEffect(() => {
+    const handler = () => {
+      unlockBeepAudio();
+      if (beepUnlockedRef.current) {
+        window.removeEventListener("touchend", handler);
+        window.removeEventListener("pointerdown", handler);
+        window.removeEventListener("click", handler);
+      }
+    };
+    window.addEventListener("touchend", handler, { passive: true });
+    window.addEventListener("pointerdown", handler, { passive: true });
+    window.addEventListener("click", handler);
+    return () => {
+      window.removeEventListener("touchend", handler);
+      window.removeEventListener("pointerdown", handler);
+      window.removeEventListener("click", handler);
+    };
+  }, [unlockBeepAudio]);
 
   // Core Web Audio beep generator, parameterized by style so all three share the
   // same envelope/scheduling code. `frequency` is the base pitch chosen by the
