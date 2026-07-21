@@ -647,15 +647,22 @@ export default function Page() {
   // build, not iPhone, not desktop). Used for the on-device diagnostic/build marker
   // so we can confirm the deployed iPad is actually running this revision.
   const [isIPadWeb, setIsIPadWeb] = useState(false);
-  // ── TEMPORARY iPad diagnostics (§ diagnose-only task) ──────────────────────────
-  // Captures the raw device/viewport signals + which responsive branch is actually
-  // visible, so we can PROVE on the physical iPad which code path renders. Updated
-  // on resize / visualViewport changes / orientation. Component-level facts
-  // (coach/countdown active) are computed inline in the banner from live state.
+  // Collapsed by default so the temporary diagnostics can NEVER block player taps.
+  const [diagCollapsed, setDiagCollapsed] = useState(true);
+  // ── TEMPORARY iPad diagnostics (diagnose-only) ─────────────────────────────────
+  // One authoritative device-class result + the actually-visible responsive branch,
+  // so the physical iPad shows consistent, non-contradictory values. Recomputed on
+  // resize / orientation / visualViewport changes.
+  //
+  // Device-class invariant (fixes the reported contradiction): a detected iPad is
+  // ALWAYS a tablet, regardless of its (often desktop-width) viewport. So
+  //   isTablet = isIPad || tabletViewportMatch
+  // and isPhone / isDesktop are mutually exclusive with it.
   const [diag, setDiag] = useState<{
-    isMobile: boolean;
-    isTablet: boolean;
     isIPad: boolean;
+    isTablet: boolean;
+    isPhone: boolean;
+    isDesktop: boolean;
     finePointer: boolean;
     desktopBranchActive: boolean;
     innerW: number;
@@ -668,31 +675,38 @@ export default function Page() {
   } | null>(null);
   useEffect(() => {
     // iPad detection mirrors app/layout.tsx: real iPads plus iPadOS masquerading
-    // as "Macintosh"/"MacIntel" with multi-touch. iPhone is intentionally excluded
-    // here (handled by its own slider layout) and only picks up the message via the
-    // native-app check below.
+    // as "Macintosh"/"MacIntel" with multi-touch (covers Safari's default
+    // desktop-site mode). iPhone is intentionally excluded here (handled by its own
+    // slider layout) and only picks up the message via the native-app check below.
     const ua = navigator.userAgent || "";
-    const isIpad =
+    const isIPad =
       /iPad/.test(ua) ||
-      ((/Macintosh/.test(ua) || navigator.platform === "MacIntel") &&
-        (navigator.maxTouchPoints || 0) > 1);
-    setIosVolumeControl(isNativeIOS() || isIpad);
+      (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
+    setIosVolumeControl(isNativeIOS() || isIPad);
     const isMobileBuildLocal = process.env.NEXT_PUBLIC_BUILD_TARGET === "mobile";
-    setIsIPadWeb(isIpad && !isMobileBuildLocal);
+    setIsIPadWeb(isIPad && !isMobileBuildLocal);
 
     const measure = () => {
       const finePointer = document.documentElement.hasAttribute("data-fine-pointer");
       // The visible top-level layout is governed by the `desktop:` CSS variant,
       // which is EXACTLY `(width >= 1024px) AND [data-fine-pointer]` (see globals.css).
       // iPads never get data-fine-pointer, so this resolves false on iPad => the
-      // mobile/tablet stack (flex desktop:hidden @ page.tsx) is the visible player.
+      // shared mobile/tablet stack (flex desktop:hidden) is the visible player.
       const desktopBranchActive =
         window.matchMedia("(min-width: 1024px)").matches && finePointer;
+      const tabletViewportMatch = window.matchMedia(
+        "(min-width: 768px) and (max-width: 1279px)",
+      ).matches;
+      // Single mutually-exclusive device class. iPad ALWAYS implies tablet.
+      const isTablet = isIPad || (tabletViewportMatch && !finePointer);
+      const isPhone = !isIPad && window.matchMedia("(max-width: 767px)").matches;
+      const isDesktop = !isIPad && !isTablet && !isPhone;
       const vv = window.visualViewport;
       const next = {
-        isMobile: window.matchMedia("(max-width: 767px)").matches,
-        isTablet: window.matchMedia("(min-width: 768px) and (max-width: 1023px)").matches,
-        isIPad: isIpad,
+        isIPad,
+        isTablet,
+        isPhone,
+        isDesktop,
         finePointer,
         desktopBranchActive,
         innerW: window.innerWidth,
@@ -705,20 +719,17 @@ export default function Page() {
       };
       setDiag(next);
       console.log("[v0] IPAD-DIAG", {
-        activeResponsiveBranch: desktopBranchActive
-          ? "desktop (hidden desktop:grid @page.tsx:7143)"
-          : "mobile/tablet (flex desktop:hidden @page.tsx:9274)",
-        isMobile: next.isMobile,
-        isTablet: next.isTablet,
-        isIPad: next.isIPad,
-        finePointer: next.finePointer,
+        activeBranch: desktopBranchActive ? "Desktop" : isIPad ? "iPad (shared mobile stack)" : "Mobile",
+        isIPad,
+        isTablet,
+        isPhone,
+        isDesktop,
+        finePointer,
         innerW: next.innerW,
         innerH: next.innerH,
-        visualViewportW: next.vvW,
-        visualViewportH: next.vvH,
+        visualViewport: `${next.vvW}x${next.vvH}`,
         platform: next.platform,
         maxTouchPoints: next.maxTouchPoints,
-        ua: next.ua,
       });
     };
     measure();
@@ -5366,44 +5377,55 @@ export default function Page() {
         <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
       )}
 
-      {/* ══════════════ TEMPORARY iPad Safari DIAGNOSTIC BANNER ══════════════════
+      {/* ══════════════ TEMPORARY iPad Safari DIAGNOSTIC ═════════════════════════
           DIAGNOSE-ONLY: proves which component / responsive branch the real iPad
-          Safari player renders. Shown ONLY on the iPad Safari WEB player. Does not
-          change playback, countdown, styling or layout. Remove once verified. */}
+          Safari player renders. Shown ONLY on the iPad Safari WEB player.
+          NON-BLOCKING: the container is pointer-events-none so it can NEVER
+          intercept taps meant for the player; only the toggle button is
+          interactive. Collapsed to a small badge by default. Does not change
+          playback, countdown, styling or layout. Remove once verified. */}
       {isIPadWeb && diag && (
         <div
-          className="fixed top-0 left-0 right-0 z-[999] border-b-2 border-[#ff4fa3] bg-black/92 px-3 py-2 text-[11px] leading-snug text-white font-mono"
-          style={{ paddingTop: "calc(6px + env(safe-area-inset-top))" }}
+          className="pointer-events-none fixed top-0 right-0 z-[999] flex max-w-[100vw] flex-col items-end"
+          style={{ paddingTop: "calc(6px + env(safe-area-inset-top))", paddingRight: "8px" }}
           role="status"
-          aria-label="iPad diagnostic build banner"
+          aria-label="iPad diagnostic"
         >
-          <div className="font-black tracking-[0.2em] text-[#ff8a00] uppercase">
-            IPAD DIAGNOSTIC BUILD ACTIVE
-          </div>
-          <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
-            <span>PLAYER: {diag.desktopBranchActive ? "Desktop grid @7143" : "Mobile stack @9274"}</span>
-            <span>
-              COACH: {isFullscreen
-                ? "Desktop FS coach @5364"
-                : showFullscreenMobilePlayer
-                  ? "Mobile coach @6275"
-                  : "none (inline)"}
-            </span>
-            <span>COUNTDOWN: {isGapPaused ? "CountdownOverlay(root)" : "idle"}</span>
-            <span>BRANCH: {diag.desktopBranchActive ? "desktop:" : "desktop:hidden (mobile)"}</span>
-            <span>isMobile: {String(diag.isMobile)}</span>
-            <span>isTablet: {String(diag.isTablet)}</span>
-            <span>isIPad: {String(diag.isIPad)}</span>
-            <span>isFullscreen: {String(isFullscreen)}</span>
-            <span>finePointer: {String(diag.finePointer)}</span>
-            <span>innerW: {diag.innerW}</span>
-            <span>innerH: {diag.innerH}</span>
-            <span>vv: {diag.vvW}×{diag.vvH}</span>
-            <span>platform: {diag.platform || "—"}</span>
-            <span>maxTouch: {diag.maxTouchPoints}</span>
-            <span>gapCountdown: {gapCountdown}</span>
-            <span>gapActive: {String(isGapPaused)}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setDiagCollapsed((v) => !v)}
+            className="pointer-events-auto rounded-full border border-[#ff4fa3]/70 bg-black/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.15em] text-[#ff8a00]"
+          >
+            {diagCollapsed ? "Show Diagnostics" : "Hide Diagnostics"}
+          </button>
+          {!diagCollapsed && (
+            <div className="pointer-events-none mt-1 max-h-[45vh] w-[300px] max-w-[92vw] overflow-y-auto rounded-lg border border-[#ff4fa3] bg-black/92 px-3 py-2 text-[11px] leading-snug text-white font-mono">
+              <div className="grid grid-cols-1 gap-y-0.5">
+                <span className="font-black text-[#ff8a00]">ACTIVE BRANCH: {diag.isIPad ? "iPad" : diag.isDesktop ? "Desktop" : diag.isPhone ? "Phone" : "Tablet"}</span>
+                <span>ACTIVE PLAYER: {diag.desktopBranchActive ? "DesktopView" : "SharedMobile/iPadView"}</span>
+                <span>ACTIVE COUNTDOWN: SharedCountdown(root)</span>
+                <span>
+                  COACH: {isFullscreen
+                    ? "Desktop FS coach"
+                    : showFullscreenMobilePlayer
+                      ? "shared iPad/mobile Coach"
+                      : "none (inline)"}
+                </span>
+                <span className="mt-1 border-t border-white/10 pt-1">isIPad: {String(diag.isIPad)}</span>
+                <span>isTablet: {String(diag.isTablet)}</span>
+                <span>isPhone: {String(diag.isPhone)}</span>
+                <span>isDesktop: {String(diag.isDesktop)}</span>
+                <span>finePointer: {String(diag.finePointer)}</span>
+                <span>isFullscreen: {String(isFullscreen)}</span>
+                <span>innerW×H: {diag.innerW}×{diag.innerH}</span>
+                <span>vv: {diag.vvW}×{diag.vvH}</span>
+                <span>platform: {diag.platform || "—"}</span>
+                <span>maxTouch: {diag.maxTouchPoints}</span>
+                <span>gapActive: {String(isGapPaused)}</span>
+                <span>gapCountdown: {gapCountdown}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
