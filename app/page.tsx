@@ -43,6 +43,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
   import { ProBadge } from "@/components/pro-badge";
   import { PlayCountBadge } from "@/components/play-count-badge";
+  import { CountdownOverlay } from "@/components/countdown-overlay";
 import { useSubscription } from "@/lib/subscription-context";
 import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS, hasActiveSubscription, SUBSCRIPTION_LAUNCH_LABEL } from "@/lib/subscription-types";
 import { deleteAccount } from "@/app/actions/account";
@@ -5093,6 +5094,14 @@ export default function Page() {
 
   return (
     <div className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
+      {/* Unified full-screen countdown — shown on EVERY web player surface
+          (desktop, iPad, mobile web) during the inter-track gap so the "get ready"
+          countdown looks identical to the native mobile app. Mounted once at the
+          root as a fixed overlay so it covers whichever view is active. */}
+      {isGapPaused && gapCountdown > 0 && (
+        <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
+      )}
+
       {/* Ambient background glow effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/6 to-transparent rounded-full blur-3xl" />
@@ -6096,38 +6105,8 @@ export default function Page() {
             </div>
           )}
 
-          {/* Gap Countdown Overlay - shows during entire gap */}
-          {isGapPaused && (
-            <div className="absolute inset-0 z-[320] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-              {/* Solid brand PINK (#ff4fa3), NOT gradient bg-clip-text: iPad Safari
-                  fails to paint gradient-clipped text at huge font sizes, rendering it
-                  fully transparent/invisible. A solid fill + a pink→orange glow keeps
-                  both brand colors present while guaranteeing the number is visible. */}
-              <div
-                key={gapCountdown}
-                className={`font-black leading-none text-[#ff4fa3] ${gapCountdown <= 3 ? 'text-[50vh]' : 'text-[30vh]'}`}
-                style={{
-                  animation: gapCountdown <= 3 ? 'countdownPulse 1s ease-out' : 'none',
-                  textShadow: '0 0 60px rgba(255,79,163,0.55), 0 0 120px rgba(255,138,0,0.4)',
-                }}
-              >
-                {gapCountdown}
-              </div>
-              <div className="mt-4 text-center">
-                <p className="text-white/60 text-sm uppercase tracking-widest mb-2">Up Next</p>
-                <p className="text-xl font-bold text-white px-4">
-                  {getNextTrackTitle()}
-                </p>
-              </div>
-              <style jsx>{`
-                @keyframes countdownPulse {
-                  0% { transform: scale(0.5); opacity: 0; }
-                  30% { transform: scale(1.1); opacity: 1; }
-                  100% { transform: scale(1); opacity: 1; }
-                }
-              `}</style>
-            </div>
-          )}
+          {/* The full-screen gap countdown is now rendered once at the app root
+              (CountdownOverlay), so this view no longer needs its own overlay. */}
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2 pt-[env(safe-area-inset-top)] shrink-0">
