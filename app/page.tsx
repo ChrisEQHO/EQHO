@@ -598,6 +598,15 @@ export default function Page() {
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
+  // iPad/iOS Safari SUSPENDS JS timers (setTimeout/setInterval) whenever no audio
+  // is actively playing. During the inter-track gap the <audio> element is
+  // paused/ended, so the gap ticker's setTimeout chain froze after one tick — the
+  // countdown appeared stuck on its first number, only one beep fired, and the
+  // next track started late (when iOS finally woke the timer). This holds a SILENT
+  // Web Audio keepalive source open for the duration of the gap so WebKit keeps
+  // the page "playing audio" and never suspends the timers. Cleared when the gap
+  // ends. { ctx, src } so we can stop/disconnect it precisely.
+  const gapKeepAliveRef = useRef<{ ctx: AudioContext; src: AudioBufferSourceNode; gain: GainNode } | null>(null);
   // Mirror of isGapPaused for the Capacitor app-state listener closure.
   const isGapPausedRef = useRef(false);
   isGapPausedRef.current = isGapPaused;
@@ -4468,6 +4477,52 @@ export default function Page() {
     [emitBeep],
   );
 
+  // Start a SILENT, looping Web Audio source that runs for the whole gap. Its only
+  // job is to keep the audio pipeline "active" so iPad/iOS Safari does not suspend
+  // JS timers while the <audio> element is paused between tracks (which otherwise
+  // froze the countdown ticker). Gain is 0 so it is completely inaudible, and it
+  // reuses the shared context (the live media graph on iPad) so it counts as the
+  // page producing audio. No-op if already running or Web Audio is unavailable.
+  const startGapKeepAlive = useCallback(() => {
+    if (gapKeepAliveRef.current) return;
+    try {
+      const ctx = getBeepCtx();
+      if (!ctx) return;
+      if (ctx.state === "suspended") void ctx.resume();
+      const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.5)), ctx.sampleRate);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      const gain = ctx.createGain();
+      // ~-100 dB: inaudible to humans but a genuine non-zero output, so iOS treats
+      // the context as actively producing audio and keeps JS timers running.
+      gain.gain.value = 0.00001;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(0);
+      gapKeepAliveRef.current = { ctx, src, gain };
+    } catch {
+      // ignore — the timestamp ticker + resume reconciler are still the safety net
+    }
+  }, [getBeepCtx]);
+
+  const stopGapKeepAlive = useCallback(() => {
+    const ka = gapKeepAliveRef.current;
+    if (!ka) return;
+    gapKeepAliveRef.current = null;
+    try {
+      ka.src.stop();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      ka.src.disconnect();
+      ka.gain.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // Settings preview: plays a short representative 3-2-1 of the given style so the
   // user can compare sounds before choosing. Uses the same generator as the live
   // countdown, so what they hear is exactly what plays during a session. Does NOT
@@ -4547,6 +4602,8 @@ export default function Page() {
   // timer is ever live (cleaned up when the gap ends or the effect re-runs).
   useEffect(() => {
     if (!isGapPaused) return;
+    // Keep timers alive on iPad/iOS Safari for the whole gap (see startGapKeepAlive).
+    startGapKeepAlive();
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
     const tick = () => {
@@ -4558,8 +4615,9 @@ export default function Page() {
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+      stopGapKeepAlive();
     };
-  }, [isGapPaused, evaluateGap]);
+  }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive]);
 
   // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
   // the app is backgrounded or the phone is locked, which would otherwise leave a
@@ -5988,14 +6046,12 @@ export default function Page() {
                           </TrackDragHandle>
                           <span className={`text-sm font-black w-6 ${isHidden ? "text-white/20" : colour}`}>{originalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
-                                {track.title}
-                              </p>
-                              <PlayCountBadge count={completionCounts[track.id] || 0} />
-                            </div>
+                            <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
+                              {track.title}
+                            </p>
                             <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>{isHidden ? "Hidden" : formatDuration(track.durationSeconds)}</p>
                           </div>
+                          {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
                           {!isHidden && isActiveTrack && isPlaying && (
                             <div className="flex gap-0.5">
                               {[1, 2, 3].map((i) => (
@@ -7232,7 +7288,7 @@ export default function Page() {
                               setCurrentIndex(originalIndex);
                               togglePlayPause(track);
                             }}
-                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_44px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
+                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_auto_64px_44px] items-center gap-x-2 border-b cursor-pointer transition hover:bg-white/[0.03] ${
                               isHidden
                                 ? "border-white/5 opacity-40 border-dashed"
                                 : isActiveTrack 
@@ -7247,13 +7303,13 @@ export default function Page() {
                               </TrackDragHandle>
                               <div className={`text-[34px] font-black ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div className={`text-base font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
-                                  <PlayCountBadge count={completionCounts[track.id] || 0} />
-                                </div>
+                                <div className={`text-base font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className={`text-xs ${isHidden ? "text-white/20" : "text-white/85"}`}>
                                   {isHidden ? "Hidden from session" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
+                              </div>
+                              <div className="flex items-center justify-center">
+                                {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
                               </div>
                               <div className="flex flex-col items-end pr-2">
                                 <div className="text-[10px]">Duration</div>
@@ -9084,8 +9140,8 @@ export default function Page() {
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Home size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Playing</span>
+                <Home size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Playing</span>
               </button>
               <button
                 onClick={() => setMobileTab("playlists")}
@@ -9095,8 +9151,8 @@ export default function Page() {
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <ListMusic size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Playlists</span>
+                <ListMusic size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Playlists</span>
               </button>
               <button
                 onClick={() => setMobileTab("settings")}
@@ -9106,15 +9162,15 @@ export default function Page() {
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Settings size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Settings</span>
+                <Settings size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Settings</span>
               </button>
               <button
                 onClick={() => setShowFullscreenMobilePlayer(true)}
                 className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
               >
-                <ExternalLink size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Coach</span>
+                <ExternalLink size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Coach</span>
               </button>
             </div>
 
@@ -9406,16 +9462,16 @@ export default function Page() {
                                   
                                   {/* Track Info */}
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
-                                        {track.title}
-                                      </p>
-                                      <PlayCountBadge count={completionCounts[track.id] || 0} />
-                                    </div>
+                                    <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                      {track.title}
+                                    </p>
                                     <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>
                                       {isHidden ? "Hidden" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
                                     </p>
                                   </div>
+
+                                  {/* Routine completion count — sits between the track info and duration */}
+                                  {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
                                   
                                   {/* Duration */}
                                   <div className="text-right shrink-0">
@@ -10398,8 +10454,8 @@ export default function Page() {
         style={coachViewActive ? { display: "none" } : undefined}
         className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10"
       >
-        {/* Desktop divider (mobile uses the collapse handle below instead) */}
-        <div className="hidden md:block session-bottom-divider" />
+        {/* Desktop divider (mobile + iPad use the collapse handle below instead) */}
+        <div className="hidden desktop:block session-bottom-divider" />
 
         {/* Mobile collapse handle — the orange line doubles as the toggle */}
         <button
@@ -10407,7 +10463,7 @@ export default function Page() {
           onClick={() => setBottomBarExpanded((v) => !v)}
           aria-expanded={bottomBarExpanded}
           aria-label={bottomBarExpanded ? "Collapse session controls" : "Expand session controls"}
-          className="md:hidden group block w-full"
+          className="desktop:hidden group block w-full"
         >
           <div className="session-bottom-divider" />
           <div className="flex items-center justify-center gap-1.5 py-1.5 text-white/50 group-active:text-white/80 transition-colors">
@@ -10418,8 +10474,8 @@ export default function Page() {
           </div>
         </button>
 
-        {/* Mobile Layout - Compact 2x2 Grid */}
-        <div className="flex md:hidden flex-col gap-2.5 px-3 pb-[calc(10px+env(safe-area-inset-bottom))]">
+        {/* Mobile + iPad Layout - Compact 2x2 Grid (matches the iPhone app) */}
+        <div className="flex desktop:hidden flex-col gap-2.5 px-3 pb-[calc(10px+env(safe-area-inset-bottom))]">
           {bottomBarExpanded && (
           <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
             {/* Gap Between Routines */}
@@ -10491,8 +10547,8 @@ export default function Page() {
           </button>
         </div>
 
-        {/* Desktop Layout - Original horizontal flex */}
-        <div className="hidden md:flex flex-wrap items-center justify-start gap-4 px-4 py-2">
+        {/* Desktop Layout - Original horizontal flex (true desktop only; iPad uses the compact bar above) */}
+        <div className="hidden desktop:flex flex-wrap items-center justify-start gap-4 px-4 py-2">
           {/* Gap Between Routines */}
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white text-white">
