@@ -643,6 +643,13 @@ export default function Page() {
   // keeps the working slider (its narrow layout relies on it) and desktop / macOS
   // wrapper are unchanged.
   const [iosVolumeControl, setIosVolumeControl] = useState(false);
+  // Single source of truth for "this is the iPad Safari WEB player" (not the native
+  // build, not iPhone, not desktop). Used for the on-device diagnostic/build marker
+  // so we can confirm the deployed iPad is actually running this revision.
+  const [isIPadWeb, setIsIPadWeb] = useState(false);
+  const [ipadDiag, setIpadDiag] = useState<{
+    w: number; h: number; ua: string; platform: string; mt: number; finePointer: boolean;
+  } | null>(null);
   useEffect(() => {
     // iPad detection mirrors app/layout.tsx: real iPads plus iPadOS masquerading
     // as "Macintosh"/"MacIntel" with multi-touch. iPhone is intentionally excluded
@@ -654,6 +661,16 @@ export default function Page() {
       ((/Macintosh/.test(ua) || navigator.platform === "MacIntel") &&
         (navigator.maxTouchPoints || 0) > 1);
     setIosVolumeControl(isNativeIOS() || isIpad);
+    const isMobileBuildLocal = process.env.NEXT_PUBLIC_BUILD_TARGET === "mobile";
+    setIsIPadWeb(isIpad && !isMobileBuildLocal);
+    setIpadDiag({
+      w: window.innerWidth,
+      h: window.innerHeight,
+      ua,
+      platform: navigator.platform || "",
+      mt: navigator.maxTouchPoints || 0,
+      finePointer: document.documentElement.hasAttribute("data-fine-pointer"),
+    });
   }, []);
   const [sessionRunning, setSessionRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -4644,24 +4661,46 @@ export default function Page() {
     return false;
   }, [fireNextTrack, playBeep]);
 
-  // Gap countdown ticker - TIMESTAMP based (not a per-second decrement). It polls
-  // the wall clock every ~200ms and self-schedules, so after iOS unthrottles JS
-  // timers the countdown immediately snaps to the correct remaining time. Only one
-  // timer is ever live (cleaned up when the gap ends or the effect re-runs).
+  // Gap countdown ticker - TIMESTAMP based (not a per-second decrement). Every
+  // frame/poll it reads the wall clock, so it always shows the correct remaining
+  // time and fires each "get ready" beep at its true second.
+  //
+  // iPad/iOS Safari THROTTLES setTimeout/setInterval to ~1s (or pauses them) when
+  // it decides the page is "idle" — which happens during the silent inter-track
+  // gap because the music <audio> element is paused. That throttling is what made
+  // the iPad countdown freeze on its first number, beep once, then jump straight
+  // to the next track. requestAnimationFrame is NOT subject to that idle
+  // throttling while the tab is visible/foreground (it is tied to the compositor),
+  // so we drive the ticker with rAF as the PRIMARY loop. A setTimeout backstop
+  // still runs so a backgrounded/hidden tab (where rAF pauses) keeps reconciling,
+  // and the silent keepalive keeps the audio pipeline warm. This is the SAME
+  // shared engine for every surface — no separate iPad timer or countdown path.
   useEffect(() => {
     if (!isGapPaused) return;
-    // Keep timers alive on iPad/iOS Safari for the whole gap (see startGapKeepAlive).
     startGapKeepAlive();
+    let rafId = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
-    const tick = () => {
+
+    // Primary: animation-frame loop (throttle-proof on a foreground iPad tab).
+    const loop = () => {
       if (stopped) return;
       if (evaluateGap()) return; // next track started - stop ticking
-      timer = setTimeout(tick, 200);
+      rafId = requestAnimationFrame(loop);
     };
-    tick();
+    rafId = requestAnimationFrame(loop);
+
+    // Backstop: covers backgrounded/hidden tabs where rAF is paused.
+    const backstop = () => {
+      if (stopped) return;
+      if (evaluateGap()) return;
+      timer = setTimeout(backstop, 250);
+    };
+    timer = setTimeout(backstop, 250);
+
     return () => {
       stopped = true;
+      if (rafId) cancelAnimationFrame(rafId);
       if (timer) clearTimeout(timer);
       stopGapKeepAlive();
     };
@@ -10047,6 +10086,30 @@ export default function Page() {
                     
                     {/* Scrollable Content */}
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-16">
+
+                    {/* ── TEMPORARY iPad diagnostic / build marker (§11) ──────────────
+                        Visible ONLY on the iPad Safari web player. Lets us confirm on the
+                        physical device that the deployed build is THIS revision and that
+                        iPad is on the shared mobile branch with the shared countdown state.
+                        Remove once verified on device. */}
+                    {isIPadWeb && (
+                      <div className="rounded-xl border border-[#ff4fa3]/40 bg-[#ff4fa3]/[0.06] p-3 text-[10px] leading-relaxed text-white/80">
+                        <div className="font-black tracking-[0.15em] text-[#ff8a00] uppercase">iPad UI Revision Active</div>
+                        <div className="mt-1 font-bold text-white">rev: ipad-countdown-raf-2</div>
+                        <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono">
+                          <span>branch: mobile(shared)</span>
+                          <span>isIPadWeb: {String(isIPadWeb)}</span>
+                          <span>finePointer: {String(ipadDiag?.finePointer)}</span>
+                          <span>vp: {ipadDiag?.w}×{ipadDiag?.h}</span>
+                          <span>mt: {ipadDiag?.mt}</span>
+                          <span>countdownActive: {String(isGapPaused)}</span>
+                          <span>gapCountdown: {gapCountdown}</span>
+                          <span>sound: {settings.beepSound}</span>
+                          <span>soundOn: {String(settings.countdownSound)}</span>
+                          <span>gapSecs: {settings.gapSeconds}</span>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Playback Settings */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
@@ -10600,7 +10663,7 @@ export default function Page() {
                 ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                 : isPlaying
                   ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
-                  : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/30"
+                  : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/40 active:scale-[0.99]"
             }`}
           >
             {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
