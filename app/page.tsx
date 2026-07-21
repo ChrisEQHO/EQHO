@@ -9140,8 +9140,8 @@ export default function Page() {
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Home size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Playing</span>
+                <Home size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Playing</span>
               </button>
               <button
                 onClick={() => setMobileTab("playlists")}
@@ -9151,8 +9151,8 @@ export default function Page() {
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <ListMusic size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Playlists</span>
+                <ListMusic size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Playlists</span>
               </button>
               <button
                 onClick={() => setMobileTab("settings")}
@@ -9162,15 +9162,15 @@ export default function Page() {
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Settings size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Settings</span>
+                <Settings size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Settings</span>
               </button>
               <button
                 onClick={() => setShowFullscreenMobilePlayer(true)}
                 className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
               >
-                <ExternalLink size={14} className="mx-auto sm:hidden" />
-                <span className="hidden sm:inline">Coach</span>
+                <ExternalLink size={14} className="mx-auto desktop:hidden" />
+                <span className="hidden desktop:inline">Coach</span>
               </button>
             </div>
 
@@ -10454,8 +10454,8 @@ export default function Page() {
         style={coachViewActive ? { display: "none" } : undefined}
         className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10"
       >
-        {/* Desktop divider (mobile uses the collapse handle below instead) */}
-        <div className="hidden md:block session-bottom-divider" />
+        {/* Desktop divider (mobile + iPad use the collapse handle below instead) */}
+        <div className="hidden desktop:block session-bottom-divider" />
 
         {/* Mobile collapse handle — the orange line doubles as the toggle */}
         <button
@@ -10463,7 +10463,7 @@ export default function Page() {
           onClick={() => setBottomBarExpanded((v) => !v)}
           aria-expanded={bottomBarExpanded}
           aria-label={bottomBarExpanded ? "Collapse session controls" : "Expand session controls"}
-          className="md:hidden group block w-full"
+          className="desktop:hidden group block w-full"
         >
           <div className="session-bottom-divider" />
           <div className="flex items-center justify-center gap-1.5 py-1.5 text-white/50 group-active:text-white/80 transition-colors">
@@ -10474,8 +10474,8 @@ export default function Page() {
           </div>
         </button>
 
-        {/* Mobile Layout - Compact 2x2 Grid */}
-        <div className="flex md:hidden flex-col gap-2.5 px-3 pb-[calc(10px+env(safe-area-inset-bottom))]">
+        {/* Mobile + iPad Layout - Compact 2x2 Grid (matches the iPhone app) */}
+        <div className="flex desktop:hidden flex-col gap-2.5 px-3 pb-[calc(10px+env(safe-area-inset-bottom))]">
           {bottomBarExpanded && (
           <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
             {/* Gap Between Routines */}
@@ -10547,8 +10547,8 @@ export default function Page() {
           </button>
         </div>
 
-        {/* Desktop Layout - Original horizontal flex */}
-        <div className="hidden md:flex flex-wrap items-center justify-start gap-4 px-4 py-2">
+        {/* Desktop Layout - Original horizontal flex (true desktop only; iPad uses the compact bar above) */}
+        <div className="hidden desktop:flex flex-wrap items-center justify-start gap-4 px-4 py-2">
           {/* Gap Between Routines */}
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white text-white">
