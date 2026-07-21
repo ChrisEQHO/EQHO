@@ -647,8 +647,24 @@ export default function Page() {
   // build, not iPhone, not desktop). Used for the on-device diagnostic/build marker
   // so we can confirm the deployed iPad is actually running this revision.
   const [isIPadWeb, setIsIPadWeb] = useState(false);
-  const [ipadDiag, setIpadDiag] = useState<{
-    w: number; h: number; ua: string; platform: string; mt: number; finePointer: boolean;
+  // ── TEMPORARY iPad diagnostics (§ diagnose-only task) ──────────────────────────
+  // Captures the raw device/viewport signals + which responsive branch is actually
+  // visible, so we can PROVE on the physical iPad which code path renders. Updated
+  // on resize / visualViewport changes / orientation. Component-level facts
+  // (coach/countdown active) are computed inline in the banner from live state.
+  const [diag, setDiag] = useState<{
+    isMobile: boolean;
+    isTablet: boolean;
+    isIPad: boolean;
+    finePointer: boolean;
+    desktopBranchActive: boolean;
+    innerW: number;
+    innerH: number;
+    vvW: number;
+    vvH: number;
+    platform: string;
+    maxTouchPoints: number;
+    ua: string;
   } | null>(null);
   useEffect(() => {
     // iPad detection mirrors app/layout.tsx: real iPads plus iPadOS masquerading
@@ -663,14 +679,57 @@ export default function Page() {
     setIosVolumeControl(isNativeIOS() || isIpad);
     const isMobileBuildLocal = process.env.NEXT_PUBLIC_BUILD_TARGET === "mobile";
     setIsIPadWeb(isIpad && !isMobileBuildLocal);
-    setIpadDiag({
-      w: window.innerWidth,
-      h: window.innerHeight,
-      ua,
-      platform: navigator.platform || "",
-      mt: navigator.maxTouchPoints || 0,
-      finePointer: document.documentElement.hasAttribute("data-fine-pointer"),
-    });
+
+    const measure = () => {
+      const finePointer = document.documentElement.hasAttribute("data-fine-pointer");
+      // The visible top-level layout is governed by the `desktop:` CSS variant,
+      // which is EXACTLY `(width >= 1024px) AND [data-fine-pointer]` (see globals.css).
+      // iPads never get data-fine-pointer, so this resolves false on iPad => the
+      // mobile/tablet stack (flex desktop:hidden @ page.tsx) is the visible player.
+      const desktopBranchActive =
+        window.matchMedia("(min-width: 1024px)").matches && finePointer;
+      const vv = window.visualViewport;
+      const next = {
+        isMobile: window.matchMedia("(max-width: 767px)").matches,
+        isTablet: window.matchMedia("(min-width: 768px) and (max-width: 1023px)").matches,
+        isIPad: isIpad,
+        finePointer,
+        desktopBranchActive,
+        innerW: window.innerWidth,
+        innerH: window.innerHeight,
+        vvW: vv ? Math.round(vv.width) : window.innerWidth,
+        vvH: vv ? Math.round(vv.height) : window.innerHeight,
+        platform: navigator.platform || "",
+        maxTouchPoints: navigator.maxTouchPoints || 0,
+        ua,
+      };
+      setDiag(next);
+      console.log("[v0] IPAD-DIAG", {
+        activeResponsiveBranch: desktopBranchActive
+          ? "desktop (hidden desktop:grid @page.tsx:7143)"
+          : "mobile/tablet (flex desktop:hidden @page.tsx:9274)",
+        isMobile: next.isMobile,
+        isTablet: next.isTablet,
+        isIPad: next.isIPad,
+        finePointer: next.finePointer,
+        innerW: next.innerW,
+        innerH: next.innerH,
+        visualViewportW: next.vvW,
+        visualViewportH: next.vvH,
+        platform: next.platform,
+        maxTouchPoints: next.maxTouchPoints,
+        ua: next.ua,
+      });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
   }, []);
   const [sessionRunning, setSessionRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -5305,6 +5364,47 @@ export default function Page() {
           root as a fixed overlay so it covers whichever view is active. */}
       {isGapPaused && gapCountdown > 0 && (
         <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
+      )}
+
+      {/* ══════════════ TEMPORARY iPad Safari DIAGNOSTIC BANNER ══════════════════
+          DIAGNOSE-ONLY: proves which component / responsive branch the real iPad
+          Safari player renders. Shown ONLY on the iPad Safari WEB player. Does not
+          change playback, countdown, styling or layout. Remove once verified. */}
+      {isIPadWeb && diag && (
+        <div
+          className="fixed top-0 left-0 right-0 z-[999] border-b-2 border-[#ff4fa3] bg-black/92 px-3 py-2 text-[11px] leading-snug text-white font-mono"
+          style={{ paddingTop: "calc(6px + env(safe-area-inset-top))" }}
+          role="status"
+          aria-label="iPad diagnostic build banner"
+        >
+          <div className="font-black tracking-[0.2em] text-[#ff8a00] uppercase">
+            IPAD DIAGNOSTIC BUILD ACTIVE
+          </div>
+          <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
+            <span>PLAYER: {diag.desktopBranchActive ? "Desktop grid @7143" : "Mobile stack @9274"}</span>
+            <span>
+              COACH: {isFullscreen
+                ? "Desktop FS coach @5364"
+                : showFullscreenMobilePlayer
+                  ? "Mobile coach @6275"
+                  : "none (inline)"}
+            </span>
+            <span>COUNTDOWN: {isGapPaused ? "CountdownOverlay(root)" : "idle"}</span>
+            <span>BRANCH: {diag.desktopBranchActive ? "desktop:" : "desktop:hidden (mobile)"}</span>
+            <span>isMobile: {String(diag.isMobile)}</span>
+            <span>isTablet: {String(diag.isTablet)}</span>
+            <span>isIPad: {String(diag.isIPad)}</span>
+            <span>isFullscreen: {String(isFullscreen)}</span>
+            <span>finePointer: {String(diag.finePointer)}</span>
+            <span>innerW: {diag.innerW}</span>
+            <span>innerH: {diag.innerH}</span>
+            <span>vv: {diag.vvW}×{diag.vvH}</span>
+            <span>platform: {diag.platform || "—"}</span>
+            <span>maxTouch: {diag.maxTouchPoints}</span>
+            <span>gapCountdown: {gapCountdown}</span>
+            <span>gapActive: {String(isGapPaused)}</span>
+          </div>
+        </div>
       )}
 
       {/* Ambient background glow effects */}
@@ -10147,30 +10247,6 @@ export default function Page() {
                     {/* Scrollable Content */}
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-16">
 
-                    {/* ── TEMPORARY iPad diagnostic / build marker (§11) ──────────────
-                        Visible ONLY on the iPad Safari web player. Lets us confirm on the
-                        physical device that the deployed build is THIS revision and that
-                        iPad is on the shared mobile branch with the shared countdown state.
-                        Remove once verified on device. */}
-                    {isIPadWeb && (
-                      <div className="rounded-xl border border-[#ff4fa3]/40 bg-[#ff4fa3]/[0.06] p-3 text-[10px] leading-relaxed text-white/80">
-                        <div className="font-black tracking-[0.15em] text-[#ff8a00] uppercase">iPad UI Revision Active</div>
-                        <div className="mt-1 font-bold text-white">rev: ipad-countdown-audioclock-3</div>
-                        <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono">
-                          <span>branch: mobile(shared)</span>
-                          <span>isIPadWeb: {String(isIPadWeb)}</span>
-                          <span>finePointer: {String(ipadDiag?.finePointer)}</span>
-                          <span>vp: {ipadDiag?.w}×{ipadDiag?.h}</span>
-                          <span>mt: {ipadDiag?.mt}</span>
-                          <span>countdownActive: {String(isGapPaused)}</span>
-                          <span>gapCountdown: {gapCountdown}</span>
-                          <span>sound: {settings.beepSound}</span>
-                          <span>soundOn: {String(settings.countdownSound)}</span>
-                          <span>gapSecs: {settings.gapSeconds}</span>
-                        </div>
-                      </div>
-                    )}
-                    
                     {/* Playback Settings */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
