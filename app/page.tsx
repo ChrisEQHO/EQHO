@@ -598,6 +598,15 @@ export default function Page() {
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
+  // iPad/iOS Safari SUSPENDS JS timers (setTimeout/setInterval) whenever no audio
+  // is actively playing. During the inter-track gap the <audio> element is
+  // paused/ended, so the gap ticker's setTimeout chain froze after one tick — the
+  // countdown appeared stuck on its first number, only one beep fired, and the
+  // next track started late (when iOS finally woke the timer). This holds a SILENT
+  // Web Audio keepalive source open for the duration of the gap so WebKit keeps
+  // the page "playing audio" and never suspends the timers. Cleared when the gap
+  // ends. { ctx, src } so we can stop/disconnect it precisely.
+  const gapKeepAliveRef = useRef<{ ctx: AudioContext; src: AudioBufferSourceNode; gain: GainNode } | null>(null);
   // Mirror of isGapPaused for the Capacitor app-state listener closure.
   const isGapPausedRef = useRef(false);
   isGapPausedRef.current = isGapPaused;
@@ -4468,6 +4477,52 @@ export default function Page() {
     [emitBeep],
   );
 
+  // Start a SILENT, looping Web Audio source that runs for the whole gap. Its only
+  // job is to keep the audio pipeline "active" so iPad/iOS Safari does not suspend
+  // JS timers while the <audio> element is paused between tracks (which otherwise
+  // froze the countdown ticker). Gain is 0 so it is completely inaudible, and it
+  // reuses the shared context (the live media graph on iPad) so it counts as the
+  // page producing audio. No-op if already running or Web Audio is unavailable.
+  const startGapKeepAlive = useCallback(() => {
+    if (gapKeepAliveRef.current) return;
+    try {
+      const ctx = getBeepCtx();
+      if (!ctx) return;
+      if (ctx.state === "suspended") void ctx.resume();
+      const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.5)), ctx.sampleRate);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      const gain = ctx.createGain();
+      // ~-100 dB: inaudible to humans but a genuine non-zero output, so iOS treats
+      // the context as actively producing audio and keeps JS timers running.
+      gain.gain.value = 0.00001;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(0);
+      gapKeepAliveRef.current = { ctx, src, gain };
+    } catch {
+      // ignore — the timestamp ticker + resume reconciler are still the safety net
+    }
+  }, [getBeepCtx]);
+
+  const stopGapKeepAlive = useCallback(() => {
+    const ka = gapKeepAliveRef.current;
+    if (!ka) return;
+    gapKeepAliveRef.current = null;
+    try {
+      ka.src.stop();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      ka.src.disconnect();
+      ka.gain.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // Settings preview: plays a short representative 3-2-1 of the given style so the
   // user can compare sounds before choosing. Uses the same generator as the live
   // countdown, so what they hear is exactly what plays during a session. Does NOT
@@ -4547,6 +4602,8 @@ export default function Page() {
   // timer is ever live (cleaned up when the gap ends or the effect re-runs).
   useEffect(() => {
     if (!isGapPaused) return;
+    // Keep timers alive on iPad/iOS Safari for the whole gap (see startGapKeepAlive).
+    startGapKeepAlive();
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
     const tick = () => {
@@ -4558,8 +4615,9 @@ export default function Page() {
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+      stopGapKeepAlive();
     };
-  }, [isGapPaused, evaluateGap]);
+  }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive]);
 
   // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
   // the app is backgrounded or the phone is locked, which would otherwise leave a
