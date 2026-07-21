@@ -6046,14 +6046,12 @@ export default function Page() {
                           </TrackDragHandle>
                           <span className={`text-sm font-black w-6 ${isHidden ? "text-white/20" : colour}`}>{originalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
-                                {track.title}
-                              </p>
-                              <PlayCountBadge count={completionCounts[track.id] || 0} />
-                            </div>
+                            <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
+                              {track.title}
+                            </p>
                             <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>{isHidden ? "Hidden" : formatDuration(track.durationSeconds)}</p>
                           </div>
+                          {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
                           {!isHidden && isActiveTrack && isPlaying && (
                             <div className="flex gap-0.5">
                               {[1, 2, 3].map((i) => (
@@ -7290,7 +7288,7 @@ export default function Page() {
                               setCurrentIndex(originalIndex);
                               togglePlayPause(track);
                             }}
-                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_64px_44px] items-center border-b cursor-pointer transition hover:bg-white/[0.03] ${
+                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_auto_64px_44px] items-center gap-x-2 border-b cursor-pointer transition hover:bg-white/[0.03] ${
                               isHidden
                                 ? "border-white/5 opacity-40 border-dashed"
                                 : isActiveTrack 
@@ -7305,13 +7303,13 @@ export default function Page() {
                               </TrackDragHandle>
                               <div className={`text-[34px] font-black ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div className={`text-base font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
-                                  <PlayCountBadge count={completionCounts[track.id] || 0} />
-                                </div>
+                                <div className={`text-base font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
                                 <div className={`text-xs ${isHidden ? "text-white/20" : "text-white/85"}`}>
                                   {isHidden ? "Hidden from session" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
                                 </div>
+                              </div>
+                              <div className="flex items-center justify-center">
+                                {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
                               </div>
                               <div className="flex flex-col items-end pr-2">
                                 <div className="text-[10px]">Duration</div>
@@ -9464,16 +9462,16 @@ export default function Page() {
                                   
                                   {/* Track Info */}
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
-                                        {track.title}
-                                      </p>
-                                      <PlayCountBadge count={completionCounts[track.id] || 0} />
-                                    </div>
+                                    <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>
+                                      {track.title}
+                                    </p>
                                     <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>
                                       {isHidden ? "Hidden" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : formatDuration(track.durationSeconds)}
                                     </p>
                                   </div>
+
+                                  {/* Routine completion count — sits between the track info and duration */}
+                                  {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
                                   
                                   {/* Duration */}
                                   <div className="text-right shrink-0">

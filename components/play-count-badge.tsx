@@ -16,12 +16,15 @@ export function PlayCountBadge({
 }) {
   if (!count || count < 1) return null;
   const isLg = size === "lg";
-  const label = `Completed ${count} ${count === 1 ? "time" : "times"} this session`;
+  const label = `Completed ${count} ${count === 1 ? "routine" : "routines"} this session`;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] font-bold text-white shadow-sm shrink-0 ${
-        isLg ? "px-2.5 py-1 text-sm" : "px-1.5 py-[1px] text-[10px]"
+      className={`inline-flex items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] font-black tabular-nums leading-none text-white ring-2 ring-white/25 shrink-0 ${
+        isLg
+          ? "min-w-[32px] h-8 px-2.5 text-base"
+          : "min-w-[22px] h-[22px] px-1.5 text-xs"
       } ${className}`}
+      style={{ boxShadow: "0 0 10px rgba(255,79,163,0.55), 0 2px 6px rgba(0,0,0,0.35)" }}
       title={label}
       aria-label={label}
     >
