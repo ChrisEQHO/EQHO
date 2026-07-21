@@ -4186,6 +4186,10 @@ export default function Page() {
         // reconciler both derive the remaining time from this, so a suspended
         // timer can never make the next track start late.
         nextTrackStartAtRef.current = Date.now() + _gapSeconds * 1000;
+        // Pre-schedule the 3-2-1 beeps on the audio clock (fires even if iPad
+        // freezes JS timers during the gap). Single shared beep path.
+        scheduleCountdownBeeps(_gapSeconds);
+        console.log("[v0] GAP START: gapSeconds=", _gapSeconds, "startAt=", nextTrackStartAtRef.current, "upcoming=", upcomingTitle);
       } else {
         playFn();
       }
@@ -4444,7 +4448,21 @@ export default function Page() {
   // countdown (660/880/1100 for 3/2/1); each style reinterprets it with its own
   // timbre. Reuses the single shared beep context (never allocates per beep).
   const emitBeep = useCallback(
-    (style: BeepSoundId, frequency: number, duration: number, isFinalBeep: boolean) => {
+    (
+      style: BeepSoundId,
+      frequency: number,
+      duration: number,
+      isFinalBeep: boolean,
+      // Absolute AudioContext time (seconds) to start the beep. When provided, the
+      // beep is scheduled on the audio thread at that exact instant — immune to JS
+      // timer/rAF throttling (this is what lets the iPad countdown beeps fire even
+      // while Safari has frozen JS timers during the silent gap). When omitted, the
+      // beep plays "now" with a small resume lookahead (used for live/preview beeps).
+      whenSec?: number,
+      // Optional sink to collect the created oscillators so a scheduled beep can be
+      // cancelled (e.g. the user skips/pauses mid-gap).
+      collect?: OscillatorNode[],
+    ) => {
       try {
         const ctx = getBeepCtx();
         if (!ctx) return;
@@ -4453,7 +4471,7 @@ export default function Page() {
         // that was just resumed drops oscillators scheduled at the exact current
         // time, so previews and the first countdown beep were silent. Starting ~60ms
         // in the future lands after the resume settles and is imperceptible.
-        const now = ctx.currentTime + 0.06;
+        const now = whenSec != null ? whenSec : ctx.currentTime + 0.06;
 
         // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
         const tone = (
@@ -4476,6 +4494,7 @@ export default function Page() {
           gain.gain.exponentialRampToValueAtTime(0.0001, end);
           osc.start(start);
           osc.stop(end + 0.02);
+          if (collect) collect.push(osc);
         };
 
         if (style === "digital") {
@@ -4518,6 +4537,53 @@ export default function Page() {
       emitBeep(beepSoundRef.current, frequency, duration, isFinalBeep);
     },
     [emitBeep],
+  );
+
+  // Oscillators for the currently-scheduled countdown beeps, so they can be
+  // cancelled if the gap is aborted (skip/pause/next).
+  const scheduledBeepsRef = useRef<OscillatorNode[]>([]);
+  const cancelScheduledBeeps = useCallback(() => {
+    scheduledBeepsRef.current.forEach((osc) => {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {
+        /* already stopped */
+      }
+    });
+    scheduledBeepsRef.current = [];
+  }, []);
+
+  // Pre-schedule the entire "get ready" beep sequence on the AudioContext CLOCK the
+  // moment a gap starts. Each beep's start time is an absolute audio-thread time, so
+  // the beeps fire at exactly the right second EVEN IF iPad/iOS Safari has frozen
+  // the JS timers/rAF during the silent gap (the root cause of the iPad countdown
+  // only beeping once). This is the single shared beep path for every surface — the
+  // per-tick beep was removed from evaluateGap so there is never a double beep.
+  //   gap = N seconds, countdown = C seconds  ->  beep at elapsed (N-k) for k=C..1
+  //   frequencies match the visual: 3->660, 2->880, 1->1100 (final), none on 4/5.
+  const scheduleCountdownBeeps = useCallback(
+    (gapSeconds: number) => {
+      cancelScheduledBeeps();
+      if (!countdownSoundRef.current) return; // sound toggle off
+      const c = countdownSecondsRef.current;
+      if (!c || c < 1 || gapSeconds < 1) return;
+      const ctx = getBeepCtx();
+      if (!ctx) return;
+      if (ctx.state === "suspended") void ctx.resume();
+      const anchor = ctx.currentTime + 0.06; // "now" == full gap remaining
+      const style = beepSoundRef.current;
+      const collect: OscillatorNode[] = [];
+      const last = Math.min(c, gapSeconds);
+      for (let k = last; k >= 1; k--) {
+        const whenSec = anchor + (gapSeconds - k); // elapsed seconds when k remain
+        const freq = k === 1 ? 1100 : k === 2 ? 880 : 660;
+        emitBeep(style, freq, 200, k === 1, whenSec, collect);
+      }
+      scheduledBeepsRef.current = collect;
+      console.log("[v0] scheduleCountdownBeeps: gap=", gapSeconds, "countdown=", c, "beeps=", collect.length, "ctxState=", ctx.state);
+    },
+    [cancelScheduledBeeps, emitBeep, getBeepCtx],
   );
 
   // Start a SILENT, looping Web Audio source that runs for the whole gap. Its only
@@ -4619,10 +4685,12 @@ export default function Page() {
     gapCallbackRef.current = null;
     nextTrackStartAtRef.current = null;
     lastBeepedCountdown.current = -1;
+    cancelScheduledBeeps();
     setGapCountdown(0);
     setIsGapPaused(false);
+    console.log("[v0] fireNextTrack: starting next track", cb ? "(cb present)" : "(no cb)");
     if (cb) cb();
-  }, []);
+  }, [cancelScheduledBeeps]);
 
   // Evaluate the timestamp-anchored gap against the WALL CLOCK (Date.now()):
   //  - if the target start time has passed, start the next track now;
@@ -4641,25 +4709,13 @@ export default function Page() {
     }
     const remaining = Math.ceil(remainingMs / 1000);
     setGapCountdown((prev) => (prev !== remaining ? remaining : prev));
-    // Audible "get ready" countdown. Gated by the SOUND toggle (countdownSound),
-    // NOT the visual toggle — so turning sound off keeps the on-screen countdown
-    // and the transition intact. Still honors the configurable "Countdown Before
-    // Routine" length. Because `remaining` is derived from the clock, a beep is
-    // only played at its true real-time second; seconds skipped during suspension
-    // are never beeped after the fact.
-    if (
-      countdownSoundRef.current &&
-      countdownSecondsRef.current > 0 &&
-      remaining <= countdownSecondsRef.current &&
-      remaining > 0 &&
-      lastBeepedCountdown.current !== remaining
-    ) {
-      lastBeepedCountdown.current = remaining;
-      const freq = remaining === 1 ? 1100 : remaining === 2 ? 880 : 660;
-      playBeep(freq, 200, remaining === 1);
-    }
+    // NOTE: beeps are NOT played here. They are pre-scheduled on the AudioContext
+    // clock at gap start (scheduleCountdownBeeps) so they fire at the correct second
+    // even when iPad/iOS Safari has throttled the JS timers/rAF that drive this
+    // visual tick. This function only advances the DISPLAYED number and, when the
+    // wall clock is up, starts the next track.
     return false;
-  }, [fireNextTrack, playBeep]);
+  }, [fireNextTrack]);
 
   // Gap countdown ticker - TIMESTAMP based (not a per-second decrement). Every
   // frame/poll it reads the wall clock, so it always shows the correct remaining
@@ -4703,8 +4759,12 @@ export default function Page() {
       if (rafId) cancelAnimationFrame(rafId);
       if (timer) clearTimeout(timer);
       stopGapKeepAlive();
+      // Any gap exit (normal transition, skip, pause, reset, stop) flips isGapPaused
+      // false and runs this cleanup — cancel any not-yet-played scheduled beeps so an
+      // aborted gap can never fire stray beeps into the next track.
+      cancelScheduledBeeps();
     };
-  }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive]);
+  }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive, cancelScheduledBeeps]);
 
   // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
   // the app is backgrounded or the phone is locked, which would otherwise leave a
@@ -10095,7 +10155,7 @@ export default function Page() {
                     {isIPadWeb && (
                       <div className="rounded-xl border border-[#ff4fa3]/40 bg-[#ff4fa3]/[0.06] p-3 text-[10px] leading-relaxed text-white/80">
                         <div className="font-black tracking-[0.15em] text-[#ff8a00] uppercase">iPad UI Revision Active</div>
-                        <div className="mt-1 font-bold text-white">rev: ipad-countdown-raf-2</div>
+                        <div className="mt-1 font-bold text-white">rev: ipad-countdown-audioclock-3</div>
                         <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono">
                           <span>branch: mobile(shared)</span>
                           <span>isIPadWeb: {String(isIPadWeb)}</span>
