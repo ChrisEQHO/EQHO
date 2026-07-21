@@ -21,12 +21,19 @@ export function CountdownOverlay({
   count: number;
   nextTitle: string;
 }) {
+  console.log("[v0] IPAD OVERLAY rendered visibleCountdown=", count, "mounted=true");
   return (
     <div className="fixed inset-0 z-[400] flex flex-col items-center justify-center bg-black">
       <div
         key={count}
         className="flex items-center justify-center"
-        style={{ animation: "eqhoCountdownPop 1s ease-out" }}
+        // The pop is a subtle SCALE emphasis only. Crucially it never touches
+        // opacity and starts/ends at scale(1): if iPad Safari's compositor is idle
+        // during the silent gap and the animation never advances past its first
+        // frame, the number is STILL fully visible at its resting state. (The old
+        // keyframes began at opacity:0/scale:0.6, so a stalled animation left each
+        // freshly key-remounted number invisible on iPad — the frozen-countdown bug.)
+        style={{ animation: "eqhoCountdownPop 0.9s ease-out" }}
       >
         <svg
           viewBox="0 0 200 170"
@@ -59,6 +66,12 @@ export function CountdownOverlay({
         </svg>
       </div>
 
+      {/* TEMPORARY on-device proof (spec §9) — remove after physical iPad confirms
+          the number steps 5→4→3→2→1. Shows the live value actually rendered. */}
+      <div className="mt-2 rounded-md border border-[#ff4fa3]/60 bg-black/80 px-3 py-1 font-mono text-xs text-white">
+        RENDER: {count}
+      </div>
+
       <div className="mt-4 text-center px-6">
         <p className="text-white/50 text-sm font-semibold uppercase tracking-[0.35em] mb-3">
           Up Next
@@ -69,13 +82,16 @@ export function CountdownOverlay({
       </div>
 
       <style jsx>{`
+        /* Scale-only emphasis. opacity stays 1 at every keyframe and the element's
+           resting state is scale(1)/opacity(1), so a stalled animation on an idle
+           iPad compositor can never hide the number. */
         @keyframes eqhoCountdownPop {
           0% {
-            transform: scale(0.6);
-            opacity: 0;
+            transform: scale(1);
+            opacity: 1;
           }
-          30% {
-            transform: scale(1.08);
+          40% {
+            transform: scale(1.12);
             opacity: 1;
           }
           100% {
