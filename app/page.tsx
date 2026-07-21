@@ -4945,6 +4945,45 @@ export default function Page() {
     };
   }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive, cancelScheduledBeeps]);
 
+  // ── DISPLAY-ONLY countdown tick (fixes the frozen iPad number) ─────────────────
+  // The transition/beep engine above is correct on iPad: beeps are pre-scheduled on
+  // the audio clock and the next track fires from the wall-clock deadline. The ONLY
+  // thing that broke on iPad Safari was the VISIBLE number freezing at its first
+  // value. Cause: the number was published to React state only from inside the rAF
+  // loop, and iPad Safari PAUSES requestAnimationFrame once the overlay's 1s pop-in
+  // animation ends and audio is silent (the compositor goes idle) — so the
+  // intermediate 5->4->3->2->1 setState calls never ran, even though the beeps and
+  // the final transition did.
+  //
+  // This dedicated loop drives the DISPLAY only. setInterval keeps firing on a
+  // foreground tab even when rAF is frozen (iPad clamps it to ~1s under throttling,
+  // which is exactly the cadence a 1-second countdown needs). It derives the whole
+  // second from the fixed deadline (never decrements a captured value, so no stale
+  // closure) and publishes it to the SAME shared `gapCountdown` state that every
+  // surface renders (normal iPad view AND Coach Mode). It intentionally does NOT:
+  // schedule beeps, start the next track, or alter the deadline — that stays with
+  // the untouched engine above.
+  useEffect(() => {
+    if (!isGapPaused) return;
+    const gapId = activeGapIdRef.current;
+    const publish = () => {
+      if (gapId !== activeGapIdRef.current) return; // superseded gap: stop touching display
+      const startAt = nextTrackStartAtRef.current;
+      if (startAt == null) return;
+      const remaining = Math.max(0, Math.ceil((startAt - Date.now()) / 1000));
+      // 0 is never shown (overlay unmounts at gap end); let "1" render its full
+      // second — the transition engine starts the next track when it reaches 0.
+      if (remaining >= 1 && lastDisplayedCountdownRef.current !== remaining) {
+        lastDisplayedCountdownRef.current = remaining;
+        console.log("[v0] CALCULATED REMAINING", remaining, "-> IPAD RENDERED COUNTDOWN", remaining);
+        setGapCountdown(remaining);
+      }
+    };
+    publish(); // paint the starting value immediately
+    const id = setInterval(publish, 200);
+    return () => clearInterval(id);
+  }, [isGapPaused]);
+
   // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
   // the app is backgrounded or the phone is locked, which would otherwise leave a
   // stale countdown and fire delayed beeps on reopen. On RESUME we immediately
