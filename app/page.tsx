@@ -607,6 +607,14 @@ export default function Page() {
   // the page "playing audio" and never suspends the timers. Cleared when the gap
   // ends. { ctx, src } so we can stop/disconnect it precisely.
   const gapKeepAliveRef = useRef<{ ctx: AudioContext; src: AudioBufferSourceNode; gain: GainNode } | null>(null);
+  // Silent looping <audio> element played for the duration of the gap. The Web
+  // Audio keepalive above is not always enough on iPad Safari — WebKit's "is this
+  // page playing media" heuristic that governs timer throttling is tied to actual
+  // MEDIA ELEMENTS, not Web Audio graphs. Playing a genuinely-silent <audio> loop
+  // makes Safari treat the page as actively playing, so setTimeout keeps ticking
+  // at full rate and the countdown/beeps run every second. Unlocked on the session
+  // start gesture so it is allowed to auto-play later during the gap.
+  const silentKeepAliveRef = useRef<HTMLAudioElement | null>(null);
   // Mirror of isGapPaused for the Capacitor app-state listener closure.
   const isGapPausedRef = useRef(false);
   isGapPausedRef.current = isGapPaused;
@@ -4354,7 +4362,25 @@ export default function Page() {
   // the countdown beeps fire later (without a gesture), this gesture-time unlock
   // is what makes them audible on the mobile web player.
   const beepUnlockedRef = useRef(false);
+  const silentUnlockedRef = useRef(false);
   const unlockBeepAudio = useCallback(() => {
+    // Unlock the silent keepalive <audio> element within this gesture so iOS
+    // permits it to auto-play later during the gap (see silentKeepAliveRef).
+    if (!silentUnlockedRef.current && silentKeepAliveRef.current) {
+      try {
+        const el = silentKeepAliveRef.current;
+        const p = el.play();
+        if (p && typeof p.then === "function") {
+          p.then(() => {
+            el.pause();
+            el.currentTime = 0;
+          }).catch(() => {});
+        }
+        silentUnlockedRef.current = true;
+      } catch {
+        /* ignore */
+      }
+    }
     const ctx = getBeepCtx();
     if (!ctx) return;
     if (ctx.state === "suspended") void ctx.resume();
@@ -4484,6 +4510,18 @@ export default function Page() {
   // reuses the shared context (the live media graph on iPad) so it counts as the
   // page producing audio. No-op if already running or Web Audio is unavailable.
   const startGapKeepAlive = useCallback(() => {
+    // Media-element keepalive (primary, most reliable on iPad Safari): play the
+    // silent loop for the whole gap so WebKit keeps JS timers running.
+    const silent = silentKeepAliveRef.current;
+    if (silent) {
+      try {
+        silent.currentTime = 0;
+        const p = silent.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch {
+        /* ignore — Web Audio keepalive below is the fallback */
+      }
+    }
     if (gapKeepAliveRef.current) return;
     try {
       const ctx = getBeepCtx();
@@ -4507,6 +4545,16 @@ export default function Page() {
   }, [getBeepCtx]);
 
   const stopGapKeepAlive = useCallback(() => {
+    // Stop the silent media-element loop first.
+    const silent = silentKeepAliveRef.current;
+    if (silent) {
+      try {
+        silent.pause();
+        silent.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+    }
     const ka = gapKeepAliveRef.current;
     if (!ka) return;
     gapKeepAliveRef.current = null;
@@ -5166,6 +5214,18 @@ export default function Page() {
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
+      {/* Silent keepalive loop — see silentKeepAliveRef. Kept inaudible; only
+          played during the inter-track gap to stop iPad Safari from throttling
+          the countdown timer. */}
+      <audio
+        ref={silentKeepAliveRef}
+        src="/silence.wav"
+        loop
+        preload="auto"
+        playsInline
+        aria-hidden="true"
+      />
+
       <audio
         ref={audioRef}
         preload="metadata"
@@ -10645,14 +10705,14 @@ export default function Page() {
           <button 
             onClick={toggleSession}
             disabled={!currentTrack && playlist.length === 0}
-            className={`h-[52px] min-w-[160px] rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`h-[52px] min-w-[160px] rounded-xl text-sm font-bold transition-all transform disabled:opacity-40 disabled:cursor-not-allowed ${
               isGapPaused
                 ? "bg-white/10 border border-white/30 text-white animate-pulse"
                 : isPlaying
                   ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
                   : sessionRunning && !isPlaying
                     ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
-                    : "bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:opacity-90 shadow-[0_0_20px_rgba(255,79,179,0.25)]"
+                    : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white hover:scale-105 hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
             }`}
           >
             {isGapPaused ? (
