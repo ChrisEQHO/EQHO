@@ -598,6 +598,19 @@ export default function Page() {
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
+  // ── Single-transition guards (fixes the countdown/next-track race) ─────────────
+  // Every gap countdown gets a unique monotonic id. The ticker captures the id it
+  // was started for and passes it back to fireNextTrack; any callback whose id no
+  // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
+  // a manual play, an unmount) is rejected. nextTrackFiredRef guarantees the next
+  // track is started AT MOST ONCE per gap. This is the ONE authorised transition
+  // path after a natural track end.
+  const gapIdCounterRef = useRef(0);
+  const activeGapIdRef = useRef(0);
+  const nextTrackFiredRef = useRef(false);
+  // Last countdown value we logged as displayed, so the dev COUNTDOWN DISPLAY log
+  // prints once per second (not once per animation frame).
+  const lastDisplayedCountdownRef = useRef<number>(-1);
   // iPad/iOS Safari SUSPENDS JS timers (setTimeout/setInterval) whenever no audio
   // is actively playing. During the inter-track gap the <audio> element is
   // paused/ended, so the gap ticker's setTimeout chain froze after one tick — the
@@ -3415,6 +3428,11 @@ export default function Page() {
   // core fix for back-to-back: the flag can no longer leak across tracks.
   const playTrackFresh = (track: Track, index: number) => {
     if (!track?.url) return;
+    // Abandon any pending gap countdown: a fresh track is starting now, so a
+    // leftover ticker/scheduled transition from a previous gap must never fire
+    // afterwards. Safe as a no-op when this is called as the gap's own callback
+    // (the gap has already fired by then). Covers skip-during-gap and manual play.
+    invalidateGap("play-track-fresh");
     // A different track always begins a fresh back-to-back cycle.
     b2bRepeatedTrackIdRef.current = null;
     setBackToBackPlayed(false);
@@ -3425,6 +3443,7 @@ export default function Page() {
 
   // End the session cleanly (used by skip-to-end and auto-advance end-of-playlist).
   const endSession = () => {
+    invalidateGap("end-session");
     if (audioRef.current) audioRef.current.pause();
     setFinishedTracks(new Set(playlistRef.current.map((t) => t.id)));
     setIsPlaying(false);
@@ -4227,6 +4246,8 @@ export default function Page() {
     const audio = audioRef.current;
     if (!audio) return;
 
+    console.log("[v0] TRACK ENDED index=", currentIndexRef.current, "gapSeconds=", gapSecondsRef.current);
+
     const _backToBack = backToBackRef.current;
     const _backToBackPlayed = backToBackPlayedRef.current;
     const _gapSeconds = gapSecondsRef.current;
@@ -4247,10 +4268,16 @@ export default function Page() {
       setNextUpTitle(upcomingTitle);
       setNextUpTrackId(upcomingId);
       if (_gapSeconds > 0) {
+        // Begin ONE new gap countdown. A fresh id supersedes any previous gap's
+        // still-pending timers/callbacks, and the fired guard is armed for this gap.
+        const gapId = ++gapIdCounterRef.current;
+        activeGapIdRef.current = gapId;
+        nextTrackFiredRef.current = false;
         setIsPlaying(false);
         setIsGapPaused(true);
         setGapCountdown(_gapSeconds);
         lastBeepedCountdown.current = -1; // Reset beep tracking for new countdown
+        lastDisplayedCountdownRef.current = -1;
         gapCallbackRef.current = playFn;
         // Anchor the gap to a real wall-clock instant. The ticker + resume
         // reconciler both derive the remaining time from this, so a suspended
@@ -4259,9 +4286,20 @@ export default function Page() {
         // Pre-schedule the 3-2-1 beeps on the audio clock (fires even if iPad
         // freezes JS timers during the gap). Single shared beep path.
         scheduleCountdownBeeps(_gapSeconds);
-        console.log("[v0] GAP START: gapSeconds=", _gapSeconds, "startAt=", nextTrackStartAtRef.current, "upcoming=", upcomingTitle);
+        console.log(
+          "[v0] BEGIN GAP gapSeconds=", _gapSeconds,
+          "GAP ID=", gapId,
+          "GAP ENDS AT=", nextTrackStartAtRef.current,
+          "upcoming=", upcomingTitle,
+        );
       } else {
-        playFn();
+        // No gap: the next track starts immediately through the single authorised
+        // path, tagged so its source is visible in the logs.
+        const gapId = ++gapIdCounterRef.current;
+        activeGapIdRef.current = gapId;
+        nextTrackFiredRef.current = false;
+        gapCallbackRef.current = playFn;
+        fireNextTrack("no-gap-immediate", gapId);
       }
     };
 
@@ -4645,13 +4683,25 @@ export default function Page() {
       const style = beepSoundRef.current;
       const collect: OscillatorNode[] = [];
       const last = Math.min(c, gapSeconds);
+      // Exactly `last` beep EVENTS (e.g. 3 -> counts 3,2,1). Each event may emit more
+      // than one oscillator (some styles are chords/double-tones), so oscillator
+      // count > event count is expected and NOT a duplicate-beep bug.
+      let beepEvents = 0;
       for (let k = last; k >= 1; k--) {
         const whenSec = anchor + (gapSeconds - k); // elapsed seconds when k remain
         const freq = k === 1 ? 1100 : k === 2 ? 880 : 660;
         emitBeep(style, freq, 200, k === 1, whenSec, collect);
+        beepEvents++;
+        console.log("[v0] COUNTDOWN BEEP scheduled for count", k, "at +", (gapSeconds - k), "s");
       }
       scheduledBeepsRef.current = collect;
-      console.log("[v0] scheduleCountdownBeeps: gap=", gapSeconds, "countdown=", c, "beeps=", collect.length, "ctxState=", ctx.state);
+      console.log(
+        "[v0] scheduleCountdownBeeps: gap=", gapSeconds,
+        "countdown=", c,
+        "beepEvents=", beepEvents,
+        "oscillators=", collect.length,
+        "ctxState=", ctx.state,
+      );
     },
     [cancelScheduledBeeps, emitBeep, getBeepCtx],
   );
@@ -4748,19 +4798,62 @@ export default function Page() {
     [emitBeep, unlockBeepAudio],
   );
 
-  // Start the next track exactly once and clear all gap/beep state. Guards against
-  // a double fire (ticker + resume listener) by nulling the callback ref first.
-  const fireNextTrack = useCallback(() => {
-    const cb = gapCallbackRef.current;
-    gapCallbackRef.current = null;
-    nextTrackStartAtRef.current = null;
-    lastBeepedCountdown.current = -1;
-    cancelScheduledBeeps();
-    setGapCountdown(0);
-    setIsGapPaused(false);
-    console.log("[v0] fireNextTrack: starting next track", cb ? "(cb present)" : "(no cb)");
-    if (cb) cb();
-  }, [cancelScheduledBeeps]);
+  // Abandon any in-progress gap so a stale ticker/timer/scheduled callback can never
+  // start a track after the user has moved on (skip, manual play, stop) or the
+  // component unmounts. Bumps the gap id (superseding old callbacks) and marks the
+  // transition as already fired so a late fireNextTrack for the old gap is a no-op.
+  const invalidateGap = useCallback(
+    (source: string) => {
+      // Only meaningful if a gap/transition is actually pending. In the normal
+      // completed-gap flow fireNextTrack has already nulled these, so this is a
+      // no-op there — it only acts when a gap is abandoned mid-countdown.
+      if (gapCallbackRef.current == null && nextTrackStartAtRef.current == null) return;
+      gapIdCounterRef.current += 1;
+      activeGapIdRef.current = gapIdCounterRef.current;
+      nextTrackFiredRef.current = true; // no auto-transition should fire for the old gap
+      gapCallbackRef.current = null;
+      nextTrackStartAtRef.current = null;
+      lastBeepedCountdown.current = -1;
+      lastDisplayedCountdownRef.current = -1;
+      cancelScheduledBeeps();
+      // Tear down the gap UI so the countdown overlay can't stay stuck on screen.
+      setGapCountdown(0);
+      setIsGapPaused(false);
+      console.log("[v0] GAP INVALIDATED source=", source, "newGapId=", activeGapIdRef.current);
+    },
+    [cancelScheduledBeeps],
+  );
+
+  // The SINGLE authorised path that starts the next track. It runs at most once per
+  // gap: `nextTrackFiredRef` blocks a second call, and the `gapId` check rejects a
+  // callback left over from a superseded gap (stale rAF/timeout, skip, new gap).
+  const fireNextTrack = useCallback(
+    (source: string, gapId?: number) => {
+      if (nextTrackFiredRef.current) {
+        console.log("[v0] NEXT TRACK BLOCKED AS DUPLICATE source=", source, "gapId=", gapId, "(already fired)");
+        return;
+      }
+      if (gapId != null && gapId !== activeGapIdRef.current) {
+        console.log(
+          "[v0] NEXT TRACK BLOCKED AS DUPLICATE source=", source,
+          "gapId=", gapId, "activeGapId=", activeGapIdRef.current, "(stale gap)",
+        );
+        return;
+      }
+      nextTrackFiredRef.current = true;
+      const cb = gapCallbackRef.current;
+      gapCallbackRef.current = null;
+      nextTrackStartAtRef.current = null;
+      lastBeepedCountdown.current = -1;
+      lastDisplayedCountdownRef.current = -1;
+      cancelScheduledBeeps();
+      setGapCountdown(0);
+      setIsGapPaused(false);
+      console.log("[v0] NEXT TRACK FIRED source=", source, "gapId=", gapId, cb ? "(cb present)" : "(no cb)");
+      if (cb) cb();
+    },
+    [cancelScheduledBeeps],
+  );
 
   // Evaluate the timestamp-anchored gap against the WALL CLOCK (Date.now()):
   //  - if the target start time has passed, start the next track now;
@@ -4768,24 +4861,36 @@ export default function Page() {
   //    any beep whose real-time moment already elapsed (e.g. while backgrounded)
   //    so a missed beep is never replayed late.
   // Returns true if the next track was started.
-  const evaluateGap = useCallback((): boolean => {
-    if (!isGapPausedRef.current) return false;
-    const startAt = nextTrackStartAtRef.current;
-    if (startAt == null) return false;
-    const remainingMs = startAt - Date.now();
-    if (remainingMs <= 0) {
-      fireNextTrack();
-      return true;
-    }
-    const remaining = Math.ceil(remainingMs / 1000);
-    setGapCountdown((prev) => (prev !== remaining ? remaining : prev));
-    // NOTE: beeps are NOT played here. They are pre-scheduled on the AudioContext
-    // clock at gap start (scheduleCountdownBeeps) so they fire at the correct second
-    // even when iPad/iOS Safari has throttled the JS timers/rAF that drive this
-    // visual tick. This function only advances the DISPLAYED number and, when the
-    // wall clock is up, starts the next track.
-    return false;
-  }, [fireNextTrack]);
+  // `expectedGapId` is the id of the gap the calling ticker was started for. If the
+  // active gap id has moved on (a new gap, a skip, an invalidation), this ticker is
+  // stale — stop it WITHOUT starting a track.
+  const evaluateGap = useCallback(
+    (expectedGapId: number): boolean => {
+      if (!isGapPausedRef.current) return false;
+      if (expectedGapId !== activeGapIdRef.current) return true; // stale ticker: stop, do not fire
+      const startAt = nextTrackStartAtRef.current;
+      if (startAt == null) return false;
+      const remainingMs = startAt - Date.now();
+      if (remainingMs <= 0) {
+        console.log("[v0] COUNTDOWN COMPLETE gapId=", expectedGapId);
+        fireNextTrack("gap-complete", expectedGapId);
+        return true;
+      }
+      const remaining = Math.ceil(remainingMs / 1000);
+      if (lastDisplayedCountdownRef.current !== remaining) {
+        lastDisplayedCountdownRef.current = remaining;
+        console.log("[v0] COUNTDOWN DISPLAY", remaining);
+      }
+      setGapCountdown((prev) => (prev !== remaining ? remaining : prev));
+      // NOTE: beeps are NOT played here. They are pre-scheduled on the AudioContext
+      // clock at gap start (scheduleCountdownBeeps) so they fire at the correct second
+      // even when iPad/iOS Safari has throttled the JS timers/rAF that drive this
+      // visual tick. This function only advances the DISPLAYED number and, when the
+      // wall clock is up, starts the next track.
+      return false;
+    },
+    [fireNextTrack],
+  );
 
   // Gap countdown ticker - TIMESTAMP based (not a per-second decrement). Every
   // frame/poll it reads the wall clock, so it always shows the correct remaining
@@ -4803,6 +4908,10 @@ export default function Page() {
   // shared engine for every surface — no separate iPad timer or countdown path.
   useEffect(() => {
     if (!isGapPaused) return;
+    // The gap this ticker instance belongs to. If a new gap starts (or the gap is
+    // invalidated), evaluateGap(gapId) sees the id has changed and stops without
+    // firing — the core defense against the countdown/next-track race.
+    const gapId = activeGapIdRef.current;
     startGapKeepAlive();
     let rafId = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -4811,7 +4920,7 @@ export default function Page() {
     // Primary: animation-frame loop (throttle-proof on a foreground iPad tab).
     const loop = () => {
       if (stopped) return;
-      if (evaluateGap()) return; // next track started - stop ticking
+      if (evaluateGap(gapId)) return; // next track started or stale gap - stop ticking
       rafId = requestAnimationFrame(loop);
     };
     rafId = requestAnimationFrame(loop);
@@ -4819,7 +4928,7 @@ export default function Page() {
     // Backstop: covers backgrounded/hidden tabs where rAF is paused.
     const backstop = () => {
       if (stopped) return;
-      if (evaluateGap()) return;
+      if (evaluateGap(gapId)) return;
       timer = setTimeout(backstop, 250);
     };
     timer = setTimeout(backstop, 250);
@@ -4851,7 +4960,7 @@ export default function Page() {
         if (cancelled) return;
         App.addListener("appStateChange", ({ isActive }) => {
           if (isActive && isGapPausedRef.current) {
-            evaluateGap();
+            evaluateGap(activeGapIdRef.current);
           }
         }).then((handle) => {
           if (cancelled) handle.remove();
