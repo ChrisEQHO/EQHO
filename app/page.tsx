@@ -611,6 +611,13 @@ export default function Page() {
   // Last countdown value we logged as displayed, so the dev COUNTDOWN DISPLAY log
   // prints once per second (not once per animation frame).
   const lastDisplayedCountdownRef = useRef<number>(-1);
+  // One absolute setTimeout per visible countdown number (5,4,3,2,1), scheduled
+  // ONCE when a gap begins. This replaced the repeating setInterval/rAF publisher,
+  // which iPad Safari throttled so badly the number jumped 5 -> 2. Each timeout is
+  // an independent one-shot at a fixed offset from gap start, so a single delayed
+  // callback can't swallow the others. Lives in a ref so it survives re-renders and
+  // is never tied to the countdown value changing.
+  const visualCountdownTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // iPad/iOS Safari SUSPENDS JS timers (setTimeout/setInterval) whenever no audio
   // is actively playing. During the inter-track gap the <audio> element is
   // paused/ended, so the gap ticker's setTimeout chain froze after one tick — the
@@ -4286,6 +4293,9 @@ export default function Page() {
         // Pre-schedule the 3-2-1 beeps on the audio clock (fires even if iPad
         // freezes JS timers during the gap). Single shared beep path.
         scheduleCountdownBeeps(_gapSeconds);
+        // Schedule each VISIBLE number (5,4,3,2,1) as its own one-shot timeout from
+        // this same gap start. Independent of the beep/transition engine.
+        scheduleVisibleCountdown(gapId, _gapSeconds);
         console.log(
           "[v0] BEGIN GAP gapSeconds=", _gapSeconds,
           "GAP ID=", gapId,
@@ -4802,6 +4812,42 @@ export default function Page() {
   // start a track after the user has moved on (skip, manual play, stop) or the
   // component unmounts. Bumps the gap id (superseding old callbacks) and marks the
   // transition as already fired so a late fireNextTrack for the old gap is a no-op.
+  // Cancel every pending visible-number timeout. Called whenever a gap ends or is
+  // abandoned (new gap, skip, session end, transition, unmount). Safe to call when
+  // the list is already empty. Does NOT touch beeps or the transition.
+  const clearVisualCountdownTimers = useCallback(() => {
+    for (const id of visualCountdownTimeoutsRef.current) clearTimeout(id);
+    visualCountdownTimeoutsRef.current = [];
+  }, []);
+
+  // Schedule the FULL visible countdown sequence for one gap, from a single fixed
+  // start time, as independent one-shot timeouts:
+  //   gapSeconds=5 -> publish 5 @0ms, 4 @1000ms, 3 @2000ms, 2 @3000ms, 1 @4000ms.
+  // Each callback verifies it still belongs to the active gap (gapId) and that the
+  // next track hasn't already fired, then publishes to the SHARED gapCountdown state
+  // that every surface (normal iPad view AND Coach Mode) renders. It never schedules
+  // beeps, starts the next track, or clears the number early — clearing happens only
+  // via the existing gap-complete transition (fireNextTrack) or invalidateGap.
+  const scheduleVisibleCountdown = useCallback(
+    (gapId: number, gapSeconds: number) => {
+      clearVisualCountdownTimers();
+      for (let elapsed = 0; elapsed < gapSeconds; elapsed += 1) {
+        const value = gapSeconds - elapsed;
+        const delay = elapsed * 1000;
+        console.log("[v0] VISUAL COUNTDOWN SCHEDULED value=", value, "delay=", delay);
+        const id = setTimeout(() => {
+          if (activeGapIdRef.current !== gapId) return; // superseded gap
+          if (nextTrackFiredRef.current) return; // already transitioned
+          lastDisplayedCountdownRef.current = value;
+          setGapCountdown(value);
+          console.log("[v0] VISUAL COUNTDOWN FIRED value=", value, "gapId=", gapId, "elapsed=", elapsed);
+        }, delay);
+        visualCountdownTimeoutsRef.current.push(id);
+      }
+    },
+    [clearVisualCountdownTimers],
+  );
+
   const invalidateGap = useCallback(
     (source: string) => {
       // Only meaningful if a gap/transition is actually pending. In the normal
@@ -4816,12 +4862,13 @@ export default function Page() {
       lastBeepedCountdown.current = -1;
       lastDisplayedCountdownRef.current = -1;
       cancelScheduledBeeps();
+      clearVisualCountdownTimers();
       // Tear down the gap UI so the countdown overlay can't stay stuck on screen.
       setGapCountdown(0);
       setIsGapPaused(false);
       console.log("[v0] GAP INVALIDATED source=", source, "newGapId=", activeGapIdRef.current);
     },
-    [cancelScheduledBeeps],
+    [cancelScheduledBeeps, clearVisualCountdownTimers],
   );
 
   // The SINGLE authorised path that starts the next track. It runs at most once per
@@ -4847,12 +4894,13 @@ export default function Page() {
       lastBeepedCountdown.current = -1;
       lastDisplayedCountdownRef.current = -1;
       cancelScheduledBeeps();
+      clearVisualCountdownTimers();
       setGapCountdown(0);
       setIsGapPaused(false);
       console.log("[v0] NEXT TRACK FIRED source=", source, "gapId=", gapId, cb ? "(cb present)" : "(no cb)");
       if (cb) cb();
     },
-    [cancelScheduledBeeps],
+    [cancelScheduledBeeps, clearVisualCountdownTimers],
   );
 
   // Evaluate the timestamp-anchored gap against the WALL CLOCK (Date.now()):
@@ -4945,44 +4993,46 @@ export default function Page() {
     };
   }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive, cancelScheduledBeeps]);
 
-  // ── DISPLAY-ONLY countdown tick (fixes the frozen iPad number) ─────────────────
-  // The transition/beep engine above is correct on iPad: beeps are pre-scheduled on
-  // the audio clock and the next track fires from the wall-clock deadline. The ONLY
-  // thing that broke on iPad Safari was the VISIBLE number freezing at its first
-  // value. Cause: the number was published to React state only from inside the rAF
-  // loop, and iPad Safari PAUSES requestAnimationFrame once the overlay's 1s pop-in
-  // animation ends and audio is silent (the compositor goes idle) — so the
-  // intermediate 5->4->3->2->1 setState calls never ran, even though the beeps and
-  // the final transition did.
-  //
-  // This dedicated loop drives the DISPLAY only. setInterval keeps firing on a
-  // foreground tab even when rAF is frozen (iPad clamps it to ~1s under throttling,
-  // which is exactly the cadence a 1-second countdown needs). It derives the whole
-  // second from the fixed deadline (never decrements a captured value, so no stale
-  // closure) and publishes it to the SAME shared `gapCountdown` state that every
-  // surface renders (normal iPad view AND Coach Mode). It intentionally does NOT:
-  // schedule beeps, start the next track, or alter the deadline — that stays with
-  // the untouched engine above.
+  // ── DISPLAY RECONCILIATION (fallback only — NOT the 1-second driver) ───────────
+  // The normal 5->4->3->2->1 display is driven by the individual one-shot timeouts
+  // scheduled in scheduleVisibleCountdown at gap start. Those give a reliable
+  // foreground sequence. This effect only RE-SYNCS the number after Safari has
+  // paused JS execution — tab hidden, viewport change, device lock, app switch —
+  // which can delay a pending timeout. On visibilitychange / pageshow / focus it
+  // recomputes the correct value from the fixed deadline and publishes it, so the
+  // display snaps to the right number instead of showing a stale one. It never
+  // restarts the sequence and never starts the next track (the existing completion
+  // guard owns that).
   useEffect(() => {
     if (!isGapPaused) return;
     const gapId = activeGapIdRef.current;
-    const publish = () => {
-      if (gapId !== activeGapIdRef.current) return; // superseded gap: stop touching display
+    const reconcile = () => {
+      if (gapId !== activeGapIdRef.current) return; // superseded gap
+      if (nextTrackFiredRef.current) return; // already transitioned
       const startAt = nextTrackStartAtRef.current;
       if (startAt == null) return;
       const remaining = Math.max(0, Math.ceil((startAt - Date.now()) / 1000));
-      // 0 is never shown (overlay unmounts at gap end); let "1" render its full
-      // second — the transition engine starts the next track when it reaches 0.
-      if (remaining >= 1 && lastDisplayedCountdownRef.current !== remaining) {
+      if (remaining > 0 && lastDisplayedCountdownRef.current !== remaining) {
         lastDisplayedCountdownRef.current = remaining;
-        console.log("[v0] CALCULATED REMAINING", remaining, "-> IPAD RENDERED COUNTDOWN", remaining);
         setGapCountdown(remaining);
+        console.log("[v0] VISUAL COUNTDOWN RECONCILED value=", remaining);
       }
     };
-    publish(); // paint the starting value immediately
-    const id = setInterval(publish, 200);
-    return () => clearInterval(id);
+    document.addEventListener("visibilitychange", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    window.addEventListener("focus", reconcile);
+    return () => {
+      document.removeEventListener("visibilitychange", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+      window.removeEventListener("focus", reconcile);
+    };
   }, [isGapPaused]);
+
+  // Safety: cancel any pending visible-number timeouts if the player unmounts
+  // mid-gap so stale callbacks can never fire against a torn-down tree.
+  useEffect(() => {
+    return () => clearVisualCountdownTimers();
+  }, [clearVisualCountdownTimers]);
 
   // Capacitor app-lifecycle reconciliation. iOS suspends/throttles JS timers while
   // the app is backgrounded or the phone is locked, which would otherwise leave a
