@@ -9,9 +9,19 @@ import { createClient as createSupabaseClient, type SupabaseClient } from '@supa
 //   - Mobile: createClient (@supabase/supabase-js) -> localStorage storage
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
-// Memoize the mobile client so every createClient() call shares one instance
-// (and therefore one persisted session + one auth-refresh timer).
+// Keep exactly one client per browser page for BOTH build targets.
+//
+// This is more than an optimisation. Components call createClient() while
+// rendering and use the returned object in effect dependency arrays. Returning
+// a new @supabase/ssr client on every web render repeatedly tears down and
+// restarts the auth bootstrap. On slower WebKit devices (most visibly iPad
+// Safari) that race can prevent the bootstrap from ever committing and leave
+// the player on "Checking your access…" indefinitely.
+//
+// A singleton also guarantees one persisted session and one token-refresh
+// timer in Capacitor instead of competing auth listeners.
 let mobileClient: SupabaseClient | null = null
+let browserClient: SupabaseClient | null = null
 
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -39,5 +49,8 @@ export function createClient() {
     return mobileClient
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  if (browserClient) return browserClient
+  browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  return browserClient
 }
+
