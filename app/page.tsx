@@ -843,6 +843,13 @@ export default function Page() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncingPlaylistId, setSyncingPlaylistId] = useState<string | null>(null);
   const [showDeletePlaylistConfirm, setShowDeletePlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
+  // Pending "permanently delete this playlist from the cloud?" confirmation, shown
+  // from the EQHO Cloud page's "Manage Cloud Playlists" list. Kept separate from the
+  // local-library delete confirm above so the cloud flow (authoritative Supabase +
+  // R2 delete) never changes the existing local-only delete behaviour.
+  const [showDeleteCloudPlaylistConfirm, setShowDeleteCloudPlaylistConfirm] = useState<{ id: string; name: string } | null>(null);
+  // Cloud playlist id currently being deleted from the cloud (drives its spinner).
+  const [deletingCloudPlaylistId, setDeletingCloudPlaylistId] = useState<string | null>(null);
   // Which playlist cards have their full track list expanded (by playlist id).
   const [expandedPlaylistIds, setExpandedPlaylistIds] = useState<Set<string>>(new Set());
   // Pending "delete this track permanently?" confirmation.
@@ -2225,6 +2232,53 @@ export default function Page() {
       setTimeout(() => setCloudSaveMessage(null), 6000);
     } finally {
       setDownloadingPlaylistId(null);
+    }
+  };
+
+  // Permanently delete a playlist from the cloud (EQHO Cloud page → Manage Cloud
+  // Playlists). deleteCloudPlaylist is authoritative: it removes the tracks from
+  // Cloudflare R2 and the playlist + track rows from Supabase. On success we also
+  // strip the playlist from every in-memory list (cloudPlaylists AND the local
+  // savedPlaylists library) so the card disappears everywhere at once, and stop
+  // playback if that playlist is the one currently loaded. Confirmed via the
+  // safety dialog before this ever runs.
+  const handleDeleteCloudPlaylist = async (playlistId: string, playlistName: string) => {
+    if (deletingCloudPlaylistId) return; // a delete is already running
+    console.log("[v0] CLOUD DELETE start", { playlistId, playlistName });
+    setDeletingCloudPlaylistId(playlistId);
+    setCloudSaveSuccess(false);
+    setCloudSaveMessage(`Deleting "${playlistName}" from the cloud...`);
+    try {
+      const ok = await deleteCloudPlaylist(playlistId);
+      if (!ok) {
+        console.error("[v0] CLOUD DELETE failed", { playlistId });
+        setCloudSaveSuccess(false);
+        setCloudSaveMessage(`Couldn't delete "${playlistName}" from the cloud. It was NOT removed. Please try again.`);
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+        return;
+      }
+      // Remove from cloud + local library state so it vanishes from every view.
+      setCloudPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
+      setSavedPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
+      // If this playlist is loaded in the current session, stop and clear it.
+      if (currentPlaylistName === playlistName) {
+        const audio = audioRef.current;
+        if (audio) { try { audio.pause(); } catch {} }
+        setIsPlaying(false);
+      }
+      console.log("[v0] CLOUD DELETE success", { playlistId });
+      setCloudSaveSuccess(true);
+      setCloudSaveMessage(`Deleted "${playlistName}" from the cloud`);
+      setTimeout(() => setCloudSaveMessage(null), 4000);
+    } catch (error) {
+      const detail = (error as Error)?.message || String(error);
+      console.error("[v0] CLOUD DELETE error", detail);
+      setCloudSaveSuccess(false);
+      setCloudSaveMessage(`Couldn't delete "${playlistName}" from the cloud. Please try again.`);
+      setTimeout(() => setCloudSaveMessage(null), 6000);
+    } finally {
+      setDeletingCloudPlaylistId(null);
+      setShowDeleteCloudPlaylistConfirm(null);
     }
   };
 
@@ -6034,6 +6088,47 @@ export default function Page() {
           </div>
         )}
 
+        {/* Permanent CLOUD playlist deletion confirmation (EQHO Cloud page → Manage
+            Cloud Playlists). Safety check before the authoritative R2 + Supabase
+            delete. z-[400] so it sits above the fixed mobile player and bottom nav. */}
+        {showDeleteCloudPlaylistConfirm && (
+          <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+              <h3 className="text-2xl font-bold text-white mb-2">Delete this playlist from the cloud?</h3>
+              <p className="text-white/60 mb-2 font-medium">
+                &quot;{showDeleteCloudPlaylistConfirm.name}&quot;
+              </p>
+              <p className="text-white/40 text-sm mb-6">
+                This permanently removes the playlist and its audio from your EQHO cloud
+                storage (Cloudflare R2) and every device that syncs this account. This cannot be undone.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteCloudPlaylistConfirm(null)}
+                  disabled={deletingCloudPlaylistId === showDeleteCloudPlaylistConfirm.id}
+                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCloudPlaylist(showDeleteCloudPlaylistConfirm.id, showDeleteCloudPlaylistConfirm.name)}
+                  disabled={deletingCloudPlaylistId === showDeleteCloudPlaylistConfirm.id}
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {deletingCloudPlaylistId === showDeleteCloudPlaylistConfirm.id ? (
+                    <><Loader2 size={16} className="animate-spin" /> Deleting…</>
+                  ) : (
+                    "Yes, Delete"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Permanent Track Deletion Confirmation (from the Playlists library).
             z-[400] so it renders ABOVE the fixed mobile player (z-[300]) and the
             mobile bottom nav (z-40); at z-[200] the dialog opened behind the mobile
@@ -8650,6 +8745,64 @@ export default function Page() {
                       </button>
                     </div>
                     
+                    {/* Manage Cloud Playlists — permanently delete a playlist from
+                        Cloudflare R2 + Supabase. Web only: deleteCloudPlaylist is a
+                        no-op on the read-only mobile build. */}
+                    {!isMobileBuild && (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center">
+                            <Trash2 size={18} />
+                          </div>
+                          <div>
+                            <h2 className="text-lg font-bold">Manage Cloud Playlists</h2>
+                            <p className="text-white/50 text-sm">Permanently delete playlists from your cloud</p>
+                          </div>
+                        </div>
+                        <p className="text-white/70 text-sm mb-4">
+                          Deleting a playlist here removes it and its audio from your EQHO cloud
+                          storage. This removes it from every device that syncs this account and
+                          cannot be undone.
+                        </p>
+                        {cloudPlaylists.length === 0 ? (
+                          <p className="text-white/40 text-sm italic py-2">
+                            No playlists in your cloud yet. Upload one to get started.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {cloudPlaylists.map((cp) => {
+                              const isDeleting = deletingCloudPlaylistId === cp.id;
+                              return (
+                                <div
+                                  key={cp.id}
+                                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3"
+                                >
+                                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0">
+                                    <Cloud size={16} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-sm font-bold text-white truncate">{cp.name}</h3>
+                                    <p className="text-xs text-white/50">{cp.tracks.length} tracks</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowDeleteCloudPlaylistConfirm({ id: cp.id, name: cp.name })}
+                                    disabled={isDeleting}
+                                    aria-label={`Delete ${cp.name} from cloud`}
+                                    className="shrink-0 px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-semibold
+                                               hover:bg-red-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                  >
+                                    {isDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                                    {isDeleting ? "Deleting…" : "Delete"}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Download Playlists Section (Local Export) */}
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                       <div className="flex items-center gap-3 mb-4">
