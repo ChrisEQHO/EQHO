@@ -5532,7 +5532,7 @@ export default function Page() {
           intercept taps meant for the player; only the toggle button is
           interactive. Collapsed to a small badge by default. Does not change
           playback, countdown, styling or layout. Remove once verified. */}
-      {isIPadWeb && diag && (
+      {false && isIPadWeb && diag && (
         <div
           className="pointer-events-none fixed top-0 right-0 z-[999] flex max-w-[100vw] flex-col items-end"
           style={{ paddingTop: "calc(6px + env(safe-area-inset-top))", paddingRight: "8px" }}
