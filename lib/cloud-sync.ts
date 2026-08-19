@@ -307,7 +307,7 @@ export async function deleteCloudPlaylist(playlistId: string): Promise<boolean> 
   if (!supabase) return false
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) return false
 
   // Delete all files from R2 for this playlist
   await deletePlaylistFromR2(user.id, playlistId)
