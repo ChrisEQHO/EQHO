@@ -285,20 +285,31 @@ export async function updateCloudPlaylist(
 ): Promise<boolean> {
   if (isMobileBuild) return false // Read-only on mobile
 
-  const supabase = createClient()
-  if (!supabase) return false
+  // Update via the authoritative server route. The previous implementation ran
+  // the Supabase update on the CLIENT with the anon key; without an RLS UPDATE
+  // policy that update matched 0 rows and returned no error, so a reordered
+  // track_order "saved" in the UI but never persisted — the playlist reverted to
+  // its old order on the next upload/fetch. The /api/playlists/update route
+  // verifies ownership and writes with the service role, so it always takes effect.
+  try {
+    const response = await fetch(`${getApiBase()}/api/playlists/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+      body: JSON.stringify({ playlistId, updates }),
+    })
 
-  const { error } = await supabase
-    .from('playlists')
-    .update(updates)
-    .eq('id', playlistId)
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      console.error('[v0] updateCloudPlaylist failed', response.status, detail)
+      return false
+    }
 
-  if (error) {
-    console.error('Error updating playlist:', error)
+    const result = await response.json().catch(() => ({}))
+    return result?.success === true
+  } catch (error) {
+    console.error('[v0] updateCloudPlaylist error', error)
     return false
   }
-
-  return true
 }
 
 export async function deleteCloudPlaylist(playlistId: string): Promise<boolean> {

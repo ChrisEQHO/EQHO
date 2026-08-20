@@ -1360,6 +1360,40 @@ export default function Page() {
     } catch {}
   }, [currentPlaylistName, playlist.length, playlistLoaded]);
 
+  // Keep the SAVED playlist's track order in sync with the active session queue.
+  // Reordering (drag on desktop, up/down buttons on mobile) only mutates the
+  // active `playlist`; the upload/sync flow reads `savedPlaylists`, so without
+  // this the new order never reached the cloud and reverted on the next upload.
+  // We only rewrite when the matching saved playlist has the EXACT same set of
+  // tracks in a DIFFERENT order (a pure reorder) — never when tracks were
+  // added/removed/hidden, so this can't clobber those flows (they manage
+  // savedPlaylists themselves). The savedPlaylists persist effect then writes the
+  // new order to IndexedDB automatically.
+  useEffect(() => {
+    if (!playlistLoaded) return;
+    if (playlist.length === 0) return;
+    const activeIds = playlist.map((t) => t.id);
+    const activeKey = [...activeIds].sort().join("|");
+    setSavedPlaylists((prev) => {
+      const idx = prev.findIndex((p) => p.name === currentPlaylistName);
+      if (idx === -1) return prev; // active session isn't a saved playlist
+      const saved = prev[idx];
+      if (saved.tracks.length !== activeIds.length) return prev; // membership changed
+      const savedKey = [...saved.tracks.map((t) => t.id)].sort().join("|");
+      if (savedKey !== activeKey) return prev; // different tracks, not a reorder
+      const currentOrder = saved.tracks.map((t) => t.id).join("|");
+      if (currentOrder === activeIds.join("|")) return prev; // already in this order
+      // Pure reorder: reorder the saved entry's tracks to match the active order.
+      const byId = new Map(saved.tracks.map((t) => [t.id, t]));
+      const reordered = activeIds.map((id) => byId.get(id)!).filter(Boolean);
+      const nextSaved = { ...saved, tracks: reordered };
+      const next = [...prev];
+      next[idx] = nextSaved;
+      console.log("[v0] REORDER synced to saved playlist", currentPlaylistName);
+      return next;
+    });
+  }, [playlist, currentPlaylistName, playlistLoaded]);
+
   // Fullscreen toggle function
   const toggleFullscreen = useCallback(async () => {
     if (!isFullscreen) {
