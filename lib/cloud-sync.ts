@@ -312,33 +312,49 @@ export async function updateCloudPlaylist(
   }
 }
 
-export async function deleteCloudPlaylist(playlistId: string): Promise<boolean> {
-  if (isMobileBuild) return false // Read-only on mobile
+export interface DeleteCloudPlaylistResult {
+  success: boolean
+  error?: string
+  deletedPlaylists?: number
+  deletedObjects?: number
+}
 
-  // Delete via the authoritative server route. The previous implementation ran
-  // the Supabase row deletes on the CLIENT with the anon key; without an RLS
-  // DELETE policy those deletes matched 0 rows and returned no error, so the
-  // playlist "deleted" successfully in the UI but reappeared on the next fetch.
-  // The /api/playlists/delete route verifies ownership and deletes both the R2
-  // objects and the DB rows with the service role, so it always takes effect.
+// Delete a playlist from the cloud via the authoritative server route. Pass the
+// playlist NAME as well as the id: cards in the Playlists library carry a LOCAL
+// IndexedDB id that is NOT the Supabase UUID, so the server matches by name
+// (scoped to the user) when the id isn't a cloud UUID. Without the name, deleting
+// from the library silently missed the cloud copy and it came back on next sync.
+// Returns a structured result so the UI can show the real server error.
+export async function deleteCloudPlaylist(
+  playlistId: string,
+  name?: string,
+): Promise<DeleteCloudPlaylistResult> {
+  if (isMobileBuild) return { success: false, error: 'Deleting is not available in the app' }
+
   try {
     const response = await fetch(`${getApiBase()}/api/playlists/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
-      body: JSON.stringify({ playlistId }),
+      body: JSON.stringify({ playlistId, name }),
     })
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
+    const result = await response.json().catch(() => ({} as Record<string, unknown>))
+
+    if (!response.ok || result?.success !== true) {
+      const detail = (result?.error as string) || `Server error ${response.status}`
       console.error('[v0] deleteCloudPlaylist failed', response.status, detail)
-      return false
+      return { success: false, error: detail }
     }
 
-    const result = await response.json().catch(() => ({}))
-    return result?.success === true
+    return {
+      success: true,
+      deletedPlaylists: result?.deletedPlaylists as number | undefined,
+      deletedObjects: result?.deletedObjects as number | undefined,
+    }
   } catch (error) {
-    console.error('[v0] deleteCloudPlaylist error', error)
-    return false
+    const detail = (error as Error)?.message || String(error)
+    console.error('[v0] deleteCloudPlaylist error', detail)
+    return { success: false, error: detail }
   }
 }
 

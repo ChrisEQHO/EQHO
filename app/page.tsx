@@ -2283,12 +2283,12 @@ export default function Page() {
     setCloudSaveSuccess(false);
     setCloudSaveMessage(`Deleting "${playlistName}" from the cloud...`);
     try {
-      const ok = await deleteCloudPlaylist(playlistId);
-      if (!ok) {
-        console.error("[v0] CLOUD DELETE failed", { playlistId });
+      const result = await deleteCloudPlaylist(playlistId, playlistName);
+      if (!result.success) {
+        console.error("[v0] CLOUD DELETE failed", { playlistId, error: result.error });
         setCloudSaveSuccess(false);
-        setCloudSaveMessage(`Couldn't delete "${playlistName}" from the cloud. It was NOT removed. Please try again.`);
-        setTimeout(() => setCloudSaveMessage(null), 6000);
+        setCloudSaveMessage(`Couldn't delete "${playlistName}": ${result.error || "unknown error"}. It was NOT removed.`);
+        setTimeout(() => setCloudSaveMessage(null), 7000);
         return;
       }
       // Remove from cloud + local library state so it vanishes from every view.
@@ -6105,8 +6105,17 @@ export default function Page() {
                     // handler itself no-ops on the read-only mobile build). Fire and forget
                     // — the local removal above already updated the UI + persistence.
                     if (!isMobileBuild) {
-                      void deleteCloudPlaylist(playlistId)
-                        .then((ok) => console.log("[v0] DELETE PLAYLIST cloud metadata delete result", { ok }))
+                      // Pass the NAME too: a library card's id is the LOCAL id, not the
+                      // cloud UUID, so the server matches by name to remove the cloud copy.
+                      void deleteCloudPlaylist(playlistId, playlistName)
+                        .then((result) => {
+                          console.log("[v0] DELETE PLAYLIST cloud delete result", result);
+                          if (!result.success) {
+                            setCloudSaveSuccess(false);
+                            setCloudSaveMessage(`Removed locally, but the cloud copy could not be deleted: ${result.error || "unknown error"}.`);
+                            setTimeout(() => setCloudSaveMessage(null), 7000);
+                          }
+                        })
                         .catch((err) => console.error("[v0] DELETE PLAYLIST cloud delete failed", (err as Error)?.message || String(err)));
                     }
                     // Always close the dialog (previously the mobile early-return path in
