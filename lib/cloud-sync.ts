@@ -329,8 +329,12 @@ export async function deleteCloudPlaylist(
   playlistId: string,
   name?: string,
 ): Promise<DeleteCloudPlaylistResult> {
-  if (isMobileBuild) return { success: false, error: 'Deleting is not available in the app' }
-
+  // NOTE: deleting IS allowed on the mobile (Capacitor) build. Unlike uploads,
+  // a delete is a safe, authenticated operation: getApiBase() points the request
+  // at the DEPLOYED https API and getAuthHeaders() attaches the Supabase access
+  // token as a Bearer header (the exact same cross-origin + token path that makes
+  // downloads work in the iPad app). Blocking it here was the reason the cloud
+  // delete button did nothing inside the app.
   try {
     const response = await fetch(`${getApiBase()}/api/playlists/delete`, {
       method: 'POST',
