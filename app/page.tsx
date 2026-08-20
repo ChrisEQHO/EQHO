@@ -8789,9 +8789,10 @@ export default function Page() {
                     </div>
                     
                     {/* Manage Cloud Playlists — permanently delete a playlist from
-                        Cloudflare R2 + Supabase. Web only: deleteCloudPlaylist is a
-                        no-op on the read-only mobile build. */}
-                    {!isMobileBuild && (
+                        Cloudflare R2 + Supabase. Available on BOTH web and the iPad
+                        (Capacitor) app: the delete call is authenticated against the
+                        deployed API with a Bearer token, just like downloads. */}
+                    {(
                       <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center">
