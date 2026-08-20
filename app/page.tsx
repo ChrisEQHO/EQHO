@@ -6062,75 +6062,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Delete Playlist Confirmation.
-            z-[400] so it renders ABOVE the fixed mobile player (z-[300]) and the
-            mobile bottom nav (z-40). At the old z-[200] this dialog opened BEHIND
-            the mobile player, so tapping the trash icon looked like it "did nothing"
-            on iPhone/iPad. (Same fix already applied to the track-delete dialog.) */}
-        {showDeletePlaylistConfirm && (
-          <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
-            <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-              <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
-              <h3 className="text-2xl font-bold text-white mb-2">Delete this playlist permanently?</h3>
-              <p className="text-white/60 mb-6">
-                This will remove &quot;{showDeletePlaylistConfirm.name}&quot; and its saved setup. Tracks used by other playlists will not be deleted.
-              </p>
-              <div className="flex gap-4 justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowDeletePlaylistConfirm(null)}
-                  className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const playlistId = showDeletePlaylistConfirm.id;
-                    const playlistName = showDeletePlaylistConfirm.name;
-                    console.log("[v0] DELETE PLAYLIST confirmation accepted", { playlistId, playlistName });
-                    // Remove from BOTH local and cloud UI state immediately so the card
-                    // disappears everywhere it is rendered (savedPlaylists + cloudPlaylists).
-                    // The savedPlaylists persist effect writes the change through to
-                    // IndexedDB (clearing the store when this was the last playlist).
-                    setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
-                    setCloudPlaylists(prev => prev.filter(p => p.id !== playlistId));
-                    // If the deleted playlist is loaded in the session, clear Now Playing.
-                    if (currentPlaylistName === playlistName) {
-                      const audio = audioRef.current;
-                      if (audio) { try { audio.pause(); } catch {} }
-                      setIsPlaying(false);
-                    }
-                    // Best-effort authoritative cloud metadata delete (desktop only; the
-                    // handler itself no-ops on the read-only mobile build). Fire and forget
-                    // — the local removal above already updated the UI + persistence.
-                    if (!isMobileBuild) {
-                      // Pass the NAME too: a library card's id is the LOCAL id, not the
-                      // cloud UUID, so the server matches by name to remove the cloud copy.
-                      void deleteCloudPlaylist(playlistId, playlistName)
-                        .then((result) => {
-                          console.log("[v0] DELETE PLAYLIST cloud delete result", result);
-                          if (!result.success) {
-                            setCloudSaveSuccess(false);
-                            setCloudSaveMessage(`Removed locally, but the cloud copy could not be deleted: ${result.error || "unknown error"}.`);
-                            setTimeout(() => setCloudSaveMessage(null), 7000);
-                          }
-                        })
-                        .catch((err) => console.error("[v0] DELETE PLAYLIST cloud delete failed", (err as Error)?.message || String(err)));
-                    }
-                    // Always close the dialog (previously the mobile early-return path in
-                    // handleDeleteCloudPlaylist left this dialog stuck open).
-                    setShowDeletePlaylistConfirm(null);
-                  }}
-                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition"
-                >
-                  Yes, Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Permanent CLOUD playlist deletion confirmation (EQHO Cloud page → Manage
             Cloud Playlists). Safety check before the authoritative R2 + Supabase
             delete. z-[400] so it sits above the fixed mobile player and bottom nav. */}
@@ -8564,7 +8495,8 @@ export default function Page() {
                                     {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/50"} />}
                                   </button>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
+                                    type="button"
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
                                     className="w-7 h-7 rounded-md bg-white/10 hover:bg-red-500/30 flex items-center justify-center transition"
                                     title="Delete"
                                   >
@@ -10486,7 +10418,8 @@ export default function Page() {
                                           {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/40"} />}
                                         </button>
                                         <button
-                                          onClick={(e) => { e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
+                                          type="button"
+                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
                                           className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
                                         >
                                           <Trash2 size={12} className="text-white/40" />
@@ -11342,6 +11275,80 @@ export default function Page() {
       {toastMessage && (
         <div className="fixed bottom-[140px] left-1/2 -translate-x-1/2 z-[60] px-6 py-3 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 text-sm font-medium backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-300">
           {toastMessage}
+        </div>
+      )}
+
+      {/* Shared Delete Playlist Confirmation (used by desktop, iPad AND phone).
+          Rendered here at the ROOT of the component return — NOT inside the
+          fullscreen/coach container or any activePage/layout branch — so the bin
+          button on the Playlists page always opens it. (It previously lived inside
+          the `hidden`-unless-fullscreen coach overlay, which is why clicking the bin
+          appeared to do nothing.) There is exactly ONE copy of this modal. */}
+      {showDeletePlaylistConfirm && (
+        <div className="eqho-dialog fixed inset-0 z-[400] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <Trash2 size={48} className="mx-auto mb-4 text-red-500" />
+            <h3 className="text-2xl font-bold text-white mb-2">Delete this playlist permanently?</h3>
+            <p className="text-white/60 mb-6">
+              This will remove &quot;{showDeletePlaylistConfirm.name}&quot; and its saved setup. Tracks used by other playlists will not be deleted.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                type="button"
+                onClick={() => setShowDeletePlaylistConfirm(null)}
+                disabled={deletingCloudPlaylistId === showDeletePlaylistConfirm.id}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const playlistId = showDeletePlaylistConfirm.id;
+                  const playlistName = showDeletePlaylistConfirm.name;
+                  console.log("[v0] DELETE PLAYLIST confirmation accepted", { playlistId, playlistName });
+                  setDeletingCloudPlaylistId(playlistId);
+                  setCloudSaveMessage(null);
+                  // SERVER-FIRST: ask the authoritative route to delete from Cloudflare
+                  // R2 + Supabase before touching local state. Pass the NAME too — a
+                  // library card carries the LOCAL id, not the cloud UUID, so the server
+                  // matches by name to find the cloud copy. Only after the server
+                  // confirms success do we remove the card locally; on failure the
+                  // playlist stays visible and we surface the exact error.
+                  const result = await deleteCloudPlaylist(playlistId, playlistName);
+                  console.log("[v0] DELETE PLAYLIST cloud delete result", result);
+                  if (!result.success) {
+                    setCloudSaveSuccess(false);
+                    setCloudSaveMessage(`Couldn't delete "${playlistName}": ${result.error || "unknown error"}. It was NOT removed.`);
+                    setTimeout(() => setCloudSaveMessage(null), 7000);
+                    setDeletingCloudPlaylistId(null);
+                    return; // keep the playlist visible
+                  }
+                  // Confirmed deleted on the server — now remove from every local view.
+                  setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
+                  setCloudPlaylists(prev => prev.filter(p => p.id !== playlistId && p.name !== playlistName));
+                  if (currentPlaylistName === playlistName) {
+                    const audio = audioRef.current;
+                    if (audio) { try { audio.pause(); } catch {} }
+                    setIsPlaying(false);
+                  }
+                  setCloudSaveSuccess(true);
+                  setCloudSaveMessage(`Deleted "${playlistName}"`);
+                  setTimeout(() => setCloudSaveMessage(null), 4000);
+                  setDeletingCloudPlaylistId(null);
+                  setShowDeletePlaylistConfirm(null);
+                }}
+                disabled={deletingCloudPlaylistId === showDeletePlaylistConfirm.id}
+                className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {deletingCloudPlaylistId === showDeletePlaylistConfirm.id ? (
+                  <><Loader2 size={16} className="animate-spin" /> Deleting…</>
+                ) : (
+                  "Yes, Delete"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
