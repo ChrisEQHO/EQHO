@@ -130,14 +130,16 @@ export async function POST(request: NextRequest) {
   const user = await resolveUser(request, supabase)
   if (!user) return json({ error: 'Unauthorized' }, 401)
 
-  let playlistId = ''
+  let rawId = ''
+  let name = ''
   try {
     const body = await request.json()
-    playlistId = typeof body?.playlistId === 'string' ? body.playlistId : ''
+    rawId = typeof body?.playlistId === 'string' ? body.playlistId.trim() : ''
+    name = typeof body?.name === 'string' ? body.name.trim() : ''
   } catch {
     return json({ error: 'Invalid request body' }, 400)
   }
-  if (!playlistId) return json({ error: 'Missing playlistId' }, 400)
+  if (!rawId && !name) return json({ error: 'Missing playlistId or name' }, 400)
 
   const serviceUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -148,59 +150,75 @@ export async function POST(request: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Verify ownership before deleting anything.
-  const { data: playlist, error: ownErr } = await admin
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const idIsUuid = UUID_RE.test(rawId)
+
+  // Resolve which cloud playlist(s) to delete, ALWAYS scoped to this user. The
+  // client may send:
+  //   • a Supabase UUID (Manage Cloud Playlists list) — match by id, or
+  //   • a LOCAL IndexedDB id that is NOT the cloud UUID (Playlists library card)
+  //     plus the playlist name — in which case we match by name instead.
+  // Matching by name is safe because it's scoped to user_id, and it's the reason
+  // deleting from the library used to silently fail (local id != cloud id, so the
+  // old `.eq('id', localId)` matched nothing and the cloud copy survived).
+  const { data: userPlaylists, error: listErr } = await admin
     .from('playlists')
-    .select('id, user_id')
-    .eq('id', playlistId)
-    .maybeSingle()
+    .select('id, name')
+    .eq('user_id', user.id)
 
-  if (ownErr) {
-    console.error('[v0] playlist delete: ownership lookup failed', ownErr.message)
-    return json({ error: 'Lookup failed' }, 500)
-  }
-  if (!playlist) {
-    // Already gone from the DB — still attempt R2 cleanup below, then succeed so
-    // the client can reconcile its UI. (Idempotent delete.)
-    console.log('[v0] playlist delete: playlist not in DB, treating as already deleted', playlistId)
-  } else if (playlist.user_id !== user.id) {
-    return json({ error: 'Forbidden' }, 403)
+  if (listErr) {
+    console.error('[v0] playlist delete: playlist lookup failed', listErr.message)
+    return json({ error: `Lookup failed: ${listErr.message}` }, 500)
   }
 
-  // 1) Delete all audio from R2 (best-effort; report but don't abort DB cleanup).
-  let deletedObjects = 0
+  const targets = (userPlaylists || []).filter(
+    (p) => (idIsUuid && p.id === rawId) || (!!name && p.name === name),
+  )
+
+  if (targets.length === 0) {
+    // Nothing in the cloud matches — already deleted or never uploaded. Idempotent
+    // success so the client can safely drop it from its UI.
+    console.log('[v0] playlist delete: no matching cloud playlist, treating as already deleted', { rawId, name })
+    return json({ success: true, deletedObjects: 0, deletedPlaylists: 0 })
+  }
+
   const r2 = createR2Client()
-  if (r2) {
-    try {
-      deletedObjects = await deletePlaylistObjects(r2, user.id, playlistId)
-    } catch (e) {
-      console.error('[v0] playlist delete: R2 cleanup error', (e as Error)?.message)
+  let deletedObjects = 0
+  let deletedPlaylists = 0
+
+  for (const target of targets) {
+    // 1) Delete all audio from R2 (best-effort; don't abort DB cleanup on error).
+    if (r2) {
+      try {
+        deletedObjects += await deletePlaylistObjects(r2, user.id, target.id)
+      } catch (e) {
+        console.error('[v0] playlist delete: R2 cleanup error', (e as Error)?.message)
+      }
     }
-  } else {
-    console.warn('[v0] playlist delete: R2 not configured, skipping object cleanup')
+
+    // 2) Delete DB rows with the service role, scoped by user_id for safety.
+    const { error: tracksErr } = await admin
+      .from('tracks')
+      .delete()
+      .eq('playlist_id', target.id)
+      .eq('user_id', user.id)
+    if (tracksErr) {
+      console.error('[v0] playlist delete: tracks delete failed', tracksErr.message)
+      return json({ error: `Failed to delete tracks: ${tracksErr.message}` }, 500)
+    }
+
+    const { error: playlistErr } = await admin
+      .from('playlists')
+      .delete()
+      .eq('id', target.id)
+      .eq('user_id', user.id)
+    if (playlistErr) {
+      console.error('[v0] playlist delete: playlist delete failed', playlistErr.message)
+      return json({ error: `Failed to delete playlist: ${playlistErr.message}` }, 500)
+    }
+    deletedPlaylists += 1
   }
 
-  // 2) Delete DB rows with the service role (scoped by user_id for safety).
-  const { error: tracksErr } = await admin
-    .from('tracks')
-    .delete()
-    .eq('playlist_id', playlistId)
-    .eq('user_id', user.id)
-  if (tracksErr) {
-    console.error('[v0] playlist delete: tracks delete failed', tracksErr.message)
-    return json({ error: 'Failed to delete tracks' }, 500)
-  }
-
-  const { error: playlistErr } = await admin
-    .from('playlists')
-    .delete()
-    .eq('id', playlistId)
-    .eq('user_id', user.id)
-  if (playlistErr) {
-    console.error('[v0] playlist delete: playlist delete failed', playlistErr.message)
-    return json({ error: 'Failed to delete playlist' }, 500)
-  }
-
-  console.log('[v0] playlist delete: success', { playlistId, deletedObjects })
-  return json({ success: true, deletedObjects })
+  console.log('[v0] playlist delete: success', { deletedPlaylists, deletedObjects })
+  return json({ success: true, deletedObjects, deletedPlaylists })
 }
