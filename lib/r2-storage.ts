@@ -24,7 +24,7 @@ export function getApiBase(): string {
 
 // Build the Authorization header from the current Supabase session. Harmless on
 // web (the API route still prefers the cookie session); required on mobile.
-async function getAuthHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const supabase = createClient()
     if (!supabase) return {}
