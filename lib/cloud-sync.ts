@@ -3,7 +3,6 @@ import {
   uploadTrackToR2,
   downloadTrackFromR2,
   deleteTrackFromR2,
-  deletePlaylistFromR2,
   getTrackStorageKey,
   isR2Configured,
   uploadPlaylistMetadataToR2,
@@ -12,6 +11,8 @@ import {
   listPlaylistTracksFromR2,
   getSignedDownloadUrl,
   probeTrackAccess,
+  getApiBase,
+  getAuthHeaders,
 } from '@/lib/r2-storage'
 
 // Types matching the Supabase schema
@@ -284,49 +285,61 @@ export async function updateCloudPlaylist(
 ): Promise<boolean> {
   if (isMobileBuild) return false // Read-only on mobile
 
-  const supabase = createClient()
-  if (!supabase) return false
+  // Update via the authoritative server route. The previous implementation ran
+  // the Supabase update on the CLIENT with the anon key; without an RLS UPDATE
+  // policy that update matched 0 rows and returned no error, so a reordered
+  // track_order "saved" in the UI but never persisted — the playlist reverted to
+  // its old order on the next upload/fetch. The /api/playlists/update route
+  // verifies ownership and writes with the service role, so it always takes effect.
+  try {
+    const response = await fetch(`${getApiBase()}/api/playlists/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+      body: JSON.stringify({ playlistId, updates }),
+    })
 
-  const { error } = await supabase
-    .from('playlists')
-    .update(updates)
-    .eq('id', playlistId)
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      console.error('[v0] updateCloudPlaylist failed', response.status, detail)
+      return false
+    }
 
-  if (error) {
-    console.error('Error updating playlist:', error)
+    const result = await response.json().catch(() => ({}))
+    return result?.success === true
+  } catch (error) {
+    console.error('[v0] updateCloudPlaylist error', error)
     return false
   }
-
-  return true
 }
 
 export async function deleteCloudPlaylist(playlistId: string): Promise<boolean> {
   if (isMobileBuild) return false // Read-only on mobile
 
-  const supabase = createClient()
-  if (!supabase) return false
+  // Delete via the authoritative server route. The previous implementation ran
+  // the Supabase row deletes on the CLIENT with the anon key; without an RLS
+  // DELETE policy those deletes matched 0 rows and returned no error, so the
+  // playlist "deleted" successfully in the UI but reappeared on the next fetch.
+  // The /api/playlists/delete route verifies ownership and deletes both the R2
+  // objects and the DB rows with the service role, so it always takes effect.
+  try {
+    const response = await fetch(`${getApiBase()}/api/playlists/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+      body: JSON.stringify({ playlistId }),
+    })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return false
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      console.error('[v0] deleteCloudPlaylist failed', response.status, detail)
+      return false
+    }
 
-  // Delete all files from R2 for this playlist
-  await deletePlaylistFromR2(user.id, playlistId)
-
-  // Delete tracks from database
-  await supabase.from('tracks').delete().eq('playlist_id', playlistId)
-
-  // Delete playlist
-  const { error } = await supabase
-    .from('playlists')
-    .delete()
-    .eq('id', playlistId)
-
-  if (error) {
-    console.error('Error deleting playlist:', error)
+    const result = await response.json().catch(() => ({}))
+    return result?.success === true
+  } catch (error) {
+    console.error('[v0] deleteCloudPlaylist error', error)
     return false
   }
-
-  return true
 }
 
 // =====================
