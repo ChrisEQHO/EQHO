@@ -64,6 +64,57 @@ export async function uploadTrackToR2(
   file: File,
   metadata: { title: string; duration: number }
 ): Promise<R2UploadResult> {
+  // PRIMARY: presigned PUT — upload the bytes DIRECTLY from the browser to R2.
+  //
+  // Why: the old path streamed the file as multipart/form-data through the
+  // /api/r2 Route Handler. On Vercel a Serverless function request body is hard
+  // capped at ~4.5 MB, so any normal audio track (a 2–3 min MP3 at 192–320 kbps
+  // is ~4–7 MB, WAV far larger) was rejected with 413 before it could be stored.
+  // When every track in a playlist exceeded that, the whole push failed —
+  // exactly the "Push Unsuccessful" card. A presigned PUT goes straight to R2
+  // and has no such size limit.
+  //
+  // The Content-Type sent on the PUT MUST equal the one used to sign the URL, or
+  // R2 returns SignatureDoesNotMatch — so we send the identical value both times.
+  const putContentType = file.type || 'audio/mpeg'
+  try {
+    const signRes = await fetch(`${getApiBase()}/api/r2`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+      body: JSON.stringify({
+        playlistId,
+        trackId,
+        fileName: file.name,
+        contentType: putContentType,
+      }),
+    })
+
+    if (signRes.ok) {
+      const { uploadUrl, key } = await signRes.json()
+      if (uploadUrl && key) {
+        const putRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': putContentType },
+          body: file,
+        })
+        if (putRes.ok) {
+          return { success: true, key }
+        }
+        console.warn(
+          `[v0] R2 presigned PUT failed (status ${putRes.status}) for "${metadata.title}" — falling back to server upload. If large files keep failing, the R2 bucket needs a CORS policy allowing PUT from this origin.`
+        )
+      }
+    } else {
+      console.warn(`[v0] R2 presign request failed (status ${signRes.status}) — falling back to server upload`)
+    }
+  } catch (err) {
+    console.warn('[v0] R2 presigned upload error, falling back to server upload:', err)
+  }
+
+  // FALLBACK: multipart upload through the API route. This works without any R2
+  // bucket CORS config, but is still bounded by the serverless body limit, so it
+  // only succeeds for small files. Kept so nothing regresses when the presigned
+  // path is unavailable.
   try {
     const formData = new FormData()
     formData.append('file', file)
@@ -79,8 +130,9 @@ export async function uploadTrackToR2(
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      return { success: false, error: error.error || 'Upload failed' }
+      let message = 'Upload failed'
+      try { message = (await response.json())?.error || message } catch {}
+      return { success: false, error: message }
     }
 
     const result = await response.json()

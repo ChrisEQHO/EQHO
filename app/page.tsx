@@ -1046,7 +1046,16 @@ export default function Page() {
     } else {
       // Keep the loader visible (never flash the player) while redirecting.
       setGate("checking");
+      // Use a HARD navigation, not just router.replace. In this app's environment
+      // the Next.js client router has been observed to silently no-op (the same
+      // issue that broke the "Forgot your password?" button), which left logged-out
+      // users stuck forever on "Checking your access…". window.location.replace is
+      // a guaranteed browser navigation and also works in the Capacitor static
+      // export. router.replace stays as a fast-path attempt first.
       router.replace("/login");
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
     }
   }, [authChecked, user, router, gate]);
 
@@ -4238,7 +4247,7 @@ export default function Page() {
       setIsGapPaused(false);
       setGapCountdown(0);
       setIsPlaying(true);
-      // New track started — arm the completion detector for it.
+      // New track started �� arm the completion detector for it.
       nativeTrackCompletedRef.current = false;
     },
     onGapStarted: ({ seconds }) => {
@@ -5718,7 +5727,34 @@ export default function Page() {
   const coachViewActive = isFullscreen || showFullscreenMobilePlayer;
 
   return (
-    <div className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white">
+    <div
+      className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
+      // Publish the banner's fixed height so the layout height calcs below can
+      // reserve space for it (keeps the bottom controls from being clipped).
+      style={{ ["--promo-banner-height" as string]: "44px" } as React.CSSProperties}
+    >
+      {/* Branded launch/trial promo banner — full width, sits above every player
+          surface. Uses the EQHO brand orange → pink gradient (matching the logo) at
+          low opacity so it reads as a subtle on-brand strip, not a loud alert. Fixed
+          44px height matches the --promo-banner-height var above. */}
+      <div className="relative z-10 flex h-11 w-full items-center justify-center gap-2 overflow-hidden border-b border-white/10 px-3 text-center bg-[linear-gradient(90deg,rgba(255,138,0,0.16),rgba(255,79,163,0.20))]">
+        <Crown size={15} className="shrink-0 text-[#ff8a00]" />
+        <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
+          <span className="sm:hidden">
+            Free until 31 Aug ·{" "}
+            <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
+              30-day trial from 1 Sept
+            </span>
+          </span>
+          <span className="hidden sm:inline">
+            Free to use until 31st August —{" "}
+            <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
+              30-day free trial available from 1st September
+            </span>
+          </span>
+        </p>
+      </div>
+
       {/* Unified full-screen countdown — shown on EVERY web player surface
           (desktop, iPad, mobile web) during the inter-track gap so the "get ready"
           countdown looks identical to the native mobile app. Mounted once at the
@@ -7601,7 +7637,7 @@ export default function Page() {
             // or with larger accessibility fonts it wraps to 2+ rows and exceeds 100px —
             // which previously covered the bottom of the grid (e.g. the last playlist's
             // Download/delete buttons). The ResizeObserver keeps this var in sync.
-            height: "calc(100dvh - var(--mobile-controls-height, 100px))",
+            height: "calc(100dvh - var(--mobile-controls-height, 100px) - var(--promo-banner-height, 0px))",
             ...(coachViewActive ? { display: "none" } : {}),
           }}
           >
@@ -9734,7 +9770,7 @@ export default function Page() {
           // the content region always ends at the bar's top edge. Falls back to
           // 112px before the first measurement.
           height:
-            "calc(100dvh - var(--mobile-controls-height, 112px) - env(safe-area-inset-top))",
+            "calc(100dvh - var(--mobile-controls-height, 112px) - var(--promo-banner-height, 0px) - env(safe-area-inset-top))",
           // When a Coach overlay is open, fully hide this normal layout so it can
           // never show through beneath the overlay on iPad Safari. Inline display
           // wins over the base `flex`/`desktop:hidden` classes.

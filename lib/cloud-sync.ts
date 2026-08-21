@@ -1168,7 +1168,7 @@ export async function uploadPlaylistToCloud(
         success: false,
         uploadedTracks: 0,
         skippedTracks: skippedCount,
-        error: 'Track audio upload failed. Cloudflare R2 storage is not configured on the server.',
+        error: 'Track audio upload failed. Please try again — if it keeps failing, contact support.',
       }
     }
 

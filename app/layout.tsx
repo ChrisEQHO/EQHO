@@ -48,14 +48,27 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-[#020617] overflow-x-hidden" suppressHydrationWarning>
       <head>
-        {/* Select the existing desktop grid for true desktops and landscape iPads;
-            keep the existing phone stack for iPhones and portrait iPads. The
-            attribute is updated when Safari changes orientation/viewport, so no
-            reload is required. CSS still requires a width of at least 1024px. */}
+        {/* Layout selection (runs before first paint).
+
+            iPad web player === desktop web player (product requirement). iPad Safari
+            can't fit the fixed-column desktop grid at its native CSS width, so instead
+            of a separate tablet layout we make Safari render the FULL desktop layout at
+            a fixed 1280px reference width and zoom-to-fit. Result: the exact desktop
+            grid, columns and breakpoints (xl matches at 1280), just scaled to the iPad
+            screen — identical look AND behaviour, both orientations.
+
+            Mechanism: overwrite the viewport meta with `width=1280` (NO initial-scale,
+            or Safari would refuse to shrink and add horizontal scroll) and always set
+            [data-desktop-layout]. We overwrite EVERY viewport meta so Next's own
+            `viewport` export (which sets initial-scale=1) can't re-introduce 1:1.
+
+            True desktops keep device-width + the desktop grid; iPhones/Android keep the
+            phone stack. The attribute + viewport are re-applied on resize/orientation
+            and after DOMContentLoaded (so the framework's meta is overwritten too). */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var apply=function(){var landscape=window.innerWidth>window.innerHeight;var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;var desktop=(!coarse&&!isIpad&&!isPhoneOrTablet)||(isIpad&&landscape);if(desktop){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
+              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var setVP=function(c){var l=document.querySelectorAll('meta[name=viewport]');if(!l.length){var m=document.createElement('meta');m.setAttribute('name','viewport');m.setAttribute('content',c);(document.head||d).appendChild(m);return}for(var i=0;i<l.length;i++){if(l[i].getAttribute('content')!==c){l[i].setAttribute('content',c)}}};var apply=function(){if(isIpad){setVP('width=1280, viewport-fit=cover');d.setAttribute('data-desktop-layout','');return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
           }}
         />
         <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />

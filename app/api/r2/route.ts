@@ -5,6 +5,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  PutBucketCorsCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@/lib/supabase/server'
@@ -105,6 +106,45 @@ function createR2Client(): S3Client | null {
       secretAccessKey: secretAccessKey!,
     },
   })
+}
+
+// Presigned-PUT uploads happen DIRECTLY from the browser to R2, so the bucket
+// must allow cross-origin PUT/GET. Rather than requiring a manual dashboard step,
+// we apply the CORS policy from the server using the admin R2 credentials. This
+// is the fix for uploads failing with the misleading "R2 is not configured"
+// message: the server WAS configured, but the bucket rejected the browser PUT.
+//
+// Guarded so it runs at most once per warm serverless instance (a no-op on R2
+// after the first success). Failures are swallowed — the presign still returns,
+// and if CORS truly can't be set the client falls back to the server upload.
+let corsEnsured = false
+async function ensureBucketCors(client: S3Client): Promise<void> {
+  if (corsEnsured) return
+  const bucket = getBucketName()
+  if (!bucket) return
+  try {
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket: bucket,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              // '*' is safe here: the presigned URL itself is the credential, and
+              // no cookies are involved in the direct PUT.
+              AllowedOrigins: ['*'],
+              AllowedMethods: ['GET', 'PUT', 'HEAD'],
+              AllowedHeaders: ['*'],
+              ExposeHeaders: ['ETag'],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      }),
+    )
+    corsEnsured = true
+  } catch (err) {
+    console.warn('[v0] ensureBucketCors: could not set R2 bucket CORS policy:', err)
+  }
 }
 
 // GET: Generate signed download URL or list objects
@@ -304,6 +344,10 @@ export async function POST(request: NextRequest) {
       if (!playlistId || !trackId || !fileName) {
         return json({ error: 'Missing required fields' }, 400)
       }
+
+      // Make sure the bucket allows the browser's direct PUT before we hand back
+      // a presigned URL, otherwise the upload would be blocked by CORS.
+      await ensureBucketCors(client)
 
       const key = `users/${user.id}/playlists/${playlistId}/tracks/${trackId}/${fileName}`
       const command = new PutObjectCommand({
