@@ -37,6 +37,11 @@ interface StoredPlaylistItem {
   uploadedAt: string;
   fileData: ArrayBuffer;
   fileType: string;
+  // Explicit queue position. IndexedDB getAll() returns records sorted by key
+  // (here the track id), NOT in insertion/array order, so without persisting the
+  // position the active queue reverted to id-order on every refresh — discarding
+  // the user's drag re-order. We write the array index here and sort by it on read.
+  order?: number;
 }
 
 interface SavedPlaylist {
@@ -177,7 +182,7 @@ export const saveCurrentPlaylistWithFiles = async (playlist: CachedPlaylistWithF
 
   // Convert File objects to ArrayBuffer for storage
   const itemsToStore: StoredPlaylistItem[] = await Promise.all(
-    playlist.map(async (item) => {
+    playlist.map(async (item, index) => {
       const arrayBuffer = await item.file.arrayBuffer();
       return {
         id: item.id,
@@ -187,6 +192,7 @@ export const saveCurrentPlaylistWithFiles = async (playlist: CachedPlaylistWithF
         uploadedAt: item.uploadedAt,
         fileData: arrayBuffer,
         fileType: item.file.type,
+        order: index, // preserve the queue order (see StoredPlaylistItem.order)
       };
     })
   );
@@ -212,6 +218,13 @@ export const getCurrentPlaylistWithFiles = async (): Promise<CachedPlaylistWithF
 
     request.onsuccess = () => {
       const storedItems: StoredPlaylistItem[] = request.result || [];
+      // getAll() returns records in key (id) order, so restore the saved queue
+      // order explicitly. Items without a stored `order` (legacy saves) keep their
+      // returned position by falling back to a large sentinel.
+      storedItems.sort(
+        (a, b) =>
+          (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER),
+      );
       // Convert ArrayBuffer back to File objects
       const restored = storedItems.map((item) => {
         const file = new File([item.fileData], item.fileName, { type: item.fileType });
