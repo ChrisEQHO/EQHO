@@ -45,26 +45,6 @@ export default function LoginPage() {
     checkSession()
   }, [router])
 
-  // Dev-only logging helper (stripped in production so no logs leak).
-  const devLog = (msg: string) => {
-    if (process.env.NODE_ENV !== 'production') console.log(`[v0] ${msg}`)
-  }
-
-  const handleForgotPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    // Never let this bubble to the form or a parent handler.
-    e.preventDefault()
-    e.stopPropagation()
-    devLog('FORGOT PASSWORD TAP RECEIVED')
-    try {
-      devLog('NAVIGATING TO FORGOT PASSWORD')
-      router.push('/forgot-password')
-    } catch (err) {
-      devLog(`FORGOT PASSWORD NAVIGATION ERROR ${String(err)}`)
-      // Hard fallback for WebView environments where router.push may fail.
-      if (typeof window !== 'undefined') window.location.assign('/forgot-password')
-    }
-  }
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     console.log('[v0] login clicked')
@@ -241,18 +221,19 @@ export default function LoginPage() {
               )}
             </button>
 
-            {/* Forgot Password — real button (type="button" so it never submits
-                the login form). Navigates via the router; falls back to a hard
-                location change if navigation throws (e.g. inside the Capacitor
-                WebView). Dev-only logging is stripped in production. */}
+            {/* Forgot Password — a real anchor (Next.js Link), NOT a button with a
+                JS onClick. A button that called router.push('/forgot-password') did
+                nothing when clicked (the click-handler navigation never fired in the
+                user's environment), even though visiting the URL directly worked. An
+                anchor performs a native browser navigation that doesn't depend on the
+                click handler, so it works reliably on web and in the Capacitor WebView. */}
             <div className="text-center">
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                className="text-sm text-[#22d3ee] hover:underline transition-colors bg-transparent border-0 cursor-pointer p-1 relative z-10"
+              <Link
+                href="/forgot-password"
+                className="text-sm text-[#22d3ee] hover:underline transition-colors cursor-pointer p-1 relative z-10"
               >
                 Forgot your password?
-              </button>
+              </Link>
             </div>
           </form>
 
