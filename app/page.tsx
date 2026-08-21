@@ -5734,21 +5734,21 @@ export default function Page() {
       style={{ ["--promo-banner-height" as string]: "44px" } as React.CSSProperties}
     >
       {/* Branded launch/trial promo banner — full width, sits above every player
-          surface. Tri-color EQHO gradient (green → orange → pink) at low opacity so
-          it reads as a subtle brand strip, not a loud alert. Fixed 44px height matches
-          the --promo-banner-height var above. */}
-      <div className="relative z-10 flex h-11 w-full items-center justify-center gap-2 overflow-hidden border-b border-white/10 px-3 text-center bg-[linear-gradient(90deg,rgba(34,197,94,0.16),rgba(255,138,0,0.16),rgba(255,79,163,0.20))]">
+          surface. Uses the EQHO brand orange → pink gradient (matching the logo) at
+          low opacity so it reads as a subtle on-brand strip, not a loud alert. Fixed
+          44px height matches the --promo-banner-height var above. */}
+      <div className="relative z-10 flex h-11 w-full items-center justify-center gap-2 overflow-hidden border-b border-white/10 px-3 text-center bg-[linear-gradient(90deg,rgba(255,138,0,0.16),rgba(255,79,163,0.20))]">
         <Crown size={15} className="shrink-0 text-[#ff8a00]" />
         <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
           <span className="sm:hidden">
             Free until 1 Sept ·{" "}
-            <span className="bg-gradient-to-r from-[#22c55e] via-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
+            <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
               30-day trial from 1 Sept
             </span>
           </span>
           <span className="hidden sm:inline">
             Free to use until 1st September —{" "}
-            <span className="bg-gradient-to-r from-[#22c55e] via-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
+            <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
               30-day free trial available from 1st September
             </span>
           </span>
