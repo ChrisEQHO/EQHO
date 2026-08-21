@@ -1046,7 +1046,16 @@ export default function Page() {
     } else {
       // Keep the loader visible (never flash the player) while redirecting.
       setGate("checking");
+      // Use a HARD navigation, not just router.replace. In this app's environment
+      // the Next.js client router has been observed to silently no-op (the same
+      // issue that broke the "Forgot your password?" button), which left logged-out
+      // users stuck forever on "Checking your access…". window.location.replace is
+      // a guaranteed browser navigation and also works in the Capacitor static
+      // export. router.replace stays as a fast-path attempt first.
       router.replace("/login");
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
     }
   }, [authChecked, user, router, gate]);
 
