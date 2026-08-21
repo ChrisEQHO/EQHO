@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -8,6 +8,16 @@ import { isV0Preview } from '@/lib/utils/preview'
 import { Lock, Eye, EyeOff } from 'lucide-react'
 
 type Status = 'verifying' | 'ready' | 'invalid' | 'done'
+
+// The recovery credentials carried by the email link, captured once on mount.
+type Recovery = {
+  tokenHash: string | null
+  type: string | null
+  code: string | null
+  // true when Supabase's client already auto-established a session from the URL
+  // (implicit `#access_token` flow) — in that case we don't need to verify a token.
+  hasImplicitError: boolean
+}
 
 export default function ResetPasswordPage() {
   const [status, setStatus] = useState<Status>('verifying')
@@ -17,97 +27,48 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Detect the Supabase password-recovery session created by the email link.
-  // We never store or parse tokens ourselves — Supabase manages them. On web the
-  // browser client parses the implicit hash automatically and fires
-  // PASSWORD_RECOVERY; for the PKCE `?code=` variant we exchange it explicitly.
+  // Captured recovery credentials from the URL. We deliberately do NOT verify
+  // them on mount (see below) — they're consumed once, at submit time.
+  const recoveryRef = useRef<Recovery | null>(null)
+
+  // IMPORTANT: we do NOT call verifyOtp / exchangeCodeForSession on page load.
+  //
+  // The Supabase recovery `token_hash` (and PKCE `code`) is STRICTLY SINGLE-USE.
+  // On mobile the mail app often opens the link in a preview/in-app webview before
+  // (or in addition to) the real tab, and React can double-invoke this effect, so
+  // verifying on load consumed the token twice: the first call succeeded in an
+  // ephemeral context, the second returned "expired" in the context the user
+  // actually sees — hence "Reset link expired" on mobile but not desktop.
+  //
+  // Instead we capture the token here and consume it exactly once in handleSubmit,
+  // triggered by an explicit user action, in the same context that then calls
+  // updateUser. This is robust across devices and against email prefetch/preview.
   useEffect(() => {
-    // In v0 preview there is no real recovery session; show the form so the
-    // screen is previewable.
     if (isV0Preview) {
       setStatus('ready')
       return
     }
 
-    const supabase = createClient()
-    if (!supabase) {
-      setStatus('invalid')
-      return
-    }
+    try {
+      const url = new URL(window.location.href)
+      const code = url.searchParams.get('code')
+      const tokenHash = url.searchParams.get('token_hash')
+      const type = url.searchParams.get('type')
+      const hasError = !!url.searchParams.get('error') || url.hash.includes('error')
 
-    let resolved = false
-    const markReady = () => {
-      if (resolved) return
-      resolved = true
+      recoveryRef.current = { tokenHash, type, code, hasImplicitError: hasError }
+
+      // Only fail immediately if Supabase explicitly returned an error AND there is
+      // nothing to try. Otherwise show the form (the implicit `#access_token` flow
+      // leaves no query params but does establish a session we can use at submit).
+      if (hasError && !tokenHash && !code) {
+        setStatus('invalid')
+        return
+      }
+
       setStatus('ready')
-    }
-
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
-        markReady()
-      }
-    })
-
-    const verify = async () => {
-      try {
-        const url = new URL(window.location.href)
-        const code = url.searchParams.get('code')
-        // The `token_hash` + `type=recovery` params come from the Supabase email
-        // link when the template uses {{ .TokenHash }}. verifyOtp does NOT need a
-        // PKCE code verifier, so it works even when the email is opened on a
-        // different device/browser than the one that requested the reset.
-        const tokenHash = url.searchParams.get('token_hash')
-        const type = url.searchParams.get('type')
-        const errorCode = url.searchParams.get('error') || url.hash.includes('error')
-
-        // If Supabase redirected back with an explicit error (expired/used link).
-        if (errorCode && !code && !tokenHash) {
-          setStatus('invalid')
-          return
-        }
-
-        // token_hash flow (most robust — cross-device): verify the OTP directly.
-        if (tokenHash) {
-          const { error: otpError } = await supabase.auth.verifyOtp({
-            type: (type as 'recovery') || 'recovery',
-            token_hash: tokenHash,
-          })
-          if (!otpError) {
-            markReady()
-            return
-          }
-        }
-
-        // PKCE flow: exchange the code for a recovery session.
-        if (code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (!exchangeError) {
-            markReady()
-            return
-          }
-        }
-
-        // Implicit flow / already-parsed hash: a session should now exist.
-        const { data } = await supabase.auth.getSession()
-        if (data.session) {
-          markReady()
-          return
-        }
-      } catch {
-        // fall through to the timeout below
-      }
-
-      // Give onAuthStateChange a brief window to fire, then fail closed so the
-      // user never sees a blank page.
-      setTimeout(() => {
-        if (!resolved) setStatus('invalid')
-      }, 2500)
-    }
-
-    verify()
-
-    return () => {
-      sub.subscription.unsubscribe()
+    } catch {
+      setStatus('invalid')
     }
   }, [])
 
@@ -144,6 +105,28 @@ export default function ResetPasswordPage() {
     }
 
     try {
+      // Consume the recovery token NOW (single use, on this explicit submit) to
+      // establish the recovery session, then immediately update the password.
+      const recovery = recoveryRef.current
+      if (recovery?.tokenHash) {
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          type: (recovery.type as 'recovery') || 'recovery',
+          token_hash: recovery.tokenHash,
+        })
+        if (otpError) {
+          // Token was invalid/expired/already used — send them to re-request.
+          setStatus('invalid')
+          return
+        }
+      } else if (recovery?.code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(recovery.code)
+        if (exchangeError) {
+          setStatus('invalid')
+          return
+        }
+      }
+      // else: implicit `#access_token` flow already established the session on load.
+
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) {
         const message = (updateError.message || '').toLowerCase()
