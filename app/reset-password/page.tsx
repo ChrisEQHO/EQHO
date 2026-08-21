@@ -52,12 +52,30 @@ export default function ResetPasswordPage() {
       try {
         const url = new URL(window.location.href)
         const code = url.searchParams.get('code')
+        // The `token_hash` + `type=recovery` params come from the Supabase email
+        // link when the template uses {{ .TokenHash }}. verifyOtp does NOT need a
+        // PKCE code verifier, so it works even when the email is opened on a
+        // different device/browser than the one that requested the reset.
+        const tokenHash = url.searchParams.get('token_hash')
+        const type = url.searchParams.get('type')
         const errorCode = url.searchParams.get('error') || url.hash.includes('error')
 
         // If Supabase redirected back with an explicit error (expired/used link).
-        if (errorCode && !code) {
+        if (errorCode && !code && !tokenHash) {
           setStatus('invalid')
           return
+        }
+
+        // token_hash flow (most robust — cross-device): verify the OTP directly.
+        if (tokenHash) {
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            type: (type as 'recovery') || 'recovery',
+            token_hash: tokenHash,
+          })
+          if (!otpError) {
+            markReady()
+            return
+          }
         }
 
         // PKCE flow: exchange the code for a recovery session.

@@ -30,7 +30,12 @@ export async function updateSession(request: NextRequest) {
   // request is NOT redirected to /login (which would return HTML). The /api/r2
   // route enforces its own auth (cookie session OR Bearer access token), so
   // this does not weaken security — an unauthenticated call still gets 401.
-  const publicRoutes = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/debug']
+  // NOTE: '/forgot-password' and '/reset-password' MUST be public. A user who
+  // forgot their password is logged OUT, so if these were protected the middleware
+  // would redirect them to /login before the page could load — which made the
+  // "Forgot your password?" button look like it did nothing, and caused the reset
+  // link from the email to bounce to /login and discard the recovery token.
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/debug']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   // If Supabase is not configured, redirect protected routes to login
