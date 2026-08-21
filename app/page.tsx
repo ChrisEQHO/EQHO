@@ -8720,65 +8720,6 @@ export default function Page() {
                       </button>
                     </div>
                     
-                    {/* Manage Cloud Playlists — permanently delete a playlist from
-                        Cloudflare R2 + Supabase. Available on BOTH web and the iPad
-                        (Capacitor) app: the delete call is authenticated against the
-                        deployed API with a Bearer token, just like downloads. */}
-                    {(
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center">
-                            <Trash2 size={18} />
-                          </div>
-                          <div>
-                            <h2 className="text-lg font-bold">Manage Cloud Playlists</h2>
-                            <p className="text-white/50 text-sm">Permanently delete playlists from your cloud</p>
-                          </div>
-                        </div>
-                        <p className="text-white/70 text-sm mb-4">
-                          Deleting a playlist here removes it and its audio from your EQHO cloud
-                          storage. This removes it from every device that syncs this account and
-                          cannot be undone.
-                        </p>
-                        {cloudPlaylists.length === 0 ? (
-                          <p className="text-white/40 text-sm italic py-2">
-                            No playlists in your cloud yet. Upload one to get started.
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {cloudPlaylists.map((cp) => {
-                              const isDeleting = deletingCloudPlaylistId === cp.id;
-                              return (
-                                <div
-                                  key={cp.id}
-                                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3"
-                                >
-                                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0">
-                                    <Cloud size={16} />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h3 className="text-sm font-bold text-white truncate">{cp.name}</h3>
-                                    <p className="text-xs text-white/50">{cp.tracks.length} tracks</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowDeleteCloudPlaylistConfirm({ id: cp.id, name: cp.name })}
-                                    disabled={isDeleting}
-                                    aria-label={`Delete ${cp.name} from cloud`}
-                                    className="shrink-0 px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-semibold
-                                               hover:bg-red-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                  >
-                                    {isDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                                    {isDeleting ? "Deleting…" : "Delete"}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {/* Download Playlists Section (Local Export) */}
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                       <div className="flex items-center gap-3 mb-4">
