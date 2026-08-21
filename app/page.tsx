@@ -4247,7 +4247,7 @@ export default function Page() {
       setIsGapPaused(false);
       setGapCountdown(0);
       setIsPlaying(true);
-      // New track started — arm the completion detector for it.
+      // New track started �� arm the completion detector for it.
       nativeTrackCompletedRef.current = false;
     },
     onGapStarted: ({ seconds }) => {
@@ -5741,13 +5741,13 @@ export default function Page() {
         <Crown size={15} className="shrink-0 text-[#ff8a00]" />
         <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
           <span className="sm:hidden">
-            Free until 1 Sept ·{" "}
+            Free until 31 Aug ·{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
               30-day trial from 1 Sept
             </span>
           </span>
           <span className="hidden sm:inline">
-            Free to use until 1st September —{" "}
+            Free to use until 31st August —{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
               30-day free trial available from 1st September
             </span>
