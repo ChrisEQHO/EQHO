@@ -283,7 +283,9 @@ export async function updateCloudPlaylist(
   playlistId: string,
   updates: Partial<Pick<CloudPlaylist, 'name' | 'description' | 'track_order' | 'gap_seconds'>>
 ): Promise<boolean> {
-  if (isMobileBuild) return false // Read-only on mobile
+  // NOTE: allowed on the mobile (Capacitor) build too. Like delete, this hits the
+  // DEPLOYED https route with a Bearer token (getApiBase + getAuthHeaders), so
+  // reordering a playlist in the iPad app also persists the new track order.
 
   // Update via the authoritative server route. The previous implementation ran
   // the Supabase update on the CLIENT with the anon key; without an RLS UPDATE

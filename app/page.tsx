@@ -25,6 +25,7 @@ import {
   fetchPlaylistWithFilesDetailed, 
   syncPlaylistToCloud, 
   deleteCloudPlaylist,
+  updateCloudPlaylist,
   isCloudSyncAvailable,
   checkProStatus,
   pushToApps,
@@ -445,6 +446,8 @@ const DEFAULT_BEEP_SOUND: BeepSoundId = "classic";
 
 export default function Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Debounce timer for pushing a reordered playlist's track_order to the cloud.
+  const reorderCloudPushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Web Audio volume control. iOS/iPadOS WKWebView makes HTMLMediaElement.volume
   // READ-ONLY (writes are silently ignored), so the slider changed state/visuals
   // but never the actual loudness. Routing the <audio> element through a GainNode
@@ -1393,6 +1396,67 @@ export default function Page() {
       return next;
     });
   }, [playlist, currentPlaylistName, playlistLoaded]);
+
+  // Persist a session REORDER to the CLOUD so the order survives refresh / logout.
+  // The local sync effect above only writes IndexedDB; on login the app reloads
+  // from the cloud via fetchCloudPlaylists, which orders tracks by the playlist's
+  // `track_order`. That column was never updated when a user dragged tracks, so the
+  // playlist always reverted to its original order. Here we detect a pure reorder,
+  // map the new session order to the matching cloud playlist's track ids (matched
+  // by the shared title+fileName identity key), and push `track_order` to the
+  // authoritative /api/playlists/update route (debounced so a drag doesn't spam it).
+  useEffect(() => {
+    if (!playlistLoaded) return;
+    if (playlist.length === 0) return;
+    if (!currentPlaylistName) return;
+
+    // Find this session's cloud playlist by name.
+    const cloud = cloudPlaylists.find((cp) => cp.name === currentPlaylistName);
+    if (!cloud) return; // local-only playlist: nothing in the cloud to update
+
+    // Only persist a PURE reorder — identical track membership, different order.
+    // (Add/remove is handled by the upload/sync + per-track cloud delete flows.)
+    const cloudByKey = new Map(cloud.tracks.map((ct) => [localTrackKey(ct.title, ct.fileName), ct.id]));
+    if (cloudByKey.size !== cloud.tracks.length) return; // duplicate keys: bail, ambiguous
+
+    const newOrder: string[] = [];
+    for (const t of playlist) {
+      const cloudId = cloudByKey.get(localTrackKey(t.title, t.fileName));
+      if (!cloudId) return; // a session track has no cloud match → not a pure reorder
+      newOrder.push(cloudId);
+    }
+    if (newOrder.length !== cloud.tracks.length) return; // membership changed
+
+    const currentCloudOrder = cloud.tracks.map((ct) => ct.id);
+    if (currentCloudOrder.join("|") === newOrder.join("|")) return; // already in this order
+
+    // Debounce so dragging several positions results in a single cloud write.
+    if (reorderCloudPushTimer.current) clearTimeout(reorderCloudPushTimer.current);
+    reorderCloudPushTimer.current = setTimeout(() => {
+      console.log("[v0] REORDER pushing new track_order to cloud", { playlist: currentPlaylistName, count: newOrder.length });
+      void updateCloudPlaylist(cloud.id, { track_order: newOrder })
+        .then((ok) => {
+          console.log("[v0] REORDER cloud track_order persisted:", ok);
+          if (ok) {
+            // Reflect the saved order in the in-memory cloud copy so we don't
+            // re-push and so it stays correct until the next fetch.
+            setCloudPlaylists((prev) =>
+              prev.map((cp) => {
+                if (cp.id !== cloud.id) return cp;
+                const byId = new Map(cp.tracks.map((ct) => [ct.id, ct]));
+                const reordered = newOrder.map((id) => byId.get(id)!).filter(Boolean);
+                return { ...cp, tracks: reordered };
+              }),
+            );
+          }
+        })
+        .catch((err) => console.error("[v0] REORDER cloud persist failed", (err as Error)?.message || String(err)));
+    }, 1000);
+
+    return () => {
+      if (reorderCloudPushTimer.current) clearTimeout(reorderCloudPushTimer.current);
+    };
+  }, [playlist, currentPlaylistName, playlistLoaded, cloudPlaylists]);
 
   // Fullscreen toggle function
   const toggleFullscreen = useCallback(async () => {
