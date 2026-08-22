@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
                                        profile?.subscription_status === 'trialing'
         
         if (hasActiveSubscription) {
-          // User has subscription, go to player
-          return NextResponse.redirect(`${origin}/`)
+          // User has subscription, go to player (now at /app)
+          return NextResponse.redirect(`${origin}/app`)
         } else {
           // User needs to subscribe, go to upgrade page
           return NextResponse.redirect(`${origin}/upgrade`)

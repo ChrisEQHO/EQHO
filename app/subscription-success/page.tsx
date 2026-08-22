@@ -219,7 +219,7 @@ export default function SubscriptionSuccessPage() {
           <div className="space-y-2">
             {activationComplete ? (
               <Link 
-                href="/"
+                href="/app"
                 className="block w-full h-12 rounded-xl font-bold text-base bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition"
               >
                 Open EQHO Player

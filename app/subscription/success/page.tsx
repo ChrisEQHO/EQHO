@@ -81,7 +81,7 @@ function SubscriptionSuccessContent() {
           <h1 className="text-2xl font-bold text-white mb-2">Something went wrong</h1>
           <p className="text-white/60 mb-6">{error}</p>
           <Link
-            href="/"
+            href="/app"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-semibold hover:shadow-[0_0_24px_rgba(255,79,163,0.25)] transition"
           >
             Return to EQHO Player
@@ -163,7 +163,7 @@ function SubscriptionSuccessContent() {
 
           {/* CTA Button */}
           <Link
-            href="/"
+            href="/app"
             className="block w-full py-4 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-center font-semibold hover:shadow-[0_0_24px_rgba(255,79,163,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Start Using EQHO Player

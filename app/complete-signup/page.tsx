@@ -390,7 +390,7 @@ function CompleteSignupContent() {
             </div>
 
             <Link
-              href="/"
+              href="/app"
               className="w-full h-11 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-2 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_6px_24px_rgba(255,79,163,0.3)] mb-2"
             >
               <Play className="h-4 w-4" />

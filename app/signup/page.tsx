@@ -105,7 +105,7 @@ export default function SignupPage() {
         console.log('[v0] check-email result:', info)
         if (info.exists) {
           // Free access: existing users go straight to the player.
-          router.push('/')
+          router.push('/app')
           return
         }
       } catch (checkErr) {
