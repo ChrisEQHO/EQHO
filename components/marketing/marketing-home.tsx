@@ -109,7 +109,7 @@ export function MarketingHome() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">Features</p>
             <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              Everything you need to run the music, nothing you don’t.
+              Built to keep training moving.
             </h2>
           </div>
           <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -138,7 +138,7 @@ export function MarketingHome() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">How it works</p>
             <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              From a folder of tracks to floor-ready in three steps.
+              Set up in around 30 seconds.
             </h2>
           </div>
           <ol className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -161,7 +161,7 @@ export function MarketingHome() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">Who it’s for</p>
             <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              Built for coaches who run the floor.
+              Made for coaches who run full sessions.
             </h2>
           </div>
           <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -194,7 +194,7 @@ export function MarketingHome() {
                   {LAUNCH.freeNote} When paid plans begin, pricing stays simple and transparent — no hidden tiers.
                 </p>
                 <ul className="mt-6 space-y-2.5 text-sm text-[#cbd5e1]">
-                  {['Unlimited playlists and running orders', 'Cloud backup of your sessions', 'Works in the browser and as an app'].map(
+                  {['Unlimited playlists and session plans', 'Cloud backup of your sessions', 'Works in the browser and as an app'].map(
                     (item) => (
                       <li key={item} className="flex items-center gap-2.5">
                         <Check className="h-4 w-4 shrink-0 text-[#ff8a00]" />
@@ -239,10 +239,10 @@ export function MarketingHome() {
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-4xl px-4 py-24 text-center sm:px-6">
           <h2 className="text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
-            Press play with confidence.
+            Spend the session coaching.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-            Set up your first session in minutes. {LAUNCH.freeUntilLabel}.
+            Build your first session plan in around 30 seconds. {LAUNCH.freeUntilLabel}.
           </p>
           <div className="mt-8 flex justify-center">
             <PrimaryCta />

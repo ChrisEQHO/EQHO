@@ -17,16 +17,16 @@ export const metadata: Metadata = {
   // Resolves relative OG/canonical URLs (e.g. '/pricing') to absolute ones.
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'EQHO Player - Routine music player for coaches',
+    default: 'EQHO Player - Training music player for coaches',
     template: '%s | EQHO Player',
   },
   description:
-    'EQHO Player is the routine music player for gymnastics, dance and cheer coaches. Build running orders, play every routine on cue, and back up your sessions to the cloud.',
+    'EQHO Player manages competition music during training for gymnastics, dance and cheer coaches. Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
   applicationName: 'EQHO Player',
   keywords: [
-    'gymnastics music player',
-    'routine music',
-    'running order',
+    'gymnastics training music',
+    'routine music player',
+    'training session music',
     'dance coach music app',
     'cheer routine player',
     'competition music',
@@ -49,17 +49,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'EQHO Player',
-    title: 'EQHO Player - Routine music player for coaches',
+    title: 'EQHO Player - Training music player for coaches',
     description:
-      'Build running orders, play every routine on cue, and back up your sessions to the cloud. Free to use until 31 August.',
+      'Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session. Free to use until 31 August.',
     url: siteUrl,
     images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'EQHO Player' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'EQHO Player - Routine music player for coaches',
+    title: 'EQHO Player - Training music player for coaches',
     description:
-      'Build running orders, play every routine on cue, and back up your sessions to the cloud.',
+      'Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
     images: ['/opengraph-image'],
   },
 }

@@ -25,7 +25,7 @@ export function SiteFooter() {
               />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#7c8596]">
-              The music player built for gymnastics, dance and cheer coaches.
+              The training music player for gymnastics, dance and cheer coaches.
             </p>
           </div>
 

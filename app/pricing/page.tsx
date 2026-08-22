@@ -24,12 +24,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const PLAN_FEATURES = [
-  'Unlimited playlists and running orders',
-  'Precise per-track playback controls',
-  'Full-screen routine countdown',
+  'Unlimited playlists and session plans',
+  'Control the gap between routines',
+  'Set repeats and back-to-back playback',
   'Cloud backup of your sessions',
   'Use in the browser or install the app',
-  'Cancel anytime',
+  'Manage your subscription whenever you need',
 ]
 
 export default async function PricingPage() {
