@@ -238,19 +238,28 @@ export default function FeaturesPage() {
             </div>
 
             <figure className="mx-auto mt-12 max-w-5xl">
-              <div className="relative overflow-hidden rounded-2xl bg-[#020617] shadow-[0_40px_120px_-40px_rgba(255,79,163,0.35)] ring-1 ring-white/10">
-                <Image
-                  src="/marketing/player-fullscreen.png"
-                  alt="EQHO Player full-screen session view showing 1 hour 55 minutes remaining, Round 1 of 4, the current routine and the running order"
-                  width={2982}
-                  height={1864}
-                  sizes="(min-width: 1024px) 1024px, 100vw"
-                  className="h-auto w-full"
-                />
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/5"
-                />
+              {/* Gradient hairline that fades toward the bottom so the frame
+                  reads as part of the page rather than a hard card. */}
+              <div className="relative rounded-2xl bg-gradient-to-b from-white/12 to-transparent p-px shadow-[0_50px_140px_-50px_rgba(255,79,163,0.4)]">
+                <div className="relative overflow-hidden rounded-2xl bg-[#050814]">
+                  <Image
+                    src="/marketing/player-fullscreen.png"
+                    alt="EQHO Player full-screen session view showing 1 hour 55 minutes remaining, Round 1 of 4, the current routine and the running order"
+                    width={2982}
+                    height={1864}
+                    sizes="(min-width: 1024px) 1024px, 100vw"
+                    className="h-auto w-full"
+                  />
+                  {/* Feather the bottom edge into the section background */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-transparent to-[#050814]"
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/5"
+                  />
+                </div>
               </div>
               <figcaption className="mt-4 text-center text-sm text-[#64748b]">
                 Full-screen session view — session remaining, rounds and the live running order.
