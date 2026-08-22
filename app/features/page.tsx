@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -215,6 +216,46 @@ export default function FeaturesPage() {
                 <ControlTile icon={<Volume2 className="h-5 w-5 text-[#ff8a00]" />} title="Volume & scrub" body="Adjust volume and scrub the waveform from the panel." />
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ── Full-screen session view ─────────────────────────────────── */}
+        <section className="relative overflow-hidden border-t border-white/5 bg-[#050814]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(70%_60%_at_50%_0%,rgba(255,79,163,0.12),transparent_65%)]"
+          />
+          <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">Session mode</p>
+              <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                Press play and the whole room can read the clock.
+              </h2>
+              <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
+                Start the session and EQHO switches to a full-screen view — a giant countdown of the time
+                remaining, the current round, the track that is playing and the running order down the side.
+              </p>
+            </div>
+
+            <figure className="mx-auto mt-12 max-w-5xl">
+              <div className="relative overflow-hidden rounded-2xl bg-[#020617] shadow-[0_40px_120px_-40px_rgba(255,79,163,0.35)] ring-1 ring-white/10">
+                <Image
+                  src="/marketing/player-fullscreen.png"
+                  alt="EQHO Player full-screen session view showing 1 hour 55 minutes remaining, Round 1 of 4, the current routine and the running order"
+                  width={2982}
+                  height={1864}
+                  sizes="(min-width: 1024px) 1024px, 100vw"
+                  className="h-auto w-full"
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/5"
+                />
+              </div>
+              <figcaption className="mt-4 text-center text-sm text-[#64748b]">
+                Full-screen session view — session remaining, rounds and the live running order.
+              </figcaption>
+            </figure>
           </div>
         </section>
 
