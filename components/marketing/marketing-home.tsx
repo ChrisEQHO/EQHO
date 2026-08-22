@@ -87,6 +87,15 @@ export function MarketingHome() {
 
           <div className="mx-auto mt-14 max-w-5xl">
             <ProductFrame />
+            <div className="mt-6 text-center">
+              <Link
+                href="/features"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] transition-colors hover:text-white"
+              >
+                Take the full player tour
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -111,6 +120,13 @@ export function MarketingHome() {
             <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
               Built to keep training moving.
             </h2>
+            <Link
+              href="/features"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] transition-colors hover:text-white"
+            >
+              See everything the player does
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
           <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => {
