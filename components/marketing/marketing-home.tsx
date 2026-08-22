@@ -3,7 +3,8 @@ import {
   ArrowRight,
   ListMusic,
   ListOrdered,
-  SlidersHorizontal,
+  Repeat,
+  Eye,
   Timer,
   CloudUpload,
   MonitorSmartphone,
@@ -29,7 +30,8 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   ListMusic,
   ListOrdered,
-  SlidersHorizontal,
+  Repeat,
+  Eye,
   Timer,
   CloudUpload,
   MonitorSmartphone,
@@ -69,7 +71,7 @@ export function MarketingHome() {
               {SITE.tagline}
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-              {SITE.description}
+              {SITE.heroSupport}
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <PrimaryCta className="w-full sm:w-auto" />
