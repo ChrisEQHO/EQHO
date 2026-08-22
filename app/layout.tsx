@@ -11,9 +11,26 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
+const siteUrl = 'https://www.eqho-player.com'
+
 export const metadata: Metadata = {
-  title: 'EQHO Player - Professional Music Player for Coaches',
-  description: 'Premium DJ-style music player for gymnastics routines and training sessions',
+  // Resolves relative OG/canonical URLs (e.g. '/pricing') to absolute ones.
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'EQHO Player - Routine music player for coaches',
+    template: '%s | EQHO Player',
+  },
+  description:
+    'EQHO Player is the routine music player for gymnastics, dance and cheer coaches. Build running orders, play every routine on cue, and back up your sessions to the cloud.',
+  applicationName: 'EQHO Player',
+  keywords: [
+    'gymnastics music player',
+    'routine music',
+    'running order',
+    'dance coach music app',
+    'cheer routine player',
+    'competition music',
+  ],
   icons: {
     // Use static PNGs for mobile builds, dynamic routes for web
     icon: isMobileBuild ? '/icon.png' : '/icon',
@@ -28,6 +45,22 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'EQHO Player',
+    title: 'EQHO Player - Routine music player for coaches',
+    description:
+      'Build running orders, play every routine on cue, and back up your sessions to the cloud. Free to use until 31 August.',
+    url: siteUrl,
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'EQHO Player' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'EQHO Player - Routine music player for coaches',
+    description:
+      'Build running orders, play every routine on cue, and back up your sessions to the cloud.',
+    images: ['/opengraph-image'],
   },
 }
 

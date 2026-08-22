@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { stripe, PRO_PRICE_ID } from '@/lib/stripe'
+import Stripe from 'stripe'
 
 export type LivePrice = {
   /** Pre-formatted amount incl. currency symbol, e.g. "£3.99". */
@@ -11,35 +11,60 @@ export type LivePrice = {
   live: boolean
 }
 
+// Documented default price (£3.99/month GBP), mirrored from SUBSCRIPTION_CONFIG in
+// lib/stripe.ts. Used only when Stripe can't be reached. This is a real, intended
+// price — not a fabricated placeholder — so the page stays honest if the live
+// lookup fails.
+const FALLBACK_AMOUNT_MINOR = 399
+const FALLBACK_CURRENCY = 'gbp'
+const FALLBACK_INTERVAL = 'month'
+
+function format(amountMinor: number, currency: string): string {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+    // Stripe amounts are in the currency's minor unit (pence/cents).
+    minimumFractionDigits: 2,
+  }).format(amountMinor / 100)
+}
+
 /**
  * Fetch the current subscription price straight from Stripe so the marketing
  * pricing page always matches what customers are actually billed. Never throws —
- * on any failure (missing key, network, price not found) it returns a safe,
- * clearly-non-fabricated fallback so the page still renders.
+ * on any failure (missing key, network, price not found) it returns the documented
+ * fallback price so the page still renders.
+ *
+ * IMPORTANT: we construct the Stripe client lazily INSIDE this function rather than
+ * importing the module-level singleton from lib/stripe.ts. That module evaluates
+ * `new Stripe(process.env.STRIPE_SECRET_KEY!)` at import time, which throws when the
+ * secret isn't present (e.g. in the v0 preview) and would crash the whole page.
  */
 export async function getLivePrice(): Promise<LivePrice> {
-  const fallback: LivePrice = { formatted: '', interval: '', live: false }
+  const fallback: LivePrice = {
+    formatted: format(FALLBACK_AMOUNT_MINOR, FALLBACK_CURRENCY),
+    interval: FALLBACK_INTERVAL,
+    live: false,
+  }
+
+  const secret = process.env.STRIPE_SECRET_KEY
+  const priceId = process.env.STRIPE_PRICE_ID || ''
 
   try {
-    if (!PRO_PRICE_ID || !PRO_PRICE_ID.startsWith('price_') || !process.env.STRIPE_SECRET_KEY) {
+    if (!secret || !priceId.startsWith('price_')) {
       return fallback
     }
 
-    const price = await stripe.prices.retrieve(PRO_PRICE_ID)
+    // No apiVersion pin here on purpose: let the installed SDK use its default so
+    // this file never breaks when the Stripe types bump the pinned version string.
+    const stripe = new Stripe(secret, { typescript: true })
+    const price = await stripe.prices.retrieve(priceId)
 
     if (typeof price.unit_amount !== 'number' || !price.currency) {
       return fallback
     }
 
-    const formatted = new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: price.currency.toUpperCase(),
-      // Stripe amounts are in the currency's minor unit (pence/cents).
-      minimumFractionDigits: 2,
-    }).format(price.unit_amount / 100)
-
     return {
-      formatted,
+      formatted: format(price.unit_amount, price.currency),
       interval: price.recurring?.interval ?? '',
       live: true,
     }
