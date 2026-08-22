@@ -25,6 +25,7 @@ import {
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { ProductFrame } from '@/components/marketing/product-frame'
+import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
 import { SITE, CTA, LAUNCH, FEATURES } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -205,11 +206,14 @@ export default function FeaturesPage() {
                 <PrimaryCta />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <ControlTile icon={<Timer className="h-5 w-5 text-[#ff8a00]" />} title="Gap between routines" body="Give athletes a set number of seconds before the next track." />
-              <ControlTile icon={<Repeat className="h-5 w-5 text-[#ff8a00]" />} title="Repeats" body="Run a routine as many times as the session needs." />
-              <ControlTile icon={<SlidersHorizontal className="h-5 w-5 text-[#ff8a00]" />} title="Back-to-back" body="Flow from one routine straight into the next." />
-              <ControlTile icon={<Volume2 className="h-5 w-5 text-[#ff8a00]" />} title="Volume & scrub" body="Adjust volume and scrub the waveform from the panel." />
+            <div className="space-y-4">
+              <SessionControlsSnapshot />
+              <div className="grid grid-cols-2 gap-4">
+                <ControlTile icon={<Timer className="h-5 w-5 text-[#ff8a00]" />} title="Gap between routines" body="Give athletes a set number of seconds before the next track." />
+                <ControlTile icon={<Repeat className="h-5 w-5 text-[#ff8a00]" />} title="Repeats" body="Run a routine as many times as the session needs." />
+                <ControlTile icon={<SlidersHorizontal className="h-5 w-5 text-[#ff8a00]" />} title="Back-to-back" body="Flow from one routine straight into the next." />
+                <ControlTile icon={<Volume2 className="h-5 w-5 text-[#ff8a00]" />} title="Volume & scrub" body="Adjust volume and scrub the waveform from the panel." />
+              </div>
             </div>
           </div>
         </section>
@@ -217,26 +221,21 @@ export default function FeaturesPage() {
         {/* ── Cloud storage ────────────────────────────────────────────── */}
         <section className="border-t border-white/5 bg-[#050814]">
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-2">
-            <div className="order-2 lg:order-1">
-              <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[rgba(9,15,28,0.9)] p-8">
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(255,79,163,0.25),transparent_70%)] blur-2xl"
-                />
-                <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_10px_30px_rgba(255,79,163,0.4)]">
-                  <CloudUpload className="h-7 w-7" aria-hidden="true" />
-                </span>
-                <ul className="mt-6 space-y-4">
-                  {CLOUD_POINTS.map(({ icon: Icon, text }) => (
-                    <li key={text} className="flex items-start gap-3">
-                      <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10">
-                        <Icon className="h-4 w-4 text-[#ff8ac0]" aria-hidden="true" />
-                      </span>
-                      <span className="text-sm leading-relaxed text-[#cbd5e1]">{text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <div className="order-2 space-y-5 lg:order-1">
+              <CloudSnapshot />
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {CLOUD_POINTS.map(({ icon: Icon, text }) => (
+                  <li
+                    key={text}
+                    className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[rgba(9,15,28,0.9)] p-4"
+                  >
+                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10">
+                      <Icon className="h-4 w-4 text-[#ff8ac0]" aria-hidden="true" />
+                    </span>
+                    <span className="text-sm leading-relaxed text-[#cbd5e1]">{text}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="order-1 lg:order-2">
               <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">Cloud storage</p>
