@@ -35,8 +35,12 @@ export async function updateSession(request: NextRequest) {
   // would redirect them to /login before the page could load — which made the
   // "Forgot your password?" button look like it did nothing, and caused the reset
   // link from the email to bounce to /login and discard the recovery token.
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/debug']
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/terms', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/debug']
+  // The marketing homepage is public, but ONLY as an EXACT match. Using startsWith
+  // for '/' would make every route public, so it's handled separately from the
+  // prefix-matched list above. The player now lives at '/app' and stays protected
+  // because it is NOT in publicRoutes.
+  const isPublicRoute = pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))
 
   // If Supabase is not configured, redirect protected routes to login
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -79,12 +83,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is logged in, keep them out of the auth pages (send to the player).
-  // Login alone grants access - there is no subscription/trial check.
+  // If user is logged in, keep them out of the auth pages (send to the player at
+  // /app). Login alone grants access - there is no subscription/trial check.
+  // Note: we intentionally do NOT redirect logged-in users away from '/', so they
+  // can still view the public marketing homepage while signed in (the header shows
+  // an "Open EQHO" link to /app in that case).
   if (user) {
     if (pathname === '/login' || pathname === '/signup') {
       const url = request.nextUrl.clone()
-      url.pathname = '/'
+      url.pathname = '/app'
       return NextResponse.redirect(url)
     }
   }

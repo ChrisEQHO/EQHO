@@ -436,7 +436,7 @@ export default function BillingPage() {
         className="flex items-center gap-4 px-6 py-4 border-b" 
         style={{ borderColor: 'var(--eqho-border)' }}
       >
-        <Link href="/">
+        <Link href="/app">
           <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10">
             <ArrowLeft className="h-5 w-5" />
           </Button>

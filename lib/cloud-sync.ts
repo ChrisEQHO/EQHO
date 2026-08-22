@@ -570,11 +570,35 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
   cloudPlaylist?: CloudPlaylist
   uploadedTracks: number
   failedTracks?: number
+  // The real, specific reason a push failed. Previously this was dropped here, so
+  // the UI could only ever show a generic "Push Unsuccessful" and neither the user
+  // nor support could tell whether it was auth, R2, RLS, or a missing audio file.
+  error?: string
 }> {
-  if (isMobileBuild) return { success: false, uploadedTracks: 0 }
+  if (isMobileBuild) return { success: false, uploadedTracks: 0, error: 'Cloud push is not available in the app.' }
 
   const supabase = createClient()
-  if (!supabase) return { success: false, uploadedTracks: 0 }
+  if (!supabase) return { success: false, uploadedTracks: 0, error: 'Storage is not configured.' }
+
+  // Requirement: verify a valid authenticated Supabase session before doing work,
+  // and report it specifically instead of failing deep inside the uploader.
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, uploadedTracks: 0, error: 'Your session has expired. Please sign in again.' }
+  }
+
+  // Requirement: validate the routine and its tracks before sending.
+  if (!localPlaylist.id || !localPlaylist.name) {
+    return { success: false, uploadedTracks: 0, error: 'This routine is missing an id or name.' }
+  }
+  const uploadableTracks = localPlaylist.tracks.filter((t) => !!t.file)
+  if (localPlaylist.tracks.length > 0 && uploadableTracks.length === 0) {
+    return {
+      success: false,
+      uploadedTracks: 0,
+      error: 'No playable audio was found for these tracks on this device. Re-add the audio, then push again.',
+    }
+  }
 
   // Delegate to the robust uploader, which inserts missing playlists/tracks from
   // local data as the source of truth and never does failing per-id lookups
@@ -587,8 +611,9 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
   })
 
   if (!result.success) {
-    console.error('[v0] syncPlaylistToCloud: upload failed', result.error)
-    return { success: false, uploadedTracks: 0 }
+    console.error('[v0] syncPlaylistToCloud: upload failed:', result.error)
+    // Propagate the ACTUAL error so the UI can show a useful message + Retry.
+    return { success: false, uploadedTracks: 0, error: result.error || 'Unable to push routine.' }
   }
 
   // Resolve the resulting cloud playlist row to return to the caller.

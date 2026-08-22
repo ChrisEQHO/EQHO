@@ -40,7 +40,7 @@ export default function LoginPage() {
       if (error || !user) return
 
       // Free access: any logged-in user goes straight to the player.
-      router.replace('/')
+      router.replace('/app')
     }
     checkSession()
   }, [router])
@@ -54,7 +54,7 @@ export default function LoginPage() {
     // In v0 preview mode, just redirect to player
     if (isV0Preview) {
       console.log('[v0] login: v0 preview, redirect target: /')
-      router.replace('/')
+      router.replace('/app')
       return
     }
 
@@ -122,8 +122,8 @@ export default function LoginPage() {
     // Free access: no subscription required, go straight to the player.
     // The client-side Supabase session (persisted to localStorage on mobile) is
     // what the player uses to decide login vs. player — no server/cookie needed.
-    console.log('[v0] login redirect target: /')
-    router.replace('/')
+    console.log('[v0] login redirect target: /app')
+    router.replace('/app')
   }
 
   return (

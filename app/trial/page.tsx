@@ -9,8 +9,8 @@ export default function TrialPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Stripe disabled - just redirect to the main player
-    router.replace('/')
+    // Stripe disabled - just redirect to the main player (now at /app)
+    router.replace('/app')
   }, [router])
 
   return (

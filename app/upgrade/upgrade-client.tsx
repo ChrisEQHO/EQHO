@@ -157,7 +157,7 @@ export default function UpgradeClient() {
           </div>
           <h2 className="text-2xl font-bold mb-3 text-white">You&apos;re Already Subscribed!</h2>
           <p className="text-sm mb-6 text-[#94a3b8]">You have full access to EQHO Player.</p>
-          <Link href="/">
+          <Link href="/app">
             <Button className="h-11 px-6 text-sm font-semibold text-white border-0 bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
               Go to Player
             </Button>
