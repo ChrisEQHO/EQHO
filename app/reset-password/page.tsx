@@ -183,8 +183,8 @@ export default function ResetPasswordPage() {
             src="/images/eqho-logo.png"
             alt="EQHO Player"
             width={280}
-            height={280}
-            className="mb-2"
+            height={112}
+            className="mb-2 h-auto w-[280px] max-w-full"
             priority
           />
         </div>

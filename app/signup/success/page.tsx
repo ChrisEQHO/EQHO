@@ -14,7 +14,7 @@ export default function SignupSuccessPage() {
       <div className="relative w-full max-w-md text-center">
         {/* Logo */}
         <div className="flex justify-center mb-4">
-          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={100} height={100} priority />
+          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={200} height={80} priority className="h-auto w-[200px] max-w-full" />
         </div>
 
         {/* Step indicator - compact */}

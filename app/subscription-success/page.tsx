@@ -157,7 +157,7 @@ export default function SubscriptionSuccessPage() {
       <div className="relative w-full max-w-md text-center">
         {/* Logo */}
         <div className="flex justify-center mb-3">
-          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={80} height={80} priority />
+          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={190} height={76} priority className="h-auto w-[190px] max-w-full" />
         </div>
 
         {/* Success Icon */}

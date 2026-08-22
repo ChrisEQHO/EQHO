@@ -90,9 +90,9 @@ export default function PrivacyPolicyPage() {
           <Image
             src="/images/eqho-logo.png"
             alt="EQHO Player"
-            width={180}
-            height={180}
-            className="mb-6"
+            width={200}
+            height={80}
+            className="mb-6 h-auto w-[200px] max-w-full"
             priority
           />
           <h1 className="text-3xl font-bold leading-tight text-white text-balance sm:text-4xl md:text-5xl">

@@ -307,7 +307,7 @@ function CompleteSignupContent() {
         </div>
 
         <div className="relative w-full max-w-md text-center">
-          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={100} height={100} priority className="mx-auto mb-4" />
+          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={200} height={80} priority className="mx-auto mb-4 h-auto w-[200px] max-w-full" />
           
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 rounded-full bg-[#22c55e]/20 border-4 border-[#22c55e] flex items-center justify-center">
@@ -340,7 +340,7 @@ function CompleteSignupContent() {
 
         <div className="relative w-full max-w-md">
           <div className="flex justify-center mb-3">
-            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={80} height={80} priority />
+            <Image src="/images/eqho-logo.png" alt="EQHO Player" width={190} height={76} priority className="h-auto w-[190px] max-w-full" />
           </div>
 
           <div className="flex justify-center mb-3">
@@ -424,7 +424,7 @@ function CompleteSignupContent() {
 
       <div className="relative w-full max-w-md">
         <div className="flex justify-center mb-4">
-          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={120} height={120} priority />
+          <Image src="/images/eqho-logo.png" alt="EQHO Player" width={220} height={88} priority className="h-auto w-[220px] max-w-full" />
         </div>
 
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">

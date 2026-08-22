@@ -141,8 +141,8 @@ export default function LoginPage() {
             src="/images/eqho-logo.png"
             alt="EQHO Player"
             width={280}
-            height={280}
-            className="mb-2"
+            height={112}
+            className="mb-2 h-auto w-[280px] max-w-full"
             priority
           />
           <p className="text-sm text-[#94a3b8]">
