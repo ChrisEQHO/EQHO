@@ -31,6 +31,87 @@ export const LAUNCH = {
     'EQHO Player is completely free to use until 31 August. Create your account today and start building your sessions.',
 } as const
 
+/**
+ * Pricing-page content + the SINGLE launch transition date.
+ *
+ * All date logic and pricing copy live here so nothing is scattered across
+ * components. Before `launchTransitionUtc` the page shows the launch offer; on or
+ * after it, the standard 30-day-trial offer. £4.99/month is the price; the actual
+ * figure shown is always the live Stripe price (see lib/get-pricing.ts), with
+ * £4.99 as the documented fallback.
+ *
+ * launchTransitionUtc: 1 September 2026, 00:00 Europe/London. September is BST
+ * (UTC+1), so midnight London == 2026-08-31T23:00:00Z.
+ */
+export const PRICING = {
+  launchTransitionUtc: '2026-08-31T23:00:00.000Z',
+  productName: 'EQHO Player',
+  trialLabel: 'First 30 days free',
+  ctaHref: '/signup',
+} as const
+
+/** True when `now` is before the launch transition (Europe/London midnight). */
+export function isPreLaunch(now: Date = new Date()): boolean {
+  return now.getTime() < new Date(PRICING.launchTransitionUtc).getTime()
+}
+
+export type PricingCopy = {
+  preLaunch: boolean
+  badge: string
+  heading: string
+  supporting: string
+  priceLabel: string
+  frequency: string
+  trialLabel: string
+  explanation: string
+  cta: string
+  cardNote: string
+}
+
+/**
+ * Resolve the exact pricing-page copy for the current launch phase, injecting the
+ * (live or fallback) price so the wording never contradicts Stripe.
+ *
+ * @param formattedPrice e.g. "£4.99"
+ * @param interval       e.g. "month" (empty for one-off)
+ * @param now            injectable for testing; defaults to current time
+ */
+export function getPricingCopy(formattedPrice: string, interval: string, now: Date = new Date()): PricingCopy {
+  const per = interval ? `${formattedPrice}/${interval}` : formattedPrice
+  const frequency = interval ? `per ${interval}` : ''
+
+  // Signup collects NO payment method (Supabase-only account creation), so both
+  // phases use the "No card required" wording — never an unqualified "cancel anytime".
+  if (isPreLaunch(now)) {
+    return {
+      preLaunch: true,
+      badge: 'Launch offer: free until 31 August',
+      heading: `30 days free, then ${per}`,
+      supporting:
+        'Create your account now and use EQHO free until 31 August. Your 30-day free trial begins on 1 September.',
+      priceLabel: formattedPrice,
+      frequency,
+      trialLabel: PRICING.trialLabel,
+      explanation: `Free access until 31 August, followed by your 30-day free trial. Subscribe for ${per} after the trial to continue.`,
+      cta: 'Start using EQHO free',
+      cardNote: 'No card required. No charge during free access or your trial.',
+    }
+  }
+
+  return {
+    preLaunch: false,
+    badge: '30-day free trial',
+    heading: 'Simple pricing for coaches.',
+    supporting: `Try every EQHO feature free for 30 days. Continue for ${per} after your trial.`,
+    priceLabel: formattedPrice,
+    frequency,
+    trialLabel: PRICING.trialLabel,
+    explanation: '',
+    cta: 'Start 30-day free trial',
+    cardNote: 'No card required. Subscribe after your trial to continue.',
+  }
+}
+
 /** Primary calls to action. Pre-launch the primary action is "Start free". */
 export const CTA = {
   primary: { label: 'Start free', href: '/signup' },
