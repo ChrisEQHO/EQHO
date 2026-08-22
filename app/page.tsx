@@ -1951,7 +1951,12 @@ export default function Page() {
 
   const handleSyncPlaylistToCloud = async (playlistId: string) => {
     if (isMobileBuild) return; // Read-only on mobile
-    
+
+    // Prevent duplicate submissions: rapid repeated clicks (or clicking while a
+    // push is already in flight for this or another playlist) must create only one
+    // request. The failed state stays clickable so a real retry is still allowed.
+    if (syncingPlaylistId || pushStatus[playlistId] === 'pushing') return;
+
     const localPlaylist = savedPlaylists.find(p => p.id === playlistId);
     if (!localPlaylist) return;
 
@@ -2010,10 +2015,15 @@ export default function Page() {
         setSyncStatus('error');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
+        // Show the ACTUAL reason returned by the server/uploader (now propagated
+        // through syncPlaylistToCloud) instead of a generic message. Falls back to
+        // a safe default if none was provided.
         setCloudSaveMessage(
           partialFailure
             ? `Some tracks failed to upload for ${localPlaylist.name}`
-            : `Failed to sync ${localPlaylist.name}`
+            : result.error
+              ? `${localPlaylist.name}: ${result.error}`
+              : `Failed to sync ${localPlaylist.name}`
         );
         // Refresh cloud state so partially-synced playlists keep a non-synced status.
         if (partialFailure) {
@@ -2028,7 +2038,11 @@ export default function Page() {
       setSyncStatus('error');
       setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
       setCloudSaveSuccess(false);
-      setCloudSaveMessage(`Failed to sync ${localPlaylist.name}`);
+      setCloudSaveMessage(
+        error instanceof Error
+          ? `${localPlaylist.name}: ${error.message}`
+          : `Failed to sync ${localPlaylist.name}. Please try again.`
+      );
     } finally {
       setTimeout(() => {
         setSyncingPlaylistId(null);
@@ -8618,6 +8632,19 @@ export default function Page() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
                                 disabled={cardPushStatus === 'pushing'}
+                                aria-busy={cardPushStatus === 'pushing'}
+                                aria-label={
+                                  cardPushStatus === 'failed'
+                                    ? `Push unsuccessful for ${localPlaylist.name}. Tap to retry.`
+                                    : cardPushStatus === 'pushing'
+                                      ? `Pushing ${localPlaylist.name}`
+                                      : cardPushStatus === 'success'
+                                        ? `${localPlaylist.name} pushed successfully`
+                                        : cloudStatus === 'new'
+                                          ? `Upload ${localPlaylist.name} to cloud`
+                                          : `Push updates for ${localPlaylist.name}`
+                                }
+                                title={cardPushStatus === 'failed' ? 'Push failed — tap to retry' : undefined}
                                 className={`mb-2 w-full py-1.5 rounded-lg border text-[11px] font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed ${
                                   cardPushStatus === 'success'
                                     ? "bg-green-500/15 border-green-500/40 text-green-400"
