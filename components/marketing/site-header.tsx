@@ -53,12 +53,16 @@ export function SiteHeader() {
         <Link href="/" className="flex items-center gap-2 shrink-0" aria-label={`${SITE.name} home`}>
           <Image
             src={SITE.logo || "/placeholder.svg"}
-            alt={SITE.name}
-            width={132}
-            height={40}
-            className="h-9 w-auto"
+            alt=""
+            aria-hidden="true"
+            width={44}
+            height={44}
+            className="h-10 w-10 rounded-lg"
             priority
           />
+          <span className="text-lg font-bold tracking-tight text-white">
+            EQHO<span className="ml-1 font-semibold text-[#ff8a00]">Player</span>
+          </span>
         </Link>
 
         {/* Desktop nav */}

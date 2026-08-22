@@ -15,14 +15,18 @@ export function SiteFooter() {
         <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 lg:col-span-1">
-            <Link href="/" className="inline-flex items-center" aria-label={`${SITE.name} home`}>
+            <Link href="/" className="inline-flex items-center gap-2" aria-label={`${SITE.name} home`}>
               <Image
                 src={SITE.logo || "/placeholder.svg"}
-                alt={SITE.name}
-                width={140}
-                height={42}
-                className="h-9 w-auto"
+                alt=""
+                aria-hidden="true"
+                width={40}
+                height={40}
+                className="h-9 w-9 rounded-lg"
               />
+              <span className="text-base font-bold tracking-tight text-white">
+                EQHO<span className="ml-1 font-semibold text-[#ff8a00]">Player</span>
+              </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#7c8596]">
               The music player built for gymnastics, dance and cheer coaches.
