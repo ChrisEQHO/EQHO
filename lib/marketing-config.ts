@@ -14,7 +14,7 @@ export const SITE = {
   description:
     'EQHO Player is the music player built for gymnastics, dance and cheer coaches — organise routine music into playlists, lock your running order, and control every track from the floor.',
   url: 'https://www.eqho-player.com',
-  logo: '/images/eqho-logo.png',
+  logo: '/images/eqho-player-header-v2.png',
 } as const
 
 /**

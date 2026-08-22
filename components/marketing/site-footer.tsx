@@ -15,13 +15,13 @@ export function SiteFooter() {
         <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 lg:col-span-1">
-            <Link href="/" className="inline-flex items-center" aria-label={`${SITE.name} home`}>
+            <Link href="/" className="flex shrink-0 items-center" aria-label={`${SITE.name} home`}>
               <Image
                 src={SITE.logo || "/placeholder.svg"}
                 alt={SITE.name}
-                width={230}
-                height={92}
-                className="h-9 w-auto"
+                width={210}
+                height={84}
+                className="h-auto w-[200px] max-w-full shrink-0 object-contain"
               />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#7c8596]">
