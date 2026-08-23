@@ -136,7 +136,7 @@ export const NAV_LINKS: { label: string; href: string }[] = [
 /** The problem → outcome framing under the hero. */
 export const PROBLEM = {
   heading: 'Floor time is for coaching, not searching for tracks.',
-  body: 'When training time is limited, every interruption costs repetitions. EQHO Player keeps the running order, gaps and repeats organised around your session. Set it up in around 30 seconds, press play and focus on coaching.',
+  body: 'When training time is limited, every interruption takes valuable time away from your session. EQHO Player keeps your running order, gaps and repeats organised, helping you maximise the time available for routines. Set up your session in around 30 seconds, press play and focus on coaching.',
 } as const
 
 /**
@@ -167,7 +167,7 @@ export const FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'CloudUpload',
     title: 'Your sessions, backed up',
-    body: 'Push your playlists and audio to your account so a session you built at home is ready when you log in at training.',
+    body: 'Push your playlists and audio to your EQHO account, so a session created at home is ready when you log in on any device at training.',
   },
   {
     icon: 'MonitorSmartphone',
@@ -197,7 +197,7 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'Medal',
     title: 'Gymnastics coaches',
-    body: 'Run floor and beam music for every gymnast through a full training session.',
+    body: 'Keep every gymnast’s floor music organised and ready to play throughout the training session.',
   },
   {
     icon: 'Music2',
@@ -231,7 +231,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Can I use it on the day without internet?',
-    a: 'Your loaded session plays from your device. We recommend loading and checking your playlists before you travel to the venue.',
+    a: 'Yes. Downloaded playlists play directly to your device, so you can use them without an internet connection. We recommend downloading and checking all your playlists on every device you plan to use before travelling to the venue.',
   },
   {
     q: 'What do I need to get started?',
