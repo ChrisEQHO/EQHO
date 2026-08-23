@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   Maximize2,
   Library,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import { ProductFrame } from '@/components/marketing/product-frame'
@@ -134,7 +135,24 @@ export function MarketingHome() {
             </ul>
           </div>
 
-          <div className="mx-auto mt-14 max-w-5xl">
+          {/* Branded prompt directing users down to the live player preview */}
+          <a
+            href="#player-preview"
+            className="group mx-auto mt-14 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-6 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:flex-row sm:justify-between sm:text-left"
+          >
+            <div>
+              <p className="text-lg font-bold text-white sm:text-xl">Take a look at the player below</p>
+              <p className="mt-1 text-sm text-white/85">
+                Scroll on to preview the running order, session controls and full-screen mode.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors group-hover:bg-white/30">
+              Explore more
+              <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden="true" />
+            </span>
+          </a>
+
+          <div id="player-preview" className="mx-auto mt-10 max-w-5xl scroll-mt-24">
             <ProductFrame />
             <div className="mt-6 text-center">
               <Link
