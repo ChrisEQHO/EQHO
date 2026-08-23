@@ -9,12 +9,16 @@
 
 export const SITE = {
   name: 'EQHO Player',
-  // Short tagline used in the hero and <title>.
-  tagline: 'Run every routine on cue.',
+  // Hero headline.
+  tagline: 'Set the music once. Coach the whole session.',
+  // Hero supporting paragraph (sits under the headline).
+  heroSupport:
+    'Build the running order, choose the gap between routines and set the repeats before training starts. Press play and EQHO Player keeps the session moving while you coach.',
+  // Short product description reused for summaries and structured data.
   description:
-    'EQHO Player is the music player built for gymnastics, dance and cheer coaches — organise routine music into playlists, lock your running order, and control every track from the floor.',
+    'EQHO Player manages competition music during training. Prepare the running order, timing and repeats in around 30 seconds, then press play and coach the session.',
   url: 'https://www.eqho-player.com',
-  logo: '/images/eqho-logo.png',
+  logo: '/images/eqho-player-header-v2.png',
 } as const
 
 /**
@@ -31,6 +35,87 @@ export const LAUNCH = {
     'EQHO Player is completely free to use until 31 August. Create your account today and start building your sessions.',
 } as const
 
+/**
+ * Pricing-page content + the SINGLE launch transition date.
+ *
+ * All date logic and pricing copy live here so nothing is scattered across
+ * components. Before `launchTransitionUtc` the page shows the launch offer; on or
+ * after it, the standard 30-day-trial offer. £4.99/month is the price; the actual
+ * figure shown is always the live Stripe price (see lib/get-pricing.ts), with
+ * £4.99 as the documented fallback.
+ *
+ * launchTransitionUtc: 1 September 2026, 00:00 Europe/London. September is BST
+ * (UTC+1), so midnight London == 2026-08-31T23:00:00Z.
+ */
+export const PRICING = {
+  launchTransitionUtc: '2026-08-31T23:00:00.000Z',
+  productName: 'EQHO Player',
+  trialLabel: 'First 30 days free',
+  ctaHref: '/signup',
+} as const
+
+/** True when `now` is before the launch transition (Europe/London midnight). */
+export function isPreLaunch(now: Date = new Date()): boolean {
+  return now.getTime() < new Date(PRICING.launchTransitionUtc).getTime()
+}
+
+export type PricingCopy = {
+  preLaunch: boolean
+  badge: string
+  heading: string
+  supporting: string
+  priceLabel: string
+  frequency: string
+  trialLabel: string
+  explanation: string
+  cta: string
+  cardNote: string
+}
+
+/**
+ * Resolve the exact pricing-page copy for the current launch phase, injecting the
+ * (live or fallback) price so the wording never contradicts Stripe.
+ *
+ * @param formattedPrice e.g. "£4.99"
+ * @param interval       e.g. "month" (empty for one-off)
+ * @param now            injectable for testing; defaults to current time
+ */
+export function getPricingCopy(formattedPrice: string, interval: string, now: Date = new Date()): PricingCopy {
+  const per = interval ? `${formattedPrice}/${interval}` : formattedPrice
+  const frequency = interval ? `per ${interval}` : ''
+
+  // Signup collects NO payment method (Supabase-only account creation), so both
+  // phases use the "No card required" wording — never an unqualified "cancel anytime".
+  if (isPreLaunch(now)) {
+    return {
+      preLaunch: true,
+      badge: 'Launch offer: free until 31 August',
+      heading: `30 days free, then ${per}`,
+      supporting:
+        'Create your account now and use EQHO free until 31 August. Your 30-day free trial begins on 1 September.',
+      priceLabel: formattedPrice,
+      frequency,
+      trialLabel: PRICING.trialLabel,
+      explanation: `Free access until 31 August, followed by your 30-day free trial. Subscribe for ${per} after the trial to continue.`,
+      cta: 'Start using EQHO free',
+      cardNote: 'No card required. No charge during free access or your trial.',
+    }
+  }
+
+  return {
+    preLaunch: false,
+    badge: '30-day free trial',
+    heading: 'Simple pricing for coaches.',
+    supporting: `Try every EQHO feature free for 30 days. Continue for ${per} after your trial.`,
+    priceLabel: formattedPrice,
+    frequency,
+    trialLabel: PRICING.trialLabel,
+    explanation: '',
+    cta: 'Start 30-day free trial',
+    cardNote: 'No card required. Subscribe after your trial to continue.',
+  }
+}
+
 /** Primary calls to action. Pre-launch the primary action is "Start free". */
 export const CTA = {
   primary: { label: 'Start free', href: '/signup' },
@@ -41,7 +126,7 @@ export const CTA = {
 
 /** Header navigation (anchors on the homepage + the pricing route). */
 export const NAV_LINKS: { label: string; href: string }[] = [
-  { label: 'Features', href: '/#features' },
+  { label: 'The player', href: '/features' },
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Who it’s for', href: '/#audiences' },
   { label: 'Pricing', href: '/pricing' },
@@ -50,8 +135,8 @@ export const NAV_LINKS: { label: string; href: string }[] = [
 
 /** The problem → outcome framing under the hero. */
 export const PROBLEM = {
-  heading: 'Fumbling with a phone at the side of the floor is the worst part of the meet.',
-  body: 'Scrubbing through a camera roll, muting the wrong track, or missing a cue puts pressure on your athletes at the exact moment they need calm. EQHO Player puts your whole session in order so you press play once and trust it.',
+  heading: 'Floor time is for coaching, not searching for tracks.',
+  body: 'When training time is limited, every interruption costs repetitions. EQHO Player keeps the running order, gaps and repeats organised around your session. Set it up in around 30 seconds, press play and focus on coaching.',
 } as const
 
 /**
@@ -60,50 +145,50 @@ export const PROBLEM = {
  */
 export const FEATURES: { icon: string; title: string; body: string }[] = [
   {
-    icon: 'ListMusic',
-    title: 'Playlists that match your session',
-    body: 'Group routine music into playlists per squad, level or competition, so the right tracks are always a tap away.',
-  },
-  {
     icon: 'ListOrdered',
-    title: 'Locked running order',
-    body: 'Set the exact order your athletes compete in and play straight down the list — no hunting for the next track.',
-  },
-  {
-    icon: 'SlidersHorizontal',
-    title: 'Precise track control',
-    body: 'Start, pause and reset each routine cleanly, with clear track names and durations you can read from the floor.',
+    title: 'Keep the running order',
+    body: 'Your playlist stays in the order you prepared, ready for the next routine.',
   },
   {
     icon: 'Timer',
-    title: 'Countdown you can see',
-    body: 'A full-screen countdown makes it obvious when a routine is about to start, from anywhere in the hall.',
+    title: 'Control the gaps',
+    body: 'Choose how many seconds athletes have between routines.',
+  },
+  {
+    icon: 'Repeat',
+    title: 'Run repetitions without stopping',
+    body: 'Use back-to-back playback and set how many times a routine should run.',
+  },
+  {
+    icon: 'Eye',
+    title: 'Make better use of floor time',
+    body: 'Spend less of the session handling music and more of it coaching.',
   },
   {
     icon: 'CloudUpload',
-    title: 'Your library in the cloud',
-    body: 'Push your playlists and audio to your account so your sessions are backed up and ready on any device you log in to.',
+    title: 'Your sessions, backed up',
+    body: 'Push your playlists and audio to your account so a session you built at home is ready when you log in at training.',
   },
   {
     icon: 'MonitorSmartphone',
     title: 'Works on your devices',
-    body: 'Run EQHO Player in the browser on a laptop or tablet, or install the app — the same session, wherever you coach.',
+    body: 'Run EQHO Player in the browser on a laptop or tablet, or install the app and coach from the same session.',
   },
 ]
 
 /** How-it-works steps. Not "01/02/03" decoration — these are a real sequence. */
 export const STEPS: { title: string; body: string }[] = [
   {
-    title: 'Upload your music',
-    body: 'Add a folder of routine tracks and EQHO Player organises them into a playlist you can name and reorder.',
+    title: 'Arrange the routines',
+    body: 'Put the competition music in the order you want to run it.',
   },
   {
-    title: 'Set your running order',
-    body: 'Drag tracks into the exact order your athletes compete, then push the playlist to your account to save it.',
+    title: 'Set the session controls',
+    body: 'Choose the gap between routines, set the repeats and switch on back-to-back playback when needed.',
   },
   {
-    title: 'Play from the floor',
-    body: 'On the day, open your session and play down the list — countdown, track names and controls all in one place.',
+    title: 'Press play and coach',
+    body: 'EQHO Player follows the session plan while you watch, teach and give feedback.',
   },
 ]
 
@@ -112,25 +197,29 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'Medal',
     title: 'Gymnastics coaches',
-    body: 'Manage floor and beam music for every gymnast across a full competition day.',
+    body: 'Run floor and beam music for every gymnast through a full training session.',
   },
   {
     icon: 'Music2',
     title: 'Dance & performance',
-    body: 'Keep group and solo tracks in order for showcases, exams and competitions.',
+    body: 'Keep group and solo routines in order while you work through the session.',
   },
   {
     icon: 'Megaphone',
     title: 'Cheer & tumbling',
-    body: 'Run team routines back to back without missing a beat between performances.',
+    body: 'Run team routines back to back so tumbling passes keep moving between reps.',
   },
 ]
 
 /** FAQ — honest answers, no invented specifics. */
 export const FAQ: { q: string; a: string }[] = [
   {
+    q: 'What is EQHO Player?',
+    a: 'EQHO Player is a training music player for gymnastics, acro, dance and cheer coaches. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
+  },
+  {
     q: 'How much does EQHO Player cost?',
-    a: 'EQHO Player is free to use until 31 August. After that it moves to a simple subscription — see the pricing page for the current price.',
+    a: 'EQHO Player is free to use until 31 August. After that it moves to a simple subscription. See the pricing page for the current price.',
   },
   {
     q: 'Do I need to install anything?',
@@ -155,7 +244,7 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
   {
     heading: 'Product',
     links: [
-      { label: 'Features', href: '/#features' },
+      { label: 'The player', href: '/features' },
       { label: 'How it works', href: '/#how-it-works' },
       { label: 'Pricing', href: '/pricing' },
     ],

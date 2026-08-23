@@ -11,11 +11,10 @@ export type LivePrice = {
   live: boolean
 }
 
-// Documented default price (£3.99/month GBP), mirrored from SUBSCRIPTION_CONFIG in
-// lib/stripe.ts. Used only when Stripe can't be reached. This is a real, intended
-// price — not a fabricated placeholder — so the page stays honest if the live
-// lookup fails.
-const FALLBACK_AMOUNT_MINOR = 399
+// Documented default price (£4.99/month GBP). Used ONLY when the live Stripe price
+// can't be loaded. This is a real, intended price — not a fabricated placeholder —
+// so the page stays honest if the live lookup fails.
+const FALLBACK_AMOUNT_MINOR = 499
 const FALLBACK_CURRENCY = 'gbp'
 const FALLBACK_INTERVAL = 'month'
 

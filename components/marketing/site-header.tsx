@@ -49,15 +49,17 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#020617]/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        {/* Logo → home */}
-        <Link href="/" className="flex items-center gap-2 shrink-0" aria-label={`${SITE.name} home`}>
+        {/* Logo → home. The image already contains the full "EQHO PLAYER" wordmark,
+            so there is NO separate text label. Sized by height (h-11 mobile / h-14
+            desktop) with w-auto so the ~2.5:1 lockup keeps its aspect ratio. */}
+        <Link href="/" className="flex shrink-0 items-center" aria-label={`${SITE.name} home`}>
           <Image
             src={SITE.logo || "/placeholder.svg"}
             alt={SITE.name}
-            width={132}
-            height={40}
-            className="h-9 w-auto"
+            width={240}
+            height={60}
             priority
+            className="h-11 w-auto shrink-0 object-contain md:h-14"
           />
         </Link>
 

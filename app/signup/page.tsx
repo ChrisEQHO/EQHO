@@ -171,8 +171,9 @@ export default function SignupPage() {
           <Image
             src="/images/eqho-logo.png"
             alt="EQHO Player"
-            width={220}
-            height={220}
+            width={240}
+            height={96}
+            className="h-auto w-[240px] max-w-full"
             priority
           />
         </div>
