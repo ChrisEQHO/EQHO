@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Menu, X, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
-import { SITE, NAV_LINKS, CTA } from '@/lib/marketing-config'
+import { SITE, NAV_LINKS, CTA, LAUNCH } from '@/lib/marketing-config'
 
 /**
  * Public marketing header. Sticky, translucent, with a mobile drawer.
@@ -52,16 +52,23 @@ export function SiteHeader() {
         {/* Logo → home. The image already contains the full "EQHO PLAYER" wordmark,
             so there is NO separate text label. Sized by height (h-11 mobile / h-14
             desktop) with w-auto so the ~2.5:1 lockup keeps its aspect ratio. */}
-        <Link href="/" className="flex shrink-0 items-center" aria-label={`${SITE.name} home`}>
-          <Image
-            src={SITE.logo || "/placeholder.svg"}
-            alt={SITE.name}
-            width={240}
-            height={60}
-            priority
-            className="h-11 w-auto shrink-0 object-contain md:h-14"
-          />
-        </Link>
+        <div className="flex shrink-0 items-center gap-3">
+          <Link href="/" className="flex shrink-0 items-center" aria-label={`${SITE.name} home`}>
+            <Image
+              src={SITE.logo || "/placeholder.svg"}
+              alt={SITE.name}
+              width={240}
+              height={60}
+              priority
+              className="h-11 w-auto shrink-0 object-contain md:h-14"
+            />
+          </Link>
+          {/* Branded "free until" badge, sat beside the logo on large screens. */}
+          <span className="hidden items-center gap-1.5 rounded-full border border-[#ff8a00]/40 bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 px-3 py-1 text-xs font-semibold text-[#ffb673] lg:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]" />
+            {LAUNCH.freeUntilLabel}
+          </span>
+        </div>
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-7 md:flex" aria-label="Primary">
