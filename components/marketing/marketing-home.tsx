@@ -54,12 +54,12 @@ const HERO_VALUE_PROPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: CloudUpload,
     title: 'Cloud storage',
-    body: 'Every playlist saved and backed up automatically.',
+    body: 'Push your playlists to your EQHO Cloud account to keep them securely saved and backed up.',
   },
   {
     icon: MonitorSmartphone,
     title: 'On any device',
-    body: 'Sync across laptop and tablet, and carry on where you left off.',
+    body: 'Sync your playlists across multiple devices, so your whole coaching team can access the same music whenever they need it.',
   },
   {
     icon: SlidersHorizontal,
@@ -185,7 +185,7 @@ export function MarketingHome() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">Features</p>
             <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              Built to keep training moving.
+                Built to make your life easier, so you can spend more time coaching.
             </h2>
             <Link
               href="/features"
