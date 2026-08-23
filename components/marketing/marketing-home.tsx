@@ -106,7 +106,7 @@ export function MarketingHome() {
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(80%_60%_at_50%_-10%,rgba(255,138,0,0.15),transparent_60%)]"
         />
         <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
-          <div className="order-1 mx-auto max-w-3xl text-center">
+          <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               {SITE.tagline}
             </h1>
@@ -127,7 +127,7 @@ export function MarketingHome() {
 
           {/* Two feature panels — one player, two ways to keep training moving.
               Side by side on desktop/large tablet, stacked on mobile. */}
-          <div className="order-3 mx-auto mt-6 w-full max-w-5xl sm:order-2 sm:mt-6">
+          <div className="mx-auto mt-6 w-full max-w-5xl sm:mt-6">
             <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#64748b]">
               One player. Two ways to keep training moving.
             </p>
@@ -168,7 +168,7 @@ export function MarketingHome() {
           {/* Branded prompt directing users down to the live player preview */}
           <a
             href="#player-preview"
-            className="group order-2 mx-auto mt-6 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:order-3 sm:mt-4 sm:flex-row sm:justify-between sm:py-4 sm:text-left"
+            className="group mx-auto mt-6 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:mt-4 sm:flex-row sm:justify-between sm:py-4 sm:text-left"
           >
             <div>
               <p className="text-base font-bold text-white sm:text-xl">Take a look at the player below</p>
@@ -182,7 +182,7 @@ export function MarketingHome() {
             </span>
           </a>
 
-          <div id="player-preview" className="order-4 mx-auto mt-5 w-full max-w-5xl scroll-mt-24">
+          <div id="player-preview" className="mx-auto mt-5 w-full max-w-5xl scroll-mt-24">
             <ProductFrame />
             <div className="mt-6 text-center">
               <Link
