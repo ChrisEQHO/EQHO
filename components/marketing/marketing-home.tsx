@@ -12,6 +12,9 @@ import {
   Music2,
   Megaphone,
   Check,
+  SlidersHorizontal,
+  Maximize2,
+  Library,
   type LucideIcon,
 } from 'lucide-react'
 import { ProductFrame } from '@/components/marketing/product-frame'
@@ -40,6 +43,35 @@ const ICONS: Record<string, LucideIcon> = {
   Megaphone,
 }
 
+// Hero value strip — the reasons to use EQHO, shown before the preview.
+const HERO_VALUE_PROPS: { icon: LucideIcon; title: string; body: string }[] = [
+  {
+    icon: Library,
+    title: 'All in one place',
+    body: 'One home and one player for every routine track.',
+  },
+  {
+    icon: CloudUpload,
+    title: 'Cloud storage',
+    body: 'Every playlist saved and backed up automatically.',
+  },
+  {
+    icon: MonitorSmartphone,
+    title: 'On any device',
+    body: 'Sync across laptop and tablet, and carry on where you left off.',
+  },
+  {
+    icon: SlidersHorizontal,
+    title: 'Session controls',
+    body: 'Set gaps, repeats and back-to-back to optimise training time.',
+  },
+  {
+    icon: Maximize2,
+    title: 'Full-screen mode',
+    body: 'A giant countdown the whole room can read from the floor.',
+  },
+]
+
 function PrimaryCta({ className = '' }: { className?: string }) {
   return (
     <Link
@@ -61,13 +93,9 @@ export function MarketingHome() {
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(80%_60%_at_50%_-10%,rgba(255,138,0,0.15),transparent_60%)]"
         />
-        <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-10 sm:px-6 sm:pt-12 lg:pt-14">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-4 py-1.5 text-xs font-semibold text-[#ffb673]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#ff8a00]" />
-              {LAUNCH.freeUntilLabel}
-            </span>
-            <h1 className="mt-6 text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+            <h1 className="text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
               {SITE.tagline}
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
@@ -83,6 +111,27 @@ export function MarketingHome() {
               </Link>
             </div>
             <p className="mt-4 text-sm text-[#64748b]">No card required. {LAUNCH.freeUntilLabel}.</p>
+          </div>
+
+          {/* Value strip — why coaches use EQHO, before they reach the preview */}
+          <div className="mx-auto mt-12 max-w-5xl">
+            <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#64748b]">
+              Everything your training music needs, in one player
+            </p>
+            <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {HERO_VALUE_PROPS.map(({ icon: Icon, title, body }) => (
+                <li
+                  key={title}
+                  className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:border-[#ff8a00]/40 hover:bg-white/[0.05]"
+                >
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_8px_24px_-8px_rgba(255,79,163,0.6)]">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <h3 className="mt-4 text-sm font-semibold text-white">{title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-[#94a3b8]">{body}</p>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div className="mx-auto mt-14 max-w-5xl">
