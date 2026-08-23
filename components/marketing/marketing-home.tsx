@@ -13,8 +13,6 @@ import {
   Megaphone,
   Check,
   SlidersHorizontal,
-  Maximize2,
-  Library,
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,32 +42,45 @@ const ICONS: Record<string, LucideIcon> = {
   Megaphone,
 }
 
-// Hero value strip — the reasons to use EQHO, shown before the preview.
-const HERO_VALUE_PROPS: { icon: LucideIcon; title: string; body: string }[] = [
+// Two feature panels shown before the player preview — one for running a
+// session, one for EQHO Cloud. Each carries its own accent gradient.
+const HERO_PANELS: {
+  icon: LucideIcon
+  eyebrow: string
+  title: string
+  body: string
+  bullets: string[]
+  gradient: string
+  glow: string
+  ring: string
+}[] = [
   {
-    icon: Library,
-    title: 'All in one place',
-    body: 'One home and one player for every routine track.',
+    icon: SlidersHorizontal,
+    eyebrow: 'During training',
+    title: 'Run smoother training sessions',
+    body: 'Build your playlists, arrange the running order, set the gaps and repeats, then press play. EQHO Player keeps every routine organised with simple session controls and a clear full-screen view, reducing interruptions so you can focus on coaching.',
+    bullets: [
+      'Organised playlists and running orders',
+      'Adjustable gaps, repeats and playback controls',
+      'Clear full-screen timing for the whole floor',
+    ],
+    gradient: 'from-[#ff4fa3] to-[#ff8a00]',
+    glow: 'rgba(255,79,163,0.6)',
+    ring: 'hover:border-[#ff8a00]/40',
   },
   {
     icon: CloudUpload,
-    title: 'Cloud storage',
-    body: 'Push your playlists to your EQHO Cloud account to keep them securely saved and backed up.',
-  },
-  {
-    icon: MonitorSmartphone,
-    title: 'On any device',
-    body: 'Sync your playlists across multiple devices, so your whole coaching team can access the same music whenever they need it.',
-  },
-  {
-    icon: SlidersHorizontal,
-    title: 'Session controls',
-    body: 'Set gaps, repeats and back-to-back to optimise training time.',
-  },
-  {
-    icon: Maximize2,
-    title: 'Full-screen mode',
-    body: 'A giant countdown the whole room can read from the floor.',
+    eyebrow: 'EQHO Cloud',
+    title: 'Keep your music ready across devices',
+    body: 'Push your playlists and audio to your EQHO Cloud account to keep them securely saved and backed up. Log in on desktop, tablet or phone to access the same music across multiple devices, so your coaching team can use the playlists they need.',
+    bullets: [
+      'Secure cloud storage and backup',
+      'Access on desktop, tablet and phone',
+      'Make playlists available on multiple logged-in devices',
+    ],
+    gradient: 'from-[#8b5cf6] to-[#3b82f6]',
+    glow: 'rgba(99,102,241,0.6)',
+    ring: 'hover:border-[#3b82f6]/40',
   },
 ]
 
@@ -114,32 +125,50 @@ export function MarketingHome() {
             <p className="mt-3 text-sm text-[#64748b]">No card required. {LAUNCH.freeUntilLabel}.</p>
           </div>
 
-          {/* Value strip — why coaches use EQHO, before they reach the preview.
-              Horizontal swipeable row below lg, five-column grid on desktop. */}
+          {/* Two feature panels — one player, two ways to keep training moving.
+              Side by side on desktop/large tablet, stacked on mobile. */}
           <div className="order-3 mx-auto mt-6 w-full max-w-5xl sm:order-2 sm:mt-6">
             <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#64748b]">
-              Everything your training music needs, in one player
+              One player. Two ways to keep training moving.
             </p>
-            <ul className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:mt-4 lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
-              {HERO_VALUE_PROPS.map(({ icon: Icon, title, body }) => (
-                <li
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              {HERO_PANELS.map(({ icon: Icon, eyebrow, title, body, bullets, gradient, glow, ring }) => (
+                <div
                   key={title}
-                  className="group flex h-auto min-w-[78%] shrink-0 snap-start flex-col rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-left transition-colors hover:border-[#ff8a00]/40 hover:bg-white/[0.05] sm:min-w-[46%] md:min-w-[32%] lg:min-w-0 lg:shrink"
+                  className={`group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:bg-white/[0.05] ${ring}`}
                 >
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_8px_24px_-8px_rgba(255,79,163,0.6)]">
+                  <span
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} text-white`}
+                    style={{ boxShadow: `0 8px 24px -8px ${glow}` }}
+                  >
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <h3 className="mt-3 text-sm font-semibold text-white">{title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-[#94a3b8]">{body}</p>
-                </li>
+                  <p
+                    className={`mt-4 bg-gradient-to-r ${gradient} bg-clip-text text-xs font-semibold uppercase tracking-[0.15em] text-transparent`}
+                  >
+                    {eyebrow}
+                  </p>
+                  <h3 className="mt-1 text-lg font-bold text-white sm:text-xl">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[#94a3b8]">{body}</p>
+                  <ul className="mt-4 space-y-2">
+                    {bullets.map((point) => (
+                      <li key={point} className="flex items-start gap-2 text-sm text-[#cbd5e1]">
+                        <span className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-white`}>
+                          <Check className="h-3 w-3" aria-hidden="true" />
+                        </span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
 
           {/* Branded prompt directing users down to the live player preview */}
           <a
             href="#player-preview"
-            className="group order-2 mx-auto mt-6 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:order-3 sm:mt-5 sm:flex-row sm:justify-between sm:py-5 sm:text-left"
+            className="group order-2 mx-auto mt-6 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:order-3 sm:mt-4 sm:flex-row sm:justify-between sm:py-4 sm:text-left"
           >
             <div>
               <p className="text-base font-bold text-white sm:text-xl">Take a look at the player below</p>
