@@ -94,15 +94,15 @@ export function MarketingHome() {
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(80%_60%_at_50%_-10%,rgba(255,138,0,0.15),transparent_60%)]"
         />
-        <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-10 sm:px-6 sm:pt-12 lg:pt-14">
-          <div className="mx-auto max-w-3xl text-center">
-            <h1 className="text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+        <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
+          <div className="order-1 mx-auto max-w-3xl text-center">
+            <h1 className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               {SITE.tagline}
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
+            <p className="mx-auto mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-[#94a3b8] sm:mt-4 sm:text-lg">
               {SITE.heroSupport}
             </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:mt-5 sm:flex-row">
               <PrimaryCta className="w-full sm:w-auto" />
               <Link
                 href={CTA.secondary.href}
@@ -111,24 +111,25 @@ export function MarketingHome() {
                 {CTA.secondary.label}
               </Link>
             </div>
-            <p className="mt-4 text-sm text-[#64748b]">No card required. {LAUNCH.freeUntilLabel}.</p>
+            <p className="mt-3 text-sm text-[#64748b]">No card required. {LAUNCH.freeUntilLabel}.</p>
           </div>
 
-          {/* Value strip — why coaches use EQHO, before they reach the preview */}
-          <div className="mx-auto mt-12 max-w-5xl">
+          {/* Value strip — why coaches use EQHO, before they reach the preview.
+              Horizontal swipeable row below lg, five-column grid on desktop. */}
+          <div className="order-3 mx-auto mt-6 w-full max-w-5xl sm:order-2 sm:mt-6">
             <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#64748b]">
               Everything your training music needs, in one player
             </p>
-            <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <ul className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:mt-4 lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
               {HERO_VALUE_PROPS.map(({ icon: Icon, title, body }) => (
                 <li
                   key={title}
-                  className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:border-[#ff8a00]/40 hover:bg-white/[0.05]"
+                  className="group flex h-auto min-w-[78%] shrink-0 snap-start flex-col rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-left transition-colors hover:border-[#ff8a00]/40 hover:bg-white/[0.05] sm:min-w-[46%] md:min-w-[32%] lg:min-w-0 lg:shrink"
                 >
                   <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_8px_24px_-8px_rgba(255,79,163,0.6)]">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <h3 className="mt-4 text-sm font-semibold text-white">{title}</h3>
+                  <h3 className="mt-3 text-sm font-semibold text-white">{title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-[#94a3b8]">{body}</p>
                 </li>
               ))}
@@ -138,21 +139,21 @@ export function MarketingHome() {
           {/* Branded prompt directing users down to the live player preview */}
           <a
             href="#player-preview"
-            className="group mx-auto mt-14 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-6 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:flex-row sm:justify-between sm:text-left"
+            className="group order-2 mx-auto mt-6 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:order-3 sm:mt-5 sm:flex-row sm:justify-between sm:py-5 sm:text-left"
           >
             <div>
-              <p className="text-lg font-bold text-white sm:text-xl">Take a look at the player below</p>
+              <p className="text-base font-bold text-white sm:text-xl">Take a look at the player below</p>
               <p className="mt-1 text-sm text-white/85">
                 Scroll on to preview the running order, session controls and full-screen mode.
               </p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors group-hover:bg-white/30">
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors group-hover:bg-white/30">
               Explore more
               <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden="true" />
             </span>
           </a>
 
-          <div id="player-preview" className="mx-auto mt-10 max-w-5xl scroll-mt-24">
+          <div id="player-preview" className="order-4 mx-auto mt-5 w-full max-w-5xl scroll-mt-24">
             <ProductFrame />
             <div className="mt-6 text-center">
               <Link
