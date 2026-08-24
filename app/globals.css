@@ -220,7 +220,7 @@ body {
   }
 }
 
-/* Hidden scrollbar */
+/* Hidden scrollbar (default for inner scroll containers) */
 ::-webkit-scrollbar {
   width: 0px;
   height: 0px;
@@ -229,6 +229,43 @@ body {
 /* Firefox scrollbar */
 * {
   scrollbar-width: none;
+}
+
+/* Restore a real, visible page-level scrollbar so the site is usable without a
+   scroll wheel or trackpad gesture. This applies to the top-level document
+   scroll; inner containers stay hidden via the .no-scrollbar helper.
+
+   `scrollbar-width: auto` overrides the universal `none` above:
+   - Chrome/Edge/Safari then render the branded `::-webkit-scrollbar` below.
+   - Firefox uses the standard `scrollbar-color` (thumb / track).
+   !important is required to beat the universal `* { scrollbar-width: none }`. */
+html {
+  scrollbar-width: auto !important;
+  scrollbar-color: rgba(255, 79, 163, 0.7) #020617 !important;
+}
+html::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+html::-webkit-scrollbar-track {
+  background: #020617;
+}
+html::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ff4fa3 0%, #ff8a00 100%);
+  border: 3px solid #020617;
+  border-radius: 999px;
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ff69b4 0%, #ffa733 100%);
+}
+
+/* Opt-out helper for any element that must keep a hidden scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
 }
 
 /* EQHO Bottom bar divider */
