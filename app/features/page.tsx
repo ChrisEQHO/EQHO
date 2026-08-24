@@ -27,7 +27,8 @@ import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { ProductFrame } from '@/components/marketing/product-frame'
 import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
-import { SITE, CTA, LAUNCH, FEATURES } from '@/lib/marketing-config'
+import { AppStoreButton } from '@/components/marketing/app-store-button'
+import { SITE, CTA, LAUNCH, FEATURES, APP } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
   title: `The player — see everything ${SITE.name} does`,
@@ -87,9 +88,9 @@ const CLOUD_POINTS = [
 ]
 
 const DEVICE_POINTS = [
-  { icon: Laptop, text: 'Run it in the browser on a laptop — nothing to install.' },
-  { icon: Tablet, text: 'Coach from a tablet at the side of the floor.' },
-  { icon: Smartphone, text: 'Install the app for a home-screen icon on your phone.' },
+  { icon: Laptop, text: 'Use it in any web browser on desktop — nothing to install.' },
+  { icon: Tablet, text: 'Coach from a tablet or laptop browser at the side of the floor.' },
+  { icon: Smartphone, text: 'Download the free app for the best experience on iPad and iPhone.' },
   { icon: WifiOff, text: 'Load your session before you travel so it plays from your device.' },
 ]
 
@@ -310,10 +311,15 @@ export default function FeaturesPage() {
                 Build at home. Coach at the venue.
               </h2>
               <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                EQHO Player runs in the browser and installs as an app. Prepare a session on your laptop,
-                then open the same session on a tablet or phone at training — it is the same account and the
-                same running order everywhere you log in.
+                EQHO Player runs in any web browser on desktop, tablet and mobile. Prepare a session on your
+                laptop, then open the same running order on a tablet or phone at training — it is the same
+                account everywhere you log in. For the best experience on iPad and iPhone, download the free
+                app from the App Store.
               </p>
+              <div className="mt-6 flex flex-col items-start gap-2">
+                <AppStoreButton />
+                <span className="text-sm text-[#7c8596]">{APP.bestOn}</span>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {DEVICE_POINTS.map(({ icon: Icon, text }) => (
