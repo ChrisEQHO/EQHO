@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -251,12 +251,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Sign Up Link */}
+          {/* Sign Up Link — clearly styled as the next step to the signup page */}
           <Link 
             href="/signup"
-            className="block w-full h-12 rounded-xl font-semibold text-center leading-[48px] border border-white/20 text-white hover:bg-white/10 transition-all"
+            className="flex w-full h-12 items-center justify-center gap-2 rounded-xl border-2 border-[#ff4fa3]/60 bg-[#ff4fa3]/10 font-semibold text-white transition-all hover:border-[#ff4fa3] hover:bg-[#ff4fa3]/20"
           >
             Create an account
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
 
