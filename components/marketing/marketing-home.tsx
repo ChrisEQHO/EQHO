@@ -101,12 +101,19 @@ export function MarketingHome() {
   return (
     <main className="bg-[#020617] text-white">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden">
-        {/* Faint product screenshot embedded as an atmospheric backdrop.
-            Decorative only: pointer-events-none, out of flow, edge-masked. */}
+      <section className="relative isolate overflow-hidden">
+        {/* Layer 0 — navy base colour, the bottom of the stack */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-20 flex items-end justify-center overflow-hidden"
+          className="pointer-events-none absolute inset-0 z-0 bg-[#020617]"
+        />
+
+        {/* Layer 1 — the actual player screenshot, sat above the navy base.
+            Recognisable but subdued; opacity only on the image, gentle edge
+            mask, no blur, aspect ratio preserved via object-contain. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 z-[1] flex justify-center"
         >
           <Image
             src="/marketing/hero-backdrop.png"
@@ -115,27 +122,23 @@ export function MarketingHome() {
             width={2940}
             height={1628}
             priority={false}
-            className="h-auto w-[115%] max-w-none translate-x-[6%] translate-y-[10%] opacity-[0.07] blur-[1.5px] saturate-[0.75] [mask-image:radial-gradient(68%_68%_at_56%_62%,#000_0%,transparent_74%)] [-webkit-mask-image:radial-gradient(68%_68%_at_56%_62%,#000_0%,transparent_74%)] sm:w-[95%] sm:opacity-[0.11] lg:opacity-[0.14]"
+            className="h-auto w-[125%] max-w-none object-contain opacity-[0.14] [mask-image:radial-gradient(75%_75%_at_50%_42%,#000_65%,transparent_100%)] [-webkit-mask-image:radial-gradient(75%_75%_at_50%_42%,#000_65%,transparent_100%)] sm:w-[105%] sm:opacity-[0.22] lg:w-full lg:opacity-[0.28]"
           />
         </div>
 
-        {/* Navy overlay — darkest behind the headline, lighter at the edges */}
+        {/* Layer 2 — light readability overlay + restrained brand glow.
+            Kept gentle so it protects text without hiding the screenshot. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_55%_at_50%_34%,rgba(2,6,23,0.94),rgba(2,6,23,0.6)_68%,rgba(2,6,23,0.2)_100%)]"
+          className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(60%_50%_at_50%_32%,rgba(2,6,23,0.62),rgba(2,6,23,0.28)_70%,transparent_100%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(38%_40%_at_18%_18%,rgba(255,79,163,0.10),transparent_60%),radial-gradient(38%_40%_at_82%_26%,rgba(139,92,246,0.10),transparent_60%),radial-gradient(46%_46%_at_60%_95%,rgba(255,138,0,0.10),transparent_62%)]"
         />
 
-        {/* Restrained pink / violet / orange brand ambient glow */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(38%_40%_at_18%_18%,rgba(255,79,163,0.10),transparent_60%),radial-gradient(38%_40%_at_82%_26%,rgba(139,92,246,0.10),transparent_60%),radial-gradient(46%_46%_at_60%_92%,rgba(255,138,0,0.12),transparent_62%)]"
-        />
-
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(80%_60%_at_50%_-10%,rgba(255,138,0,0.10),transparent_60%)]"
-        />
-        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
+        {/* Layer 3 — hero content, always on top */}
+        <div className="relative z-[3] mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               {SITE.tagline}
