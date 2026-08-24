@@ -19,6 +19,16 @@ import { SITE, NAV_LINKS, CTA, LAUNCH } from '@/lib/marketing-config'
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
+  // Slightly increase the header opacity once the page scrolls, so content
+  // passing beneath the sticky glass header can't reduce readability.
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
     if (isV0Preview) return
@@ -47,8 +57,39 @@ export function SiteHeader() {
   }, [open])
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#020617]/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header
+      className="sticky top-0 z-50 [backdrop-filter:blur(18px)_saturate(120%)] [-webkit-backdrop-filter:blur(18px)_saturate(120%)]"
+      style={{
+        // Deep translucent blue-black. A touch more opaque once scrolled, and
+        // stronger again on mobile via the media-query custom prop below.
+        borderBottom: '1px solid rgba(118, 132, 190, 0.16)',
+      }}
+    >
+      {/* z-0 — base translucent navy, opacity bumps after scroll */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 transition-colors duration-300"
+        style={{ backgroundColor: scrolled ? 'rgba(3, 7, 25, 0.92)' : 'rgba(3, 7, 25, 0.82)' }}
+      />
+      {/* mobile: condensed nav needs stronger separation (~0.94) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 md:hidden"
+        style={{ backgroundColor: 'rgba(3, 7, 25, 0.94)' }}
+      />
+      {/* z-0 — horizontal brand gradient: navy left → indigo centre → faint violet
+          near the Start free button. Lets a little hero atmosphere show through. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.55)_0%,rgba(30,27,75,0.42)_50%,rgba(76,29,149,0.3)_100%)]"
+      />
+      {/* z-0 — soft 28px gradient fade beneath the header into the hero */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-full z-0 h-7 bg-gradient-to-b from-[rgba(3,7,25,0.55)] to-transparent"
+      />
+
+      <div className="relative z-[1] mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         {/* Logo → home. The image already contains the full "EQHO PLAYER" wordmark,
             so there is NO separate text label. Sized by height (h-11 mobile / h-14
             desktop) with w-auto so the ~2.5:1 lockup keeps its aspect ratio. */}
@@ -76,7 +117,7 @@ export function SiteHeader() {
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-[#94a3b8] transition-colors hover:text-white"
+              className="text-sm font-medium text-[#aeb9d4] transition-colors hover:text-white hover:[text-shadow:0_0_14px_rgba(129,140,248,0.55)]"
             >
               {link.label}
             </Link>
