@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -101,11 +102,40 @@ export function MarketingHome() {
     <main className="bg-[#020617] text-white">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
+        {/* Faint product screenshot embedded as an atmospheric backdrop.
+            Decorative only: pointer-events-none, out of flow, edge-masked. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(80%_60%_at_50%_-10%,rgba(255,138,0,0.15),transparent_60%)]"
+          className="pointer-events-none absolute inset-0 -z-20 flex items-end justify-center overflow-hidden"
+        >
+          <Image
+            src="/marketing/hero-backdrop.png"
+            alt=""
+            aria-hidden="true"
+            width={2940}
+            height={1628}
+            priority={false}
+            className="h-auto w-[115%] max-w-none translate-x-[6%] translate-y-[10%] opacity-[0.07] blur-[1.5px] saturate-[0.75] [mask-image:radial-gradient(68%_68%_at_56%_62%,#000_0%,transparent_74%)] [-webkit-mask-image:radial-gradient(68%_68%_at_56%_62%,#000_0%,transparent_74%)] sm:w-[95%] sm:opacity-[0.11] lg:opacity-[0.14]"
+          />
+        </div>
+
+        {/* Navy overlay — darkest behind the headline, lighter at the edges */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_55%_at_50%_34%,rgba(2,6,23,0.94),rgba(2,6,23,0.6)_68%,rgba(2,6,23,0.2)_100%)]"
         />
-        <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
+
+        {/* Restrained pink / violet / orange brand ambient glow */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(38%_40%_at_18%_18%,rgba(255,79,163,0.10),transparent_60%),radial-gradient(38%_40%_at_82%_26%,rgba(139,92,246,0.10),transparent_60%),radial-gradient(46%_46%_at_60%_92%,rgba(255,138,0,0.12),transparent_62%)]"
+        />
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(80%_60%_at_50%_-10%,rgba(255,138,0,0.10),transparent_60%)]"
+        />
+        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               {SITE.tagline}
