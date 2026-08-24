@@ -100,67 +100,74 @@ function PrimaryCta({ className = '' }: { className?: string }) {
 export function MarketingHome() {
   return (
     <main className="bg-[#020617] text-white">
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="relative isolate overflow-hidden">
-        {/* Layer 0 — navy base colour, the bottom of the stack */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 bg-[#020617]"
-        />
+      {/* ── Hero — fills exactly one screen beneath the sticky nav ────────── */}
+      <section className="relative isolate flex min-h-[calc(100svh-var(--header-height))] flex-col overflow-hidden">
+        {/* z-0 — navy base colour */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-[#020617]" />
 
-        {/* Layer 1 — the actual player screenshot, sat above the navy base.
-            Recognisable but subdued; opacity only on the image, gentle edge
-            mask, no blur, aspect ratio preserved via object-contain. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 z-[1] flex justify-center"
-        >
+        {/* z-1 — animated ambient brand glow. Deep indigo + electric blue lead,
+            with violet/pink only as subtle highlights. Motion is slow (19–26s),
+            low opacity, transform/opacity only, and freezes under reduced-motion. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] overflow-hidden">
+          <div className="eqho-glow-a absolute left-[-12%] top-[-10%] h-[70vh] w-[55vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(49,46,129,0.95),transparent_70%)] blur-[90px]" />
+          <div className="eqho-glow-b absolute right-[-14%] top-[4%] h-[66vh] w-[55vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(29,78,216,0.9),transparent_70%)] blur-[100px]" />
+          <div className="eqho-glow-c absolute bottom-[-16%] left-[28%] h-[60vh] w-[52vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.55),rgba(255,79,163,0.35)_45%,transparent_72%)] blur-[100px]" />
+        </div>
+
+        {/* z-2 — the real player screenshot, sat below + behind the copy.
+            Opacity is applied only to the image; no blur on desktop; aspect
+            ratio preserved via object-contain; edges masked; lower edge faded. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex justify-center">
           <Image
             src="/marketing/hero-backdrop.png"
             alt=""
             aria-hidden="true"
             width={2940}
             height={1628}
-            priority={false}
-            className="h-auto w-[125%] max-w-none object-contain opacity-[0.14] [mask-image:radial-gradient(75%_75%_at_50%_42%,#000_65%,transparent_100%)] [-webkit-mask-image:radial-gradient(75%_75%_at_50%_42%,#000_65%,transparent_100%)] sm:w-[105%] sm:opacity-[0.22] lg:w-full lg:opacity-[0.28]"
+            priority
+            className="h-auto w-[168%] max-w-none translate-y-[8%] object-contain opacity-[0.16] [mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] [-webkit-mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] sm:w-[92%] sm:translate-y-[2%] sm:opacity-[0.25] lg:w-[88%] lg:opacity-[0.33]"
           />
         </div>
+        {/* lower-edge fade dissolves the screenshot into the page background */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-b from-transparent to-[#020617]" />
 
-        {/* Layer 2 — light readability overlay + restrained brand glow.
-            Kept gentle so it protects text without hiding the screenshot. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(60%_50%_at_50%_32%,rgba(2,6,23,0.62),rgba(2,6,23,0.28)_70%,transparent_100%)]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(38%_40%_at_18%_18%,rgba(255,79,163,0.10),transparent_60%),radial-gradient(38%_40%_at_82%_26%,rgba(139,92,246,0.10),transparent_60%),radial-gradient(46%_46%_at_60%_95%,rgba(255,138,0,0.10),transparent_62%)]"
-        />
+        {/* z-3 — localised navy readability gradient behind the copy only */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(56%_46%_at_50%_30%,rgba(2,6,23,0.82),rgba(2,6,23,0.4)_58%,transparent_100%)]" />
 
-        {/* Layer 3 — hero content, always on top */}
-        <div className="relative z-[3] mx-auto flex w-full max-w-6xl flex-col px-4 pb-6 pt-5 sm:px-6 sm:pt-7 lg:pt-6">
-          <div className="mx-auto max-w-3xl text-center">
-            <h1 className="text-balance text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-              {SITE.tagline}
-            </h1>
-            <p className="mx-auto mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-[#94a3b8] sm:mt-4 sm:text-lg">
-              {SITE.heroSupport}
-            </p>
-            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:mt-5 sm:flex-row">
-              <PrimaryCta className="w-full sm:w-auto" />
-              <Link
-                href={CTA.secondary.href}
-                className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
-              >
-                {CTA.secondary.label}
-              </Link>
-            </div>
-            <p className="mt-3 text-sm text-[#64748b]">No card required. {LAUNCH.freeUntilLabel}.</p>
+        {/* z-4 — hero copy + CTAs, balanced in the upper-middle */}
+        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-[clamp(2rem,5vh,3rem)] pt-[clamp(2rem,9vh,6rem)] text-center sm:px-6">
+          <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
+            {SITE.tagline}
+          </h1>
+          <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)]">
+            Build your running order, set the gaps and repeats, then press play. EQHO keeps every routine moving while you focus on coaching.
+          </p>
+          <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
+            <PrimaryCta className="w-full sm:w-auto" />
+            <Link
+              href={CTA.secondary.href}
+              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
+            >
+              {CTA.secondary.label}
+            </Link>
           </div>
+          <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
+            No card required. {LAUNCH.freeUntilLabel}.
+          </p>
+        </div>
+      </section>
 
+      {/* ── Below the fold: one player, two ways + the live preview ───────── */}
+      <section className="relative overflow-hidden border-t border-white/5">
+        {/* A much fainter continuation of the hero glow for visual continuity */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <div className="eqho-glow-b absolute left-1/2 top-[-12%] h-[52vh] w-[62vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(49,46,129,0.5),transparent_72%)] opacity-50 blur-[130px]" />
+        </div>
+
+        <div className="relative z-[1] mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           {/* Two feature panels — one player, two ways to keep training moving.
               Side by side on desktop/large tablet, stacked on mobile. */}
-          <div className="mx-auto mt-6 w-full max-w-5xl sm:mt-6">
+          <div className="mx-auto w-full max-w-5xl">
             <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#64748b]">
               One player. Two ways to keep training moving.
             </p>
