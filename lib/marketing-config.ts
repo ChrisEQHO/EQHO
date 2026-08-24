@@ -22,6 +22,19 @@ export const SITE = {
 } as const
 
 /**
+ * Native app availability. EQHO Player works in any modern web browser on
+ * desktop, tablet and mobile; the iOS app gives the best experience on iPad
+ * and iPhone. Keep the App Store link here so every download button/badge
+ * across the site points at one place.
+ */
+export const APP = {
+  appStoreUrl: 'https://apps.apple.com/us/app/eqho-player/id6779510312',
+  appStoreLabel: 'Download on the App Store',
+  // Short line shown beside download buttons.
+  bestOn: 'Best experience on iPad & iPhone',
+} as const
+
+/**
  * Launch / pricing messaging. The user chose "free until launch" messaging only,
  * so the marketing site does NOT advertise the 30-day trial. Update the date here
  * and it changes everywhere it is shown.
@@ -171,8 +184,8 @@ export const FEATURES: { icon: string; title: string; body: string }[] = [
   },
   {
     icon: 'MonitorSmartphone',
-    title: 'Works on your devices',
-    body: 'Run EQHO Player in the browser on a laptop or tablet, or install the app and coach from the same session.',
+    title: 'Works on all your devices',
+    body: 'Use EQHO Player in any web browser on desktop, tablet or mobile. For the best experience on iPad and iPhone, download the free app from the Apple App Store.',
   },
 ]
 
@@ -223,7 +236,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Do I need to install anything?',
-    a: 'No. EQHO Player runs in your web browser on a laptop or tablet. You can also install the app if you prefer a home-screen icon.',
+    a: 'No. EQHO Player works in any web browser on desktop, tablet and mobile — nothing to install. For the best experience on iPad and iPhone, you can download the free EQHO Player app from the Apple App Store.',
   },
   {
     q: 'Where is my music stored?',

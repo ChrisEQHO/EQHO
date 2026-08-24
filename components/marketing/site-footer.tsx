@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { SITE, FOOTER_LINKS } from '@/lib/marketing-config'
+import { AppStoreButton } from '@/components/marketing/app-store-button'
+import { SITE, FOOTER_LINKS, APP } from '@/lib/marketing-config'
 
 /**
  * Public marketing footer. Server component (no interactivity) so it renders as
@@ -25,8 +26,13 @@ export function SiteFooter() {
               />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#7c8596]">
-              The training music player for gymnastics, dance and cheer coaches.
+              The training music player for gymnastics, dance and cheer coaches. Use it in any web browser,
+              or download the app for iPad and iPhone.
             </p>
+            <div className="mt-5">
+              <AppStoreButton />
+              <p className="mt-2 text-xs text-[#7c8596]">{APP.bestOn}</p>
+            </div>
           </div>
 
           {/* Link groups */}

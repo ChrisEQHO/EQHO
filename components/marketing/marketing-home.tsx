@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { ProductFrame } from '@/components/marketing/product-frame'
+import { AppStoreButton } from '@/components/marketing/app-store-button'
 import {
   SITE,
   LAUNCH,
@@ -27,6 +28,7 @@ import {
   STEPS,
   AUDIENCES,
   FAQ,
+  APP,
 } from '@/lib/marketing-config'
 
 // Resolve config icon names to lucide components (keeps the config JSX-free).
@@ -73,11 +75,11 @@ const HERO_PANELS: {
     icon: CloudUpload,
     eyebrow: 'EQHO Cloud',
     title: 'Keep your music ready across devices',
-    body: 'Push your playlists and audio to your EQHO Cloud account to keep them securely saved and backed up. Log in on desktop, tablet or phone to access the same music across multiple devices, so your coaching team can use the playlists they need.',
+    body: 'Push your playlists and audio to your EQHO Cloud account to keep them securely saved and backed up. Log in from any web browser on desktop, tablet or mobile — or download the app on iPad and iPhone — to access the same music everywhere.',
     bullets: [
       'Secure cloud storage and backup',
-      'Access on desktop, tablet and phone',
-      'Make playlists available on multiple logged-in devices',
+      'Web browser on desktop, tablet and mobile',
+      'Free app on iPad and iPhone for the best experience',
     ],
     gradient: 'from-[#8b5cf6] to-[#3b82f6]',
     glow: 'rgba(99,102,241,0.6)',
@@ -202,6 +204,17 @@ export function MarketingHome() {
                   </ul>
                 </div>
               ))}
+            </div>
+
+            {/* Availability: web everywhere + App Store download for iPad/iPhone */}
+            <div className="mt-5 flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 text-center sm:flex-row sm:gap-5 sm:text-left">
+              <p className="text-sm leading-relaxed text-[#cbd5e1]">
+                Works in any web browser on desktop, tablet and mobile.
+                <span className="block text-[#94a3b8] sm:inline sm:pl-1">
+                  {APP.bestOn} — download the free app.
+                </span>
+              </p>
+              <AppStoreButton className="shrink-0" />
             </div>
           </div>
 
