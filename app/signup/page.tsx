@@ -166,16 +166,18 @@ export default function SignupPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
+        {/* Logo — links back to the homepage so users aren't stuck on signup */}
         <div className="flex justify-center mb-6">
-          <Image
-            src="/images/eqho-logo.png"
-            alt="EQHO Player"
-            width={240}
-            height={96}
-            className="h-auto w-[240px] max-w-full"
-            priority
-          />
+          <Link href="/" aria-label="Go to EQHO Player homepage" className="inline-block rounded-xl transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60">
+            <Image
+              src="/images/eqho-logo.png"
+              alt="EQHO Player"
+              width={240}
+              height={96}
+              className="h-auto w-[240px] max-w-full"
+              priority
+            />
+          </Link>
         </div>
 
         {/* Signup Card */}
@@ -290,6 +292,10 @@ export default function SignupPage() {
               </Link>
             </p>
             <p className="mt-3 text-xs">
+              <Link href="/" className="text-[#64748b] hover:text-white transition-colors">
+                Back to home
+              </Link>
+              <span className="mx-2 text-[#334155]">•</span>
               <Link href="/privacy-policy" className="text-[#64748b] hover:text-white transition-colors">
                 Privacy Policy
               </Link>
