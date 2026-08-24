@@ -268,6 +268,19 @@ html::-webkit-scrollbar-thumb:hover {
   height: 0px;
 }
 
+/* Immersive player route (class added by app/app/page.tsx while mounted): the app
+   is a fixed 100dvh layout with its own inner scroll areas and must never show a
+   document scrollbar. Re-hide it, overriding the branded `html { scrollbar-width:
+   auto }` rule above (higher specificity beats it even among !important rules). */
+html.eqho-app-immersive {
+  scrollbar-width: none !important;
+  scrollbar-color: auto !important;
+}
+html.eqho-app-immersive::-webkit-scrollbar {
+  width: 0px !important;
+  height: 0px !important;
+}
+
 /* EQHO Bottom bar divider */
 .session-bottom-divider {
   width: 100%;

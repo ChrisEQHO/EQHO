@@ -1502,6 +1502,18 @@ export default function Page() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Immersive player: hide the document-level page scrollbar for as long as this
+  // route is mounted. The public marketing site restores a branded page scrollbar
+  // globally (see app/globals.css), but the app is a fixed 100dvh layout with its
+  // own inner scroll areas and must never show a document scrollbar. The
+  // `html.eqho-app-immersive` class overrides that global rule while mounted.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const html = document.documentElement;
+    html.classList.add("eqho-app-immersive");
+    return () => html.classList.remove("eqho-app-immersive");
+  }, []);
+
   // iPad Safari Coach View height (section 6). `100dvh` is unreliable across iPadOS
   // Safari versions as the toolbar shows/hides: the Coach overlay could grow taller
   // than the visible viewport, pushing its own bottom controls off-screen. While a
