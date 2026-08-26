@@ -75,8 +75,8 @@ const ANATOMY: { icon: LucideIcon; label: string; title: string; body: string; p
   {
     icon: Play,
     label: 'Now playing',
-    title: 'Run the session without touching a camera roll.',
-    body: 'Big transport controls, a clear timer, volume and a waveform scrubber. A session overview totals your routines, running time, the gap between routines and the estimated session length.',
+    title: 'Run the session without having to manage the music.',
+    body: 'Spend less time pressing play, pause and restarting tracks. Clear controls, a running timer and volume keep everything to hand, while a session overview totals your routines, running time, the gap between routines and the estimated session length.',
     points: ['Play, pause and skip from the floor', 'Set the gap between routines', 'Repeats and back-to-back playback'],
   },
 ]
