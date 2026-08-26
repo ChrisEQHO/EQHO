@@ -156,7 +156,7 @@ export function MarketingHome() {
             </Link>
           </div>
           <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
-            Sign up and start your 30-day free trial. No card required.
+            Sign up and start your 30-day free trial. No charge until it ends.
           </p>
         </div>
       </section>

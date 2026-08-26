@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `Pricing — ${SITE.name}`,
-    description: `Try ${SITE.name} free for 30 days, then continue with a simple monthly subscription. No card required to start.`,
+    description: `Try ${SITE.name} free for 30 days, then continue with a simple monthly subscription. No charge during your trial — cancel anytime before it ends.`,
     alternates: { canonical: '/pricing' },
   }
 }
