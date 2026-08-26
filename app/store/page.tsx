@@ -40,22 +40,51 @@ export default async function StorePage() {
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(76,29,149,0.35)_0%,rgba(2,6,23,0)_70%)]"
           />
           <div className="relative mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ff8a00]/40 bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 px-3 py-1 text-xs font-semibold text-[#ffb673]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ff8a00]/40 bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#ffb673]">
               <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]" />
-              Music store
+              EQHO Music
             </span>
             <h1 className="mt-4 max-w-2xl text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
-              Competition music, ready for the floor.
+              Competition-ready music. Find the track that fits.
             </h1>
             <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-[#94a3b8] sm:text-lg">
-              Preview every track with a watermark, then get the clean master. Included with an EQHO
-              subscription, or buy tracks individually.
+              Browse, preview and listen to music created for competition. When you find the right
+              track, purchase and download your clean competition master.
             </p>
+
+            <div className="mt-6 flex flex-col gap-1">
+              <p className="text-sm font-semibold uppercase tracking-wider text-white">
+                From £19.99 per track
+              </p>
+              <p className="text-sm text-[#94a3b8]">
+                EQHO customers get tracks from just{' '}
+                <span className="font-semibold text-[#ffb673]">£9.99 each</span>.
+              </p>
+            </div>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="#catalogue"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03]"
+              >
+                Browse competition music
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/pricing"
+                className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
+              >
+                Join EQHO and save
+              </Link>
+            </div>
           </div>
         </section>
 
         {/* Catalogue */}
-        <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
+        <section
+          id="catalogue"
+          className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-12 sm:px-6 lg:py-16"
+        >
           {isEmpty ? (
             <EmptyState />
           ) : (
