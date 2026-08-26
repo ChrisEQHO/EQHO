@@ -138,10 +138,7 @@ export function MarketingHome() {
 
         {/* z-4 — hero copy + CTAs, balanced in the upper-middle */}
         <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-[clamp(2rem,5vh,3rem)] pt-[clamp(2rem,9vh,6rem)] text-center sm:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#ffb673]">
-            EQHO Player
-          </p>
-          <h1 className="mt-[clamp(0.75rem,2vh,1.25rem)] text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
+          <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
             Manage your music.
             <br />
             Make more time for coaching.
@@ -159,7 +156,7 @@ export function MarketingHome() {
             </Link>
           </div>
           <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
-            No card required. {LAUNCH.freeUntilLabel}.
+            Sign up and start your 30-day free trial. No card required.
           </p>
         </div>
       </section>
@@ -305,7 +302,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── How it works ──────────────────────────────────────────────────── */}
+      {/* ── How it works ─────────────────────────────────────���────────────── */}
       <section id="how-it-works" className="scroll-mt-20 border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
           <div className="max-w-2xl">
