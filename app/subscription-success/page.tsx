@@ -187,7 +187,7 @@ export default function SubscriptionSuccessPage() {
             <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
               <div className="flex items-center gap-1.5 text-[#94a3b8]">
                 <CreditCard className="h-3 w-3" />
-                <span className="text-xs">Then <span className="text-white font-semibold">£3.99/mo</span></span>
+                <span className="text-xs">Then <span className="text-white font-semibold">£4.99/mo</span></span>
               </div>
             </div>
             <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
