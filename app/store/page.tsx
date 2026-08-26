@@ -4,6 +4,7 @@ import { ArrowRight, Music4 } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { TrackCard } from '@/components/store/track-card'
+import { JoinEqhoSection } from '@/components/store/join-eqho-section'
 import { getTracksGroupedByCategory } from '@/lib/store/catalog'
 import { SITE, CTA } from '@/lib/marketing-config'
 
@@ -116,6 +117,9 @@ export default async function StorePage() {
             </div>
           )}
         </section>
+
+        {/* Membership value proposition */}
+        <JoinEqhoSection />
       </main>
 
       <SiteFooter />
