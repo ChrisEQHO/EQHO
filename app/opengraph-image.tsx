@@ -73,7 +73,7 @@ export default function OpengraphImage() {
             color: '#ff9dc7',
           }}
         >
-          Free to use until 31 August
+          Includes a 30-day free trial
         </div>
       </div>
     ),

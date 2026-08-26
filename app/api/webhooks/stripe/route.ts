@@ -92,6 +92,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log('[WEBHOOK] ========== CHECKOUT.SESSION.COMPLETED ==========')
   console.log('[WEBHOOK] WEBHOOK_RECEIVED: checkout.session.completed')
   console.log('[WEBHOOK] session.id:', session.id)
+
+  // À-la-carte music-store purchases are one-off payments, not subscriptions.
+  // Route them to the dedicated handler and skip the subscription/profile logic.
+  if (session.mode === 'payment' || session.metadata?.kind === 'store_track_purchase') {
+    await handleStorePurchaseCompleted(session)
+    return
+  }
   console.log('[WEBHOOK] session.customer:', session.customer)
   console.log('[WEBHOOK] session.customer_email:', session.customer_email)
   console.log('[WEBHOOK] session.customer_details?.email:', session.customer_details?.email)
@@ -283,6 +290,92 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   console.log('[WEBHOOK] ========== CHECKOUT HANDLER COMPLETE ==========')
+}
+
+async function handleStorePurchaseCompleted(session: Stripe.Checkout.Session) {
+  console.log('[WEBHOOK] ========== STORE PURCHASE COMPLETED ==========')
+  const purchaseId = session.metadata?.purchase_id
+  const userId = session.metadata?.supabase_user_id || session.client_reference_id
+  const trackId = session.metadata?.track_id
+  const paymentIntentId =
+    typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null
+  const amountCents = session.amount_total ?? undefined
+
+  console.log('[WEBHOOK] store purchase:', { purchaseId, userId, trackId, paymentIntentId, amountCents })
+
+  if (!userId || !trackId) {
+    console.error('[WEBHOOK] ERROR: store purchase missing userId/trackId; cannot grant.')
+    return
+  }
+
+  // Only a paid session grants access. (payment_status is 'paid' for completed card payments.)
+  if (session.payment_status && session.payment_status !== 'paid') {
+    console.log('[WEBHOOK] store purchase not paid yet, payment_status:', session.payment_status)
+    return
+  }
+
+  const completion = {
+    status: 'completed' as const,
+    stripe_payment_intent_id: paymentIntentId,
+    stripe_checkout_session_id: session.id,
+    ...(amountCents != null ? { amount_cents: amountCents } : {}),
+    updated_at: new Date().toISOString(),
+  }
+
+  // Prefer updating the exact pending row we created; fall back to (user, track).
+  let updatedOk = false
+  if (purchaseId) {
+    const { data, error } = await supabaseAdmin
+      .from('store_purchases')
+      .update(completion)
+      .eq('id', purchaseId)
+      .select('id')
+    if (error) {
+      console.error('[WEBHOOK] ERROR completing purchase by id:', error.message)
+    } else if (data && data.length > 0) {
+      updatedOk = true
+      console.log('[WEBHOOK] SUCCESS: purchase completed by id:', purchaseId)
+    }
+  }
+
+  if (!updatedOk) {
+    // Fallback: complete the latest pending row for this user+track.
+    const { data: pending } = await supabaseAdmin
+      .from('store_purchases')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('track_id', trackId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (pending?.id) {
+      const { error } = await supabaseAdmin.from('store_purchases').update(completion).eq('id', pending.id)
+      if (error) {
+        // A unique-violation here means a completed row already exists → already granted.
+        console.log('[WEBHOOK] purchase completion fallback note:', error.message)
+      } else {
+        console.log('[WEBHOOK] SUCCESS: purchase completed via fallback for user/track')
+      }
+    } else {
+      // No pending row (e.g. row lost) — insert a completed grant directly so the
+      // paying user is never left without access.
+      const { error } = await supabaseAdmin.from('store_purchases').insert({
+        user_id: userId,
+        track_id: trackId,
+        ...completion,
+        amount_cents: amountCents ?? 0,
+        currency: (session.currency || 'gbp').toLowerCase(),
+      })
+      if (error) {
+        console.log('[WEBHOOK] purchase insert-grant note (may already exist):', error.message)
+      } else {
+        console.log('[WEBHOOK] SUCCESS: inserted completed grant for user/track')
+      }
+    }
+  }
+
+  console.log('[WEBHOOK] ========== STORE PURCHASE HANDLER COMPLETE ==========')
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {

@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     siteName: 'EQHO Player',
     title: 'EQHO Player - Training music player for coaches',
     description:
-      'Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session. Free to use until 31 August.',
+      'Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session. Includes a 30-day free trial.',
     url: siteUrl,
     images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'EQHO Player' }],
   },

@@ -41,24 +41,23 @@ export const APP = {
  */
 export const LAUNCH = {
   // Shown in the top strip and pricing page.
-  freeUntilLabel: 'Free to use until 31 August',
-  freeUntilShort: 'Free until 31 Aug',
+  freeUntilLabel: 'Includes a 30-day free trial',
+  freeUntilShort: '30-day free trial',
   // Human sentence used in longer copy.
   freeNote:
-    'EQHO Player is completely free to use until 31 August. Create your account today and start building your sessions.',
+    'EQHO Player comes with a 30-day free trial. Create your account today and start building your sessions.',
 } as const
 
 /**
  * Pricing-page content + the SINGLE launch transition date.
  *
- * All date logic and pricing copy live here so nothing is scattered across
- * components. Before `launchTransitionUtc` the page shows the launch offer; on or
- * after it, the standard 30-day-trial offer. £4.99/month is the price; the actual
+ * All pricing copy lives here so nothing is scattered across components. Every
+ * visitor sees the same 30-day-free-trial offer. £4.99/month is the price; the
  * figure shown is always the live Stripe price (see lib/get-pricing.ts), with
  * £4.99 as the documented fallback.
  *
- * launchTransitionUtc: 1 September 2026, 00:00 Europe/London. September is BST
- * (UTC+1), so midnight London == 2026-08-31T23:00:00Z.
+ * launchTransitionUtc is retained only so existing callers of `isPreLaunch()`
+ * keep compiling; both pricing phases now show identical trial copy.
  */
 export const PRICING = {
   launchTransitionUtc: '2026-08-31T23:00:00.000Z',
@@ -102,16 +101,15 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
   if (isPreLaunch(now)) {
     return {
       preLaunch: true,
-      badge: 'Launch offer: free until 31 August',
+      badge: '30-day free trial',
       heading: `30 days free, then ${per}`,
-      supporting:
-        'Create your account now and use EQHO free until 31 August. Your 30-day free trial begins on 1 September.',
+      supporting: `Create your account and try every EQHO feature free for 30 days. Continue for ${per} after your trial.`,
       priceLabel: formattedPrice,
       frequency,
       trialLabel: PRICING.trialLabel,
-      explanation: `Free access until 31 August, followed by your 30-day free trial. Subscribe for ${per} after the trial to continue.`,
-      cta: 'Start using EQHO free',
-      cardNote: 'No card required. No charge during free access or your trial.',
+      explanation: `Your first 30 days are free. Subscribe for ${per} after the trial to continue.`,
+      cta: 'Start 30-day free trial',
+      cardNote: 'No card required. No charge during your trial.',
     }
   }
 
@@ -233,7 +231,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'How much does EQHO Player cost?',
-    a: 'EQHO Player is free to use until 31 August. After that it moves to a simple subscription. See the pricing page for the current price.',
+    a: 'EQHO Player comes with a 30-day free trial. After the trial it moves to a simple subscription. See the pricing page for the current price.',
   },
   {
     q: 'Do I need to install anything?',

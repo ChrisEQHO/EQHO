@@ -139,22 +139,24 @@ export function MarketingHome() {
         {/* z-4 — hero copy + CTAs, balanced in the upper-middle */}
         <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-[clamp(2rem,5vh,3rem)] pt-[clamp(2rem,9vh,6rem)] text-center sm:px-6">
           <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
-            {SITE.tagline}
+            Manage your music.
+            <br />
+            Make more time for coaching.
           </h1>
           <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)]">
-            Build your running order, set the gaps and repeats, then press play. EQHO keeps every routine moving while you focus on coaching.
+            EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
           </p>
           <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
             <PrimaryCta className="w-full sm:w-auto" />
             <Link
-              href={CTA.secondary.href}
+              href="/features"
               className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
             >
-              {CTA.secondary.label}
+              Explore EQHO Player
             </Link>
           </div>
           <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
-            No card required. {LAUNCH.freeUntilLabel}.
+            Sign up and start your 30-day free trial. No card required.
           </p>
         </div>
       </section>
@@ -266,15 +268,17 @@ export function MarketingHome() {
       <section id="features" className="scroll-mt-20 border-t border-white/5 bg-[#050814]">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">Features</p>
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
+              Made to make coaching easier
+            </p>
             <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                Built to make your life easier, so you can spend more time coaching.
+              Everything you need to keep your music organised and your training moving.
             </h2>
             <Link
               href="/features"
               className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] transition-colors hover:text-white"
             >
-              See everything the player does
+              See how EQHO Player works
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -298,7 +302,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── How it works ──────────────────────────────────────────────────── */}
+      {/* ── How it works ─────────────────────────────────────���────────────── */}
       <section id="how-it-works" className="scroll-mt-20 border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
           <div className="max-w-2xl">
@@ -347,6 +351,98 @@ export function MarketingHome() {
         </div>
       </section>
 
+      {/* ── Why coaches use EQHO ──────────────────────────────────────────── */}
+      <section className="border-t border-white/5">
+        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
+              Why coaches use EQHO
+            </p>
+            <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              Less admin around the music, more focus on the floor.
+            </h2>
+          </div>
+          <ul className="mt-12 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+            {[
+              'Spend less time searching for tracks.',
+              'Prepare playlists before training begins.',
+              'Reduce gaps and interruptions between routines.',
+              'Keep music organised in one place.',
+              'Access playlists across supported devices.',
+              'Focus more attention on coaching and feedback.',
+            ].map((benefit) => (
+              <li key={benefit} className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white">
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </span>
+                <span className="text-pretty leading-relaxed text-[#cbd5e1]">{benefit}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/features"
+            className="mt-10 inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] transition-colors hover:text-white"
+          >
+            Explore all Player features
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* ── EQHO Music (store) ─────────────────────────────────────────────── */}
+      <section className="border-t border-white/5 bg-[#050814]">
+        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(120%_120%_at_100%_0%,rgba(139,92,246,0.16),transparent_55%)]">
+            <div className="flex flex-col gap-10 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[#c4b5fd]">
+                  <Music2 className="h-4 w-4" aria-hidden="true" />
+                  EQHO Music
+                </p>
+                <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                  Competition-ready music. Find the track that fits.
+                </h2>
+                <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
+                  Browse, preview and listen to music created for competition.
+                </p>
+                <ul className="mt-6 space-y-3">
+                  {[
+                    'Search the EQHO Music library.',
+                    'Preview tracks before purchasing.',
+                    'Purchase and download your clean competition master.',
+                    'Standard prices start from £19.99 per track.',
+                    'Eligible EQHO customers get tracks from just £9.99 each.',
+                    'Customer pricing is applied automatically when signed in.',
+                  ].map((point) => (
+                    <li key={point} className="flex items-start gap-3 text-sm leading-relaxed text-[#cbd5e1]">
+                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#3b82f6] text-white">
+                        <Check className="h-3 w-3" aria-hidden="true" />
+                      </span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex w-full flex-col gap-3 sm:w-auto lg:shrink-0">
+                <Link
+                  href="/store"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03]"
+                >
+                  Browse competition music
+                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
+                >
+                  Join EQHO and save
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Pricing preview ───────────────────────────────────────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
@@ -354,7 +450,7 @@ export function MarketingHome() {
             <div className="flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
                 <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Free while we launch.
+                  Start with a 30-day free trial.
                 </h2>
                 <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
                   {LAUNCH.freeNote} When paid plans begin, pricing stays simple and transparent — no hidden tiers.
@@ -405,10 +501,10 @@ export function MarketingHome() {
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-4xl px-4 py-24 text-center sm:px-6">
           <h2 className="text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
-            Spend the session coaching.
+            Less time managing music. More time coaching.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-            Build your first session plan in around 30 seconds. {LAUNCH.freeUntilLabel}.
+            Keep your music organised, your training moving and your attention where it matters most.
           </p>
           <div className="mt-8 flex justify-center">
             <PrimaryCta />

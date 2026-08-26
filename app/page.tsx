@@ -49,7 +49,7 @@ export default function HomePage() {
           '@type': 'Offer',
           price: '0',
           priceCurrency: 'GBP',
-          description: 'Free to use until 31 August.',
+          description: 'Includes a 30-day free trial.',
         },
       },
       {

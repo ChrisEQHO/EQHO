@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Download, Loader2, Lock, ArrowRight, Check } from 'lucide-react'
+import { Download, Loader2, ShoppingBag, ArrowRight, Check } from 'lucide-react'
 import type { EntitlementReason } from '@/lib/store/types'
 
 /**
@@ -11,12 +11,13 @@ import type { EntitlementReason } from '@/lib/store/types'
  *  - Entitled (admin / subscription / completed purchase) -> Download clean master.
  *  - Signed out                                           -> Sign in to continue.
  *  - Signed in, subscription-included, not subscribed     -> Start subscription.
- *  - Signed in, purchasable, not entitled                 -> Buy (checkout lands
- *    in a later phase, so this is disabled with a clear note for now).
+ *  - Signed in, purchasable, not entitled                 -> Buy now (Stripe
+ *    Checkout; the amount is recomputed and enforced server-side).
  */
 export function TrackDetailCta({
   slug,
   hasPrice,
+  priceLabel,
   includedInSubscription,
   signedIn,
   entitled,
@@ -24,6 +25,7 @@ export function TrackDetailCta({
 }: {
   slug: string
   hasPrice: boolean
+  priceLabel?: string | null
   includedInSubscription: boolean
   signedIn: boolean
   entitled: boolean
@@ -31,6 +33,31 @@ export function TrackDetailCta({
 }) {
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [buying, setBuying] = useState(false)
+
+  const buy = async () => {
+    setError(null)
+    setBuying(true)
+    try {
+      const res = await fetch('/api/store/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ slug }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+      if (!res.ok || !data.url) {
+        setError(data.error || 'Could not start checkout. Please try again.')
+        setBuying(false)
+        return
+      }
+      // Hand off to Stripe Checkout.
+      window.location.href = data.url
+    } catch {
+      setError('Could not start checkout. Please try again.')
+      setBuying(false)
+    }
+  }
 
   const download = async () => {
     setError(null)
@@ -116,19 +143,21 @@ export function TrackDetailCta({
     )
   }
 
-  // Purchasable but individual checkout is not wired up yet (later phase).
+  // Purchasable and signed in: buy the clean master via Stripe Checkout.
   if (hasPrice) {
     return (
       <div className="flex flex-col items-stretch gap-2 sm:items-end">
         <button
           type="button"
-          disabled
-          className="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-full border border-white/15 px-6 text-sm font-semibold text-white/60"
+          onClick={buy}
+          disabled={buying}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03] disabled:opacity-70"
         >
-          <Lock className="h-4 w-4" />
-          Buy — coming soon
+          {buying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+          {buying ? 'Starting checkout…' : priceLabel ? `Buy for ${priceLabel}` : 'Buy this track'}
         </button>
-        <span className="text-xs text-[#7c8596]">Individual purchases open soon.</span>
+        <span className="text-xs text-[#7c8596]">Secure checkout with Stripe. Yours to keep.</span>
+        {error ? <span className="text-xs text-[#ff8a8a]">{error}</span> : null}
       </div>
     )
   }

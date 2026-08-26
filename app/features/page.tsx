@@ -75,9 +75,9 @@ const ANATOMY: { icon: LucideIcon; label: string; title: string; body: string; p
   {
     icon: Play,
     label: 'Now playing',
-    title: 'Run the session without touching a camera roll.',
-    body: 'Big transport controls, a clear timer, volume and a waveform scrubber. A session overview totals your routines, running time, the gap between routines and the estimated session length.',
-    points: ['Play, pause and skip from the floor', 'Set the gap between routines', 'Repeats and back-to-back playback'],
+    title: 'Run the session without having to manage the music.',
+    body: 'Spend less time pressing play, pause and restarting tracks. Clear controls, a running timer and volume keep everything to hand, while a session overview totals your routines, running time, the gap between routines and the estimated session length.',
+    points: ['Set it up, press play once and walk away', 'Use the session tools to adjust things as the routines run', 'Fine-tune gaps, repeats and back-to-back playback on the fly'],
   },
 ]
 
@@ -119,11 +119,7 @@ export default function FeaturesPage() {
           />
           <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-14 sm:px-6 sm:pt-20">
             <div className="mx-auto max-w-3xl text-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-4 py-1.5 text-xs font-semibold text-[#ffb673]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#ff8a00]" />
-                The full programme
-              </span>
-              <h1 className="mt-6 text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+              <h1 className="text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
                 Everything EQHO Player does, in one place.
               </h1>
               <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
@@ -302,7 +298,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* ── Push to devices ──────────────────────────────────────────── */}
+        {/* ── Push to devices ───────────────────────────────��──────────── */}
         <section className="border-t border-white/5">
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-2">
             <div>

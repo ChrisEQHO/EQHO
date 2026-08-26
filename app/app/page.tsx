@@ -5755,15 +5755,15 @@ export default function Page() {
         <Crown size={15} className="shrink-0 text-[#ff8a00]" />
         <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
           <span className="sm:hidden">
-            Free until 31 Aug ·{" "}
+            Free trial ·{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              30-day trial from 1 Sept
+              30 days free, then subscribe
             </span>
           </span>
           <span className="hidden sm:inline">
-            Free to use until 31st August —{" "}
+            Your 30-day free trial —{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              30-day free trial available from 1st September
+              enjoy every feature free for 30 days
             </span>
           </span>
         </p>
@@ -7675,6 +7675,16 @@ export default function Page() {
                 </button>
               );
             })}
+            {/* Music Store — separate public route, so a real navigation (same tab,
+                session preserved via cookies) rather than an in-app activePage. */}
+            <Link
+              href="/store"
+              aria-label="Music Store"
+              title="Music Store"
+              className="p-2.5 rounded-xl text-[#cbd5e1] transition-all hover:text-[#ff4fa3] hover:bg-gradient-to-r hover:from-[#ff4fa3]/15 hover:to-[#ff8a00]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1120]"
+            >
+              <Music size={20} />
+            </Link>
             <a
               href="/downloads/eqho-player-mac.dmg"
               target="_blank"
@@ -10996,10 +11006,10 @@ export default function Page() {
                         return (
                           <div className="space-y-1.5">
                             <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
-                              Paid subscription starts on 1 September 2026.
+                              Paid subscription starts after your 30-day free trial.
                             </p>
                             <p className="text-emerald-100/70 text-[9px] leading-relaxed">
-                              Introduction Mode remains free until 31 August 2026.
+                              Introduction Mode is included in your free trial.
                             </p>
                           </div>
                         );
