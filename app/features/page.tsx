@@ -77,7 +77,7 @@ const ANATOMY: { icon: LucideIcon; label: string; title: string; body: string; p
     label: 'Now playing',
     title: 'Run the session without having to manage the music.',
     body: 'Spend less time pressing play, pause and restarting tracks. Clear controls, a running timer and volume keep everything to hand, while a session overview totals your routines, running time, the gap between routines and the estimated session length.',
-    points: ['Play, pause and skip from the floor', 'Set the gap between routines', 'Repeats and back-to-back playback'],
+    points: ['Set it up, press play once and walk away', 'Use the session tools to adjust things as the routines run', 'Fine-tune gaps, repeats and back-to-back playback on the fly'],
   },
 ]
 
@@ -298,7 +298,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* ── Push to devices ──────────────────────────────────────────── */}
+        {/* ── Push to devices ───────────────────────────────��──────────── */}
         <section className="border-t border-white/5">
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-2">
             <div>
