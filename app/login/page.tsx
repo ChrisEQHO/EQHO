@@ -135,16 +135,22 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
+        {/* Logo — links to the main EQHO homepage */}
         <div className="mb-8 flex flex-col items-center">
-          <Image
-            src="/images/eqho-logo.png"
-            alt="EQHO Player"
-            width={280}
-            height={112}
-            className="mb-2 h-auto w-[280px] max-w-full"
-            priority
-          />
+          <Link
+            href="/"
+            aria-label="Go to EQHO homepage"
+            className="mb-2 inline-block rounded-xl transition-opacity hover:opacity-80 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ff8a00]"
+          >
+            <Image
+              src="/images/eqho-logo.png"
+              alt="EQHO Player"
+              width={280}
+              height={112}
+              className="h-auto w-[280px] max-w-full"
+              priority
+            />
+          </Link>
           <p className="text-sm text-[#94a3b8]">
             Welcome back to your session
           </p>
