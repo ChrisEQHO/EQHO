@@ -7675,6 +7675,16 @@ export default function Page() {
                 </button>
               );
             })}
+            {/* Music Store — separate public route, so a real navigation (same tab,
+                session preserved via cookies) rather than an in-app activePage. */}
+            <Link
+              href="/store"
+              aria-label="Music Store"
+              title="Music Store"
+              className="p-2.5 rounded-xl text-[#cbd5e1] transition-all hover:text-[#ff4fa3] hover:bg-gradient-to-r hover:from-[#ff4fa3]/15 hover:to-[#ff8a00]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1120]"
+            >
+              <Music size={20} />
+            </Link>
             <a
               href="/downloads/eqho-player-mac.dmg"
               target="_blank"
