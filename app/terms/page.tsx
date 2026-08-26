@@ -114,7 +114,7 @@ export default function TermsPage() {
 
             <SectionCard title="5. Pricing, free period and subscriptions">
               <p>
-                EQHO Player is free to use until 31 August. After the free period, continued use may require a paid
+                EQHO Player is free to use during early access. After the free period, continued use may require a paid
                 subscription at the price shown on our pricing page at the time you subscribe. Where a subscription
                 applies, it renews until cancelled, and you can cancel at any time from your billing settings.
               </p>

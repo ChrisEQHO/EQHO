@@ -10,14 +10,14 @@ import { SITE, PRICING, isPreLaunch, getPricingCopy } from '@/lib/marketing-conf
 // launch phase (the copy switches automatically on 1 September 2026).
 export const dynamic = 'force-dynamic'
 
-// Phase-aware metadata so post-launch there are no lingering "free until 31 August"
+// Phase-aware metadata so post-launch there are no lingering early-access
 // references. Runs on the server only — no hydration concerns.
 export async function generateMetadata(): Promise<Metadata> {
   const pre = isPreLaunch()
   return {
     title: `Pricing — ${SITE.name}`,
     description: pre
-      ? `${SITE.name} is free to use until 31 August. Then 30 days free, followed by a simple monthly subscription. No card required to start.`
+      ? `${SITE.name} is free to use during early access. Then 30 days free, followed by a simple monthly subscription. No card required to start.`
       : `Try ${SITE.name} free for 30 days, then continue with a simple monthly subscription. No card required to start.`,
     alternates: { canonical: '/pricing' },
   }

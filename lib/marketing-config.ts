@@ -41,11 +41,11 @@ export const APP = {
  */
 export const LAUNCH = {
   // Shown in the top strip and pricing page.
-  freeUntilLabel: 'Free to use until 31 August',
-  freeUntilShort: 'Free until 31 Aug',
+  freeUntilLabel: 'Free during early access',
+  freeUntilShort: 'Free right now',
   // Human sentence used in longer copy.
   freeNote:
-    'EQHO Player is completely free to use until 31 August. Create your account today and start building your sessions.',
+    'EQHO Player is completely free to use during early access. Create your account today and start building your sessions.',
 } as const
 
 /**
@@ -102,14 +102,14 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
   if (isPreLaunch(now)) {
     return {
       preLaunch: true,
-      badge: 'Launch offer: free until 31 August',
+      badge: 'Launch offer: free during early access',
       heading: `30 days free, then ${per}`,
       supporting:
-        'Create your account now and use EQHO free until 31 August. Your 30-day free trial begins on 1 September.',
+        'Create your account now and use EQHO free during early access. Your 30-day free trial begins when early access ends.',
       priceLabel: formattedPrice,
       frequency,
       trialLabel: PRICING.trialLabel,
-      explanation: `Free access until 31 August, followed by your 30-day free trial. Subscribe for ${per} after the trial to continue.`,
+      explanation: `Free access during early access, followed by your 30-day free trial. Subscribe for ${per} after the trial to continue.`,
       cta: 'Start using EQHO free',
       cardNote: 'No card required. No charge during free access or your trial.',
     }
@@ -233,7 +233,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'How much does EQHO Player cost?',
-    a: 'EQHO Player is free to use until 31 August. After that it moves to a simple subscription. See the pricing page for the current price.',
+    a: 'EQHO Player is free to use during early access. After that it moves to a simple subscription. See the pricing page for the current price.',
   },
   {
     q: 'Do I need to install anything?',

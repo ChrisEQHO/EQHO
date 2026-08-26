@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Menu, X, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
-import { SITE, NAV_LINKS, CTA, LAUNCH } from '@/lib/marketing-config'
+import { SITE, NAV_LINKS, CTA } from '@/lib/marketing-config'
 
 /**
  * Public marketing header. Sticky, translucent, with a mobile drawer.
@@ -89,35 +89,33 @@ export function SiteHeader() {
         className="pointer-events-none absolute inset-x-0 top-full z-0 h-7 bg-gradient-to-b from-[rgba(3,7,25,0.55)] to-transparent"
       />
 
-      <div className="relative z-[1] mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="relative z-[1] mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6 lg:gap-6">
         {/* Logo → home. The image already contains the full "EQHO PLAYER" wordmark,
             so there is NO separate text label. Sized by height (h-11 mobile / h-14
             desktop) with w-auto so the ~2.5:1 lockup keeps its aspect ratio. */}
-        <div className="flex shrink-0 items-center gap-3">
-          <Link href="/" className="flex shrink-0 items-center" aria-label={`${SITE.name} home`}>
-            <Image
-              src={SITE.logo || "/placeholder.svg"}
-              alt={SITE.name}
-              width={240}
-              height={60}
-              priority
-              className="h-11 w-auto shrink-0 object-contain md:h-14"
-            />
-          </Link>
-          {/* Branded "free until" badge, sat beside the logo on large screens. */}
-          <span className="hidden items-center gap-1.5 rounded-full border border-[#ff8a00]/40 bg-gradient-to-r from-[#ff4fa3]/15 to-[#ff8a00]/15 px-3 py-1 text-xs font-semibold text-[#ffb673] lg:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]" />
-            {LAUNCH.freeUntilLabel}
-          </span>
-        </div>
+        <Link href="/" className="flex shrink-0 items-center" aria-label={`${SITE.name} home`}>
+          <Image
+            src={SITE.logo || "/placeholder.svg"}
+            alt={SITE.name}
+            width={240}
+            height={60}
+            priority
+            className="h-11 w-auto shrink-0 object-contain md:h-14"
+          />
+        </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden items-center gap-7 md:flex" aria-label="Primary">
+        {/* Desktop nav — centred and evenly distributed in the space between the
+            logo and the CTAs. `flex-1` claims the middle, `justify-center` spreads
+            the links, and `whitespace-nowrap` keeps each label on one line. */}
+        <nav
+          className="hidden flex-1 items-center justify-center gap-5 md:flex lg:gap-8"
+          aria-label="Primary"
+        >
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-[#aeb9d4] transition-colors hover:text-white hover:[text-shadow:0_0_14px_rgba(129,140,248,0.55)]"
+              className="whitespace-nowrap text-sm font-medium text-[#aeb9d4] transition-colors hover:text-white hover:[text-shadow:0_0_14px_rgba(129,140,248,0.55)]"
             >
               {link.label}
             </Link>
@@ -125,7 +123,7 @@ export function SiteHeader() {
         </nav>
 
         {/* Desktop CTAs */}
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden shrink-0 items-center gap-3 md:flex">
           {signedIn ? (
             <Link
               href={CTA.openApp.href}
@@ -138,7 +136,7 @@ export function SiteHeader() {
             <>
               <Link
                 href={CTA.secondary.href}
-                className="text-sm font-semibold text-white/90 transition-colors hover:text-white"
+                className="whitespace-nowrap text-sm font-semibold text-white/90 transition-colors hover:text-white"
               >
                 {CTA.secondary.label}
               </Link>
@@ -157,7 +155,7 @@ export function SiteHeader() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-white md:hidden"
+          className="ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white md:hidden"
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
         >
