@@ -96,8 +96,9 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
   const per = interval ? `${formattedPrice}/${interval}` : formattedPrice
   const frequency = interval ? `per ${interval}` : ''
 
-  // Signup collects NO payment method (Supabase-only account creation), so both
-  // phases use the "No card required" wording — never an unqualified "cancel anytime".
+  // Signup collects a payment method, but nothing is charged during the 30-day
+  // trial and the user can cancel before it ends — so copy leads with "no charge
+  // during your trial", never "no card required".
   if (isPreLaunch(now)) {
     return {
       preLaunch: true,
@@ -109,7 +110,7 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
       trialLabel: PRICING.trialLabel,
       explanation: `Your first 30 days are free. Subscribe for ${per} after the trial to continue.`,
       cta: 'Start 30-day free trial',
-      cardNote: 'No card required. No charge during your trial.',
+      cardNote: 'No charge during your 30-day trial. Cancel anytime before it ends.',
     }
   }
 
@@ -123,7 +124,7 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
     trialLabel: PRICING.trialLabel,
     explanation: '',
     cta: 'Start 30-day free trial',
-    cardNote: 'No card required. Subscribe after your trial to continue.',
+    cardNote: 'No charge during your 30-day trial. Cancel anytime before it ends.',
   }
 }
 
