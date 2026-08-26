@@ -140,6 +140,7 @@ export const CTA = {
 /** Header navigation (anchors on the homepage + the pricing route). */
 export const NAV_LINKS: { label: string; href: string }[] = [
   { label: 'The player', href: '/features' },
+  { label: 'Music store', href: '/store' },
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Who it’s for', href: '/#audiences' },
   { label: 'Pricing', href: '/pricing' },
@@ -258,6 +259,7 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
     heading: 'Product',
     links: [
       { label: 'The player', href: '/features' },
+      { label: 'Music store', href: '/store' },
       { label: 'How it works', href: '/#how-it-works' },
       { label: 'Pricing', href: '/pricing' },
     ],
