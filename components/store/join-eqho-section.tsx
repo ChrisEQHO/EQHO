@@ -1,45 +1,18 @@
 import Link from 'next/link'
-import {
-  ArrowRight,
-  ListMusic,
-  CloudUpload,
-  MonitorSmartphone,
-  BadgePercent,
-  Zap,
-  Clock,
-} from 'lucide-react'
+import { ArrowRight, Check } from 'lucide-react'
 
-const BENEFITS = [
+const BENEFITS: { title: string; note?: string }[] = [
+  { title: 'Unlimited playlists' },
+  { title: 'Control the gap between routines' },
+  { title: 'Set repeats and back-to-back playback' },
+  { title: 'Cloud backup for your music and playlists' },
+  { title: 'Sync your playlists across your devices' },
+  { title: 'Use EQHO Player in your browser or install the app' },
   {
-    icon: ListMusic,
-    title: 'EQHO Player',
-    body: 'Create playlists, organise running orders, control timings and set automatic repeats.',
+    title: 'Competition music from just £9.99 per track',
+    note: 'Standard track prices start from £19.99',
   },
-  {
-    icon: CloudUpload,
-    title: 'Cloud music storage',
-    body: 'Keep your training and competition music organised and available from your EQHO account.',
-  },
-  {
-    icon: MonitorSmartphone,
-    title: 'Device sync',
-    body: 'Access your music, playlists and session settings across your supported devices.',
-  },
-  {
-    icon: BadgePercent,
-    title: 'Customer music pricing',
-    body: 'Purchase competition tracks from £9.99 each instead of the standard price of £19.99.',
-  },
-  {
-    icon: Zap,
-    title: 'Fewer interruptions',
-    body: 'Spend less time searching for tracks, restarting music and managing gaps between routines.',
-  },
-  {
-    icon: Clock,
-    title: 'More time to coach',
-    body: 'Keep the session moving, complete more repetitions and give gymnasts more useful feedback.',
-  },
+  { title: 'Manage your subscription whenever you need' },
 ]
 
 export function JoinEqhoSection() {
@@ -75,40 +48,40 @@ export function JoinEqhoSection() {
           </p>
         </div>
 
-        {/* Benefits grid */}
-        <h3 className="mt-12 text-lg font-semibold text-white">Your EQHO benefits include</h3>
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {BENEFITS.map((benefit) => {
-            const Icon = benefit.icon
-            return (
-              <div
-                key={benefit.title}
-                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-white/20"
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#ff4fa3]/20 to-[#ff8a00]/20 text-[#ffb673]">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <h4 className="mt-4 text-base font-semibold text-white">{benefit.title}</h4>
-                <p className="mt-2 text-sm leading-relaxed text-[#94a3b8]">{benefit.body}</p>
-              </div>
-            )
-          })}
-        </div>
+        {/* Everything you need checklist */}
+        <h3 className="mt-12 text-sm font-semibold uppercase tracking-wider text-white">
+          Everything you need to keep training moving
+        </h3>
+        <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+          {BENEFITS.map((benefit) => (
+            <li key={benefit.title} className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]">
+                <Check className="h-3 w-3 text-white" aria-hidden="true" />
+              </span>
+              <span className="text-pretty leading-relaxed text-[#e2e8f0]">
+                {benefit.title}
+                {benefit.note ? (
+                  <span className="mt-0.5 block text-sm text-[#94a3b8]">{benefit.note}</span>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
 
         {/* CTA */}
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
           <Link
-            href="/features"
+            href="/pricing"
             className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03]"
           >
-            Explore EQHO Player
+            Join EQHO and save on music
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
           <Link
-            href="/pricing"
+            href="/features"
             className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
           >
-            See pricing
+            Explore EQHO Player
           </Link>
         </div>
       </div>
