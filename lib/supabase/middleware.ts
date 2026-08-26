@@ -35,7 +35,11 @@ export async function updateSession(request: NextRequest) {
   // would redirect them to /login before the page could load — which made the
   // "Forgot your password?" button look like it did nothing, and caused the reset
   // link from the email to bounce to /login and discard the recovery token.
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/terms', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/debug']
+  // NOTE: '/store' (the public music store, browse + preview) and '/api/store'
+  // (its open preview / entitlement-gated audio endpoints) are public. The audio
+  // API enforces its own entitlement check for clean masters, so listing it here
+  // only exposes the already-public previews and returns 403 for gated downloads.
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/terms', '/store', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/api/store', '/debug']
   // The marketing homepage is public, but ONLY as an EXACT match. Using startsWith
   // for '/' would make every route public, so it's handled separately from the
   // prefix-matched list above. The player now lives at '/app' and stays protected
