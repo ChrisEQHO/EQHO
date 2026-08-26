@@ -5755,15 +5755,15 @@ export default function Page() {
         <Crown size={15} className="shrink-0 text-[#ff8a00]" />
         <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
           <span className="sm:hidden">
-            Free right now ·{" "}
+            Free trial ·{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              30-day trial after early access
+              30 days free, then subscribe
             </span>
           </span>
           <span className="hidden sm:inline">
-            Free to use during early access —{" "}
+            Your 30-day free trial —{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              30-day free trial available when early access ends
+              enjoy every feature free for 30 days
             </span>
           </span>
         </p>
@@ -11006,10 +11006,10 @@ export default function Page() {
                         return (
                           <div className="space-y-1.5">
                             <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
-                              Paid subscription starts when early access ends.
+                              Paid subscription starts after your 30-day free trial.
                             </p>
                             <p className="text-emerald-100/70 text-[9px] leading-relaxed">
-                              Introduction Mode remains free during early access.
+                              Introduction Mode is included in your free trial.
                             </p>
                           </div>
                         );

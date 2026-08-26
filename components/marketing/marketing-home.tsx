@@ -450,7 +450,7 @@ export function MarketingHome() {
             <div className="flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
                 <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Free while we launch.
+                  Start with a 30-day free trial.
                 </h2>
                 <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
                   {LAUNCH.freeNote} When paid plans begin, pricing stays simple and transparent — no hidden tiers.

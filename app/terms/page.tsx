@@ -112,9 +112,9 @@ export default function TermsPage() {
               </p>
             </SectionCard>
 
-            <SectionCard title="5. Pricing, free period and subscriptions">
+            <SectionCard title="5. Pricing, free trial and subscriptions">
               <p>
-                EQHO Player is free to use during early access. After the free period, continued use may require a paid
+                EQHO Player comes with a 30-day free trial. After the trial, continued use may require a paid
                 subscription at the price shown on our pricing page at the time you subscribe. Where a subscription
                 applies, it renews until cancelled, and you can cancel at any time from your billing settings.
               </p>

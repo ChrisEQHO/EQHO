@@ -4,21 +4,17 @@ import { Check, ArrowRight } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { getLivePrice } from '@/lib/get-pricing'
-import { SITE, PRICING, isPreLaunch, getPricingCopy } from '@/lib/marketing-config'
+import { SITE, PRICING, getPricingCopy } from '@/lib/marketing-config'
 
 // Always fetch fresh so the page reflects the current Stripe price AND the current
 // launch phase (the copy switches automatically on 1 September 2026).
 export const dynamic = 'force-dynamic'
 
-// Phase-aware metadata so post-launch there are no lingering early-access
-// references. Runs on the server only — no hydration concerns.
+// Metadata for the pricing route. Runs on the server only — no hydration concerns.
 export async function generateMetadata(): Promise<Metadata> {
-  const pre = isPreLaunch()
   return {
     title: `Pricing — ${SITE.name}`,
-    description: pre
-      ? `${SITE.name} is free to use during early access. Then 30 days free, followed by a simple monthly subscription. No card required to start.`
-      : `Try ${SITE.name} free for 30 days, then continue with a simple monthly subscription. No card required to start.`,
+    description: `Try ${SITE.name} free for 30 days, then continue with a simple monthly subscription. No card required to start.`,
     alternates: { canonical: '/pricing' },
   }
 }
