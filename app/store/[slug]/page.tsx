@@ -8,6 +8,7 @@ import { TrackPreviewPlayer } from '@/components/store/track-preview-player'
 import { TrackDetailCta } from '@/components/store/track-detail-cta'
 import { getTrackBySlug } from '@/lib/store/catalog'
 import { resolveEntitlement, hasCompletedPurchase } from '@/lib/store/entitlement'
+import { resolveTrackPricing } from '@/lib/store/pricing'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { formatPrice, formatDuration } from '@/lib/store/format'
@@ -31,17 +32,26 @@ export async function generateMetadata({
   }
 }
 
-// Resolve the signed-in user's entitlement for this track, server-side.
+// Resolve the signed-in user's entitlement + pricing context for this track,
+// server-side. subscriptionStatus/email are returned so the page can compute the
+// viewer's applicable price with the same rules used at checkout.
 async function getViewerEntitlement(track: {
   id: string
   included_in_subscription: boolean
 }) {
+  const empty = {
+    signedIn: false,
+    entitled: false,
+    reason: 'none' as const,
+    email: null as string | null,
+    subscriptionStatus: null as SubscriptionStatus | null,
+  }
   const supabase = await createClient()
-  if (!supabase) return { signedIn: false, entitled: false, reason: 'none' as const }
+  if (!supabase) return empty
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { signedIn: false, entitled: false, reason: 'none' as const }
+  if (!user) return empty
 
   const admin = (() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -66,20 +76,40 @@ async function getViewerEntitlement(track: {
     subscriptionStatus,
     hasPurchase,
   })
-  return { signedIn: true, entitled: entitlement.entitled, reason: entitlement.reason }
+  return {
+    signedIn: true,
+    entitled: entitlement.entitled,
+    reason: entitlement.reason,
+    email: user.email ?? null,
+    subscriptionStatus,
+  }
 }
 
 export default async function TrackDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ purchased?: string; canceled?: string }>
 }) {
   const { slug } = await params
+  const { purchased, canceled } = await searchParams
   const track = await getTrackBySlug(slug)
   if (!track) notFound()
 
   const viewer = await getViewerEntitlement(track)
-  const price = track.price_cents != null ? formatPrice(track.price_cents, track.currency) : null
+  const pricing = resolveTrackPricing({
+    track,
+    email: viewer.email,
+    subscriptionStatus: viewer.subscriptionStatus,
+  })
+  // The price this viewer would pay (customer rate if eligible, else standard).
+  const applicablePrice =
+    pricing.applicableCents != null ? formatPrice(pricing.applicableCents, pricing.currency) : null
+  const standardPrice =
+    pricing.standardCents != null ? formatPrice(pricing.standardCents, pricing.currency) : null
+  const customerPrice =
+    pricing.customerCents != null ? formatPrice(pricing.customerCents, pricing.currency) : null
 
   return (
     <div className="flex min-h-screen flex-col bg-[#020617]">
@@ -94,6 +124,27 @@ export default async function TrackDetailPage({
             <ArrowLeft className="h-4 w-4" />
             Back to store
           </Link>
+
+          {purchased ? (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-[#86efac]/30 bg-[#86efac]/10 p-4">
+              <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#86efac]" />
+              <div>
+                <p className="text-sm font-semibold text-white">Payment complete — thank you!</p>
+                <p className="mt-0.5 text-sm text-[#cbd5e1]">
+                  This track is now yours to keep. If the download button isn&apos;t ready yet, refresh this
+                  page in a moment while we confirm your payment.
+                </p>
+              </div>
+            </div>
+          ) : null}
+          {canceled ? (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm text-[#cbd5e1]">
+                Checkout was canceled — you have not been charged. You can buy this track whenever you&apos;re
+                ready.
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
             {track.category ? (
@@ -149,20 +200,45 @@ export default async function TrackDetailPage({
             {/* Context-aware CTA */}
             <div className="mt-8 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                {price ? (
-                  <p className="text-2xl font-bold text-white">{price}</p>
+                {applicablePrice ? (
+                  <div className="flex items-baseline gap-2.5">
+                    <p className="text-2xl font-bold text-white">{applicablePrice}</p>
+                    {/* When the viewer is getting the customer rate, show the standard price struck through. */}
+                    {pricing.isCustomerPrice && standardPrice ? (
+                      <span className="text-base font-medium text-[#7c8596] line-through">{standardPrice}</span>
+                    ) : null}
+                  </div>
                 ) : (
                   <p className="text-lg font-semibold text-white">Subscription only</p>
                 )}
-                <p className="mt-1 text-sm text-[#94a3b8]">
-                  {track.included_in_subscription
-                    ? 'Included free with an active EQHO subscription.'
-                    : 'Available as an individual purchase.'}
-                </p>
+
+                {applicablePrice ? (
+                  pricing.isCustomerPrice ? (
+                    <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-[#86efac]">
+                      <Check className="h-4 w-4" />
+                      Your EQHO customer price
+                    </p>
+                  ) : pricing.hasCustomerDiscount && customerPrice ? (
+                    <p className="mt-1 text-sm text-[#94a3b8]">
+                      EQHO customers pay{' '}
+                      <span className="font-semibold text-white">{customerPrice}</span> — included free on
+                      subscription tracks.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-[#94a3b8]">Available as an individual purchase.</p>
+                  )
+                ) : (
+                  <p className="mt-1 text-sm text-[#94a3b8]">
+                    {track.included_in_subscription
+                      ? 'Included free with an active EQHO subscription.'
+                      : 'Available with an EQHO subscription.'}
+                  </p>
+                )}
               </div>
               <TrackDetailCta
                 slug={track.slug}
-                hasPrice={price != null}
+                hasPrice={pricing.purchasable}
+                priceLabel={applicablePrice}
                 includedInSubscription={track.included_in_subscription}
                 signedIn={viewer.signedIn}
                 entitled={viewer.entitled}

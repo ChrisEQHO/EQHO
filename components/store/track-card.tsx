@@ -10,6 +10,12 @@ import { TrackPreviewPlayer } from '@/components/store/track-preview-player'
  */
 export function TrackCard({ track }: { track: StoreTrackWithCategory }) {
   const price = track.price_cents != null ? formatPrice(track.price_cents, track.currency) : null
+  // Marketing hint shown on the public card when a lower EQHO-customer price is set.
+  const customerPrice =
+    track.customer_price_cents != null &&
+    (track.price_cents == null || track.customer_price_cents < track.price_cents)
+      ? formatPrice(track.customer_price_cents, track.currency)
+      : null
 
   return (
     <article className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20 hover:bg-white/[0.05]">
@@ -54,6 +60,10 @@ export function TrackCard({ track }: { track: StoreTrackWithCategory }) {
           )}
           {price && track.included_in_subscription ? (
             <span className="ml-2 text-xs text-[#7c8596]">or with subscription</span>
+          ) : price && customerPrice ? (
+            <span className="ml-2 text-xs text-[#7c8596]">
+              {customerPrice} for EQHO customers
+            </span>
           ) : null}
         </div>
         <Link
