@@ -367,7 +367,7 @@ function CompleteSignupContent() {
               <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
                 <div className="flex items-center gap-1.5 text-[#94a3b8]">
                   <CreditCard className="h-3 w-3" />
-                  <span className="text-xs">Then £3.99/month</span>
+                  <span className="text-xs">Then £4.99/month</span>
                 </div>
               </div>
               <div className="flex-1 bg-[#020617] border border-white/10 rounded-lg p-2">
