@@ -128,10 +128,8 @@ export default function TermsPage() {
                 subscription then continues to renew each month until cancelled.
               </p>
               <p>
-                A larger EQHO Club package (planned at £19.99 per month) is expected to become available from 1
-                February 2027. It is not available to purchase yet. We will not move you onto a different package or
-                change your subscription price without giving you clear advance notice and, where required, obtaining
-                your consent, so that any future price is clear to you before it applies.
+                We will not change your subscription price without giving you clear advance notice and, where
+                required, obtaining your consent, so that any future price is clear to you before it applies.
               </p>
               <p>
                 You can cancel at any time from your billing settings or through the Stripe customer portal.

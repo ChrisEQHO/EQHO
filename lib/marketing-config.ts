@@ -161,20 +161,6 @@ export const PLAYER_PACKAGE = {
   ],
 } as const
 
-export const CLUB_PACKAGE = {
-  name: 'EQHO Club',
-  price: '£19.99',
-  interval: 'month',
-  availableFrom: '1 February 2027',
-  benefits: [
-    'Multiple user access',
-    'Multiple logged-in devices',
-    'Playlist access across supported desktop, tablet and mobile devices',
-    'EQHO Music Marketplace access when released',
-    'EQHO Fit access when released',
-  ],
-} as const
-
 /**
  * Primary calls to action. Signup starts a 30-day free trial that requires a
  * payment method, so the CTA is never the vague "Start free" — it always says
@@ -274,7 +260,7 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'Music2',
     title: 'Every gymnastics discipline',
-    body: 'Built for Artistic, Women’s Artistic, Rhythmic, Acrobatic and Aerobic Gymnastics routines.',
+    body: 'Built for Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics routines.',
   },
   {
     icon: 'Megaphone',
@@ -287,11 +273,11 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
 export const FAQ: { q: string; a: string }[] = [
   {
     q: 'What is EQHO Player?',
-    a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Artistic, Women’s Artistic, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
+    a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
   },
   {
     q: 'How much does EQHO Player cost?',
-    a: 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. A larger EQHO Club package (£19.99/month) is planned for 1 February 2027; it is not available yet and nothing changes for existing subscribers without notice and consent. See the pricing page for the latest details.',
+    a: 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.',
   },
   {
     q: 'Do I need to install anything?',
