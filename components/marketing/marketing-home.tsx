@@ -165,6 +165,46 @@ export function MarketingHome() {
         </div>
       </section>
 
+      {/* ── Why coaches use EQHO — moved directly under the hero so the core
+              value proposition is the first thing visitors read after the
+              headline, ahead of the "one player, two ways" panels below. */}
+      <section className="border-t border-white/5">
+        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
+              Why coaches use EQHO
+            </p>
+            <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              Less admin around the music, more focus on the floor.
+            </h2>
+          </div>
+          <ul className="mt-12 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+            {[
+              'Spend less time searching for tracks.',
+              'Prepare playlists before training begins.',
+              'Reduce gaps and interruptions between routines.',
+              'Keep music organised in one place.',
+              'Access playlists across supported devices.',
+              'Focus more attention on coaching and feedback.',
+            ].map((benefit) => (
+              <li key={benefit} className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white">
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </span>
+                <span className="text-pretty leading-relaxed text-[#cbd5e1]">{benefit}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/features"
+            className="mt-10 inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] transition-colors hover:text-white"
+          >
+            Explore all Player features
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* ── Below the fold: one player, two ways + the live preview ───────── */}
       <section className="relative overflow-hidden border-t border-white/5">
         {/* A much fainter continuation of the hero glow for visual continuity */}
@@ -352,44 +392,6 @@ export function MarketingHome() {
               )
             })}
           </div>
-        </div>
-      </section>
-
-      {/* ── Why coaches use EQHO ──────────────────────────────────────────── */}
-      <section className="border-t border-white/5">
-        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
-              Why coaches use EQHO
-            </p>
-            <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              Less admin around the music, more focus on the floor.
-            </h2>
-          </div>
-          <ul className="mt-12 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            {[
-              'Spend less time searching for tracks.',
-              'Prepare playlists before training begins.',
-              'Reduce gaps and interruptions between routines.',
-              'Keep music organised in one place.',
-              'Access playlists across supported devices.',
-              'Focus more attention on coaching and feedback.',
-            ].map((benefit) => (
-              <li key={benefit} className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white">
-                  <Check className="h-3 w-3" aria-hidden="true" />
-                </span>
-                <span className="text-pretty leading-relaxed text-[#cbd5e1]">{benefit}</span>
-              </li>
-            ))}
-          </ul>
-          <Link
-            href="/features"
-            className="mt-10 inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] transition-colors hover:text-white"
-          >
-            Explore all Player features
-            <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
       </section>
 
