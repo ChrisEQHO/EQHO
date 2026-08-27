@@ -25,6 +25,7 @@ import {
   fetchPlaylistWithFilesDetailed, 
   syncPlaylistToCloud, 
   deleteCloudPlaylist,
+  deleteCloudAccount,
   updateCloudPlaylist,
   isCloudSyncAvailable,
   checkProStatus,
@@ -47,7 +48,7 @@ import type { User } from "@supabase/supabase-js";
   import { CountdownOverlay } from "@/components/countdown-overlay";
 import { useSubscription } from "@/lib/subscription-context";
 import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS, hasActiveSubscription, SUBSCRIPTION_LAUNCH_LABEL } from "@/lib/subscription-types";
-import { deleteAccount } from "@/app/actions/account";
+
 import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
 import { ContactPage } from "@/components/contact-page";
@@ -1284,7 +1285,10 @@ export default function Page() {
     if (deleteAccountLoading) return;
     setDeleteAccountLoading(true);
     try {
-      const result = await deleteAccount();
+      // Bearer-token API route (works on web AND the mobile static export). The
+      // old cookie-based server action silently no-op'd inside Capacitor, which
+      // is why the button appeared to do nothing on the iPad app.
+      const result = await deleteCloudAccount();
       if (result.success) {
         // The account no longer exists on the server, so wipe every trace of it
         // from THIS device before leaving: offline audio/playlists (IndexedDB),
