@@ -169,16 +169,16 @@ export function MarketingHome() {
               value proposition is the first thing visitors read after the
               headline, ahead of the "one player, two ways" panels below. */}
       <section className="border-t border-white/5">
-        <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-16 sm:px-6 sm:pt-10">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-4 pb-14 sm:px-6 sm:pt-5">
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
               Why coaches use EQHO
             </p>
-            <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-2 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
               Less admin around the music, more focus on the floor.
             </h2>
           </div>
-          <ul className="mt-8 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+          <ul className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             {[
               'Spend less time searching for tracks.',
               'Prepare playlists before training begins.',
