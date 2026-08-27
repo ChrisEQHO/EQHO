@@ -165,11 +165,36 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── Why coaches use EQHO — moved directly under the hero so the core
-              value proposition is the first thing visitors read after the
-              headline, ahead of the "one player, two ways" panels below. */}
+      {/* ── "Take a look at the player below" banner — sits directly under the
+              hero so that on first load the visitor sees the hero image and then
+              ONLY this single CTA before scrolling. The section min-height is
+              tuned (paired with the hero height) to fill the viewport, so the
+              bullet list below lands just past the fold on desktop and mobile.
+              Links down to the live player preview further down the page. */}
+      <section className="flex min-h-[clamp(220px,38svh,360px)] items-center border-t border-white/5">
+        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+          <a
+            href="#player-preview"
+            className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-4 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:flex-row sm:justify-between sm:py-5 sm:text-left"
+          >
+            <div>
+              <p className="text-base font-bold text-white sm:text-xl">Take a look at the player below</p>
+              <p className="mt-1 text-sm text-white/85">
+                Scroll on to preview the running order, session controls and full-screen mode.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors group-hover:bg-white/30">
+              Explore more
+              <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden="true" />
+            </span>
+          </a>
+        </div>
+      </section>
+
+      {/* ── Why coaches use EQHO — the benefit list, positioned below the banner
+              so it reveals as the visitor scrolls on past the fold. */}
       <section className="border-t border-white/5">
-        <div className="mx-auto w-full max-w-6xl px-4 pt-4 pb-14 sm:px-6 sm:pt-5">
+        <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
               Why coaches use EQHO
@@ -264,24 +289,7 @@ export function MarketingHome() {
             </div>
           </div>
 
-          {/* Branded prompt directing users down to the live player preview */}
-          <a
-            href="#player-preview"
-            className="group mx-auto mt-6 flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:mt-4 sm:flex-row sm:justify-between sm:py-4 sm:text-left"
-          >
-            <div>
-              <p className="text-base font-bold text-white sm:text-xl">Take a look at the player below</p>
-              <p className="mt-1 text-sm text-white/85">
-                Scroll on to preview the running order, session controls and full-screen mode.
-              </p>
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors group-hover:bg-white/30">
-              Explore more
-              <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden="true" />
-            </span>
-          </a>
-
-          <div id="player-preview" className="mx-auto mt-5 w-full max-w-5xl scroll-mt-24">
+          <div id="player-preview" className="mx-auto mt-10 w-full max-w-5xl scroll-mt-24">
             <ProductFrame />
             <div className="mt-6 text-center">
               <Link
