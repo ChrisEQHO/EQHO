@@ -6,7 +6,12 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Skip the middleware entirely for framework internals and PUBLIC static assets
+  // so they are never gated/redirected to /login. This matters for logged-out and
+  // credential-less fetches: the PWA manifest, service worker, icons, favicons and
+  // the SEO files (robots.txt / sitemap.xml) must return their real content, not an
+  // auth redirect. Everything else still runs through updateSession.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|downloads|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|favicon.png|manifest.json|manifest.webmanifest|robots.txt|sitemap.xml|sw.js|downloads|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff|woff2|ttf|mp3|wav)$).*)",
   ],
 }

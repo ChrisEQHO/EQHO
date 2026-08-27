@@ -304,7 +304,7 @@ export const FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'CloudUpload',
     title: 'Your sessions, backed up',
-    body: 'Push your playlists and audio to your EQHO account, so a session created at home is ready when you log in on any device at training.',
+    body: 'Push your playlists and audio to your EQHO account. Log in on another device and download or load your pushed session before training.',
   },
   {
     icon: 'MonitorSmartphone',
