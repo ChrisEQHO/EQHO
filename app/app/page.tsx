@@ -7713,20 +7713,11 @@ export default function Page() {
             >
               <Music size={20} />
             </Link>
-            <a
-              href="/downloads/eqho-player-mac.dmg"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
-              title="Download EQHO Desktop App"
-            >
-              <Monitor size={20} />
-            </a>
             <Link
               href="/privacy-policy"
               aria-label="Privacy Policy"
               title="Privacy Policy"
-              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition"
+              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
             >
               <Shield size={20} />
             </Link>
