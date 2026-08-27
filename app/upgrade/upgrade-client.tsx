@@ -214,8 +214,8 @@ export default function UpgradeClient() {
           {/* Logo + Welcome */}
           <div className="text-center">
             <Image src="/images/eqho-logo.png" alt="EQHO Player" width={220} height={88} priority className="mx-auto mb-4 h-auto w-[220px] max-w-full" />
-            <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player</h2>
-            <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
+            <h2 className="text-2xl font-bold text-white text-balance">{variant.heading}</h2>
+            <p className="text-[#94a3b8] text-sm mt-1 text-pretty">{variant.body}</p>
           </div>
 
           {/* Email Mismatch Error */}
@@ -270,12 +270,14 @@ export default function UpgradeClient() {
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
-            {/* 30 Days Free Banner + Monthly Pricing */}
+            {/* Offer banner + Monthly Pricing (date-driven) */}
             <div className="flex gap-3 mb-4">
               <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 flex items-center gap-3">
                 <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
-                  <p className="font-bold text-white text-lg leading-tight">30 Days FREE</p>
+                  <p className="font-bold text-white text-lg leading-tight">
+                    {offer.preLaunch ? 'FREE until 31 Aug 2026' : '30 Days FREE'}
+                  </p>
                   <p className="text-xs text-white/90">Full access to all EQHO Player features</p>
                 </div>
               </div>
@@ -316,18 +318,18 @@ export default function UpgradeClient() {
                 </>
               ) : (
                 <>
-                  <CreditCard className="h-5 w-5" />
-                  Start 30-day free trial
+                  {offer.preLaunch ? null : <CreditCard className="h-5 w-5" />}
+                  {variant.cta}
                   <ArrowRight className="h-5 w-5" />
                 </>
               )}
             </button>
 
             <p className="text-center text-xs mt-2 text-[#64748b]">
-              Start your 30-day free trial today. Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at £4.99/month when the trial ends unless cancelled.
+              {variant.body}
             </p>
             <p className="text-center text-xs mt-1.5 text-[#64748b]">
-              No charge today. Cancel anytime during your free trial.
+              {offer.cardNote}
             </p>
           </div>
         </div>

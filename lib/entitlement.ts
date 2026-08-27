@@ -111,10 +111,15 @@ function isFuture(dateStr: string | null | undefined, now: Date): boolean {
 
 export interface EvaluateArgs {
   now: Date
-  profile: Pick<
-    ProfileSubscription,
-    "subscription_status" | "current_period_end"
-  > | null
+  // Only the two fields the decision needs. Both optional/nullable because a
+  // freshly-created profile (free phase) legitimately has neither yet (Supabase
+  // returns SQL NULLs), and the function reads them defensively.
+  profile:
+    | {
+        subscription_status?: SubscriptionStatus | null
+        current_period_end?: string | null
+      }
+    | null
   email?: string | null
 }
 
@@ -136,7 +141,7 @@ export function evaluateEntitlement({
   }
 
   // 3. Paywall phase — a real entitlement is required.
-  const status: SubscriptionStatus | undefined = profile?.subscription_status
+  const status: SubscriptionStatus | undefined = profile?.subscription_status ?? undefined
 
   if (status === "trialing") return { allowed: true, phase: "paywall", reason: "trialing" }
   if (status === "active") return { allowed: true, phase: "paywall", reason: "active" }

@@ -96,21 +96,21 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
   const per = interval ? `${formattedPrice}/${interval}` : formattedPrice
   const frequency = interval ? `per ${interval}` : ''
 
-  // Signup collects a payment method, but nothing is charged during the 30-day
-  // trial and the user can cancel before it ends — so copy leads with "no charge
-  // during your trial", never "no card required".
+  // Pre-launch = the FREE phase (before 1 Sep 2026): every feature is free with
+  // no card and no Stripe, so copy must promise exactly that — never a trial or
+  // a payment method. This mirrors getOfferCopy() and what the player enforces.
   if (isPreLaunch(now)) {
     return {
       preLaunch: true,
-      badge: '30-day free trial',
-      heading: `30 days free, then ${per}`,
-      supporting: `Create your account and try every EQHO feature free for 30 days. Continue for ${per} after your trial.`,
-      priceLabel: formattedPrice,
-      frequency,
-      trialLabel: PRICING.trialLabel,
-      explanation: `Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at ${per} when your 30-day trial ends, unless you cancel.`,
-      cta: 'Start 30-day free trial',
-      cardNote: 'No charge today. Cancel anytime before your trial ends.',
+      badge: 'Free until 31 August 2026',
+      heading: `Free until 31 August 2026, then ${per}`,
+      supporting: `Create your free account and use every EQHO feature until 31 August 2026 — no card required. It continues for ${per} after that.`,
+      priceLabel: 'Free',
+      frequency: 'until 31 Aug 2026',
+      trialLabel: 'No card required',
+      explanation: `No payment details needed today. From 1 September 2026 you can start a 30-day free trial and continue for ${per} unless you cancel.`,
+      cta: 'Create free account',
+      cardNote: 'No card required. Free until 31 August 2026.',
     }
   }
 

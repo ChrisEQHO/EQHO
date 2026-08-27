@@ -92,7 +92,7 @@ export async function evaluateForUser(
   const result = evaluateEntitlement({
     now,
     profile: profile
-      ? { subscription_status: profile.subscription_status ?? undefined, current_period_end: profile.current_period_end }
+      ? { subscription_status: profile.subscription_status, current_period_end: profile.current_period_end }
       : null,
     email: user.email ?? profile?.email ?? null,
   })
