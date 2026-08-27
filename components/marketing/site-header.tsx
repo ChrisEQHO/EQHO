@@ -7,6 +7,7 @@ import { Menu, X, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { SITE, NAV_LINKS, CTA } from '@/lib/marketing-config'
+import { handleSectionLinkClick } from '@/lib/utils/scroll-to-section'
 
 /**
  * Public marketing header. Sticky, translucent, with a mobile drawer.
@@ -115,6 +116,7 @@ export function SiteHeader() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={(e) => handleSectionLinkClick(e, link.href)}
               className="whitespace-nowrap text-sm font-medium text-[#aeb9d4] transition-colors hover:text-white hover:[text-shadow:0_0_14px_rgba(129,140,248,0.55)]"
             >
               {link.label}
@@ -176,7 +178,10 @@ export function SiteHeader() {
               <Link
                 key={link.href}
                 href={link.href}
-                onClick={() => setOpen(false)}
+                onClick={(e) => {
+                  handleSectionLinkClick(e, link.href)
+                  setOpen(false)
+                }}
                 className="rounded-lg px-3 py-3 text-base font-medium text-[#cbd5e1] transition-colors hover:bg-white/5 hover:text-white"
               >
                 {link.label}
