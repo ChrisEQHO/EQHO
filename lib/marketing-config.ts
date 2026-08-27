@@ -260,7 +260,11 @@ export const STEPS: { title: string; body: string }[] = [
   },
 ]
 
-/** Audience cards. */
+/**
+ * Audience cards. Launch focus is gymnastics coaches and clubs — the specific
+ * disciplines named here are the ones EQHO markets to. (The product is not
+ * restricted to these; this is positioning only.)
+ */
 export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'Medal',
@@ -269,13 +273,13 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   },
   {
     icon: 'Music2',
-    title: 'Dance & performance',
-    body: 'Keep group and solo routines in order while you work through the session.',
+    title: 'Every gymnastics discipline',
+    body: 'Built for Artistic, Women’s Artistic, Rhythmic, Acrobatic and Aerobic Gymnastics routines.',
   },
   {
     icon: 'Megaphone',
-    title: 'Cheer & tumbling',
-    body: 'Run team routines back to back so tumbling passes keep moving between reps.',
+    title: 'Clubs & squads',
+    body: 'Run squad sessions with running orders, gaps and repeats so floor time keeps moving.',
   },
 ]
 
@@ -283,11 +287,11 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
 export const FAQ: { q: string; a: string }[] = [
   {
     q: 'What is EQHO Player?',
-    a: 'EQHO Player is a training music player for gymnastics, acro, dance and cheer coaches. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
+    a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Artistic, Women’s Artistic, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
   },
   {
     q: 'How much does EQHO Player cost?',
-    a: 'EQHO Player comes with a 30-day free trial. After the trial it moves to a simple subscription. See the pricing page for the current price.',
+    a: 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. A larger EQHO Club package (£19.99/month) is planned for 1 February 2027; it is not available yet and nothing changes for existing subscribers without notice and consent. See the pricing page for the latest details.',
   },
   {
     q: 'Do I need to install anything?',

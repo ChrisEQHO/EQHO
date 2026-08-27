@@ -83,7 +83,7 @@ const ANATOMY: { icon: LucideIcon; label: string; title: string; body: string; p
 
 const CLOUD_POINTS = [
   { icon: CloudUpload, text: 'Push a playlist to save its audio and running order to your account.' },
-  { icon: ShieldCheck, text: 'Your sessions are stored securely and backed up automatically.' },
+  { icon: ShieldCheck, text: 'Once you push a playlist, it is stored securely and backed up on your account.' },
   { icon: RefreshCw, text: 'Build a session at home and it is ready when you log in at training.' },
 ]
 

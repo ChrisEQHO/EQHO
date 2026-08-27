@@ -1217,15 +1217,18 @@ export default function Page() {
     try {
       const result = await deleteAccount();
       if (result.success) {
-        router.push('/login');
-        router.refresh();
-      } else {
-        alert(result.error || 'Failed to delete account');
+        // Hard navigation (not router.push) so ALL cached client state, the
+        // Supabase client session and any in-memory subscription context are
+        // dropped — the account no longer exists, so nothing should linger.
+        window.location.href = '/login?deleted=1';
+        return;
       }
+      alert(result.error || 'Failed to delete account');
+      setDeleteAccountLoading(false);
+      setShowDeleteAccountConfirm(false);
     } catch (error) {
       console.error('Delete account error:', error);
       alert('An error occurred while deleting your account');
-    } finally {
       setDeleteAccountLoading(false);
       setShowDeleteAccountConfirm(false);
     }
@@ -8927,7 +8930,7 @@ export default function Page() {
                       <ul className="space-y-3 text-white/70 text-sm">
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
-                          <span>Changes are saved automatically when logged in</span>
+                          <span>Push a playlist to save its audio and running order to your account</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
@@ -9664,7 +9667,7 @@ export default function Page() {
                       Saving to EQHO Cloud
                     </h3>
                     <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Changes are saved automatically when logged in</li>
+                      <li>Push a playlist to save its audio and running order to your account</li>
                       <li>Pro users can access saved data across devices</li>
                       <li>Look for the &quot;All changes saved&quot; message to confirm sync</li>
                     </ul>

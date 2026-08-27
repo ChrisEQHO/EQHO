@@ -21,14 +21,14 @@ export const metadata: Metadata = {
     template: '%s | EQHO Player',
   },
   description:
-    'EQHO Player manages competition music during training for gymnastics, dance and cheer coaches. Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
+    'EQHO Player manages competition music during training for gymnastics coaches and clubs. Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
   applicationName: 'EQHO Player',
   keywords: [
     'gymnastics training music',
     'routine music player',
     'training session music',
-    'dance coach music app',
-    'cheer routine player',
+    'gymnastics coach music app',
+    'rhythmic gymnastics music',
     'competition music',
   ],
   icons: {

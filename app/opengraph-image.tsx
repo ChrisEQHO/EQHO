@@ -60,7 +60,7 @@ export default function OpengraphImage() {
             Set the music once. Coach the whole session.
           </div>
           <div style={{ fontSize: 34, color: '#c3cad8', maxWidth: 860, lineHeight: 1.3 }}>
-            The training music player for gymnastics, dance and cheer coaches.
+            The training music player for gymnastics coaches and clubs.
           </div>
         </div>
 

@@ -261,7 +261,7 @@ function BillingContent() {
 
             {!isUserPro && (
               <p style={{ color: 'var(--eqho-text-secondary)' }}>
-                Upgrade to EQHO Player to unlock cloud sync, cross-device access, and automatic backups.
+                Upgrade to EQHO Player to unlock cloud storage and cross-device access — push a playlist to back it up to your account and open it on any device.
               </p>
             )}
           </div>

@@ -29,6 +29,7 @@ import {
   AUDIENCES,
   FAQ,
   APP,
+  PLAYER_PACKAGE,
 } from '@/lib/marketing-config'
 
 // Resolve config icon names to lucide components (keeps the config JSX-free).
@@ -102,8 +103,11 @@ function PrimaryCta({ className = '' }: { className?: string }) {
 export function MarketingHome() {
   return (
     <main className="bg-[#020617] text-white">
-      {/* ── Hero — fills exactly one screen beneath the sticky nav ────────── */}
-      <section className="relative isolate flex min-h-[calc(100svh-var(--header-height))] flex-col overflow-hidden">
+      {/* ── Hero — a compact band (NOT a full screen) so the benefit panels and
+              the pink/orange "Take a look at the player below" banner in the next
+              section rise into view as early as practical. Capped with svh so it
+              scales down on short/landscape viewports without absolute positioning. */}
+      <section className="relative isolate flex min-h-[clamp(360px,62svh,600px)] flex-col overflow-hidden">
         {/* z-0 — navy base colour */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-[#020617]" />
 
@@ -396,13 +400,14 @@ export function MarketingHome() {
             <div className="flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
                 <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Start with a 30-day free trial.
+                  {`Start with a 30-day free trial, then ${PLAYER_PACKAGE.fallbackPrice}/${PLAYER_PACKAGE.interval}.`}
                 </h2>
                 <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                  {LAUNCH.freeNote} When paid plans begin, pricing stays simple and transparent — no hidden tiers.
+                  {LAUNCH.freeNote} Add your payment details securely through Stripe and pay nothing today — your
+                  subscription renews automatically when the trial ends, unless you cancel.
                 </p>
                 <ul className="mt-6 space-y-2.5 text-sm text-[#cbd5e1]">
-                  {['Unlimited playlists and session plans', 'Cloud backup of your sessions', 'Works in the browser and as an app'].map(
+                  {['Unlimited playlists and session plans', 'Cloud storage and playlist backup', 'Access on supported desktop, tablet and mobile devices'].map(
                     (item) => (
                       <li key={item} className="flex items-center gap-2.5">
                         <Check className="h-4 w-4 shrink-0 text-[#ff8a00]" />
