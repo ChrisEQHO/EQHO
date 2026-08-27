@@ -1213,13 +1213,38 @@ export default function Page() {
   }, [changePwCooldown]);
 
   const handleDeleteAccount = async () => {
+    // Guard against duplicate requests (double-tap / re-entry while in flight).
+    if (deleteAccountLoading) return;
     setDeleteAccountLoading(true);
     try {
       const result = await deleteAccount();
       if (result.success) {
-        // Hard navigation (not router.push) so ALL cached client state, the
-        // Supabase client session and any in-memory subscription context are
-        // dropped — the account no longer exists, so nothing should linger.
+        // The account no longer exists on the server, so wipe every trace of it
+        // from THIS device before leaving: offline audio/playlists (IndexedDB),
+        // cached prefs and the Supabase session token (localStorage). Best-effort
+        // — never block the redirect on a storage error.
+        try {
+          if (typeof indexedDB !== 'undefined') {
+            indexedDB.deleteDatabase('eqho-player-db');
+          }
+        } catch (e) {
+          console.warn('[v0] deleteAccount: IndexedDB clear failed', e);
+        }
+        try {
+          if (typeof localStorage !== 'undefined') {
+            // Remove EQHO-scoped keys (playlists, downloads, prefs, auth session).
+            for (const key of Object.keys(localStorage)) {
+              if (key.startsWith('eqho-') || key === 'currentPlaylistName') {
+                localStorage.removeItem(key);
+              }
+            }
+          }
+          if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+        } catch (e) {
+          console.warn('[v0] deleteAccount: local storage clear failed', e);
+        }
+        // Hard navigation (not router.push) so no in-memory React/subscription
+        // state survives. The login page shows the confirmation via ?deleted=1.
         window.location.href = '/login?deleted=1';
         return;
       }
@@ -1228,7 +1253,7 @@ export default function Page() {
       setShowDeleteAccountConfirm(false);
     } catch (error) {
       console.error('Delete account error:', error);
-      alert('An error occurred while deleting your account');
+      alert('An error occurred while deleting your account. Please try again or contact support.');
       setDeleteAccountLoading(false);
       setShowDeleteAccountConfirm(false);
     }

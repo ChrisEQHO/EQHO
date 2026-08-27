@@ -121,9 +121,36 @@ export default function TermsPage() {
 
             <SectionCard title="5. Pricing, free trial and subscriptions">
               <p>
-                EQHO Player comes with a 30-day free trial. After the trial, continued use may require a paid
-                subscription at the price shown on our pricing page at the time you subscribe. Where a subscription
-                applies, it renews until cancelled, and you can cancel at any time from your billing settings.
+                EQHO Player starts with a 30-day free trial. To start the trial you add your payment details securely
+                through our payment processor, Stripe. You are not charged during the trial. When the 30-day trial
+                ends, the EQHO Player subscription renews automatically at the price shown on the pricing page at the
+                time you subscribe (currently £4.99 per month) unless you cancel before the trial ends. The
+                subscription then continues to renew each month until cancelled.
+              </p>
+              <p>
+                A larger EQHO Club package (planned at £19.99 per month) is expected to become available from 1
+                February 2027. It is not available to purchase yet. We will not move you onto a different package or
+                change your subscription price without giving you clear advance notice and, where required, obtaining
+                your consent, so that any future price is clear to you before it applies.
+              </p>
+              <p>
+                You can cancel at any time from your billing settings or through the Stripe customer portal.
+                Cancelling stops future renewals; it does not immediately remove access if you still have paid or
+                trial time remaining, and access ends when the current subscription or trial period expires.
+              </p>
+              <p>
+                Because a 30-day free trial is provided before any payment is taken, we do not generally offer
+                refunds for subscription periods that have already started. This does not affect any refund or
+                cancellation rights you have under applicable consumer law.
+              </p>
+              <p>
+                You can delete your account at any time from your account settings. Deleting your account cancels any
+                active subscription and permanently removes your account, playlists and uploaded audio, as described
+                in our{' '}
+                <Link href="/privacy-policy" className="text-[#ff9dc7] underline underline-offset-2 hover:text-white">
+                  Privacy Policy
+                </Link>
+                .
               </p>
             </SectionCard>
 

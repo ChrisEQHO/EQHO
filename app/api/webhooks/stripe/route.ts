@@ -133,10 +133,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log('[WEBHOOK]   subscriptionId:', subscriptionId)
   console.log('[WEBHOOK]   customerEmail:', customerEmail)
 
-  // Initialize subscription data with defaults
+  // Initialize subscription data with defaults.
+  // Fallback trial length MUST be 30 days to match the checkout session's
+  // trial_period_days and the "30-day free trial" wording used site-wide.
+  // (Real values from Stripe override these below when available.)
   let subscriptionStatus = 'trialing'
   let trialStart = new Date()
-  let trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  let trialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   let currentPeriodEnd = trialEnd
 
   // Try to fetch subscription details from Stripe (if subscription exists)
@@ -158,7 +161,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         : new Date()
       trialEnd = subscription.trial_end 
         ? new Date(subscription.trial_end * 1000)
-        : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       currentPeriodEnd = new Date(subscription.current_period_end * 1000)
     } catch (subError) {
       console.log('[WEBHOOK] WARNING: Could not retrieve subscription:', subError instanceof Error ? subError.message : subError)

@@ -14,10 +14,20 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [accountDeleted, setAccountDeleted] = useState(false)
   const router = useRouter()
 
   // Clear stale localStorage on mount and check if user is already logged in
   useEffect(() => {
+    // Show the deletion confirmation when redirected here after account deletion.
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('deleted') === '1') {
+        setAccountDeleted(true)
+        // Strip the param so a refresh doesn't keep showing the banner.
+        window.history.replaceState({}, '', '/login')
+      }
+    }
     // Clear any stale auth-related localStorage values
     if (typeof window !== 'undefined') {
       const keysToRemove = [
@@ -155,6 +165,16 @@ export default function LoginPage() {
             Welcome back to your session
           </p>
         </div>
+
+        {/* Account-deleted confirmation (shown after successful deletion) */}
+        {accountDeleted && (
+          <div
+            role="status"
+            className="mb-4 p-4 rounded-xl text-sm bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
+          >
+            Your EQHO Player account has been deleted.
+          </div>
+        )}
 
         {/* Login Form Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">

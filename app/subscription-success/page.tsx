@@ -71,9 +71,9 @@ export default function SubscriptionSuccessPage() {
 
         const userEmail = session.user.email || 'Your account'
         const trialEnd = new Date()
-        trialEnd.setDate(trialEnd.getDate() + 14)
+        trialEnd.setDate(trialEnd.getDate() + 30)
         
-        // Update profile with 14 day trial. profiles is keyed on `id`;
+        // Update profile with 30 day trial. profiles is keyed on `id`;
         // fall back to email lookup if the id-based update matches no rows.
         const { error: updateError1 } = await supabase
           .from('profiles')
@@ -113,11 +113,11 @@ export default function SubscriptionSuccessPage() {
           profile = profileByEmail
         }
 
-        // Calculate days remaining - always based on 14 day trial
-        let daysRemaining = 14
+        // Calculate days remaining - always based on 30 day trial
+        let daysRemaining = 30
         if (profile?.trial_end) {
           const profileTrialEnd = new Date(profile.trial_end)
-          daysRemaining = Math.max(0, Math.min(14, Math.ceil((profileTrialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
+          daysRemaining = Math.max(0, Math.min(30, Math.ceil((profileTrialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
         }
 
         setSubscriptionData({

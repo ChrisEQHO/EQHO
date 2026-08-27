@@ -213,7 +213,7 @@ export default function PrivacyPolicyPage() {
                 'Provide EQHO Player services',
                 'Manage subscriptions',
                 'Authenticate users',
-                'Synchronise cloud data',
+                'Store playlists you push to EQHO Cloud',
                 'Improve application performance',
                 'Resolve technical issues',
                 'Communicate service updates',
@@ -224,9 +224,9 @@ export default function PrivacyPolicyPage() {
 
           <SectionCard title="Cloud Storage">
             <p>
-              EQHO Player may store user-generated information including
-              playlists, routines, session settings and preferences using
-              secure cloud infrastructure.
+              When you push a playlist to your EQHO Cloud account, EQHO Player stores your uploaded audio files using
+              Cloudflare R2 object storage, and stores related information such as playlists, routines, session
+              settings and preferences in our Supabase database.
             </p>
             <p>
               Access to stored data is restricted to authorised account holders
@@ -242,8 +242,10 @@ export default function PrivacyPolicyPage() {
             </p>
             <BulletList
               items={[
-                'Stripe (payments)',
+                'Stripe (payment processing)',
                 'Supabase (authentication and database services)',
+                'Cloudflare R2 (audio file storage)',
+                'Resend (transactional email)',
                 'Hosting and infrastructure providers',
               ]}
             />
@@ -309,6 +311,31 @@ export default function PrivacyPolicyPage() {
             />
             <p>
               Requests may be submitted using the contact information below.
+            </p>
+            <p>
+              If you are in the UK and believe we have not handled your personal information properly, you have the
+              right to complain to the Information Commissioner&apos;s Office (ICO) at{' '}
+              <a
+                href="https://ico.org.uk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
+              >
+                ico.org.uk
+              </a>
+              .
+            </p>
+          </SectionCard>
+
+          <SectionCard title="International Data Transfers">
+            <p>
+              Some of our service providers (including Stripe, Supabase and Cloudflare) may process or store data on
+              servers located outside your country, including outside the UK and European Economic Area.
+            </p>
+            <p>
+              Where personal information is transferred internationally, we rely on the safeguards offered by those
+              providers, such as standard contractual clauses and equivalent protections, so your information remains
+              protected.
             </p>
           </SectionCard>
 

@@ -62,7 +62,7 @@ function CompleteSignupContent() {
       const accessAllowed = profile.subscription_status === 'trialing' || profile.subscription_status === 'active'
 
       if (accessAllowed) {
-        const trialEnd = profile.trial_end ? new Date(profile.trial_end) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+        const trialEnd = profile.trial_end ? new Date(profile.trial_end) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         
         return {
@@ -103,7 +103,7 @@ function CompleteSignupContent() {
             // Profile updated successfully!
             const trialEnd = result.subscription?.trialEnd 
               ? new Date(result.subscription.trialEnd)
-              : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+              : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
             const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
             
             setSubscriptionData({

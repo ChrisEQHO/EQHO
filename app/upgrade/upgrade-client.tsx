@@ -246,12 +246,12 @@ export default function UpgradeClient() {
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
-            {/* 14 Days Free Banner + Monthly Pricing */}
+            {/* 30 Days Free Banner + Monthly Pricing */}
             <div className="flex gap-3 mb-4">
               <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 flex items-center gap-3">
                 <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
-                  <p className="font-bold text-white text-lg leading-tight">14 Days FREE</p>
+                  <p className="font-bold text-white text-lg leading-tight">30 Days FREE</p>
                   <p className="text-xs text-white/90">Full access to all EQHO Player features</p>
                 </div>
               </div>
@@ -267,7 +267,7 @@ export default function UpgradeClient() {
               {[
                 'Cloud Storage',
                 'Playback Tools',
-                'Cross Device Sync',
+                'Cross-Device Access',
                 'Offline Playback',
               ].map((feature) => (
                 <div key={feature} className="flex items-center gap-2 text-sm text-[#e2e8f0]">
@@ -293,14 +293,14 @@ export default function UpgradeClient() {
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
-                  Start 14-Day Free Trial
+                  Start 30-day free trial
                   <ArrowRight className="h-5 w-5" />
                 </>
               )}
             </button>
 
             <p className="text-center text-xs mt-2 text-[#64748b]">
-              Start your 14-day free trial today. Your subscription will automatically continue at £4.99/month unless cancelled.
+              Start your 30-day free trial today. Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at £4.99/month when the trial ends unless cancelled.
             </p>
             <p className="text-center text-xs mt-1.5 text-[#64748b]">
               No charge today. Cancel anytime during your free trial.
