@@ -29,6 +29,7 @@ import {
   AUDIENCES,
   FAQ,
   APP,
+  PLAYER_PACKAGE,
 } from '@/lib/marketing-config'
 
 // Resolve config icon names to lucide components (keeps the config JSX-free).
@@ -102,8 +103,11 @@ function PrimaryCta({ className = '' }: { className?: string }) {
 export function MarketingHome() {
   return (
     <main className="bg-[#020617] text-white">
-      {/* ── Hero — fills exactly one screen beneath the sticky nav ────────── */}
-      <section className="relative isolate flex min-h-[calc(100svh-var(--header-height))] flex-col overflow-hidden">
+      {/* ── Hero — a compact band (NOT a full screen) so the benefit panels and
+              the pink/orange "Take a look at the player below" banner in the next
+              section rise into view as early as practical. Capped with svh so it
+              scales down on short/landscape viewports without absolute positioning. */}
+      <section className="relative isolate flex min-h-[clamp(360px,62svh,600px)] flex-col overflow-hidden">
         {/* z-0 — navy base colour */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-[#020617]" />
 
@@ -168,7 +172,7 @@ export function MarketingHome() {
           <div className="eqho-glow-b absolute left-1/2 top-[-12%] h-[52vh] w-[62vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(49,46,129,0.5),transparent_72%)] opacity-50 blur-[130px]" />
         </div>
 
-        <div className="relative z-[1] mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+        <div className="relative z-[1] mx-auto w-full max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-12">
           {/* Two feature panels — one player, two ways to keep training moving.
               Side by side on desktop/large tablet, stacked on mobile. */}
           <div className="mx-auto w-full max-w-5xl">
@@ -302,7 +306,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── How it works ─────────────────────────────────────���────────────── */}
+      {/* ── How it works ──��──────────────────────────────────���────────────── */}
       <section id="how-it-works" className="scroll-mt-20 border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
           <div className="max-w-2xl">
@@ -389,60 +393,6 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── EQHO Music (store) ─────────────────────────────────────────────── */}
-      <section className="border-t border-white/5 bg-[#050814]">
-        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
-          <div className="overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(120%_120%_at_100%_0%,rgba(139,92,246,0.16),transparent_55%)]">
-            <div className="flex flex-col gap-10 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-xl">
-                <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[#c4b5fd]">
-                  <Music2 className="h-4 w-4" aria-hidden="true" />
-                  EQHO Music
-                </p>
-                <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Competition-ready music. Find the track that fits.
-                </h2>
-                <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                  Browse, preview and listen to music created for competition.
-                </p>
-                <ul className="mt-6 space-y-3">
-                  {[
-                    'Search the EQHO Music library.',
-                    'Preview tracks before purchasing.',
-                    'Purchase and download your clean competition master.',
-                    'Standard prices start from £19.99 per track.',
-                    'Eligible EQHO customers get tracks from just £9.99 each.',
-                    'Customer pricing is applied automatically when signed in.',
-                  ].map((point) => (
-                    <li key={point} className="flex items-start gap-3 text-sm leading-relaxed text-[#cbd5e1]">
-                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#3b82f6] text-white">
-                        <Check className="h-3 w-3" aria-hidden="true" />
-                      </span>
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex w-full flex-col gap-3 sm:w-auto lg:shrink-0">
-                <Link
-                  href="/store"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03]"
-                >
-                  Browse competition music
-                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
-                </Link>
-                <Link
-                  href="/pricing"
-                  className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
-                >
-                  Join EQHO and save
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── Pricing preview ───────────────────────────────────────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
@@ -450,13 +400,14 @@ export function MarketingHome() {
             <div className="flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
                 <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Start with a 30-day free trial.
+                  {`Start with a 30-day free trial, then ${PLAYER_PACKAGE.fallbackPrice}/${PLAYER_PACKAGE.interval}.`}
                 </h2>
                 <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                  {LAUNCH.freeNote} When paid plans begin, pricing stays simple and transparent — no hidden tiers.
+                  {LAUNCH.freeNote} Add your payment details securely through Stripe and pay nothing today — your
+                  subscription renews automatically when the trial ends, unless you cancel.
                 </p>
                 <ul className="mt-6 space-y-2.5 text-sm text-[#cbd5e1]">
-                  {['Unlimited playlists and session plans', 'Cloud backup of your sessions', 'Works in the browser and as an app'].map(
+                  {['Unlimited playlists and session plans', 'Cloud storage and playlist backup', 'Access on supported desktop, tablet and mobile devices'].map(
                     (item) => (
                       <li key={item} className="flex items-center gap-2.5">
                         <Check className="h-4 w-4 shrink-0 text-[#ff8a00]" />

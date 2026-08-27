@@ -4,7 +4,7 @@ import { Check, ArrowRight } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { getLivePrice } from '@/lib/get-pricing'
-import { SITE, PRICING, getPricingCopy } from '@/lib/marketing-config'
+import { SITE, PRICING, getPricingCopy, PLAYER_PACKAGE } from '@/lib/marketing-config'
 
 // Always fetch fresh so the page reflects the current Stripe price AND the current
 // launch phase (the copy switches automatically on 1 September 2026).
@@ -19,14 +19,10 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-const PLAN_FEATURES = [
-  'Unlimited playlists and session plans',
-  'Control the gap between routines',
-  'Set repeats and back-to-back playback',
-  'Cloud backup of your sessions',
-  'Use in the browser or install the app',
-  'Manage your subscription whenever you need',
-]
+// The EQHO Player benefit list is centralised in marketing-config so the pricing
+// page, homepage and any future surface never drift apart. It contains only
+// features that currently work.
+const PLAN_FEATURES = PLAYER_PACKAGE.benefits
 
 export default async function PricingPage() {
   // Live Stripe price (GBP), with £4.99 documented fallback. A single price value

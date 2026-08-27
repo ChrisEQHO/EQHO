@@ -1,31 +1,33 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ArrowRight, Music4 } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { TrackCard } from '@/components/store/track-card'
 import { JoinEqhoSection } from '@/components/store/join-eqho-section'
 import { getTracksGroupedByCategory } from '@/lib/store/catalog'
+import { isStoreEnabled } from '@/lib/store/flags'
 import { SITE, CTA } from '@/lib/marketing-config'
 
+// Store is hidden pre-launch: keep it out of search indexes while disabled.
 export const metadata: Metadata = {
   title: `Music store — competition tracks | ${SITE.name}`,
   description:
-    'Browse and preview competition music for gymnastics, dance and cheer. Included with an EQHO subscription, or buy individual tracks.',
+    'Browse and preview competition music for gymnastics coaches and clubs. Included with an EQHO subscription, or buy individual tracks.',
   alternates: { canonical: '/store' },
-  openGraph: {
-    type: 'website',
-    url: `${SITE.url}/store`,
-    siteName: SITE.name,
-    title: `Music store | ${SITE.name}`,
-    description: 'Preview and get competition music for gymnastics, dance and cheer.',
-  },
+  robots: { index: false, follow: false },
 }
 
 // Catalogue is DB-backed and changes with admin edits, so render dynamically.
 export const dynamic = 'force-dynamic'
 
 export default async function StorePage() {
+  // Marketplace is hidden pre-launch. Old/bookmarked /store links go to the homepage.
+  if (!isStoreEnabled()) {
+    redirect('/')
+  }
+
   const groups = await getTracksGroupedByCategory()
   const isEmpty = groups.length === 0
 

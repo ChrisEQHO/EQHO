@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ChevronRight, Home, ArrowLeft, ShieldCheck } from 'lucide-react'
+import { LegalValue } from '@/components/legal/legal-value'
+import { LEGAL } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
   title: 'EQHO Player Privacy Policy',
@@ -103,7 +105,7 @@ export default function PrivacyPolicyPage() {
             music management for coaches, clubs and organisations.
           </p>
           <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[rgba(13,20,36,0.92)] px-4 py-1.5 text-sm font-medium text-[#7c8596]">
-            Last Updated: June 2026
+            {`Last updated: ${LEGAL.lastUpdated}`}
           </p>
           <div className="mt-8 h-1 w-full rounded-full bg-gradient-to-r from-[#ff4fa3] via-[#b86cff] to-[#00d9ff]" />
         </header>
@@ -211,7 +213,7 @@ export default function PrivacyPolicyPage() {
                 'Provide EQHO Player services',
                 'Manage subscriptions',
                 'Authenticate users',
-                'Synchronise cloud data',
+                'Store playlists you push to EQHO Cloud',
                 'Improve application performance',
                 'Resolve technical issues',
                 'Communicate service updates',
@@ -222,9 +224,9 @@ export default function PrivacyPolicyPage() {
 
           <SectionCard title="Cloud Storage">
             <p>
-              EQHO Player may store user-generated information including
-              playlists, routines, session settings and preferences using
-              secure cloud infrastructure.
+              When you push a playlist to your EQHO Cloud account, EQHO Player stores your uploaded audio files using
+              Cloudflare R2 object storage, and stores related information such as playlists, routines, session
+              settings and preferences in our Supabase database.
             </p>
             <p>
               Access to stored data is restricted to authorised account holders
@@ -240,8 +242,10 @@ export default function PrivacyPolicyPage() {
             </p>
             <BulletList
               items={[
-                'Stripe (payments)',
+                'Stripe (payment processing)',
                 'Supabase (authentication and database services)',
+                'Cloudflare R2 (audio file storage)',
+                'Resend (transactional email)',
                 'Hosting and infrastructure providers',
               ]}
             />
@@ -270,7 +274,11 @@ export default function PrivacyPolicyPage() {
 
           <SectionCard title="Data Retention">
             <p>User information is retained while accounts remain active.</p>
-            <p>Users may request account deletion by contacting support.</p>
+            <p>
+              You can delete your account at any time from your account settings in the app. Deleting your account
+              cancels any active subscription and permanently removes your account, playlists and uploaded audio
+              from our systems. You can also request deletion by contacting support.
+            </p>
             <p>
               Certain information may be retained where required by law or for
               legitimate business purposes.
@@ -304,6 +312,31 @@ export default function PrivacyPolicyPage() {
             <p>
               Requests may be submitted using the contact information below.
             </p>
+            <p>
+              If you are in the UK and believe we have not handled your personal information properly, you have the
+              right to complain to the Information Commissioner&apos;s Office (ICO) at{' '}
+              <a
+                href="https://ico.org.uk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
+              >
+                ico.org.uk
+              </a>
+              .
+            </p>
+          </SectionCard>
+
+          <SectionCard title="International Data Transfers">
+            <p>
+              Some of our service providers (including Stripe, Supabase and Cloudflare) may process or store data on
+              servers located outside your country, including outside the UK and European Economic Area.
+            </p>
+            <p>
+              Where personal information is transferred internationally, we rely on the safeguards offered by those
+              providers, such as standard contractual clauses and equivalent protections, so your information remains
+              protected.
+            </p>
           </SectionCard>
 
           <SectionCard title="Third-Party Services">
@@ -324,36 +357,42 @@ export default function PrivacyPolicyPage() {
             </p>
           </SectionCard>
 
-          <SectionCard title="Contact Information">
-            <h3 className="text-base font-semibold text-white">
+          <SectionCard title="Data Controller and Contact Information">
+            <p>
+              The data controller responsible for your personal information is{' '}
+              <LegalValue value={LEGAL.legalEntityName} placeholder="registered company name" />,{' '}
+              <LegalValue value={LEGAL.companyNumber} placeholder="company registration number" />, registered at{' '}
+              <LegalValue value={LEGAL.registeredAddress} placeholder="registered office address" />.
+            </p>
+            <h3 className="pt-2 text-base font-semibold text-white">
               EQHO Player Support
             </h3>
             <div className="space-y-3">
               <p>
                 Website:{' '}
                 <a
-                  href="https://eqho-player.com"
+                  href={LEGAL.websiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
                 >
-                  https://eqho-player.com
+                  {LEGAL.websiteUrl}
                 </a>
               </p>
               <p>
                 Email:{' '}
                 <a
-                  href="mailto:info@eqho-player.com"
+                  href={`mailto:${LEGAL.contactEmail}`}
                   className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
                 >
-                  info@eqho-player.com
+                  {LEGAL.contactEmail}
                 </a>
               </p>
               <p>
                 Business Contact:{' '}
-                <span className="text-white">Christopher Rogers</span>
+                <span className="text-white">{LEGAL.businessContact}</span>
               </p>
-              <p>United Kingdom</p>
+              <p>{LEGAL.country}</p>
             </div>
           </SectionCard>
         </div>

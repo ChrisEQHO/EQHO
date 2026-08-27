@@ -108,9 +108,9 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
       priceLabel: formattedPrice,
       frequency,
       trialLabel: PRICING.trialLabel,
-      explanation: `Your first 30 days are free. Subscribe for ${per} after the trial to continue.`,
+      explanation: `Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at ${per} when your 30-day trial ends, unless you cancel.`,
       cta: 'Start 30-day free trial',
-      cardNote: 'No charge during your 30-day trial. Cancel anytime before it ends.',
+      cardNote: 'No charge today. Cancel anytime before your trial ends.',
     }
   }
 
@@ -122,24 +122,65 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
     priceLabel: formattedPrice,
     frequency,
     trialLabel: PRICING.trialLabel,
-    explanation: '',
+    explanation: `Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at ${per} when your 30-day trial ends, unless you cancel.`,
     cta: 'Start 30-day free trial',
-    cardNote: 'No charge during your 30-day trial. Cancel anytime before it ends.',
+    cardNote: 'No charge today. Cancel anytime before your trial ends.',
   }
 }
 
-/** Primary calls to action. Pre-launch the primary action is "Start free". */
+/**
+ * Subscription packages — the single source of truth for what each plan includes.
+ *
+ * PLAYER is the package customers can subscribe to TODAY (£4.99/month, shown live
+ * from Stripe via lib/get-pricing.ts). Its benefit list contains ONLY features that
+ * currently work — nothing aspirational.
+ *
+ * CLUB is a PLANNED package for 1 February 2027. It is NOT purchasable yet and is
+ * presented purely as forward-looking information. Unreleased features (the EQHO
+ * Music Marketplace and EQHO Fit) are explicitly marked "when released" so they are
+ * never advertised as currently available. Existing EQHO Player subscribers are
+ * never silently moved onto Club or charged more without the required notice,
+ * disclosure and consent — this config only *describes* the future package.
+ */
+export const PLAYER_PACKAGE = {
+  name: 'EQHO Player',
+  fallbackPrice: '£4.99',
+  interval: 'month',
+  // Launch offer window during which the £4.99 Player price is promoted.
+  launchOfferFrom: '1 September 2026',
+  launchOfferUntil: '31 January 2027',
+  benefits: [
+    'Unlimited playlists and session plans',
+    'Organised running orders',
+    'Adjustable gaps between routines',
+    'Repeats and back-to-back playback',
+    'Full-screen session mode',
+    'Cloud storage and playlist backup',
+    'Access on supported desktop, tablet and mobile devices',
+    'Offline playback from playlists downloaded to the device',
+  ],
+} as const
+
+/**
+ * Primary calls to action. Signup starts a 30-day free trial that requires a
+ * payment method, so the CTA is never the vague "Start free" — it always says
+ * "Start 30-day free trial". `headerCta` is a shorter variant for the compact
+ * header pill where the full label would overflow.
+ */
 export const CTA = {
-  primary: { label: 'Start free', href: '/signup' },
+  primary: { label: 'Start 30-day free trial', href: '/signup' },
+  headerCta: { label: 'Start free trial', href: '/signup' },
   secondary: { label: 'Log in', href: '/login' },
   // Shown to already-signed-in visitors in the header.
   openApp: { label: 'Open EQHO', href: '/app' },
 } as const
 
 /** Header navigation (anchors on the homepage + the pricing route). */
+// NOTE: The "Music store" link is intentionally omitted while the EQHO Music
+// marketplace is hidden pre-launch. Re-add `{ label: 'Music store', href: '/store' }`
+// (and re-enable the store via NEXT_PUBLIC_STORE_ENABLED) when it is ready.
 export const NAV_LINKS: { label: string; href: string }[] = [
   { label: 'The player', href: '/features' },
-  { label: 'Music store', href: '/store' },
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Who it’s for', href: '/#audiences' },
   { label: 'Pricing', href: '/pricing' },
@@ -205,7 +246,11 @@ export const STEPS: { title: string; body: string }[] = [
   },
 ]
 
-/** Audience cards. */
+/**
+ * Audience cards. Launch focus is gymnastics coaches and clubs — the specific
+ * disciplines named here are the ones EQHO markets to. (The product is not
+ * restricted to these; this is positioning only.)
+ */
 export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'Medal',
@@ -214,13 +259,13 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
   },
   {
     icon: 'Music2',
-    title: 'Dance & performance',
-    body: 'Keep group and solo routines in order while you work through the session.',
+    title: 'Every gymnastics discipline',
+    body: 'Built for Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics routines.',
   },
   {
     icon: 'Megaphone',
-    title: 'Cheer & tumbling',
-    body: 'Run team routines back to back so tumbling passes keep moving between reps.',
+    title: 'Clubs & squads',
+    body: 'Run squad sessions with running orders, gaps and repeats so floor time keeps moving.',
   },
 ]
 
@@ -228,11 +273,11 @@ export const AUDIENCES: { icon: string; title: string; body: string }[] = [
 export const FAQ: { q: string; a: string }[] = [
   {
     q: 'What is EQHO Player?',
-    a: 'EQHO Player is a training music player for gymnastics, acro, dance and cheer coaches. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
+    a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
   },
   {
     q: 'How much does EQHO Player cost?',
-    a: 'EQHO Player comes with a 30-day free trial. After the trial it moves to a simple subscription. See the pricing page for the current price.',
+    a: 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.',
   },
   {
     q: 'Do I need to install anything?',
@@ -258,7 +303,6 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
     heading: 'Product',
     links: [
       { label: 'The player', href: '/features' },
-      { label: 'Music store', href: '/store' },
       { label: 'How it works', href: '/#how-it-works' },
       { label: 'Pricing', href: '/pricing' },
     ],
@@ -279,3 +323,32 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
     ],
   },
 ]
+
+/**
+ * Legal / company details shared by the Terms of Service and Privacy Policy so
+ * the two pages can never drift apart (same "last updated" date, same contact
+ * email, same entity details).
+ *
+ * IMPORTANT: fields whose value is `null` are details we do not yet have. They
+ * render as a clearly-marked, highlighted "[ … — to be added before launch]"
+ * placeholder via <LegalValue> so they are impossible to miss and must be filled
+ * in with the real registered company information before going live. Do NOT
+ * invent a company number, registered address or trading name — leave the
+ * placeholder until the real value is confirmed.
+ */
+export const LEGAL = {
+  // Keep both legal pages on the SAME date whenever either is edited.
+  lastUpdated: '27 August 2026',
+  // Confirmed, in-use contact details.
+  contactEmail: 'info@eqho-player.com',
+  websiteUrl: 'https://eqho-player.com',
+  businessContact: 'Christopher Rogers',
+  country: 'United Kingdom',
+  // Details still required for a complete, launch-ready policy. `null` => placeholder.
+  legalEntityName: null as string | null, // e.g. "EQHO Player Ltd"
+  companyNumber: null as string | null, // Companies House registration number
+  registeredAddress: null as string | null, // full registered office address
+  // Governing law — England & Wales is the expected default for a UK business,
+  // but it must be confirmed by the business, so it is treated as a placeholder.
+  governingLaw: null as string | null, // e.g. "England and Wales"
+} as const

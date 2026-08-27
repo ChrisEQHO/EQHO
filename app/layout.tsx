@@ -21,20 +21,20 @@ export const metadata: Metadata = {
     template: '%s | EQHO Player',
   },
   description:
-    'EQHO Player manages competition music during training for gymnastics, dance and cheer coaches. Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
+    'EQHO Player manages competition music during training for gymnastics coaches and clubs. Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
   applicationName: 'EQHO Player',
   keywords: [
     'gymnastics training music',
     'routine music player',
     'training session music',
-    'dance coach music app',
-    'cheer routine player',
+    'gymnastics coach music app',
+    'rhythmic gymnastics music',
     'competition music',
   ],
   icons: {
-    // Use static PNGs for mobile builds, dynamic routes for web
-    icon: isMobileBuild ? '/icon.png' : '/icon',
-    apple: isMobileBuild ? '/apple-icon.png' : '/apple-icon',
+    // Single static favicon (transparent EQHO mark) for every build target.
+    icon: '/favicon.png',
+    apple: '/favicon.png',
   },
   // PWA manifest for home screen installation
   manifest: '/manifest.json',
@@ -104,8 +104,8 @@ export default function RootLayout({
               "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var setVP=function(c){var l=document.querySelectorAll('meta[name=viewport]');if(!l.length){var m=document.createElement('meta');m.setAttribute('name','viewport');m.setAttribute('content',c);(document.head||d).appendChild(m);return}for(var i=0;i<l.length;i++){if(l[i].getAttribute('content')!==c){l[i].setAttribute('content',c)}}};var apply=function(){if(isIpad){setVP('width=1280, viewport-fit=cover');d.setAttribute('data-desktop-layout','');return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
           }}
         />
-        <link rel="icon" href={isMobileBuild ? '/icon.png' : '/icon'} type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href={isMobileBuild ? '/apple-icon.png' : '/apple-icon'} />
+        <link rel="icon" href="/favicon.png" type="image/png" sizes="any" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
         {/* iOS status bar styling */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

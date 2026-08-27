@@ -1213,19 +1213,47 @@ export default function Page() {
   }, [changePwCooldown]);
 
   const handleDeleteAccount = async () => {
+    // Guard against duplicate requests (double-tap / re-entry while in flight).
+    if (deleteAccountLoading) return;
     setDeleteAccountLoading(true);
     try {
       const result = await deleteAccount();
       if (result.success) {
-        router.push('/login');
-        router.refresh();
-      } else {
-        alert(result.error || 'Failed to delete account');
+        // The account no longer exists on the server, so wipe every trace of it
+        // from THIS device before leaving: offline audio/playlists (IndexedDB),
+        // cached prefs and the Supabase session token (localStorage). Best-effort
+        // — never block the redirect on a storage error.
+        try {
+          if (typeof indexedDB !== 'undefined') {
+            indexedDB.deleteDatabase('eqho-player-db');
+          }
+        } catch (e) {
+          console.warn('[v0] deleteAccount: IndexedDB clear failed', e);
+        }
+        try {
+          if (typeof localStorage !== 'undefined') {
+            // Remove EQHO-scoped keys (playlists, downloads, prefs, auth session).
+            for (const key of Object.keys(localStorage)) {
+              if (key.startsWith('eqho-') || key === 'currentPlaylistName') {
+                localStorage.removeItem(key);
+              }
+            }
+          }
+          if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+        } catch (e) {
+          console.warn('[v0] deleteAccount: local storage clear failed', e);
+        }
+        // Hard navigation (not router.push) so no in-memory React/subscription
+        // state survives. The login page shows the confirmation via ?deleted=1.
+        window.location.href = '/login?deleted=1';
+        return;
       }
+      alert(result.error || 'Failed to delete account');
+      setDeleteAccountLoading(false);
+      setShowDeleteAccountConfirm(false);
     } catch (error) {
       console.error('Delete account error:', error);
-      alert('An error occurred while deleting your account');
-    } finally {
+      alert('An error occurred while deleting your account. Please try again or contact support.');
       setDeleteAccountLoading(false);
       setShowDeleteAccountConfirm(false);
     }
@@ -7685,20 +7713,11 @@ export default function Page() {
             >
               <Music size={20} />
             </Link>
-            <a
-              href="/downloads/eqho-player-mac.dmg"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
-              title="Download EQHO Desktop App"
-            >
-              <Monitor size={20} />
-            </a>
             <Link
               href="/privacy-policy"
               aria-label="Privacy Policy"
               title="Privacy Policy"
-              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition"
+              className="p-2.5 rounded-xl text-[#cbd5e1] hover:text-white hover:bg-gradient-to-r hover:from-[#ff4fa3]/20 hover:to-[#ff8a00]/20 transition mt-auto"
             >
               <Shield size={20} />
             </Link>
@@ -8927,7 +8946,7 @@ export default function Page() {
                       <ul className="space-y-3 text-white/70 text-sm">
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
-                          <span>Changes are saved automatically when logged in</span>
+                          <span>Push a playlist to save its audio and running order to your account</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
@@ -9664,7 +9683,7 @@ export default function Page() {
                       Saving to EQHO Cloud
                     </h3>
                     <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Changes are saved automatically when logged in</li>
+                      <li>Push a playlist to save its audio and running order to your account</li>
                       <li>Pro users can access saved data across devices</li>
                       <li>Look for the &quot;All changes saved&quot; message to confirm sync</li>
                     </ul>
@@ -9816,6 +9835,20 @@ export default function Page() {
       >
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
+            {/* Back to the marketing website. Web only — hidden in the native
+                app build (NEXT_PUBLIC_BUILD_TARGET === 'mobile'), where there is
+                no external site to return to. Full-page navigation to "/" so the
+                user cleanly exits the player experience. */}
+            {process.env.NEXT_PUBLIC_BUILD_TARGET !== "mobile" && (
+              <a
+                href="/"
+                className="shrink-0 inline-flex items-center gap-1.5 self-start rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
+                aria-label="Exit the player and return to the EQHO website"
+              >
+                <ChevronLeft size={14} />
+                Back to EQHO website
+              </a>
+            )}
             {/* Mobile Tab Switcher */}
             <div className="flex gap-0.5 shrink-0 bg-white/[0.04] rounded-xl p-1 border border-white/10">
               <button

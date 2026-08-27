@@ -181,7 +181,7 @@ export default function SignupPage() {
         {/* Signup Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
-          <p className="text-sm text-[#94a3b8] mb-6">Create your free EQHO account to access EQHO Player.</p>
+          <p className="text-sm text-[#94a3b8] mb-6">Create your account to start your 30-day free trial of EQHO Player. No charge today.</p>
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">

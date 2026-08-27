@@ -26,7 +26,7 @@ export function SiteFooter() {
               />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#7c8596]">
-              The training music player for gymnastics, dance and cheer coaches. Use it in any web browser,
+              The training music player for gymnastics coaches and clubs. Use it in any web browser,
               or download the app for iPad and iPhone.
             </p>
             <div className="mt-5">

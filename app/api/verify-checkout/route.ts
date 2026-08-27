@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     const subscriptionStatus = typeof subscription === 'object' ? subscription?.status : 'trialing'
     const trialEnd = typeof subscription === 'object' && subscription?.trial_end
       ? new Date(subscription.trial_end * 1000).toISOString()
-      : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
     console.log('[VERIFY-CHECKOUT] Extracted data:')
     console.log('[VERIFY-CHECKOUT]   userId:', userId)

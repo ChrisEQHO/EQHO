@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { isStoreEnabled } from '@/lib/store/flags'
 import { ArrowLeft, Check, Clock, Gauge, Tag } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
@@ -29,6 +30,8 @@ export async function generateMetadata({
     title: `${track.title}${track.artist ? ` — ${track.artist}` : ''} | ${SITE.name} store`,
     description: track.description || `Preview and get ${track.title} for your training sessions.`,
     alternates: { canonical: `/store/${track.slug}` },
+    // Store is hidden pre-launch — keep detail pages out of search indexes.
+    robots: { index: false, follow: false },
   }
 }
 
@@ -92,6 +95,11 @@ export default async function TrackDetailPage({
   params: Promise<{ slug: string }>
   searchParams: Promise<{ purchased?: string; canceled?: string }>
 }) {
+  // Marketplace is hidden pre-launch. Old/bookmarked track links go to the homepage.
+  if (!isStoreEnabled()) {
+    redirect('/')
+  }
+
   const { slug } = await params
   const { purchased, canceled } = await searchParams
   const track = await getTrackBySlug(slug)
