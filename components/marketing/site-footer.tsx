@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
-import { SITE, FOOTER_LINKS, APP } from '@/lib/marketing-config'
+import { SITE, FOOTER_LINKS, APP, LEGAL } from '@/lib/marketing-config'
 
 /**
  * Public marketing footer. Server component (no interactivity) so it renders as
@@ -59,7 +59,7 @@ export function SiteFooter() {
 
         <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center">
           <p className="text-xs text-[#7c8596]">
-            {`\u00A9 ${year} ${SITE.name}. All rights reserved.`}
+            {`\u00A9 ${year} ${LEGAL.operatorName}. All rights reserved.`}
           </p>
           <p className="text-xs text-[#7c8596]">Made for coaches.</p>
         </div>

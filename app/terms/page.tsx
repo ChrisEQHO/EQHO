@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { ChevronRight, Home, ScrollText } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { LegalValue } from '@/components/legal/legal-value'
 import { LEGAL } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -74,13 +73,9 @@ export default function TermsPage() {
             <SectionCard title="1. Agreement to these terms">
               <p>
                 These Terms of Service govern your access to and use of EQHO Player (the &quot;Service&quot;), which
-                is provided by{' '}
-                <LegalValue value={LEGAL.legalEntityName} placeholder="registered company name" /> (&quot;EQHO
-                Player&quot;, &quot;we&quot;, &quot;us&quot; or &quot;our&quot;),{' '}
-                <LegalValue value={LEGAL.companyNumber} placeholder="company registration number" />, registered at{' '}
-                <LegalValue value={LEGAL.registeredAddress} placeholder="registered office address" />. By creating
-                an account or using the Service you agree to these terms. If you do not agree, please do not use the
-                Service.
+                is provided by {LEGAL.operatorName} (&quot;EQHO Player&quot;, &quot;we&quot;, &quot;us&quot; or
+                &quot;our&quot;) in the {LEGAL.country}. By creating an account or using the Service you agree to
+                these terms. If you do not agree, please do not use the Service.
               </p>
             </SectionCard>
 
@@ -171,10 +166,9 @@ export default function TermsPage() {
 
             <SectionCard title="8. Governing law">
               <p>
-                These terms are governed by the laws of{' '}
-                <LegalValue value={LEGAL.governingLaw} placeholder="governing law / jurisdiction" />, and the courts
-                of that jurisdiction will have exclusive jurisdiction over any dispute, without affecting any
-                mandatory consumer-protection rights available to you where you live.
+                These terms are governed by the laws of {LEGAL.governingLaw}, and the courts of that jurisdiction
+                will have exclusive jurisdiction over any dispute, without affecting any mandatory
+                consumer-protection rights available to you where you live.
               </p>
             </SectionCard>
 
@@ -202,7 +196,7 @@ export default function TermsPage() {
                 for how we handle your data.
               </p>
               <p className="text-sm text-[#94a3b8]">
-                {`${LEGAL.businessContact} · ${LEGAL.country}`}
+                {`${LEGAL.operatorName} · ${LEGAL.country}`}
               </p>
             </SectionCard>
           </div>

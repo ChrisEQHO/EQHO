@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ChevronRight, Home, ArrowLeft, ShieldCheck } from 'lucide-react'
-import { LegalValue } from '@/components/legal/legal-value'
 import { LEGAL } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -54,6 +53,10 @@ function BulletList({ items }: { items: string[] }) {
   )
 }
 
+function SubHeading({ children }: { children: React.ReactNode }) {
+  return <h3 className="pt-2 text-base font-semibold text-white">{children}</h3>
+}
+
 export default function PrivacyPolicyPage() {
   return (
     <main className="relative min-h-screen w-full bg-[#020617] font-sans">
@@ -101,8 +104,8 @@ export default function PrivacyPolicyPage() {
             EQHO Player Privacy Policy
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#cbd5e1] text-pretty sm:text-lg">
-            Protecting your information while providing professional routine and
-            music management for coaches, clubs and organisations.
+            How EQHO Player collects, uses, stores and protects your information
+            when you use our website, web player and applications.
           </p>
           <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[rgba(13,20,36,0.92)] px-4 py-1.5 text-sm font-medium text-[#7c8596]">
             {`Last updated: ${LEGAL.lastUpdated}`}
@@ -113,20 +116,21 @@ export default function PrivacyPolicyPage() {
         <div className="space-y-6">
           <SectionCard title="Introduction">
             <p>
-              EQHO Player (&quot;EQHO Player&quot;, &quot;we&quot;,
-              &quot;our&quot; or &quot;us&quot;) is committed to protecting user
-              privacy and maintaining the security of personal information.
+              {`EQHO Player is operated by ${LEGAL.operatorName} in the ${LEGAL.country}.`}
+            </p>
+            <p>
+              {`For data-protection purposes, ${LEGAL.operatorName} is the data controller responsible for the personal information described in this policy.`}
             </p>
             <p>
               This Privacy Policy explains how information is collected, used,
-              stored and protected when using:
+              stored and protected when you use:
             </p>
             <BulletList
               items={[
-                'EQHO Player Web App',
-                'EQHO Player Desktop Application',
-                'EQHO Player Mobile Applications',
-                'EQHO Player Cloud Services',
+                'The EQHO Player website',
+                'The EQHO Player web app',
+                'The EQHO Player applications for iPhone and iPad',
+                'EQHO Cloud services',
               ]}
             />
             <p>
@@ -136,63 +140,140 @@ export default function PrivacyPolicyPage() {
           </SectionCard>
 
           <SectionCard title="Information We Collect">
-            <h3 className="text-base font-semibold text-white">
-              Account Information
-            </h3>
-            <p>We may collect:</p>
+            <SubHeading>1. Account information</SubHeading>
+            <p>We may collect and store:</p>
             <BulletList
               items={[
                 'Name',
                 'Email address',
-                'Subscription information',
-                'Account creation date',
-                'Authentication details',
+                'Supabase user ID',
+                'Authentication and account-recovery information',
+                'Login and security records',
               ]}
             />
-            <h3 className="pt-2 text-base font-semibold text-white">
-              User Content
-            </h3>
-            <p>We may store:</p>
+
+            <SubHeading>2. Payment and subscription information</SubHeading>
+            <p>
+              Stripe processes all payments and card details on our behalf. From
+              Stripe, EQHO Player may receive and store:
+            </p>
             <BulletList
               items={[
-                'Playlists',
-                'Routine information',
-                'Session settings',
-                'Cloud-saved preferences',
-                'Organisational data created by users',
+                'Stripe customer ID',
+                'Stripe subscription ID',
+                'Subscription status',
+                'Trial start and end dates',
+                'Billing-period dates',
+                'Payment status',
+                'Cancellation status',
               ]}
             />
-            <h3 className="pt-2 text-base font-semibold text-white">
-              Technical Information
-            </h3>
-            <p>We may collect:</p>
+            <p>
+              EQHO Player does <strong className="text-white">not</strong>{' '}
+              directly collect or store complete card numbers, card security
+              codes or bank credentials. Those details are handled solely by
+              Stripe.
+            </p>
+
+            <SubHeading>3. User content</SubHeading>
+            <p>
+              When you choose to push content to EQHO Cloud, EQHO Player may
+              process or store:
+            </p>
             <BulletList
               items={[
-                'Browser information',
+                'Playlist names',
+                'Uploaded audio files',
+                'Track names and durations',
+                'Playlist running orders',
+                'Gaps between tracks',
+                'Repeat settings',
+                'Session and playback preferences',
+                'Cloud backup and download status',
+              ]}
+            />
+            <p>
+              Music and playlists are uploaded to EQHO Cloud{' '}
+              <strong className="text-white">only when you choose to push them</strong>.
+              Content is not uploaded or synchronised automatically.
+            </p>
+
+            <SubHeading>4. Technical information</SubHeading>
+            <p>Where it is actually collected or transmitted, we may process:</p>
+            <BulletList
+              items={[
                 'Device type',
+                'Browser',
                 'Operating system',
-                'Application version',
-                'Diagnostic data',
-                'Error logs',
-                'Performance analytics',
+                'App version',
+                'IP address',
+                'Authentication records',
+                'Error and diagnostic information',
+                'Security and performance information',
+              ]}
+            />
+            <p>
+              We use aggregate, privacy-friendly usage analytics on our website
+              only. These analytics do not use advertising cookies and do not
+              track you across other companies&apos; apps or websites. The EQHO
+              Player mobile apps do not load this analytics.
+            </p>
+          </SectionCard>
+
+          <SectionCard title="How We Use Information">
+            <p>Information is used to:</p>
+            <BulletList
+              items={[
+                'Create and manage accounts',
+                'Authenticate users',
+                'Recover accounts',
+                'Provide player and playlist functionality',
+                'Store content you push to EQHO Cloud',
+                'Make pushed content available on your supported devices',
+                'Manage trials and subscriptions',
+                'Confirm access rights',
+                'Send necessary account, billing and security messages',
+                'Respond to support requests',
+                'Prevent misuse',
+                'Diagnose faults',
+                'Improve service reliability',
+                'Meet legal, accounting and regulatory obligations',
+              ]}
+            />
+            <p className="font-semibold text-white">
+              EQHO Player does not sell personal information.
+            </p>
+          </SectionCard>
+
+          <SectionCard title="Legal Bases for Processing">
+            <p>
+              Under UK data-protection law, we rely on the following legal bases:
+            </p>
+            <BulletList
+              items={[
+                'Contract: providing accounts, player services, cloud storage and subscriptions.',
+                'Legitimate interests: security, fraud prevention, support and service reliability.',
+                'Legal obligation: accounting, taxation and legally required records.',
+                'Consent: only where consent is specifically required.',
               ]}
             />
           </SectionCard>
 
-          <SectionCard title="Payments">
+          <SectionCard title="Service Providers">
             <p>
-              EQHO Player uses Stripe to securely process subscriptions and
-              payments.
+              We use the following service providers to operate EQHO Player. They
+              are required to protect your information and use it only for
+              service-related purposes.
             </p>
-            <p>EQHO Player does not store:</p>
             <BulletList
               items={[
-                'Credit card numbers',
-                'Debit card numbers',
-                'Bank account information',
+                'Supabase — authentication and database services',
+                'Cloudflare R2 — cloud storage for uploaded audio',
+                'Stripe — trial, subscription and payment processing',
+                'Resend — transactional and service email',
+                'Vercel — website and application hosting, and privacy-friendly website analytics',
               ]}
             />
-            <p>All payment processing is handled securely through Stripe.</p>
             <p>
               Stripe Privacy Policy:{' '}
               <a
@@ -206,146 +287,141 @@ export default function PrivacyPolicyPage() {
             </p>
           </SectionCard>
 
-          <SectionCard title="How We Use Information">
-            <p>Information may be used to:</p>
-            <BulletList
-              items={[
-                'Provide EQHO Player services',
-                'Manage subscriptions',
-                'Authenticate users',
-                'Store playlists you push to EQHO Cloud',
-                'Improve application performance',
-                'Resolve technical issues',
-                'Communicate service updates',
-                'Provide customer support',
-              ]}
-            />
-          </SectionCard>
-
-          <SectionCard title="Cloud Storage">
+          <SectionCard title="International Data Transfers">
             <p>
-              When you push a playlist to your EQHO Cloud account, EQHO Player stores your uploaded audio files using
-              Cloudflare R2 object storage, and stores related information such as playlists, routines, session
-              settings and preferences in our Supabase database.
+              Some of our service providers may process or store information
+              outside the United Kingdom or European Economic Area.
             </p>
             <p>
-              Access to stored data is restricted to authorised account holders
-              and authorised service providers required to operate the platform.
-            </p>
-          </SectionCard>
-
-          <SectionCard title="Data Sharing">
-            <p>EQHO Player does not sell personal information.</p>
-            <p>
-              Information may be shared only when necessary with trusted service
-              providers used to operate the platform, including:
-            </p>
-            <BulletList
-              items={[
-                'Stripe (payment processing)',
-                'Supabase (authentication and database services)',
-                'Cloudflare R2 (audio file storage)',
-                'Resend (transactional email)',
-                'Hosting and infrastructure providers',
-              ]}
-            />
-            <p>
-              These providers are required to protect user information and use it
-              only for service-related purposes.
-            </p>
-          </SectionCard>
-
-          <SectionCard title="Data Security">
-            <p>EQHO Player uses industry-standard security measures including:</p>
-            <BulletList
-              items={[
-                'Secure HTTPS connections',
-                'Authentication controls',
-                'Encrypted data transmission',
-                'Access restrictions',
-                'Secure cloud infrastructure',
-              ]}
-            />
-            <p>
-              While no system can guarantee absolute security, reasonable
-              measures are taken to protect user information.
+              Where information is transferred internationally, appropriate
+              contractual or recognised transfer safeguards (such as standard
+              contractual clauses and equivalent protections) are used where
+              required, so your information remains protected.
             </p>
           </SectionCard>
 
           <SectionCard title="Data Retention">
-            <p>User information is retained while accounts remain active.</p>
-            <p>
-              You can delete your account at any time from your account settings in the app. Deleting your account
-              cancels any active subscription and permanently removes your account, playlists and uploaded audio
-              from our systems. You can also request deletion by contacting support.
-            </p>
-            <p>
-              Certain information may be retained where required by law or for
-              legitimate business purposes.
-            </p>
-          </SectionCard>
-
-          <SectionCard title="Children's Privacy">
-            <p>
-              EQHO Player is intended primarily for coaches, clubs, organisations
-              and adults.
-            </p>
-            <p>
-              We do not knowingly collect personal information directly from
-              children under the age of 13.
-            </p>
-          </SectionCard>
-
-          <SectionCard title="User Rights">
-            <p>
-              Depending on local regulations, users may have rights to:
-            </p>
             <BulletList
               items={[
-                'Access personal information',
-                'Correct inaccurate information',
-                'Request deletion',
-                'Restrict processing',
-                'Withdraw consent where applicable',
+                'Account information is normally retained while your account remains active.',
+                'Cloud playlists and uploaded audio are retained until you delete them or delete your account, subject to any legitimate backup-deletion period.',
+                'Subscription and transaction records may be retained for accounting, fraud prevention, disputes and legal compliance.',
               ]}
             />
             <p>
-              Requests may be submitted using the contact information below.
+              We do not retain records indefinitely without a defined reason.
             </p>
+          </SectionCard>
+
+          <SectionCard title="Account Deletion">
             <p>
-              If you are in the UK and believe we have not handled your personal information properly, you have the
-              right to complain to the Information Commissioner&apos;s Office (ICO) at{' '}
+              You can delete your account at any time from your account settings
+              in the app. When you delete your account, EQHO Player will:
+            </p>
+            <BulletList
+              items={[
+                'Cancel any active Stripe subscription',
+                'Remove your EQHO database records',
+                'Remove your playlists and session information',
+                'Delete your uploaded audio from Cloudflare R2',
+                'Delete or disable your Supabase authentication account',
+                'Revoke access',
+              ]}
+            />
+            <p>
+              We preserve only those records we are legally required to retain
+              (for example, records needed for accounting or tax). You can also
+              request deletion by contacting us at the email address below.
+            </p>
+          </SectionCard>
+
+          <SectionCard title="Your Rights">
+            <p>
+              Subject to UK data-protection law, you may have the right to:
+            </p>
+            <BulletList
+              items={[
+                'Access your personal information',
+                'Correct inaccurate information',
+                'Request deletion',
+                'Restrict processing',
+                'Object to applicable processing',
+                'Request portable, eligible information',
+                'Withdraw consent where consent is the legal basis',
+              ]}
+            />
+            <p>
+              You can exercise these rights using the contact details below. If
+              you are in the UK and believe we have not handled your personal
+              information properly, you also have the right to complain to the
+              Information Commissioner&apos;s Office (ICO) at{' '}
               <a
                 href="https://ico.org.uk"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
               >
-                ico.org.uk
+                https://ico.org.uk
               </a>
               .
             </p>
           </SectionCard>
 
-          <SectionCard title="International Data Transfers">
+          <SectionCard title="Children">
             <p>
-              Some of our service providers (including Stripe, Supabase and Cloudflare) may process or store data on
-              servers located outside your country, including outside the UK and European Economic Area.
+              EQHO Player is intended for coaches, clubs, organisations and other
+              authorised adult users.
             </p>
             <p>
-              Where personal information is transferred internationally, we rely on the safeguards offered by those
-              providers, such as standard contractual clauses and equivalent protections, so your information remains
-              protected.
+              Children should not create or manage their own accounts. Coaches
+              and clubs should avoid placing unnecessary personal information
+              about children in track names, playlist names or other uploaded
+              content.
             </p>
           </SectionCard>
 
-          <SectionCard title="Third-Party Services">
+          <SectionCard title="Cookies and Device Storage">
             <p>
-              EQHO Player may contain links to third-party websites and services.
+              EQHO Player uses cookies, IndexedDB and equivalent local storage
+              only where necessary for:
             </p>
+            <BulletList
+              items={[
+                'Secure sign-in sessions',
+                'Essential preferences',
+                'Player operation',
+                'Downloaded playlists',
+                'Offline playback',
+                'Security',
+              ]}
+            />
             <p>
-              We are not responsible for the privacy practices of external
-              websites or services.
+              We do not use advertising or marketing tracking technologies. Our
+              website analytics are privacy-friendly and do not use advertising
+              cookies, so no cookie-consent banner is required. If we ever
+              introduce non-essential analytics, advertising or marketing
+              technologies, we will block them until valid consent is obtained.
+            </p>
+          </SectionCard>
+
+          <SectionCard title="Security">
+            <p>
+              We use reasonable technical and organisational safeguards to
+              protect your information, including:
+            </p>
+            <BulletList
+              items={[
+                'HTTPS for data in transit',
+                'Secure authentication',
+                'Account-based access controls',
+                'Restricted database and storage access',
+                'Server-side handling of secrets',
+                'Stripe-hosted payment processing',
+              ]}
+            />
+            <p>
+              No system can guarantee absolute security, but we take reasonable
+              measures to protect your information.
             </p>
           </SectionCard>
 
@@ -353,21 +429,26 @@ export default function PrivacyPolicyPage() {
             <p>This Privacy Policy may be updated periodically.</p>
             <p>
               Any updates will be published on this page together with a revised
-              effective date.
+              &quot;last updated&quot; date.
             </p>
           </SectionCard>
 
           <SectionCard title="Data Controller and Contact Information">
             <p>
-              The data controller responsible for your personal information is{' '}
-              <LegalValue value={LEGAL.legalEntityName} placeholder="registered company name" />,{' '}
-              <LegalValue value={LEGAL.companyNumber} placeholder="company registration number" />, registered at{' '}
-              <LegalValue value={LEGAL.registeredAddress} placeholder="registered office address" />.
+              {`For data-protection purposes, the data controller is ${LEGAL.operatorName}.`}
             </p>
-            <h3 className="pt-2 text-base font-semibold text-white">
-              EQHO Player Support
-            </h3>
-            <div className="space-y-3">
+            <div className="space-y-1.5 rounded-xl border border-white/10 bg-[rgba(13,20,36,0.6)] p-4">
+              <p className="font-semibold text-white">{LEGAL.operatorName}</p>
+              <p>{LEGAL.country}</p>
+              <p>
+                Email:{' '}
+                <a
+                  href={`mailto:${LEGAL.contactEmail}`}
+                  className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
+                >
+                  {LEGAL.contactEmail}
+                </a>
+              </p>
               <p>
                 Website:{' '}
                 <a
@@ -379,20 +460,6 @@ export default function PrivacyPolicyPage() {
                   {LEGAL.websiteUrl}
                 </a>
               </p>
-              <p>
-                Email:{' '}
-                <a
-                  href={`mailto:${LEGAL.contactEmail}`}
-                  className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
-                >
-                  {LEGAL.contactEmail}
-                </a>
-              </p>
-              <p>
-                Business Contact:{' '}
-                <span className="text-white">{LEGAL.businessContact}</span>
-              </p>
-              <p>{LEGAL.country}</p>
             </div>
           </SectionCard>
         </div>
