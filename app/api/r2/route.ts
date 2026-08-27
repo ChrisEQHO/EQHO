@@ -10,6 +10,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { requirePlayerEntitlement } from '@/lib/entitlement-server'
 
 // ---------------------------------------------------------------------------
 // CORS
@@ -159,6 +160,13 @@ export async function GET(request: NextRequest) {
     return json({ error: 'Unauthorized' }, 401)
   }
 
+  // Paywall gate (enforced in production only). After 1 Sep 2026, cloud storage
+  // access requires a valid entitlement; before then every logged-in user passes.
+  const entitlement = await requirePlayerEntitlement(request, user)
+  if (!entitlement.allowed) {
+    return json({ error: 'Subscription required', reason: entitlement.result.reason }, 402)
+  }
+
   const client = createR2Client()
   if (!client) {
     return json({ error: 'R2 not configured' }, 500)
@@ -292,6 +300,13 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Unauthorized' }, 401)
   }
 
+  // Paywall gate (enforced in production only). After 1 Sep 2026, cloud storage
+  // access requires a valid entitlement; before then every logged-in user passes.
+  const entitlement = await requirePlayerEntitlement(request, user)
+  if (!entitlement.allowed) {
+    return json({ error: 'Subscription required', reason: entitlement.result.reason }, 402)
+  }
+
   const client = createR2Client()
   if (!client) {
     return json({ error: 'R2 not configured' }, 500)
@@ -375,6 +390,13 @@ export async function DELETE(request: NextRequest) {
 
   if (!user) {
     return json({ error: 'Unauthorized' }, 401)
+  }
+
+  // Paywall gate (enforced in production only). After 1 Sep 2026, cloud storage
+  // access requires a valid entitlement; before then every logged-in user passes.
+  const entitlement = await requirePlayerEntitlement(request, user)
+  if (!entitlement.allowed) {
+    return json({ error: 'Subscription required', reason: entitlement.result.reason }, 402)
   }
 
   const client = createR2Client()

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { evaluateForUser } from '@/lib/entitlement-server'
 
 // Login is REQUIRED (but the app is free - there is no subscription/trial check).
 // Logged-out users hitting a protected route are redirected to /login; logged-in
@@ -102,6 +103,30 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = '/app'
       return NextResponse.redirect(url)
+    }
+  }
+
+  // Entitlement gate for the player itself (`/app`). Reached only when we're in
+  // production (dev/preview returned early above) and the user is logged in.
+  // Before 1 Sep 2026 this always passes (free phase); after it, a user without
+  // a valid entitlement is sent to /upgrade. /account, /billing and /upgrade are
+  // NOT player routes, so a blocked user can still manage or start a subscription.
+  if (user) {
+    const isPlayerRoute = pathname === '/app' || pathname.startsWith('/app/')
+    if (isPlayerRoute) {
+      try {
+        const { result } = await evaluateForUser(request, user)
+        if (!result.allowed) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/upgrade'
+          url.search = ''
+          return NextResponse.redirect(url)
+        }
+      } catch (err) {
+        // Fail OPEN: never lock a paying/free user out because of a transient
+        // profile-read error. The client gate re-checks on load as a backstop.
+        console.error('[v0][middleware] entitlement check failed, allowing through:', err)
+      }
     }
   }
 

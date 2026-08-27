@@ -7,6 +7,7 @@ import {
 import { createClient as createSSRClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { requirePlayerEntitlement } from '@/lib/entitlement-server'
 
 // ---------------------------------------------------------------------------
 // CORS (mirrors /api/r2 so the Capacitor app can call this cross-origin too).
@@ -129,6 +130,12 @@ export async function POST(request: NextRequest) {
 
   const user = await resolveUser(request, supabase)
   if (!user) return json({ error: 'Unauthorized' }, 401)
+
+  // Paywall gate (production only). Free phase passes everyone through.
+  const entitlement = await requirePlayerEntitlement(request, user)
+  if (!entitlement.allowed) {
+    return json({ error: 'Subscription required', reason: entitlement.result.reason }, 402)
+  }
 
   let rawId = ''
   let name = ''
