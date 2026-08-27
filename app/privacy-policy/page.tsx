@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ChevronRight, Home, ArrowLeft, ShieldCheck } from 'lucide-react'
+import { LegalValue } from '@/components/legal/legal-value'
+import { LEGAL } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
   title: 'EQHO Player Privacy Policy',
@@ -103,7 +105,7 @@ export default function PrivacyPolicyPage() {
             music management for coaches, clubs and organisations.
           </p>
           <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[rgba(13,20,36,0.92)] px-4 py-1.5 text-sm font-medium text-[#7c8596]">
-            Last Updated: June 2026
+            {`Last updated: ${LEGAL.lastUpdated}`}
           </p>
           <div className="mt-8 h-1 w-full rounded-full bg-gradient-to-r from-[#ff4fa3] via-[#b86cff] to-[#00d9ff]" />
         </header>
@@ -270,7 +272,11 @@ export default function PrivacyPolicyPage() {
 
           <SectionCard title="Data Retention">
             <p>User information is retained while accounts remain active.</p>
-            <p>Users may request account deletion by contacting support.</p>
+            <p>
+              You can delete your account at any time from your account settings in the app. Deleting your account
+              cancels any active subscription and permanently removes your account, playlists and uploaded audio
+              from our systems. You can also request deletion by contacting support.
+            </p>
             <p>
               Certain information may be retained where required by law or for
               legitimate business purposes.
@@ -324,36 +330,42 @@ export default function PrivacyPolicyPage() {
             </p>
           </SectionCard>
 
-          <SectionCard title="Contact Information">
-            <h3 className="text-base font-semibold text-white">
+          <SectionCard title="Data Controller and Contact Information">
+            <p>
+              The data controller responsible for your personal information is{' '}
+              <LegalValue value={LEGAL.legalEntityName} placeholder="registered company name" />,{' '}
+              <LegalValue value={LEGAL.companyNumber} placeholder="company registration number" />, registered at{' '}
+              <LegalValue value={LEGAL.registeredAddress} placeholder="registered office address" />.
+            </p>
+            <h3 className="pt-2 text-base font-semibold text-white">
               EQHO Player Support
             </h3>
             <div className="space-y-3">
               <p>
                 Website:{' '}
                 <a
-                  href="https://eqho-player.com"
+                  href={LEGAL.websiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
                 >
-                  https://eqho-player.com
+                  {LEGAL.websiteUrl}
                 </a>
               </p>
               <p>
                 Email:{' '}
                 <a
-                  href="mailto:info@eqho-player.com"
+                  href={`mailto:${LEGAL.contactEmail}`}
                   className="font-medium text-[#00d9ff] underline-offset-4 hover:underline"
                 >
-                  info@eqho-player.com
+                  {LEGAL.contactEmail}
                 </a>
               </p>
               <p>
                 Business Contact:{' '}
-                <span className="text-white">Christopher Rogers</span>
+                <span className="text-white">{LEGAL.businessContact}</span>
               </p>
-              <p>United Kingdom</p>
+              <p>{LEGAL.country}</p>
             </div>
           </SectionCard>
         </div>

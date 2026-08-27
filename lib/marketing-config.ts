@@ -337,3 +337,32 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
     ],
   },
 ]
+
+/**
+ * Legal / company details shared by the Terms of Service and Privacy Policy so
+ * the two pages can never drift apart (same "last updated" date, same contact
+ * email, same entity details).
+ *
+ * IMPORTANT: fields whose value is `null` are details we do not yet have. They
+ * render as a clearly-marked, highlighted "[ … — to be added before launch]"
+ * placeholder via <LegalValue> so they are impossible to miss and must be filled
+ * in with the real registered company information before going live. Do NOT
+ * invent a company number, registered address or trading name — leave the
+ * placeholder until the real value is confirmed.
+ */
+export const LEGAL = {
+  // Keep both legal pages on the SAME date whenever either is edited.
+  lastUpdated: '27 August 2026',
+  // Confirmed, in-use contact details.
+  contactEmail: 'info@eqho-player.com',
+  websiteUrl: 'https://eqho-player.com',
+  businessContact: 'Christopher Rogers',
+  country: 'United Kingdom',
+  // Details still required for a complete, launch-ready policy. `null` => placeholder.
+  legalEntityName: null as string | null, // e.g. "EQHO Player Ltd"
+  companyNumber: null as string | null, // Companies House registration number
+  registeredAddress: null as string | null, // full registered office address
+  // Governing law — England & Wales is the expected default for a UK business,
+  // but it must be confirmed by the business, so it is treated as a placeholder.
+  governingLaw: null as string | null, // e.g. "England and Wales"
+} as const

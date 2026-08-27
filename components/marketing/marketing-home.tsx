@@ -172,7 +172,7 @@ export function MarketingHome() {
           <div className="eqho-glow-b absolute left-1/2 top-[-12%] h-[52vh] w-[62vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(49,46,129,0.5),transparent_72%)] opacity-50 blur-[130px]" />
         </div>
 
-        <div className="relative z-[1] mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+        <div className="relative z-[1] mx-auto w-full max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-12">
           {/* Two feature panels — one player, two ways to keep training moving.
               Side by side on desktop/large tablet, stacked on mobile. */}
           <div className="mx-auto w-full max-w-5xl">
@@ -306,7 +306,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── How it works ─────────────────────────────────────���────────────── */}
+      {/* ── How it works ──��──────────────────────────────────���────────────── */}
       <section id="how-it-works" className="scroll-mt-20 border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
           <div className="max-w-2xl">

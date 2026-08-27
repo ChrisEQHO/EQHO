@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { ChevronRight, Home, ScrollText } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
+import { LegalValue } from '@/components/legal/legal-value'
+import { LEGAL } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
   },
 }
 
-const LAST_UPDATED = '22 August 2026'
+const LAST_UPDATED = LEGAL.lastUpdated
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -71,9 +73,14 @@ export default function TermsPage() {
           <div className="space-y-6">
             <SectionCard title="1. Agreement to these terms">
               <p>
-                These Terms of Service govern your access to and use of EQHO Player (the &quot;Service&quot;). By
-                creating an account or using the Service you agree to these terms. If you do not agree, please do
-                not use the Service.
+                These Terms of Service govern your access to and use of EQHO Player (the &quot;Service&quot;), which
+                is provided by{' '}
+                <LegalValue value={LEGAL.legalEntityName} placeholder="registered company name" /> (&quot;EQHO
+                Player&quot;, &quot;we&quot;, &quot;us&quot; or &quot;our&quot;),{' '}
+                <LegalValue value={LEGAL.companyNumber} placeholder="company registration number" />, registered at{' '}
+                <LegalValue value={LEGAL.registeredAddress} placeholder="registered office address" />. By creating
+                an account or using the Service you agree to these terms. If you do not agree, please do not use the
+                Service.
               </p>
             </SectionCard>
 
@@ -127,7 +134,26 @@ export default function TermsPage() {
               </p>
             </SectionCard>
 
-            <SectionCard title="7. Changes to these terms">
+            <SectionCard title="7. Liability">
+              <p>
+                The Service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. To the fullest
+                extent permitted by law, we are not liable for indirect or consequential loss, or for any loss
+                arising from your reliance on the Service being available during a session. Nothing in these terms
+                excludes or limits liability that cannot be excluded or limited under applicable law. This does not
+                affect your statutory rights as a consumer.
+              </p>
+            </SectionCard>
+
+            <SectionCard title="8. Governing law">
+              <p>
+                These terms are governed by the laws of{' '}
+                <LegalValue value={LEGAL.governingLaw} placeholder="governing law / jurisdiction" />, and the courts
+                of that jurisdiction will have exclusive jurisdiction over any dispute, without affecting any
+                mandatory consumer-protection rights available to you where you live.
+              </p>
+            </SectionCard>
+
+            <SectionCard title="9. Changes to these terms">
               <p>
                 We may update these terms from time to time. If we make material changes we will update the date at
                 the top of this page. Continuing to use the Service after changes take effect means you accept the
@@ -135,13 +161,23 @@ export default function TermsPage() {
               </p>
             </SectionCard>
 
-            <SectionCard title="8. Contact">
+            <SectionCard title="10. Contact">
               <p>
-                Questions about these terms? See our{' '}
+                Questions about these terms? Email us at{' '}
+                <a
+                  href={`mailto:${LEGAL.contactEmail}`}
+                  className="text-[#ff9dc7] underline underline-offset-2 hover:text-white"
+                >
+                  {LEGAL.contactEmail}
+                </a>
+                , or see our{' '}
                 <Link href="/privacy-policy" className="text-[#ff9dc7] underline underline-offset-2 hover:text-white">
                   Privacy Policy
                 </Link>{' '}
-                for how we handle your data, or reach out through the app.
+                for how we handle your data.
+              </p>
+              <p className="text-sm text-[#94a3b8]">
+                {`${LEGAL.businessContact} · ${LEGAL.country}`}
               </p>
             </SectionCard>
           </div>
