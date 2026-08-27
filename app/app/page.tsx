@@ -9835,6 +9835,20 @@ export default function Page() {
       >
         {activePage === "player" && (
           <div className="flex flex-col h-full gap-1 overflow-hidden">
+            {/* Back to the marketing website. Web only — hidden in the native
+                app build (NEXT_PUBLIC_BUILD_TARGET === 'mobile'), where there is
+                no external site to return to. Full-page navigation to "/" so the
+                user cleanly exits the player experience. */}
+            {process.env.NEXT_PUBLIC_BUILD_TARGET !== "mobile" && (
+              <a
+                href="/"
+                className="shrink-0 inline-flex items-center gap-1.5 self-start rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
+                aria-label="Exit the player and return to the EQHO website"
+              >
+                <ChevronLeft size={14} />
+                Back to EQHO website
+              </a>
+            )}
             {/* Mobile Tab Switcher */}
             <div className="flex gap-0.5 shrink-0 bg-white/[0.04] rounded-xl p-1 border border-white/10">
               <button

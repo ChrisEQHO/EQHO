@@ -163,9 +163,14 @@ export function SiteHeader() {
         </button>
       </div>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer.
+          NOTE: `relative z-[1]` is REQUIRED. The header's translucent background
+          layers are `absolute inset-0 z-0`, and `inset-0` also covers this drawer's
+          height. A statically-positioned drawer paints BENEATH positioned z-0
+          elements, so without this the links render behind the opaque navy panel
+          and the menu looks empty. Lifting it to z-[1] (like the top row) fixes it. */}
       {open && (
-        <div className="border-t border-white/10 bg-[#020617] md:hidden">
+        <div className="relative z-[1] border-t border-white/10 bg-[#020617] md:hidden">
           <nav className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-4" aria-label="Mobile">
             {NAV_LINKS.map((link) => (
               <Link
