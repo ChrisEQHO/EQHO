@@ -107,7 +107,7 @@ export function MarketingHome() {
               the pink/orange "Take a look at the player below" banner in the next
               section rise into view as early as practical. Capped with svh so it
               scales down on short/landscape viewports without absolute positioning. */}
-      <section className="relative isolate flex min-h-[clamp(360px,62svh,600px)] flex-col overflow-hidden">
+      <section className="relative isolate flex min-h-[clamp(320px,48svh,600px)] flex-col overflow-hidden sm:min-h-[clamp(360px,62svh,600px)]">
         {/* z-0 — navy base colour */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-[#020617]" />
 
@@ -141,7 +141,7 @@ export function MarketingHome() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(56%_46%_at_50%_30%,rgba(2,6,23,0.82),rgba(2,6,23,0.4)_58%,transparent_100%)]" />
 
         {/* z-4 — hero copy + CTAs, balanced in the upper-middle */}
-        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-[clamp(2rem,5vh,3rem)] pt-[clamp(2rem,9vh,6rem)] text-center sm:px-6">
+        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-6 pt-8 text-center sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)]">
           <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
             Manage your music.
             <br />
@@ -171,11 +171,11 @@ export function MarketingHome() {
               tuned (paired with the hero height) to fill the viewport, so the
               bullet list below lands just past the fold on desktop and mobile.
               Links down to the live player preview further down the page. */}
-      <section className="flex min-h-[clamp(150px,22svh,360px)] items-center border-t border-white/5 sm:min-h-[clamp(220px,38svh,360px)]">
-        <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-10">
+      <section className="flex min-h-0 items-start border-t border-white/5 sm:min-h-[clamp(220px,38svh,360px)] sm:items-center">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-2 sm:px-6 sm:py-10">
           <a
             href="#player-preview"
-            className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-4 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:flex-row sm:justify-between sm:py-5 sm:text-left"
+            className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-2.5 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3.5 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:gap-3 sm:flex-row sm:justify-between sm:py-5 sm:text-left"
           >
             <div>
               <p className="text-base font-bold text-white sm:text-xl">Take a look at the player below</p>
@@ -304,7 +304,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── Problem → outcome ─────────────────────────────��───────────────── */}
+      {/* ── Problem → outcome ─────────────────��───────────��───────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-4xl px-4 py-20 text-center sm:px-6">
           <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
