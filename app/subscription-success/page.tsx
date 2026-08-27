@@ -25,7 +25,7 @@ export default function SubscriptionSuccessPage() {
   useEffect(() => {
     if (isV0Preview) {
       const trialEnd = new Date()
-      trialEnd.setDate(trialEnd.getDate() + 14)
+      trialEnd.setDate(trialEnd.getDate() + 30)
       setSubscriptionData({
         status: 'trialing',
         trialEnd,
@@ -41,11 +41,11 @@ export default function SubscriptionSuccessPage() {
       if (!supabase) {
         // Fallback if Supabase not available
         const trialEnd = new Date()
-        trialEnd.setDate(trialEnd.getDate() + 14)
+        trialEnd.setDate(trialEnd.getDate() + 30)
         setSubscriptionData({
           status: 'trialing',
           trialEnd,
-          daysRemaining: 14,
+          daysRemaining: 30,
           email: 'Your account',
         })
         setActivationComplete(true)
@@ -58,11 +58,11 @@ export default function SubscriptionSuccessPage() {
         if (!session) {
           // No session - still show success with defaults
           const trialEnd = new Date()
-          trialEnd.setDate(trialEnd.getDate() + 14)
+          trialEnd.setDate(trialEnd.getDate() + 30)
           setSubscriptionData({
             status: 'trialing',
             trialEnd,
-            daysRemaining: 14,
+            daysRemaining: 30,
             email: 'Your account',
           })
           setActivationComplete(true)
@@ -131,11 +131,11 @@ export default function SubscriptionSuccessPage() {
       } catch (error) {
         // On error, still show success with defaults
         const trialEnd = new Date()
-        trialEnd.setDate(trialEnd.getDate() + 14)
+        trialEnd.setDate(trialEnd.getDate() + 30)
         setSubscriptionData({
           status: 'trialing',
           trialEnd,
-          daysRemaining: 14,
+          daysRemaining: 30,
           email: 'Your account',
         })
         setActivationComplete(true)
@@ -177,7 +177,7 @@ export default function SubscriptionSuccessPage() {
               <span className="text-[#22c55e] font-semibold text-sm">Trial Active</span>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-black text-white">{Math.min(subscriptionData?.daysRemaining ?? 14, 14)}</p>
+              <p className="text-3xl font-black text-white">{Math.min(subscriptionData?.daysRemaining ?? 30, 30)}</p>
               <p className="text-xs text-[#94a3b8]">days left</p>
             </div>
           </div>
@@ -203,7 +203,7 @@ export default function SubscriptionSuccessPage() {
             {[
               'Cloud Storage',
               'Playback Tools',
-              'Cross Device Sync',
+                'Cross-Device Access',
               'Offline Playback',
             ].map((feature) => (
               <div key={feature} className="flex items-center gap-2 text-sm text-[#e2e8f0]">
