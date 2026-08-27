@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { CapacitorInit } from '@/components/capacitor-init'
 import { SubscriptionProvider } from '@/lib/subscription-context'
+import { getOfferCopy } from '@/lib/marketing-config'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -13,7 +14,14 @@ const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
 const siteUrl = 'https://www.eqho-player.com'
 
-export const metadata: Metadata = {
+export function generateMetadata(): Metadata {
+  // Date-driven so the social-share trial line never contradicts the live offer
+  // phase. Pre-launch: free-until wording; from 1 Sep: the 30-day trial line.
+  const offer = getOfferCopy()
+  const shareTail = offer.preLaunch
+    ? 'Free to use until 31 August 2026 — no card required.'
+    : 'Includes a 30-day free trial.'
+  return {
   // Resolves relative OG/canonical URLs (e.g. '/pricing') to absolute ones.
   metadataBase: new URL(siteUrl),
   title: {
@@ -50,8 +58,7 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'EQHO Player',
     title: 'EQHO Player - Training music player for coaches',
-    description:
-      'Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session. Includes a 30-day free trial.',
+    description: `Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session. ${shareTail}`,
     url: siteUrl,
     images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'EQHO Player' }],
   },
@@ -62,13 +69,14 @@ export const metadata: Metadata = {
       'Set the running order, gaps and repeats in around 30 seconds, then press play and coach the session.',
     images: ['/opengraph-image'],
   },
+  }
 }
 
 export const viewport: Viewport = {
+  // Accessibility: users MUST be able to pinch-zoom. Do not add maximumScale or
+  // userScalable:false here — that disables zoom and fails WCAG 1.4.4.
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
   themeColor: '#020617',
 }

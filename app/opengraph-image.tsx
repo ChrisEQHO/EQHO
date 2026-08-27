@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og'
+import { getOfferCopy } from '@/lib/marketing-config'
 
 // Dynamic Open Graph image for the marketing surface (shared to social/link
 // previews). Rendered at the standard 1200x630. Kept dependency-free (no external
@@ -9,6 +10,8 @@ export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
 export default function OpengraphImage() {
+  const offer = getOfferCopy()
+  const badge = offer.preLaunch ? 'Free until 31 August 2026 — no card required' : 'Includes a 30-day free trial'
   return new ImageResponse(
     (
       <div
@@ -73,7 +76,7 @@ export default function OpengraphImage() {
             color: '#ff9dc7',
           }}
         >
-          Includes a 30-day free trial
+          {badge}
         </div>
       </div>
     ),

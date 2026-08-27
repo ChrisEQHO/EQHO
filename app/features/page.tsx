@@ -28,7 +28,7 @@ import { SiteFooter } from '@/components/marketing/site-footer'
 import { ProductFrame } from '@/components/marketing/product-frame'
 import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
-import { SITE, CTA, LAUNCH, FEATURES, APP } from '@/lib/marketing-config'
+import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
   title: `The player — see everything ${SITE.name} does`,
@@ -84,7 +84,7 @@ const ANATOMY: { icon: LucideIcon; label: string; title: string; body: string; p
 const CLOUD_POINTS = [
   { icon: CloudUpload, text: 'Push a playlist to save its audio and running order to your account.' },
   { icon: ShieldCheck, text: 'Once you push a playlist, it is stored securely and backed up on your account.' },
-  { icon: RefreshCw, text: 'Build a session at home and it is ready when you log in at training.' },
+  { icon: RefreshCw, text: 'Build a session at home, then log in at training to download or load the playlist you pushed.' },
 ]
 
 const DEVICE_POINTS = [
@@ -94,19 +94,22 @@ const DEVICE_POINTS = [
   { icon: WifiOff, text: 'Load your session before you travel so it plays from your device.' },
 ]
 
-function PrimaryCta({ className = '' }: { className?: string }) {
+function PrimaryCta({ className = '', label }: { className?: string; label?: string }) {
   return (
     <Link
       href={CTA.primary.href}
       className={`inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${className}`}
     >
-      {CTA.primary.label}
+      {label ?? CTA.primary.label}
       <ArrowRight className="h-5 w-5" aria-hidden="true" />
     </Link>
   )
 }
 
 export default function FeaturesPage() {
+  // Shared, date-driven offer state — the SAME source the homepage, header,
+  // pricing and signup use, so every trial button flips together at changeover.
+  const offer = getOfferCopy()
   return (
     <>
       <SiteHeader />
@@ -127,7 +130,7 @@ export default function FeaturesPage() {
                 your sessions up to the cloud, and coach from any device.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <PrimaryCta className="w-full sm:w-auto" />
+                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
                 <Link
                   href="/pricing"
                   className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
@@ -201,7 +204,7 @@ export default function FeaturesPage() {
                 back-to-back playback. EQHO keeps the session moving so you can stay on the floor.
               </p>
               <div className="mt-8">
-                <PrimaryCta />
+                <PrimaryCta label={offer.cta} />
               </div>
             </div>
             <div className="space-y-4">
@@ -290,15 +293,15 @@ export default function FeaturesPage() {
                 Your sessions, saved and backed up.
               </h2>
               <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                When you push a playlist, the audio and running order are saved securely to your EQHO
-                account. Nothing lives on a single phone that could be lost the morning of a competition —
-                log in anywhere and your sessions are there.
+                When you push a playlist to EQHO Cloud, its audio and running order are securely saved to
+                your account. Log in on another supported device and download or load the pushed playlist
+                before training or travelling to a competition.
               </p>
             </div>
           </div>
         </section>
 
-        {/* ── Push to devices ───────────────────────────────��──────────── */}
+        {/* ── Push to devices ─────��─────────────────────────��──────────── */}
         <section className="border-t border-white/5">
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-2">
             <div>
@@ -308,9 +311,9 @@ export default function FeaturesPage() {
               </h2>
               <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
                 EQHO Player runs in any web browser on desktop, tablet and mobile. Prepare a session on your
-                laptop, then open the same running order on a tablet or phone at training — it is the same
-                account everywhere you log in. For the best experience on iPad and iPhone, download the free
-                app from the App Store.
+                laptop and push it to EQHO Cloud, then log in on a tablet or phone at training and download or
+                load the pushed playlist — it is the same account everywhere you log in. For the best
+                experience on iPad and iPhone, download the free app from the App Store.
               </p>
               <div className="mt-6 flex flex-col items-start gap-2">
                 <AppStoreButton />
@@ -369,10 +372,10 @@ export default function FeaturesPage() {
               Try the whole player for yourself.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-              Create an account and build your first session in around 30 seconds. {LAUNCH.freeUntilLabel}.
+              Create an account and build your first session in around 30 seconds. {offer.cardNote}
             </p>
             <div className="mt-8 flex justify-center">
-              <PrimaryCta />
+              <PrimaryCta label={offer.cta} />
             </div>
           </div>
         </section>
