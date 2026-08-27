@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Menu, X, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
-import { SITE, NAV_LINKS, CTA } from '@/lib/marketing-config'
+import { SITE, NAV_LINKS, CTA, getOfferCopy } from '@/lib/marketing-config'
 import { handleSectionLinkClick } from '@/lib/utils/scroll-to-section'
 
 /**
@@ -20,6 +20,10 @@ import { handleSectionLinkClick } from '@/lib/utils/scroll-to-section'
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
+  // Date-driven CTA label: "Create free account" during the free phase,
+  // "Start free trial" once the paywall is live — consistent with every other
+  // marketing surface and the entitlement authority.
+  const headerCtaLabel = getOfferCopy().preLaunch ? 'Create free account' : CTA.headerCta.label
   // Slightly increase the header opacity once the page scrolls, so content
   // passing beneath the sticky glass header can't reduce readability.
   const [scrolled, setScrolled] = useState(false)
@@ -146,7 +150,7 @@ export function SiteHeader() {
                 href={CTA.headerCta.href}
                 className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03]"
               >
-                {CTA.headerCta.label}
+                {headerCtaLabel}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </>
@@ -211,7 +215,7 @@ export function SiteHeader() {
                     onClick={() => setOpen(false)}
                     className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white"
                   >
-                    {CTA.headerCta.label}
+                    {headerCtaLabel}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </>
