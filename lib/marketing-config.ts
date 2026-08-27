@@ -129,6 +129,82 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
 }
 
 /**
+ * Date-driven OFFER copy — the single source of truth for the changeover on
+ * 1 Sep 2026 (Europe/London). Keyed off the same instant as the server-side
+ * entitlement authority (`PRICING.launchTransitionUtc` === PAYWALL_START_AT),
+ * so what the marketing/signup/upgrade surfaces PROMISE always matches what the
+ * player actually ENFORCES.
+ *
+ *   • Before the changeover → free phase: "Create free account", no card.
+ *   • From the changeover on → each user's own 30-day Stripe trial, card taken
+ *     at signup, nothing charged until the trial ends.
+ *
+ * The `paywall` variants are for the `/upgrade` screen, which must speak
+ * differently to a brand-new visitor vs. someone whose free access just ended.
+ */
+export type OfferCopy = {
+  preLaunch: boolean
+  headline: string
+  supporting: string
+  cta: string
+  cardNote: string
+  paywall: {
+    newUser: { heading: string; body: string; cta: string }
+    existingUser: { heading: string; body: string; cta: string }
+  }
+}
+
+export function getOfferCopy(
+  formattedPrice: string = PLAYER_PACKAGE.fallbackPrice,
+  interval: string = PLAYER_PACKAGE.interval,
+  now: Date = new Date(),
+): OfferCopy {
+  const per = interval ? `${formattedPrice} per ${interval}` : formattedPrice
+
+  if (isPreLaunch(now)) {
+    return {
+      preLaunch: true,
+      headline: 'Use EQHO Player free until 31 August 2026.',
+      supporting: `Create your account today and use every EQHO Player feature free until 31 August 2026. After that it continues for ${per}.`,
+      cta: 'Create free account',
+      cardNote: 'No card required. Free until 31 August 2026.',
+      paywall: {
+        newUser: {
+          heading: 'Use EQHO Player free until 31 August 2026.',
+          body: `Create your free account and use every feature until 31 August 2026 — no card required. After launch it continues for ${per}.`,
+          cta: 'Create free account',
+        },
+        existingUser: {
+          heading: 'You’re all set — EQHO Player is free until 31 August 2026.',
+          body: 'Keep using every feature free until 31 August 2026. We’ll ask for payment details near launch; nothing is charged before then.',
+          cta: 'Open EQHO Player',
+        },
+      },
+    }
+  }
+
+  return {
+    preLaunch: false,
+    headline: `Start your 30-day free trial. Then ${per}.`,
+    supporting: `No charge today. Your subscription will automatically continue at ${per} after your 30-day trial unless you cancel before it ends.`,
+    cta: 'Start 30-day free trial',
+    cardNote: 'No charge today. Cancel anytime before your trial ends.',
+    paywall: {
+      newUser: {
+        heading: `Start your 30-day free trial. Then ${per}.`,
+        body: `No charge today. Your subscription will automatically continue at ${per} after your 30-day trial unless you cancel before it ends.`,
+        cta: 'Start 30-day free trial',
+      },
+      existingUser: {
+        heading: 'Your free access has ended — start your 30-day free trial.',
+        body: `Add your payment details to continue. Nothing is charged today; your 30-day free trial starts now and then continues at ${per} unless you cancel before it ends.`,
+        cta: 'Start 30-day free trial',
+      },
+    },
+  }
+}
+
+/**
  * Subscription packages — the single source of truth for what each plan includes.
  *
  * PLAYER is the package customers can subscribe to TODAY (£4.99/month, shown live

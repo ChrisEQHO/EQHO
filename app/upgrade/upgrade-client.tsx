@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { getOfferCopy } from '@/lib/marketing-config'
 
 // Check if running in v0 preview
 const isV0Preview = typeof window !== 'undefined' && (
@@ -23,6 +24,10 @@ export default function UpgradeClient() {
   const [redirectingToStripe, setRedirectingToStripe] = useState(false)
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [hasSubscription, setHasSubscription] = useState(false)
+  // Prior subscription status (if any). Used to tell a returning user whose
+  // access lapsed ("existing user") from a first-time visitor ("new user") so
+  // the paywall copy speaks to the right situation.
+  const [subStatus, setSubStatus] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [emailMismatch] = useState(false)
 
@@ -80,8 +85,11 @@ export default function UpgradeClient() {
         }
       }
 
-      if (profile?.subscription_status && ['active', 'trialing'].includes(profile.subscription_status)) {
-        setHasSubscription(true)
+      if (profile?.subscription_status) {
+        setSubStatus(profile.subscription_status)
+        if (['active', 'trialing'].includes(profile.subscription_status)) {
+          setHasSubscription(true)
+        }
       }
 
       setLoading(false)
@@ -92,7 +100,14 @@ export default function UpgradeClient() {
 
   const handleStartTrial = async () => {
     if (!user) return
-    
+
+    // Free phase (before the 1 Sep 2026 changeover): there is nothing to buy —
+    // the account already has full access, so just take them into the player.
+    if (getOfferCopy().preLaunch) {
+      router.push('/app')
+      return
+    }
+
     // Block checkout if email mismatch detected
     if (emailMismatch) {
       setCheckoutError('Account session mismatch. Please log out and log back in.')
@@ -166,6 +181,15 @@ export default function UpgradeClient() {
       </div>
     )
   }
+
+  // Date-driven offer copy (single source of truth in marketing-config). A
+  // returning user whose subscription lapsed sees the "existing user" variant;
+  // everyone else sees "new user".
+  const offer = getOfferCopy()
+  const isExistingUser = ['canceled', 'past_due', 'incomplete_expired', 'unpaid'].includes(
+    subStatus ?? '',
+  )
+  const variant = isExistingUser ? offer.paywall.existingUser : offer.paywall.newUser
 
   return (
     <div className="h-screen bg-[#020617] flex flex-col overflow-hidden">
