@@ -96,21 +96,21 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
   const per = interval ? `${formattedPrice}/${interval}` : formattedPrice
   const frequency = interval ? `per ${interval}` : ''
 
-  // Signup collects a payment method, but nothing is charged during the 30-day
-  // trial and the user can cancel before it ends — so copy leads with "no charge
-  // during your trial", never "no card required".
+  // Pre-launch = the FREE phase (before 1 Sep 2026): every feature is free with
+  // no card and no Stripe, so copy must promise exactly that — never a trial or
+  // a payment method. This mirrors getOfferCopy() and what the player enforces.
   if (isPreLaunch(now)) {
     return {
       preLaunch: true,
-      badge: '30-day free trial',
-      heading: `30 days free, then ${per}`,
-      supporting: `Create your account and try every EQHO feature free for 30 days. Continue for ${per} after your trial.`,
-      priceLabel: formattedPrice,
-      frequency,
-      trialLabel: PRICING.trialLabel,
-      explanation: `Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at ${per} when your 30-day trial ends, unless you cancel.`,
-      cta: 'Start 30-day free trial',
-      cardNote: 'No charge today. Cancel anytime before your trial ends.',
+      badge: 'Free until 31 August 2026',
+      heading: `Free until 31 August 2026, then ${per}`,
+      supporting: `Create your free account and use every EQHO feature until 31 August 2026 — no card required. It continues for ${per} after that.`,
+      priceLabel: 'Free',
+      frequency: 'until 31 Aug 2026',
+      trialLabel: 'No card required',
+      explanation: `No payment details needed today. From 1 September 2026 you can start a 30-day free trial and continue for ${per} unless you cancel.`,
+      cta: 'Create free account',
+      cardNote: 'No card required. Free until 31 August 2026.',
     }
   }
 
@@ -125,6 +125,82 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
     explanation: `Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at ${per} when your 30-day trial ends, unless you cancel.`,
     cta: 'Start 30-day free trial',
     cardNote: 'No charge today. Cancel anytime before your trial ends.',
+  }
+}
+
+/**
+ * Date-driven OFFER copy — the single source of truth for the changeover on
+ * 1 Sep 2026 (Europe/London). Keyed off the same instant as the server-side
+ * entitlement authority (`PRICING.launchTransitionUtc` === PAYWALL_START_AT),
+ * so what the marketing/signup/upgrade surfaces PROMISE always matches what the
+ * player actually ENFORCES.
+ *
+ *   • Before the changeover → free phase: "Create free account", no card.
+ *   • From the changeover on → each user's own 30-day Stripe trial, card taken
+ *     at signup, nothing charged until the trial ends.
+ *
+ * The `paywall` variants are for the `/upgrade` screen, which must speak
+ * differently to a brand-new visitor vs. someone whose free access just ended.
+ */
+export type OfferCopy = {
+  preLaunch: boolean
+  headline: string
+  supporting: string
+  cta: string
+  cardNote: string
+  paywall: {
+    newUser: { heading: string; body: string; cta: string }
+    existingUser: { heading: string; body: string; cta: string }
+  }
+}
+
+export function getOfferCopy(
+  formattedPrice: string = PLAYER_PACKAGE.fallbackPrice,
+  interval: string = PLAYER_PACKAGE.interval,
+  now: Date = new Date(),
+): OfferCopy {
+  const per = interval ? `${formattedPrice} per ${interval}` : formattedPrice
+
+  if (isPreLaunch(now)) {
+    return {
+      preLaunch: true,
+      headline: 'Use EQHO Player free until 31 August 2026.',
+      supporting: `Create your account today and use every EQHO Player feature free until 31 August 2026. After that it continues for ${per}.`,
+      cta: 'Create free account',
+      cardNote: 'No card required. Free until 31 August 2026.',
+      paywall: {
+        newUser: {
+          heading: 'Use EQHO Player free until 31 August 2026.',
+          body: `Create your free account and use every feature until 31 August 2026 — no card required. After launch it continues for ${per}.`,
+          cta: 'Create free account',
+        },
+        existingUser: {
+          heading: 'You’re all set — EQHO Player is free until 31 August 2026.',
+          body: 'Keep using every feature free until 31 August 2026. We’ll ask for payment details near launch; nothing is charged before then.',
+          cta: 'Open EQHO Player',
+        },
+      },
+    }
+  }
+
+  return {
+    preLaunch: false,
+    headline: `Start your 30-day free trial. Then ${per}.`,
+    supporting: `No charge today. Your subscription will automatically continue at ${per} after your 30-day trial unless you cancel before it ends.`,
+    cta: 'Start 30-day free trial',
+    cardNote: 'No charge today. Cancel anytime before your trial ends.',
+    paywall: {
+      newUser: {
+        heading: `Start your 30-day free trial. Then ${per}.`,
+        body: `No charge today. Your subscription will automatically continue at ${per} after your 30-day trial unless you cancel before it ends.`,
+        cta: 'Start 30-day free trial',
+      },
+      existingUser: {
+        heading: 'Your free access has ended — start your 30-day free trial.',
+        body: `Add your payment details to continue. Nothing is charged today; your 30-day free trial starts now and then continues at ${per} unless you cancel before it ends.`,
+        cta: 'Start 30-day free trial',
+      },
+    },
   }
 }
 
@@ -325,30 +401,30 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
 ]
 
 /**
- * Legal / company details shared by the Terms of Service and Privacy Policy so
+ * Legal / operator details shared by the Terms of Service and Privacy Policy so
  * the two pages can never drift apart (same "last updated" date, same contact
- * email, same entity details).
+ * email, same operator identity, same governing law).
  *
- * IMPORTANT: fields whose value is `null` are details we do not yet have. They
- * render as a clearly-marked, highlighted "[ … — to be added before launch]"
- * placeholder via <LegalValue> so they are impossible to miss and must be filled
- * in with the real registered company information before going live. Do NOT
- * invent a company number, registered address or trading name — leave the
- * placeholder until the real value is confirmed.
+ * EQHO Player is operated by a SOLE TRADER, not a limited company. The confirmed
+ * legal identity is "Christopher Rogers trading as EQHO Player" in the United
+ * Kingdom. Do NOT describe EQHO Player as a limited/registered company and do NOT
+ * invent a company registration number, VAT number, registered office or postal
+ * address — none exist for a sole trader unless the owner supplies them.
+ *
+ * OWNER ACTION (not blocking): if a postal contact address later becomes legally
+ * required, add it here as a real value — never a placeholder.
  */
 export const LEGAL = {
   // Keep both legal pages on the SAME date whenever either is edited.
   lastUpdated: '27 August 2026',
-  // Confirmed, in-use contact details.
-  contactEmail: 'info@eqho-player.com',
-  websiteUrl: 'https://eqho-player.com',
+  // Confirmed legal identity (sole trader).
+  operatorName: 'Christopher Rogers trading as EQHO Player',
   businessContact: 'Christopher Rogers',
   country: 'United Kingdom',
-  // Details still required for a complete, launch-ready policy. `null` => placeholder.
-  legalEntityName: null as string | null, // e.g. "EQHO Player Ltd"
-  companyNumber: null as string | null, // Companies House registration number
-  registeredAddress: null as string | null, // full registered office address
-  // Governing law — England & Wales is the expected default for a UK business,
-  // but it must be confirmed by the business, so it is treated as a placeholder.
-  governingLaw: null as string | null, // e.g. "England and Wales"
+  // Confirmed, in-use contact details.
+  contactEmail: 'info@eqho-player.com',
+  websiteUrl: 'https://www.eqho-player.com',
+  // Confirmed by the owner for the Terms: England and Wales (subject to any
+  // mandatory consumer protections that apply where the customer lives).
+  governingLaw: 'England and Wales',
 } as const

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from 'lucide-react'
+import { getOfferCopy } from '@/lib/marketing-config'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -17,6 +18,9 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  // Date-driven offer copy (free phase vs 30-day trial), shared with the
+  // marketing site and paywall so signup never promises the wrong thing.
+  const offer = getOfferCopy()
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -181,7 +185,7 @@ export default function SignupPage() {
         {/* Signup Card */}
         <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-3xl p-8 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
-          <p className="text-sm text-[#94a3b8] mb-6">Create your account to start your 30-day free trial of EQHO Player. No charge today.</p>
+          <p className="text-sm text-[#94a3b8] mb-6">{offer.supporting}</p>
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">

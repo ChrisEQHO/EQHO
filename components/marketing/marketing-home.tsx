@@ -22,7 +22,6 @@ import { AppStoreButton } from '@/components/marketing/app-store-button'
 import { ScrollLink } from '@/components/marketing/scroll-link'
 import {
   SITE,
-  LAUNCH,
   CTA,
   PROBLEM,
   FEATURES,
@@ -30,7 +29,7 @@ import {
   AUDIENCES,
   FAQ,
   APP,
-  PLAYER_PACKAGE,
+  getOfferCopy,
 } from '@/lib/marketing-config'
 
 // Resolve config icon names to lucide components (keeps the config JSX-free).
@@ -89,19 +88,22 @@ const HERO_PANELS: {
   },
 ]
 
-function PrimaryCta({ className = '' }: { className?: string }) {
+function PrimaryCta({ className = '', label }: { className?: string; label?: string }) {
   return (
     <Link
       href={CTA.primary.href}
       className={`inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03] ${className}`}
     >
-      {CTA.primary.label}
+      {label ?? CTA.primary.label}
       <ArrowRight className="h-5 w-5" />
     </Link>
   )
 }
 
 export function MarketingHome() {
+  // Date-driven hero copy: "Create free account" during the free phase,
+  // "Start 30-day free trial" once the paywall is live. Shared source of truth.
+  const offer = getOfferCopy()
   return (
     <main className="bg-[#020617] text-white">
       {/* ── Hero — a compact band (NOT a full screen) so the benefit panels and
@@ -152,7 +154,7 @@ export function MarketingHome() {
             EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
           </p>
           <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
-            <PrimaryCta className="w-full sm:w-auto" />
+            <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
             <Link
               href="/features"
               className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
@@ -161,7 +163,7 @@ export function MarketingHome() {
             </Link>
           </div>
           <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
-            Sign up and start your 30-day free trial. No charge until it ends.
+            {offer.cardNote}
           </p>
         </div>
       </section>
@@ -173,7 +175,7 @@ export function MarketingHome() {
               bullet list below lands just past the fold on desktop and mobile.
               Links down to the live player preview further down the page. */}
       <section className="flex min-h-0 items-start border-t border-white/5 sm:min-h-[clamp(220px,38svh,360px)] sm:items-center">
-        <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-2 sm:px-6 sm:py-10">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-2 sm:px-6 sm:py-10">
           <ScrollLink
             href="#player-preview"
             className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-2.5 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3.5 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:gap-3 sm:flex-row sm:justify-between sm:py-5 sm:text-left"
@@ -305,7 +307,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── Problem → outcome ─────────────────��───────────��───────────────── */}
+      {/* ── Problem → outcome ─────────────────��──────────����───────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-4xl px-4 py-20 text-center sm:px-6">
           <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
@@ -411,11 +413,10 @@ export function MarketingHome() {
             <div className="flex flex-col items-start gap-8 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
                 <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  {`Start with a 30-day free trial, then ${PLAYER_PACKAGE.fallbackPrice}/${PLAYER_PACKAGE.interval}.`}
+                  {offer.headline}
                 </h2>
                 <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                  {LAUNCH.freeNote} Add your payment details securely through Stripe and pay nothing today — your
-                  subscription renews automatically when the trial ends, unless you cancel.
+                  {offer.supporting}
                 </p>
                 <ul className="mt-6 space-y-2.5 text-sm text-[#cbd5e1]">
                   {['Unlimited playlists and session plans', 'Cloud storage and playlist backup', 'Access on supported desktop, tablet and mobile devices'].map(
@@ -429,7 +430,7 @@ export function MarketingHome() {
                 </ul>
               </div>
               <div className="flex w-full flex-col gap-3 sm:w-auto">
-                <PrimaryCta className="w-full sm:w-auto" />
+                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
                 <Link
                   href="/pricing"
                   className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
@@ -469,7 +470,7 @@ export function MarketingHome() {
             Keep your music organised, your training moving and your attention where it matters most.
           </p>
           <div className="mt-8 flex justify-center">
-            <PrimaryCta />
+            <PrimaryCta label={offer.cta} />
           </div>
         </div>
       </section>

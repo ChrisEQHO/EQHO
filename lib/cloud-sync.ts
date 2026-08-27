@@ -364,6 +364,36 @@ export async function deleteCloudPlaylist(
   }
 }
 
+// Permanently delete the signed-in user's entire account (Stripe subscription,
+// R2 audio, Supabase rows, and the Auth login) via the authoritative server
+// route. Works on the mobile (Capacitor) build too: getApiBase() targets the
+// DEPLOYED https API and getAuthHeaders() attaches the Supabase access token as
+// a Bearer header — the same cross-origin + token path used for cloud delete.
+// The old cookie-based server action silently did nothing inside the static
+// export, which is why the Delete Account button "didn't work" on mobile.
+export async function deleteCloudAccount(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${getApiBase()}/api/account/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+    })
+
+    const result = await response.json().catch(() => ({} as Record<string, unknown>))
+
+    if (!response.ok || result?.success !== true) {
+      const detail = (result?.error as string) || `Server error ${response.status}`
+      console.error('[v0] deleteCloudAccount failed', response.status, detail)
+      return { success: false, error: detail }
+    }
+
+    return { success: true }
+  } catch (error) {
+    const detail = (error as Error)?.message || String(error)
+    console.error('[v0] deleteCloudAccount error', detail)
+    return { success: false, error: detail }
+  }
+}
+
 // =====================
 // TRACK OPERATIONS
 // =====================

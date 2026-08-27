@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { ArrowLeft, CreditCard, Check, Sparkles, ArrowRight, Loader2, AlertCircle, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { getOfferCopy } from '@/lib/marketing-config'
 
 // Check if running in v0 preview
 const isV0Preview = typeof window !== 'undefined' && (
@@ -23,6 +24,10 @@ export default function UpgradeClient() {
   const [redirectingToStripe, setRedirectingToStripe] = useState(false)
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [hasSubscription, setHasSubscription] = useState(false)
+  // Prior subscription status (if any). Used to tell a returning user whose
+  // access lapsed ("existing user") from a first-time visitor ("new user") so
+  // the paywall copy speaks to the right situation.
+  const [subStatus, setSubStatus] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [emailMismatch] = useState(false)
 
@@ -80,8 +85,11 @@ export default function UpgradeClient() {
         }
       }
 
-      if (profile?.subscription_status && ['active', 'trialing'].includes(profile.subscription_status)) {
-        setHasSubscription(true)
+      if (profile?.subscription_status) {
+        setSubStatus(profile.subscription_status)
+        if (['active', 'trialing'].includes(profile.subscription_status)) {
+          setHasSubscription(true)
+        }
       }
 
       setLoading(false)
@@ -92,7 +100,14 @@ export default function UpgradeClient() {
 
   const handleStartTrial = async () => {
     if (!user) return
-    
+
+    // Free phase (before the 1 Sep 2026 changeover): there is nothing to buy —
+    // the account already has full access, so just take them into the player.
+    if (getOfferCopy().preLaunch) {
+      router.push('/app')
+      return
+    }
+
     // Block checkout if email mismatch detected
     if (emailMismatch) {
       setCheckoutError('Account session mismatch. Please log out and log back in.')
@@ -167,6 +182,15 @@ export default function UpgradeClient() {
     )
   }
 
+  // Date-driven offer copy (single source of truth in marketing-config). A
+  // returning user whose subscription lapsed sees the "existing user" variant;
+  // everyone else sees "new user".
+  const offer = getOfferCopy()
+  const isExistingUser = ['canceled', 'past_due', 'incomplete_expired', 'unpaid'].includes(
+    subStatus ?? '',
+  )
+  const variant = isExistingUser ? offer.paywall.existingUser : offer.paywall.newUser
+
   return (
     <div className="h-screen bg-[#020617] flex flex-col overflow-hidden">
       {/* Background effects */}
@@ -190,8 +214,8 @@ export default function UpgradeClient() {
           {/* Logo + Welcome */}
           <div className="text-center">
             <Image src="/images/eqho-logo.png" alt="EQHO Player" width={220} height={88} priority className="mx-auto mb-4 h-auto w-[220px] max-w-full" />
-            <h2 className="text-2xl font-bold text-white">Welcome to EQHO Player</h2>
-            <p className="text-[#94a3b8] text-sm mt-1">Your account has been created successfully.</p>
+            <h2 className="text-2xl font-bold text-white text-balance">{variant.heading}</h2>
+            <p className="text-[#94a3b8] text-sm mt-1 text-pretty">{variant.body}</p>
           </div>
 
           {/* Email Mismatch Error */}
@@ -246,12 +270,14 @@ export default function UpgradeClient() {
 
           {/* Main Card */}
           <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-5">
-            {/* 30 Days Free Banner + Monthly Pricing */}
+            {/* Offer banner + Monthly Pricing (date-driven) */}
             <div className="flex gap-3 mb-4">
               <div className="flex-1 bg-gradient-to-r from-[#22c55e] to-[#16a34a] rounded-xl p-4 flex items-center gap-3">
                 <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
-                  <p className="font-bold text-white text-lg leading-tight">30 Days FREE</p>
+                  <p className="font-bold text-white text-lg leading-tight">
+                    {offer.preLaunch ? 'FREE until 31 Aug 2026' : '30 Days FREE'}
+                  </p>
                   <p className="text-xs text-white/90">Full access to all EQHO Player features</p>
                 </div>
               </div>
@@ -292,18 +318,18 @@ export default function UpgradeClient() {
                 </>
               ) : (
                 <>
-                  <CreditCard className="h-5 w-5" />
-                  Start 30-day free trial
+                  {offer.preLaunch ? null : <CreditCard className="h-5 w-5" />}
+                  {variant.cta}
                   <ArrowRight className="h-5 w-5" />
                 </>
               )}
             </button>
 
             <p className="text-center text-xs mt-2 text-[#64748b]">
-              Start your 30-day free trial today. Add your payment details securely through Stripe and pay nothing today. Your subscription renews automatically at £4.99/month when the trial ends unless cancelled.
+              {variant.body}
             </p>
             <p className="text-center text-xs mt-1.5 text-[#64748b]">
-              No charge today. Cancel anytime during your free trial.
+              {offer.cardNote}
             </p>
           </div>
         </div>
