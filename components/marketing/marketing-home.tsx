@@ -107,7 +107,7 @@ export function MarketingHome() {
               the pink/orange "Take a look at the player below" banner in the next
               section rise into view as early as practical. Capped with svh so it
               scales down on short/landscape viewports without absolute positioning. */}
-      <section className="relative isolate flex min-h-[clamp(320px,48svh,600px)] flex-col overflow-hidden sm:min-h-[clamp(360px,62svh,600px)]">
+      <section className="relative isolate flex min-h-[clamp(280px,40svh,600px)] flex-col overflow-hidden sm:min-h-[clamp(360px,62svh,600px)]">
         {/* z-0 — navy base colour */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-[#020617]" />
 
@@ -159,7 +159,7 @@ export function MarketingHome() {
               Explore EQHO Player
             </Link>
           </div>
-          <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
+          <p className="mt-3 text-sm text-[#94a3b8] sm:mt-[clamp(0.75rem,2vh,1.25rem)]">
             Sign up and start your 30-day free trial. No charge until it ends.
           </p>
         </div>
@@ -171,8 +171,8 @@ export function MarketingHome() {
               tuned (paired with the hero height) to fill the viewport, so the
               bullet list below lands just past the fold on desktop and mobile.
               Links down to the live player preview further down the page. */}
-      <section className="flex min-h-0 items-start border-t border-white/5 sm:min-h-[clamp(220px,38svh,360px)] sm:items-center">
-        <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-2 sm:px-6 sm:py-10">
+      <section className="-mt-6 flex min-h-0 items-start border-t border-transparent sm:mt-0 sm:min-h-[clamp(220px,38svh,360px)] sm:items-center sm:border-white/5">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-0 sm:px-6 sm:py-10">
           <a
             href="#player-preview"
             className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-2.5 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3.5 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:gap-3 sm:flex-row sm:justify-between sm:py-5 sm:text-left"
