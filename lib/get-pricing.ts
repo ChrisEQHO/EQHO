@@ -3,7 +3,7 @@ import 'server-only'
 import Stripe from 'stripe'
 
 export type LivePrice = {
-  /** Pre-formatted amount incl. currency symbol, e.g. "£3.99". */
+  /** Pre-formatted amount incl. currency symbol, e.g. "£4.99". */
   formatted: string
   /** Billing interval word, e.g. "month" or "year". Empty for one-off. */
   interval: string
