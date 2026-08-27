@@ -9,6 +9,23 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Per-profile idempotency. Stripe retries deliver the same event id more than
+// once and events can arrive out of order; we store the last handled event id on
+// the profile and skip a re-delivery of that exact event. Returns true when the
+// event has already been applied to this profile and should be ignored.
+async function isDuplicateEvent(profileId: string, eventId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('last_stripe_event_id')
+    .eq('id', profileId)
+    .maybeSingle()
+  if (data?.last_stripe_event_id === eventId) {
+    console.log('[WEBHOOK] Duplicate event, skipping:', eventId, 'for profile:', profileId)
+    return true
+  }
+  return false
+}
+
 export async function POST(request: NextRequest) {
   console.log('[WEBHOOK] ========== STRIPE WEBHOOK RECEIVED ==========')
   
@@ -47,32 +64,42 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        await handleCheckoutCompleted(session)
+        await handleCheckoutCompleted(session, event.id)
         break
       }
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
-        await handleSubscriptionUpdated(subscription)
+        await handleSubscriptionUpdated(subscription, event.id)
+        break
+      }
+
+      case 'customer.subscription.trial_will_end': {
+        const subscription = event.data.object as Stripe.Subscription
+        await handleTrialWillEnd(subscription, event.id)
         break
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-        await handleSubscriptionDeleted(subscription)
+        await handleSubscriptionDeleted(subscription, event.id)
         break
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice
-        await handlePaymentFailed(invoice)
+        await handlePaymentFailed(invoice, event.id)
         break
       }
 
+      // `invoice.paid` and the legacy `invoice.payment_succeeded` both mean a
+      // successful charge — treat them identically (the recurring payment that
+      // converts a trial into a paid, active subscription).
+      case 'invoice.paid':
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice
-        await handlePaymentSucceeded(invoice)
+        await handlePaymentSucceeded(invoice, event.id)
         break
       }
 
@@ -88,7 +115,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId: string) {
   console.log('[WEBHOOK] ========== CHECKOUT.SESSION.COMPLETED ==========')
   console.log('[WEBHOOK] WEBHOOK_RECEIVED: checkout.session.completed')
   console.log('[WEBHOOK] session.id:', session.id)
@@ -172,7 +199,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.log('[WEBHOOK] No subscription ID in checkout session, using default trial values')
   }
 
-  // Profile data to upsert
+  // Profile data to upsert. Once a subscription reaches trialing OR active the
+  // user has consumed their one free trial, so `has_used_trial` latches true and
+  // the checkout route will never grant another trial for this account.
   const profileData = {
     email: customerEmail?.toLowerCase(),
     plan: 'pro',
@@ -180,9 +209,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     trial_active: subscriptionStatus === 'trialing',
     trial_start: trialStart.toISOString(),
     trial_end: trialEnd.toISOString(),
+    has_used_trial: subscriptionStatus === 'trialing' || subscriptionStatus === 'active',
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId || null,
     current_period_end: currentPeriodEnd.toISOString(),
+    cancel_at_period_end: false,
+    last_stripe_event_id: eventId,
+    updated_at: new Date().toISOString(),
   }
 
   console.log('[WEBHOOK] Profile data to write:', JSON.stringify(profileData, null, 2))
@@ -381,11 +414,12 @@ async function handleStorePurchaseCompleted(session: Stripe.Checkout.Session) {
   console.log('[WEBHOOK] ========== STORE PURCHASE HANDLER COMPLETE ==========')
 }
 
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription, eventId: string) {
   console.log('[WEBHOOK] ========== SUBSCRIPTION UPDATED ==========')
   console.log('[WEBHOOK] subscription.id:', subscription.id)
   console.log('[WEBHOOK] subscription.status:', subscription.status)
   console.log('[WEBHOOK] subscription.customer:', subscription.customer)
+  console.log('[WEBHOOK] cancel_at_period_end:', subscription.cancel_at_period_end)
   
   const customerId = subscription.customer as string
 
@@ -403,6 +437,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     return
   }
 
+  if (await isDuplicateEvent(profile.id, eventId)) return
+
   const trialEnd = subscription.trial_end 
     ? new Date(subscription.trial_end * 1000).toISOString()
     : null
@@ -416,9 +452,16 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       plan: isProStatus ? 'pro' : 'none',
       subscription_status: subscription.status,
       trial_active: subscription.status === 'trialing',
+      // Latch: reaching trialing/active means the free trial has been consumed.
+      ...(isProStatus ? { has_used_trial: true } : {}),
       stripe_subscription_id: subscription.id,
       trial_end: trialEnd,
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      // Surfaced on the billing screen so a user who cancelled sees when access
+      // ends. The entitlement rule keeps them in until current_period_end.
+      cancel_at_period_end: subscription.cancel_at_period_end ?? false,
+      last_stripe_event_id: eventId,
+      updated_at: new Date().toISOString(),
     })
     .eq('id', profile.id)
     .select()
@@ -431,12 +474,63 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log('[WEBHOOK] SUCCESS: Subscription updated:', JSON.stringify(updateData))
 }
 
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+// Stripe fires this ~3 days before a trial ends. We don't change entitlement
+// here (the trial is still valid); it's a hook point for a reminder and keeps
+// the profile's event bookkeeping current. Kept intentionally side-effect light.
+async function handleTrialWillEnd(subscription: Stripe.Subscription, eventId: string) {
+  console.log('[WEBHOOK] ========== TRIAL WILL END ==========')
+  console.log('[WEBHOOK] subscription.id:', subscription.id)
+  console.log('[WEBHOOK] trial_end:', subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : 'none')
+
+  const customerId = subscription.customer as string
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single()
+
+  if (!profile) {
+    console.log('[WEBHOOK] No profile found for customer:', customerId)
+    return
+  }
+
+  if (await isDuplicateEvent(profile.id, eventId)) return
+
+  await supabaseAdmin
+    .from('profiles')
+    .update({ last_stripe_event_id: eventId, updated_at: new Date().toISOString() })
+    .eq('id', profile.id)
+
+  console.log('[WEBHOOK] Trial-will-end recorded for profile:', profile.id)
+}
+
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription, eventId: string) {
   console.log('[WEBHOOK] ========== SUBSCRIPTION DELETED ==========')
   console.log('[WEBHOOK] subscription.id:', subscription.id)
   console.log('[WEBHOOK] subscription.customer:', subscription.customer)
   
   const customerId = subscription.customer as string
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single()
+
+  if (!profile) {
+    console.log('[WEBHOOK] No profile found for customer:', customerId)
+    return
+  }
+
+  if (await isDuplicateEvent(profile.id, eventId)) return
+
+  // Mark canceled but PRESERVE current_period_end: the single grace rule in
+  // lib/entitlement.ts keeps a canceled user in the player until the end of the
+  // period they already paid for, then blocks them. Stripe still provides the
+  // period end on the deleted subscription, so refresh it to stay precise.
+  const currentPeriodEnd = subscription.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toISOString()
+    : undefined
 
   const { data, error } = await supabaseAdmin
     .from('profiles')
@@ -444,8 +538,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       subscription_status: 'canceled',
       trial_active: false,
       plan: 'none',
+      ...(currentPeriodEnd ? { current_period_end: currentPeriodEnd } : {}),
+      last_stripe_event_id: eventId,
+      updated_at: new Date().toISOString(),
     })
-    .eq('stripe_customer_id', customerId)
+    .eq('id', profile.id)
     .select()
 
   if (error) {
@@ -453,22 +550,37 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     throw error
   }
 
-  console.log('[WEBHOOK] SUCCESS: Subscription canceled:', JSON.stringify(data))
+  console.log('[WEBHOOK] SUCCESS: Subscription canceled (grace until period end):', JSON.stringify(data))
 }
 
-async function handlePaymentFailed(invoice: Stripe.Invoice) {
+async function handlePaymentFailed(invoice: Stripe.Invoice, eventId: string) {
   console.log('[WEBHOOK] ========== PAYMENT FAILED ==========')
   console.log('[WEBHOOK] invoice.id:', invoice.id)
   console.log('[WEBHOOK] invoice.customer:', invoice.customer)
   
   const customerId = invoice.customer as string
 
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single()
+
+  if (!profile) {
+    console.log('[WEBHOOK] No profile found for customer:', customerId)
+    return
+  }
+
+  if (await isDuplicateEvent(profile.id, eventId)) return
+
   const { data, error } = await supabaseAdmin
     .from('profiles')
     .update({
       subscription_status: 'past_due',
+      last_stripe_event_id: eventId,
+      updated_at: new Date().toISOString(),
     })
-    .eq('stripe_customer_id', customerId)
+    .eq('id', profile.id)
     .select()
 
   if (error) {
@@ -479,7 +591,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   console.log('[WEBHOOK] SUCCESS: Updated to past_due:', JSON.stringify(data))
 }
 
-async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
+async function handlePaymentSucceeded(invoice: Stripe.Invoice, eventId: string) {
   console.log('[WEBHOOK] ========== PAYMENT SUCCEEDED ==========')
   console.log('[WEBHOOK] invoice.id:', invoice.id)
   console.log('[WEBHOOK] invoice.customer:', invoice.customer)
@@ -489,13 +601,30 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
 
   // Only update if this is for an active subscription
   if (invoice.subscription) {
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .single()
+
+    if (!profile) {
+      console.log('[WEBHOOK] No profile found for customer:', customerId)
+      return
+    }
+
+    if (await isDuplicateEvent(profile.id, eventId)) return
+
     const { data, error } = await supabaseAdmin
       .from('profiles')
       .update({
         subscription_status: 'active',
         trial_active: false,
+        has_used_trial: true,
+        cancel_at_period_end: false,
+        last_stripe_event_id: eventId,
+        updated_at: new Date().toISOString(),
       })
-      .eq('stripe_customer_id', customerId)
+      .eq('id', profile.id)
       .select()
 
     if (error) {

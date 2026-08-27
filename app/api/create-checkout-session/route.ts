@@ -21,10 +21,12 @@ export async function POST(request: NextRequest) {
     // Get or create Stripe customer
     let customerId: string | undefined
 
-    // Check if user already has a stripe_customer_id in their profile
+    // Check if user already has a stripe_customer_id AND whether they've already
+    // consumed their one free trial. `has_used_trial` drives the anti-repeat rule
+    // below so a user can't cancel and re-subscribe to get another free month.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, has_used_trial')
       .eq('id', user.id)
       .single()
 
@@ -32,6 +34,9 @@ export async function POST(request: NextRequest) {
       customerId = profile.stripe_customer_id
       console.log('[v0] Found existing Stripe customer:', customerId)
     }
+
+    const hasUsedTrial = profile?.has_used_trial === true
+    console.log('[v0] has_used_trial:', hasUsedTrial)
 
     // Determine the base URL for redirects
     const origin = request.headers.get('origin') || 'https://www.eqho-player.com'
@@ -108,6 +113,21 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Only first-time subscribers get the 30-day free trial. A returning user
+    // who already used theirs subscribes at the normal price with an immediate
+    // charge — this prevents cancel/re-subscribe trial farming.
+    const subscriptionData: {
+      trial_period_days?: number
+      metadata: Record<string, string>
+    } = {
+      metadata: { supabase_user_id: user.id },
+    }
+    if (!hasUsedTrial) {
+      // 30-day free trial — MUST match the "30-day free trial" wording used
+      // across the marketing site, pricing page, signup and FAQ.
+      subscriptionData.trial_period_days = 30
+    }
+
     // Create the Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -124,14 +144,7 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      subscription_data: {
-        // 30-day free trial — MUST match the "30-day free trial" wording used
-        // across the marketing site, pricing page, signup and FAQ.
-        trial_period_days: 30,
-        metadata: {
-          supabase_user_id: user.id,
-        },
-      },
+      subscription_data: subscriptionData,
       success_url: `${origin}/complete-signup?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/upgrade?canceled=true`,
       metadata: {

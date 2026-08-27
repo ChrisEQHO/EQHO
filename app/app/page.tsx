@@ -18,7 +18,7 @@ import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstByt
 import { useNativeSession } from "@/lib/use-native-session";
 import { createClient } from "@/lib/supabase/client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
-import { clearEntitlementVerified, recordEntitlementVerified } from "@/lib/access";
+import { clearEntitlementVerified, recordEntitlementVerified, isWithinOfflineGrace, isOnline } from "@/lib/access";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -1023,10 +1023,16 @@ export default function Page() {
   }, [supabase, accessRetryToken]);
 
   // -------------------------------------------------------------------------
-  // Client-side login gate.
+  // Client-side login + entitlement gate.
   // Web is also covered by middleware, but mobile/desktop (Capacitor) builds use
-  // static export with no middleware, so the player enforces login here too.
-  // Free access = any logged-in user is allowed; logged-out users go to /login.
+  // static export with no middleware, so the player enforces access here too.
+  //
+  // The decision is delegated to the server authority (`/api/entitlement`) so
+  // the client never trusts its own clock: before the 1 Sep 2026 changeover any
+  // logged-in user is allowed (free phase); after it, a valid Stripe entitlement
+  // (or grace window) is required. Re-checking here on load means a session left
+  // open across the changeover, or a lapsed subscription, flips to /upgrade.
+  // Offline, we honour the existing grace window so downloads keep playing.
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (isV0Preview) {
@@ -1036,28 +1042,89 @@ export default function Page() {
     // Wait for the initial auth check to settle before deciding.
     if (!authChecked) return;
 
-    // A recoverable startup error is showing (timeout / unverifiable). Leave it
-    // in place — the user recovers via its Try Again / Sign Out buttons — instead
-    // of bouncing to /login and hiding the network error.
-    if (gate === "error") return;
+    // Only decide from the loading state. Once we've resolved to granted /
+    // blocked-offline / error we stop, so this never loops on its own state
+    // change. Retry paths (error "Try Again", offline reload) reset gate back
+    // to "checking", which re-runs this verification.
+    if (gate !== "checking") return;
 
-    if (user) {
-      setGate("granted");
-    } else {
-      // Keep the loader visible (never flash the player) while redirecting.
-      setGate("checking");
-      // Use a HARD navigation, not just router.replace. In this app's environment
-      // the Next.js client router has been observed to silently no-op (the same
-      // issue that broke the "Forgot your password?" button), which left logged-out
-      // users stuck forever on "Checking your access…". window.location.replace is
-      // a guaranteed browser navigation and also works in the Capacitor static
-      // export. router.replace stays as a fast-path attempt first.
-      router.replace("/login");
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-        window.location.replace("/login");
+    // Hard navigation helper — the Next.js client router has been observed to
+    // silently no-op in this app's environment, and window.location.replace also
+    // works in the Capacitor static export. router.replace is a fast-path first.
+    const hardRedirect = (path: string) => {
+      router.replace(path);
+      if (typeof window !== "undefined" && window.location.pathname !== path) {
+        window.location.replace(path);
       }
+    };
+
+    if (!user) {
+      hardRedirect("/login");
+      return;
     }
-  }, [authChecked, user, router, gate]);
+
+    let cancelled = false;
+
+    const verifyEntitlement = async () => {
+      // Offline: can't reach the authority. Honour the grace window so
+      // downloaded playlists keep working; otherwise block until reconnected.
+      if (!isOnline()) {
+        if (!cancelled) setGate(isWithinOfflineGrace() ? "granted" : "blocked-offline");
+        return;
+      }
+
+      try {
+        // Bearer token for the Capacitor build (static export, no cookies).
+        let token = "";
+        try {
+          const { data } = await supabase!.auth.getSession();
+          token = data.session?.access_token ?? "";
+        } catch {
+          /* fall back to cookie session */
+        }
+
+        const res = await fetch("/api/entitlement", {
+          headers: token ? { authorization: `Bearer ${token}` } : undefined,
+          cache: "no-store",
+        });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.allowed) {
+            recordEntitlementVerified();
+            setGate("granted");
+          } else {
+            // Server says no valid entitlement (paywall phase). Send them to the
+            // upgrade / subscribe screen; keep the loader visible while we go.
+            clearEntitlementVerified();
+            hardRedirect("/upgrade");
+          }
+          return;
+        }
+
+        if (res.status === 401) {
+          // Session no longer valid — treat as logged out.
+          hardRedirect("/login");
+          return;
+        }
+
+        // Other server error: fail OPEN if we verified online recently (never
+        // lock out a paying user over a blip), else show the recoverable error.
+        setGate(isWithinOfflineGrace() ? "granted" : "error");
+      } catch {
+        if (cancelled) return;
+        // Network/unexpected error: fall back to the offline grace window.
+        setGate(isWithinOfflineGrace() ? "granted" : "blocked-offline");
+      }
+    };
+
+    verifyEntitlement();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, user, router, gate, supabase]);
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
@@ -7703,16 +7770,6 @@ export default function Page() {
                 </button>
               );
             })}
-            {/* Music Store — separate public route, so a real navigation (same tab,
-                session preserved via cookies) rather than an in-app activePage. */}
-            <Link
-              href="/store"
-              aria-label="Music Store"
-              title="Music Store"
-              className="p-2.5 rounded-xl text-[#cbd5e1] transition-all hover:text-[#ff4fa3] hover:bg-gradient-to-r hover:from-[#ff4fa3]/15 hover:to-[#ff8a00]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1120]"
-            >
-              <Music size={20} />
-            </Link>
             <Link
               href="/privacy-policy"
               aria-label="Privacy Policy"
