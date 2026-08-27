@@ -171,8 +171,8 @@ export function MarketingHome() {
               tuned (paired with the hero height) to fill the viewport, so the
               bullet list below lands just past the fold on desktop and mobile.
               Links down to the live player preview further down the page. */}
-      <section className="flex min-h-[clamp(220px,38svh,360px)] items-center border-t border-white/5">
-        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <section className="flex min-h-[clamp(150px,22svh,360px)] items-center border-t border-white/5 sm:min-h-[clamp(220px,38svh,360px)]">
+        <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-10">
           <a
             href="#player-preview"
             className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-3 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-4 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:flex-row sm:justify-between sm:py-5 sm:text-left"
@@ -304,7 +304,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── Problem → outcome ─────────────────────────────────────────────── */}
+      {/* ── Problem → outcome ─────────────────────────────��───────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-4xl px-4 py-20 text-center sm:px-6">
           <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
