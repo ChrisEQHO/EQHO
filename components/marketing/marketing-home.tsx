@@ -27,7 +27,7 @@ import {
   FEATURES,
   STEPS,
   AUDIENCES,
-  FAQ,
+  getFaq,
   APP,
   getOfferCopy,
 } from '@/lib/marketing-config'
@@ -76,7 +76,7 @@ const HERO_PANELS: {
     icon: CloudUpload,
     eyebrow: 'EQHO Cloud',
     title: 'Keep your music ready across devices',
-    body: 'Push your playlists and audio to your EQHO Cloud account to keep them securely saved and backed up. Log in from any web browser on desktop, tablet or mobile — or download the app on iPad and iPhone — to access the same music everywhere.',
+    body: 'Push your playlists and audio to your EQHO Cloud account to keep them securely saved and backed up. Log in from any web browser on desktop, tablet or mobile — or download the app on iPad and iPhone — then download or load your pushed playlists on each device you use.',
     bullets: [
       'Secure cloud storage and backup',
       'Web browser on desktop, tablet and mobile',
@@ -307,7 +307,7 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── Problem → outcome ─────────────────��──────────����───────────────── */}
+      {/* ── Problem → outcome ─────────────────��──────────������───────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-4xl px-4 py-20 text-center sm:px-6">
           <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
@@ -450,7 +450,7 @@ export function MarketingHome() {
             Questions, answered.
           </h2>
           <dl className="mt-12 divide-y divide-white/10">
-            {FAQ.map((item) => (
+            {getFaq().map((item) => (
               <div key={item.q} className="py-6">
                 <dt className="text-lg font-semibold text-white">{item.q}</dt>
                 <dd className="mt-2 text-pretty leading-relaxed text-[#94a3b8]">{item.a}</dd>

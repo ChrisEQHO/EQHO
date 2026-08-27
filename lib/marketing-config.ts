@@ -103,14 +103,15 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
     return {
       preLaunch: true,
       badge: 'Free until 31 August 2026',
-      heading: `Free until 31 August 2026, then ${per}`,
-      supporting: `Create your free account and use every EQHO feature until 31 August 2026 — no card required. It continues for ${per} after that.`,
+      heading: 'Use EQHO Player free until 31 August 2026.',
+      supporting:
+        'Create your free account today and use every EQHO Player feature free until 31 August 2026. No card required.',
       priceLabel: 'Free',
       frequency: 'until 31 Aug 2026',
       trialLabel: 'No card required',
-      explanation: `No payment details needed today. From 1 September 2026 you can start a 30-day free trial and continue for ${per} unless you cancel.`,
+      explanation: `No payment details needed today. From 1 September 2026 you can start a 30-day free trial, then it renews at ${per} unless you cancel.`,
       cta: 'Create free account',
-      cardNote: 'No card required. Free until 31 August 2026.',
+      cardNote: 'No card required.',
     }
   }
 
@@ -162,42 +163,48 @@ export function getOfferCopy(
   const per = interval ? `${formattedPrice} per ${interval}` : formattedPrice
 
   if (isPreLaunch(now)) {
+    // FREE phase: no card, no Stripe, no price tail. The promise is simply free
+    // access until 31 Aug 2026 — never "then £4.99" (that wording is banned here
+    // because the user does NOT auto-convert; they choose to start a trial later).
     return {
       preLaunch: true,
       headline: 'Use EQHO Player free until 31 August 2026.',
-      supporting: `Create your account today and use every EQHO Player feature free until 31 August 2026. After that it continues for ${per}.`,
+      supporting:
+        'Create your free account today and use every EQHO Player feature free until 31 August 2026. No card required.',
       cta: 'Create free account',
-      cardNote: 'No card required. Free until 31 August 2026.',
+      cardNote: 'No card required.',
       paywall: {
         newUser: {
           heading: 'Use EQHO Player free until 31 August 2026.',
-          body: `Create your free account and use every feature until 31 August 2026 — no card required. After launch it continues for ${per}.`,
+          body: 'Create your free account today and use every EQHO Player feature free until 31 August 2026. No card required.',
           cta: 'Create free account',
         },
         existingUser: {
           heading: 'You’re all set — EQHO Player is free until 31 August 2026.',
-          body: 'Keep using every feature free until 31 August 2026. We’ll ask for payment details near launch; nothing is charged before then.',
+          body: 'Keep using every EQHO Player feature free until 31 August 2026. No card required, and nothing is charged before then.',
           cta: 'Open EQHO Player',
         },
       },
     }
   }
 
+  // PAYWALL phase (from 1 Sep 2026): each user starts their own 30-day Stripe
+  // trial, card collected now, nothing charged until the individual trial ends.
   return {
     preLaunch: false,
-    headline: `Start your 30-day free trial. Then ${per}.`,
-    supporting: `No charge today. Your subscription will automatically continue at ${per} after your 30-day trial unless you cancel before it ends.`,
+    headline: 'Start your 30-day free trial.',
+    supporting: `Add your payment details securely through Stripe and pay nothing today. Your subscription will automatically renew at ${per} after your 30-day trial unless you cancel.`,
     cta: 'Start 30-day free trial',
     cardNote: 'No charge today. Cancel anytime before your trial ends.',
     paywall: {
       newUser: {
-        heading: `Start your 30-day free trial. Then ${per}.`,
-        body: `No charge today. Your subscription will automatically continue at ${per} after your 30-day trial unless you cancel before it ends.`,
+        heading: 'Start your 30-day free trial.',
+        body: `Add your payment details securely through Stripe and pay nothing today. Your subscription will automatically renew at ${per} after your 30-day trial unless you cancel.`,
         cta: 'Start 30-day free trial',
       },
       existingUser: {
         heading: 'Your free access has ended — start your 30-day free trial.',
-        body: `Add your payment details to continue. Nothing is charged today; your 30-day free trial starts now and then continues at ${per} unless you cancel before it ends.`,
+        body: `Add your payment details securely through Stripe and pay nothing today. Your subscription will automatically renew at ${per} after your 30-day trial unless you cancel.`,
         cta: 'Start 30-day free trial',
       },
     },
@@ -297,7 +304,7 @@ export const FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'CloudUpload',
     title: 'Your sessions, backed up',
-    body: 'Push your playlists and audio to your EQHO account, so a session created at home is ready when you log in on any device at training.',
+    body: 'Push your playlists and audio to your EQHO account. Log in on another device and download or load your pushed session before training.',
   },
   {
     icon: 'MonitorSmartphone',
@@ -372,6 +379,21 @@ export const FAQ: { q: string; a: string }[] = [
     a: 'Just an EQHO account and your routine music files. Create an account and upload a folder to build your first playlist.',
   },
 ]
+
+/**
+ * FAQ with a date-driven pricing answer, so the homepage FAQ and its structured
+ * data never contradict the current offer phase. Pre-launch it describes the
+ * free period (no card); from 1 Sep it describes the individual 30-day trial.
+ * All other answers are static.
+ */
+export function getFaq(now: Date = new Date()): { q: string; a: string }[] {
+  const pricingAnswer = isPreLaunch(now)
+    ? 'EQHO Player is free to use until 31 August 2026 — just create a free account, no card required. From 1 September 2026 you can start an individual 30-day free trial: you add your payment details securely through Stripe, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
+    : 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
+  return FAQ.map((item) =>
+    item.q === 'How much does EQHO Player cost?' ? { ...item, a: pricingAnswer } : item,
+  )
+}
 
 /** Footer link groups. */
 export const FOOTER_LINKS: { heading: string; links: { label: string; href: string }[] }[] = [

@@ -787,6 +787,12 @@ export default function Page() {
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline" | "error">(
     isV0Preview ? "granted" : "checking"
   );
+  // Server-authoritative offer phase from /api/entitlement, used ONLY to pick the
+  // correct promo-banner wording (never to grant access — that's `gate`). Null
+  // until verified; the banner stays neutral until we know the real phase so we
+  // never flash "30-day free trial" at a user who is in the free period.
+  const [entitlementPhase, setEntitlementPhase] = useState<"free" | "paywall" | null>(null);
+  const [entitlementReason, setEntitlementReason] = useState<string | null>(null);
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
   // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
   const [accessRetryToken, setAccessRetryToken] = useState(0);
@@ -1094,6 +1100,10 @@ export default function Page() {
           const data = await res.json();
           if (data.allowed) {
             recordEntitlementVerified();
+            // Remember the server's phase/reason so the promo banner shows the
+            // truthful message (free-period vs individual trial vs subscribed).
+            if (data.phase === "free" || data.phase === "paywall") setEntitlementPhase(data.phase);
+            if (typeof data.reason === "string") setEntitlementReason(data.reason);
             setGate("granted");
           } else {
             // Server says no valid entitlement (paywall phase). Send them to the
@@ -5839,6 +5849,37 @@ export default function Page() {
   // behaviour bulletproof regardless of Safari's fixed-positioning quirks.
   const coachViewActive = isFullscreen || showFullscreenMobilePlayer;
 
+  // Promo-banner wording, driven by the SERVER phase (never the device clock):
+  //  • free phase        → "free until 31 August 2026, no card required"
+  //  • paywall + trialing → the individual 30-day trial message
+  //  • subscribed / grace / unknown → neutral brand strip (no trial claim)
+  // The 44px strip always renders so the layout height calc stays stable.
+  const promoBanner = (() => {
+    if (entitlementPhase === "free") {
+      return {
+        short: "Free until 31 Aug 2026",
+        shortAccent: "no card required",
+        long: "EQHO Player is free until 31 August 2026 —",
+        longAccent: "no card required",
+      };
+    }
+    if (entitlementPhase === "paywall" && entitlementReason === "trialing") {
+      return {
+        short: "Free trial ·",
+        shortAccent: "30 days free, then subscribe",
+        long: "Your 30-day free trial —",
+        longAccent: "enjoy every feature free for 30 days",
+      };
+    }
+    // Subscribed, in grace, admin, or phase not yet known: stay neutral.
+    return {
+      short: "EQHO Player",
+      shortAccent: "ready when you are",
+      long: "EQHO Player —",
+      longAccent: "set the running order, then press play",
+    };
+  })();
+
   return (
     <div
       className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
@@ -5854,15 +5895,15 @@ export default function Page() {
         <Crown size={15} className="shrink-0 text-[#ff8a00]" />
         <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
           <span className="sm:hidden">
-            Free trial ·{" "}
+            {promoBanner.short}{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              30 days free, then subscribe
+              {promoBanner.shortAccent}
             </span>
           </span>
           <span className="hidden sm:inline">
-            Your 30-day free trial —{" "}
+            {promoBanner.long}{" "}
             <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              enjoy every feature free for 30 days
+              {promoBanner.longAccent}
             </span>
           </span>
         </p>

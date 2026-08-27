@@ -379,7 +379,7 @@ function CompleteSignupContent() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-4">
-              {['Cloud Storage', 'Playback Tools', 'Cross Device Sync', 'Offline Playback'].map((feature) => (
+              {['Cloud Storage', 'Playback Tools', 'Cross-Device Access', 'Offline Playback'].map((feature) => (
                 <div key={feature} className="flex items-center gap-1.5 text-sm text-[#e2e8f0]">
                   <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 bg-[#22c55e]">
                     <Check className="w-2.5 h-2.5 text-white" />

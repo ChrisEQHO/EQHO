@@ -3,7 +3,7 @@ import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { MarketingHome } from '@/components/marketing/marketing-home'
 import { MobileEntryRedirect } from '@/components/marketing/mobile-entry-redirect'
-import { SITE, FAQ } from '@/lib/marketing-config'
+import { SITE, getFaq, getOfferCopy } from '@/lib/marketing-config'
 
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
@@ -35,6 +35,7 @@ export default function HomePage() {
   // Structured data so search engines understand the product and can surface the
   // FAQ as rich results. Built from the same marketing config as the visible page,
   // so it never drifts from the on-page content.
+  const offer = getOfferCopy()
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -49,12 +50,14 @@ export default function HomePage() {
           '@type': 'Offer',
           price: '0',
           priceCurrency: 'GBP',
-          description: 'Includes a 30-day free trial.',
+          description: offer.preLaunch
+            ? 'Free to use until 31 August 2026. No card required.'
+            : 'Includes a 30-day free trial.',
         },
       },
       {
         '@type': 'FAQPage',
-        mainEntity: FAQ.map((item) => ({
+        mainEntity: getFaq().map((item) => ({
           '@type': 'Question',
           name: item.q,
           acceptedAnswer: { '@type': 'Answer', text: item.a },
