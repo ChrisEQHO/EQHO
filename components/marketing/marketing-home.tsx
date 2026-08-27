@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { ProductFrame } from '@/components/marketing/product-frame'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
+import { ScrollLink } from '@/components/marketing/scroll-link'
 import {
   SITE,
   LAUNCH,
@@ -173,7 +174,7 @@ export function MarketingHome() {
               Links down to the live player preview further down the page. */}
       <section className="flex min-h-0 items-start border-t border-white/5 sm:min-h-[clamp(220px,38svh,360px)] sm:items-center">
         <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-2 sm:px-6 sm:py-10">
-          <a
+          <ScrollLink
             href="#player-preview"
             className="group mx-auto flex w-full max-w-5xl flex-col items-center gap-2.5 rounded-3xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3.5 text-center shadow-[0_20px_60px_-20px_rgba(255,79,163,0.6)] transition-transform hover:scale-[1.01] sm:gap-3 sm:flex-row sm:justify-between sm:py-5 sm:text-left"
           >
@@ -187,7 +188,7 @@ export function MarketingHome() {
               Explore more
               <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden="true" />
             </span>
-          </a>
+          </ScrollLink>
         </div>
       </section>
 
