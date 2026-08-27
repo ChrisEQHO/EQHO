@@ -389,60 +389,6 @@ export function MarketingHome() {
         </div>
       </section>
 
-      {/* ── EQHO Music (store) ─────────────────────────────────────────────── */}
-      <section className="border-t border-white/5 bg-[#050814]">
-        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
-          <div className="overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(120%_120%_at_100%_0%,rgba(139,92,246,0.16),transparent_55%)]">
-            <div className="flex flex-col gap-10 p-8 sm:p-12 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-xl">
-                <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[#c4b5fd]">
-                  <Music2 className="h-4 w-4" aria-hidden="true" />
-                  EQHO Music
-                </p>
-                <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Competition-ready music. Find the track that fits.
-                </h2>
-                <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                  Browse, preview and listen to music created for competition.
-                </p>
-                <ul className="mt-6 space-y-3">
-                  {[
-                    'Search the EQHO Music library.',
-                    'Preview tracks before purchasing.',
-                    'Purchase and download your clean competition master.',
-                    'Standard prices start from £19.99 per track.',
-                    'Eligible EQHO customers get tracks from just £9.99 each.',
-                    'Customer pricing is applied automatically when signed in.',
-                  ].map((point) => (
-                    <li key={point} className="flex items-start gap-3 text-sm leading-relaxed text-[#cbd5e1]">
-                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#3b82f6] text-white">
-                        <Check className="h-3 w-3" aria-hidden="true" />
-                      </span>
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex w-full flex-col gap-3 sm:w-auto lg:shrink-0">
-                <Link
-                  href="/store"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03]"
-                >
-                  Browse competition music
-                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
-                </Link>
-                <Link
-                  href="/pricing"
-                  className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
-                >
-                  Join EQHO and save
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── Pricing preview ───────────────────────────────────────────────── */}
       <section className="border-t border-white/5">
         <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">

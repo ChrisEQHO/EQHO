@@ -141,10 +141,10 @@ export function SiteHeader() {
                 {CTA.secondary.label}
               </Link>
               <Link
-                href={CTA.primary.href}
-                className="inline-flex h-10 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03]"
+                href={CTA.headerCta.href}
+                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03]"
               >
-                {CTA.primary.label}
+                {CTA.headerCta.label}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </>
@@ -197,11 +197,11 @@ export function SiteHeader() {
                     {CTA.secondary.label}
                   </Link>
                   <Link
-                    href={CTA.primary.href}
+                    href={CTA.headerCta.href}
                     onClick={() => setOpen(false)}
                     className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white"
                   >
-                    {CTA.primary.label}
+                    {CTA.headerCta.label}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </>

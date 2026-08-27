@@ -4,7 +4,7 @@ import { Check, ArrowRight } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { getLivePrice } from '@/lib/get-pricing'
-import { SITE, PRICING, getPricingCopy } from '@/lib/marketing-config'
+import { SITE, PRICING, getPricingCopy, PLAYER_PACKAGE, CLUB_PACKAGE } from '@/lib/marketing-config'
 
 // Always fetch fresh so the page reflects the current Stripe price AND the current
 // launch phase (the copy switches automatically on 1 September 2026).
@@ -19,14 +19,10 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-const PLAN_FEATURES = [
-  'Unlimited playlists and session plans',
-  'Control the gap between routines',
-  'Set repeats and back-to-back playback',
-  'Cloud backup of your sessions',
-  'Use in the browser or install the app',
-  'Manage your subscription whenever you need',
-]
+// The EQHO Player benefit list is centralised in marketing-config so the pricing
+// page, homepage and any future surface never drift apart. It contains only
+// features that currently work.
+const PLAN_FEATURES = PLAYER_PACKAGE.benefits
 
 export default async function PricingPage() {
   // Live Stripe price (GBP), with £4.99 documented fallback. A single price value
@@ -117,6 +113,39 @@ export default async function PricingPage() {
                 </Link>
                 .
               </p>
+            </div>
+
+            {/* Planned future package — informational only. EQHO Club is NOT available
+                to buy yet; this panel exists so the future price is clear before anyone
+                subscribes. Unreleased features are marked "when released". */}
+            <div className="mx-auto mt-14 w-full max-w-3xl">
+              <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.02] p-7 sm:p-8">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-bold text-white">{CLUB_PACKAGE.name}</h2>
+                    <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-[#aeb9d4]">
+                      {`Planned from ${CLUB_PACKAGE.availableFrom}`}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-extrabold text-white">{CLUB_PACKAGE.price}</span>
+                    <span className="text-sm text-[#94a3b8]">{`per ${CLUB_PACKAGE.interval}`}</span>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-[#94a3b8]">
+                  {`A larger package planned for ${CLUB_PACKAGE.availableFrom}. It is not available to
+                  purchase yet and nothing changes for current EQHO Player subscribers — we will never
+                  move you to Club or change your price without clear notice and your consent.`}
+                </p>
+                <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                  {CLUB_PACKAGE.benefits.map((benefit) => (
+                    <li key={benefit} className="flex items-start gap-3 text-sm text-[#cbd5e1]">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#7c8596]" aria-hidden="true" />
+                      {benefit}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         </section>
