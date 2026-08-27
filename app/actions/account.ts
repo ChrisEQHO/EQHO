@@ -87,23 +87,59 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // 2) Cancel the Stripe subscription (best-effort). Read the id from the
-    //    profile BEFORE we delete the row.
+    // 2) Cancel the Stripe subscription immediately so deleting the account also
+    //    unsubscribes the user. Read the Stripe references from the profile BEFORE
+    //    we delete the row. We use immediate cancel (not cancel_at_period_end)
+    //    because the whole account is being removed.
     try {
       const { data: profile } = await adminClient
         .from('profiles')
-        .select('stripe_subscription_id')
+        .select('stripe_subscription_id, stripe_customer_id')
         .eq('id', userId)
         .maybeSingle()
 
       const subscriptionId = profile?.stripe_subscription_id as string | null | undefined
+      const customerId = profile?.stripe_customer_id as string | null | undefined
+
+      // 2a) Cancel the subscription recorded on the profile.
       if (subscriptionId) {
-        await stripe.subscriptions.cancel(subscriptionId)
-        console.log('[v0] deleteAccount: cancelled Stripe subscription', subscriptionId)
+        try {
+          await stripe.subscriptions.cancel(subscriptionId)
+          console.log('[v0] deleteAccount: cancelled Stripe subscription', subscriptionId)
+        } catch (subErr) {
+          // Already-cancelled/nonexistent subscriptions throw — billing is stopped.
+          console.warn('[v0] deleteAccount: subscription cancel skipped:', subErr)
+        }
+      }
+
+      // 2b) Fallback safety net: sweep the customer for any OTHER live
+      //     subscriptions (in case the profile id was stale or missing) so the
+      //     user cannot be left subscribed after deleting their account.
+      if (customerId) {
+        try {
+          const subs = await stripe.subscriptions.list({
+            customer: customerId,
+            status: 'all',
+            limit: 100,
+          })
+          for (const sub of subs.data) {
+            if (sub.id === subscriptionId) continue
+            if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
+              try {
+                await stripe.subscriptions.cancel(sub.id)
+                console.log('[v0] deleteAccount: cancelled extra Stripe subscription', sub.id)
+              } catch (innerErr) {
+                console.warn('[v0] deleteAccount: extra subscription cancel skipped:', sub.id, innerErr)
+              }
+            }
+          }
+        } catch (listErr) {
+          console.warn('[v0] deleteAccount: could not list customer subscriptions:', listErr)
+        }
       }
     } catch (stripeErr) {
-      // Already-cancelled subscriptions throw — that is fine, billing is stopped.
-      console.warn('[v0] deleteAccount: Stripe cancellation skipped/failed:', stripeErr)
+      // Never block account deletion on a Stripe error — log and continue.
+      console.warn('[v0] deleteAccount: Stripe cancellation step failed:', stripeErr)
     }
 
     // 3) Delete every R2 object owned by the user (best-effort).
