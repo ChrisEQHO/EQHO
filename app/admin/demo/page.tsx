@@ -285,6 +285,33 @@ export default function AdminDemoPage() {
     [refreshStatus],
   )
 
+  const [publishingProvided, setPublishingProvided] = useState(false)
+  const publishProvided = useCallback(async () => {
+    setError(null)
+    setPublishingProvided(true)
+    try {
+      const res = await fetch('/api/demo/admin', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'publish-provided', confirmPermission: true }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) {
+        setError(
+          data.error === 'Demo storage not configured'
+            ? 'R2 storage is not configured in this environment. Publish from the deployed site, where the R2 credentials exist.'
+            : data.error || 'Publish failed.',
+        )
+        return
+      }
+      await refreshStatus()
+    } catch {
+      setError('Publish request failed.')
+    } finally {
+      setPublishingProvided(false)
+    }
+  }, [refreshStatus])
+
   // ---- Render ------------------------------------------------------------
   return (
     <main className="min-h-screen bg-[#020617] px-4 py-12 text-white sm:px-6">
@@ -374,6 +401,24 @@ export default function AdminDemoPage() {
               ) : (
                 <p className="mt-2 text-[#94a3b8]">Nothing published yet.</p>
               )}
+            </section>
+
+            <section className="rounded-xl border border-white/10 bg-white/5 p-6">
+              <h2 className="text-lg font-semibold">Provided demo content</h2>
+              <p className="mt-2 text-sm text-[#94a3b8]">
+                Publish the ready-made snapshot supplied for the demo — 3 playlists (NDP Group,
+                DEV Group, FIG Group), 9 routines total. This downloads the provided files into
+                the demo storage and replaces any current snapshot. Requires R2 credentials, so
+                it only works on the deployed site.
+              </p>
+              <button
+                onClick={publishProvided}
+                disabled={publishingProvided}
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#ff8a00]/50 px-5 py-2.5 text-sm font-semibold text-[#ff8a00] hover:bg-[#ff8a00]/10 disabled:opacity-50"
+              >
+                {publishingProvided && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                {publishingProvided ? 'Publishing…' : 'Publish provided content'}
+              </button>
             </section>
 
             <button
