@@ -165,7 +165,7 @@ export function MarketingHome() {
             Try a ready-made training session and explore the controls for yourself.
           </p>
           <div className="mt-8 flex justify-center">
-            <DemoCta offerCta={offer.cta} offerCardNote={offer.cardNote} showSecondary={false} />
+            <PrimaryCta href="/features#interactive-demo" label="Try the interactive demo" />
           </div>
         </div>
       </section>

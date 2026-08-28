@@ -30,6 +30,10 @@ import {
 const DEMO_PREFIX = 'demo/'
 const MANIFEST_KEY = 'demo/manifest.json'
 
+/** Snapshot size limits (relaxed from the original fixed 2×5). */
+export const MAX_PLAYLISTS = 3
+export const MAX_TRACKS_PER_PLAYLIST = 10
+
 // ---------------------------------------------------------------------------
 // Public manifest types. Everything here is safe to expose to anonymous
 // visitors: display names, ordering, durations, and demo-relative audio keys.
@@ -215,6 +219,79 @@ function stripAudioMetadata(input: Buffer): Buffer {
 }
 
 // ---------------------------------------------------------------------------
+// MP3 duration estimation (no dependencies). Reads the first audio frame for
+// bitrate/sample-rate; uses a Xing/Info VBR header frame-count when present,
+// otherwise a CBR estimate from byte length. Duration is display-only in the
+// player (advance is driven by the audio element's `ended` event), so an
+// estimate that is close is entirely sufficient.
+// ---------------------------------------------------------------------------
+const MPEG_BITRATES_V1_L3 = [
+  0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0,
+]
+const MPEG_BITRATES_V2_L3 = [
+  0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0,
+]
+const SAMPLE_RATES = {
+  '3': [44100, 48000, 32000, 0], // MPEG1
+  '2': [22050, 24000, 16000, 0], // MPEG2
+  '0': [11025, 12000, 8000, 0], // MPEG2.5
+} as const
+
+function estimateMp3DurationSeconds(input: Buffer): number {
+  // Skip a leading ID3v2 tag if present.
+  let start = 0
+  if (input.length > 10 && input[0] === 0x49 && input[1] === 0x44 && input[2] === 0x33) {
+    const size =
+      ((input[6] & 0x7f) << 21) |
+      ((input[7] & 0x7f) << 14) |
+      ((input[8] & 0x7f) << 7) |
+      (input[9] & 0x7f)
+    start = 10 + size
+  }
+
+  // Find the first frame sync (11 bits set: 0xFF followed by 0xE0+).
+  let i = start
+  for (; i < input.length - 4; i++) {
+    if (input[i] === 0xff && (input[i + 1] & 0xe0) === 0xe0) break
+  }
+  if (i >= input.length - 4) return 0
+
+  const b1 = input[i + 1]
+  const b2 = input[i + 2]
+  const versionBits = (b1 >> 3) & 0x03 // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
+  const bitrateIndex = (b2 >> 4) & 0x0f
+  const sampleRateIndex = (b2 >> 2) & 0x03
+
+  const bitrateTable = versionBits === 3 ? MPEG_BITRATES_V1_L3 : MPEG_BITRATES_V2_L3
+  const bitrateKbps = bitrateTable[bitrateIndex]
+  const rates = SAMPLE_RATES[String(versionBits) as keyof typeof SAMPLE_RATES]
+  const sampleRate = rates ? rates[sampleRateIndex] : 0
+  if (!bitrateKbps || !sampleRate) return 0
+
+  const samplesPerFrame = versionBits === 3 ? 1152 : 576
+
+  // Look for a Xing/Info VBR header inside the first frame → exact frame count.
+  const window = input.subarray(i, Math.min(i + 200, input.length))
+  const xing = window.indexOf('Xing')
+  const info = window.indexOf('Info')
+  const tagPos = xing >= 0 ? xing : info
+  if (tagPos >= 0) {
+    const flagsPos = i + tagPos + 4
+    const flags = input.readUInt32BE(flagsPos)
+    if (flags & 0x0001) {
+      const frameCount = input.readUInt32BE(flagsPos + 4)
+      const seconds = (frameCount * samplesPerFrame) / sampleRate
+      if (seconds > 0 && Number.isFinite(seconds)) return Math.round(seconds)
+    }
+  }
+
+  // CBR fallback: audio bytes * 8 / bitrate.
+  const audioBytes = input.length - start
+  const seconds = (audioBytes * 8) / (bitrateKbps * 1000)
+  return seconds > 0 && Number.isFinite(seconds) ? Math.round(seconds) : 0
+}
+
+// ---------------------------------------------------------------------------
 // Publishing
 // ---------------------------------------------------------------------------
 export interface PublishTrackInput {
@@ -245,13 +322,18 @@ export async function publishSnapshot(
   const r2 = createR2Client()
   if (!r2) return { ok: false, error: 'Demo storage not configured' }
 
-  // Validate shape: exactly 2 playlists, exactly 5 tracks each.
-  if (playlists.length !== 2) {
-    return { ok: false, error: 'Exactly two playlists are required' }
+  // Validate shape: 1–3 playlists, each with at least one track (and a sane
+  // upper bound to keep the fixed demo small). The old "exactly 2×5" rule was
+  // relaxed so the snapshot can mirror the real folder structure.
+  if (playlists.length < 1 || playlists.length > MAX_PLAYLISTS) {
+    return { ok: false, error: `Between 1 and ${MAX_PLAYLISTS} playlists are required` }
   }
   for (const p of playlists) {
-    if (p.tracks.length !== 5) {
-      return { ok: false, error: 'Each playlist must have exactly five tracks' }
+    if (p.tracks.length < 1 || p.tracks.length > MAX_TRACKS_PER_PLAYLIST) {
+      return {
+        ok: false,
+        error: `Each playlist must have 1–${MAX_TRACKS_PER_PLAYLIST} tracks`,
+      }
     }
     for (const t of p.tracks) {
       // Defence-in-depth: never copy from anywhere but the admin's own space.
@@ -305,6 +387,101 @@ export async function publishSnapshot(
     }
 
     manifestPlaylists.push({ id: playlistId, name: p.name, tracks })
+  }
+
+  const manifest: DemoManifest = {
+    version: 1,
+    enabled: true,
+    publishedAt: new Date().toISOString(),
+    playlists: manifestPlaylists,
+  }
+  await writeManifest(manifest)
+  return { ok: true }
+}
+
+export interface SourceTrackInput {
+  /** Public display name for the track. */
+  name: string
+  /** Absolute https URL to fetch the source audio from. */
+  url: string
+}
+
+export interface SourcePlaylistInput {
+  name: string
+  tracks: SourceTrackInput[]
+}
+
+/**
+ * Publish a fixed demo snapshot from EXTERNAL source URLs (rather than copying
+ * from an admin's own R2 keys). Used to ingest content supplied directly for the
+ * demo. Each file is downloaded, stripped of ID3 metadata, duration-estimated,
+ * and uploaded under the demo/ prefix; then a fresh manifest is written. Never
+ * touches customer data under users/{userId}/.
+ */
+export async function publishSnapshotFromSources(
+  playlists: SourcePlaylistInput[],
+): Promise<{ ok: boolean; error?: string }> {
+  const r2 = createR2Client()
+  if (!r2) return { ok: false, error: 'Demo storage not configured' }
+
+  if (playlists.length < 1 || playlists.length > MAX_PLAYLISTS) {
+    return { ok: false, error: `Between 1 and ${MAX_PLAYLISTS} playlists are required` }
+  }
+  for (const p of playlists) {
+    if (!p.name?.trim()) return { ok: false, error: 'Every playlist needs a name' }
+    if (p.tracks.length < 1 || p.tracks.length > MAX_TRACKS_PER_PLAYLIST) {
+      return { ok: false, error: `Each playlist must have 1–${MAX_TRACKS_PER_PLAYLIST} tracks` }
+    }
+    for (const t of p.tracks) {
+      if (!t.name?.trim()) return { ok: false, error: 'Every track needs a name' }
+      if (!/^https:\/\//i.test(t.url)) {
+        return { ok: false, error: `Track "${t.name}" has an invalid source URL` }
+      }
+    }
+  }
+
+  // Clear any previous demo audio so a replace is clean.
+  await clearDemoAudio()
+
+  const manifestPlaylists: DemoPlaylist[] = []
+
+  for (let pi = 0; pi < playlists.length; pi++) {
+    const p = playlists[pi]
+    const playlistId = `p${pi + 1}`
+    const tracks: DemoTrack[] = []
+
+    for (let ti = 0; ti < p.tracks.length; ti++) {
+      const t = p.tracks[ti]
+      const audioKey = `${DEMO_PREFIX}audio/${playlistId}/${ti + 1}.mp3`
+
+      const res = await fetch(t.url)
+      if (!res.ok) {
+        return { ok: false, error: `Failed to download "${t.name}" (${res.status})` }
+      }
+      const raw = Buffer.from(await res.arrayBuffer())
+      const cleaned = stripAudioMetadata(raw)
+      const durationSeconds = estimateMp3DurationSeconds(raw)
+
+      await r2.client.send(
+        new PutObjectCommand({
+          Bucket: r2.bucket,
+          Key: audioKey,
+          Body: cleaned,
+          ContentType: 'audio/mpeg',
+          CacheControl: 'public, max-age=31536000, immutable',
+          // Deliberately NO Metadata block — no user id, title, path, etc.
+        }),
+      )
+
+      tracks.push({
+        id: `${playlistId}-t${ti + 1}`,
+        name: t.name.trim(),
+        durationSeconds,
+        audioKey,
+      })
+    }
+
+    manifestPlaylists.push({ id: playlistId, name: p.name.trim(), tracks })
   }
 
   const manifest: DemoManifest = {

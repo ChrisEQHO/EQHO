@@ -12,7 +12,7 @@ import { Play, Pause, Loader2, Check, AlertTriangle } from 'lucide-react'
  *
  * It reads ONLY the signed-in admin's own playlists/tracks (RLS-scoped via the
  * existing cloud-sync fetchers), never auto-publishes, and requires an explicit
- * final confirmation of exactly two playlists and ten tracks plus a permission
+ * final review (1–3 playlists, each with at least one track) plus a permission
  * checkbox before calling the admin publish API.
  */
 
@@ -42,8 +42,8 @@ interface DemoStatus {
   playlists: { name: string; trackCount: number; trackNames: string[] }[]
 }
 
-const MAX_PLAYLISTS = 2
-const TRACKS_PER_PLAYLIST = 5
+const MAX_PLAYLISTS = 3
+const MAX_TRACKS_PER_PLAYLIST = 10
 
 export default function AdminDemoPage() {
   const [phase, setPhase] = useState<Phase>('checking')
@@ -188,7 +188,7 @@ export default function AdminDemoPage() {
       if (!pe) return prev
       const selectedCount = Object.values(pe.tracks).filter((t) => t.selected).length
       const cur = pe.tracks[tid]
-      if (!cur.selected && selectedCount >= TRACKS_PER_PLAYLIST) return prev
+      if (!cur.selected && selectedCount >= MAX_TRACKS_PER_PLAYLIST) return prev
       return {
         ...prev,
         [pid]: {
@@ -215,8 +215,12 @@ export default function AdminDemoPage() {
     Object.values(edits[pid]?.tracks ?? {}).filter((t) => t.selected).length
 
   const allValid =
-    selectedPlaylistIds.length === MAX_PLAYLISTS &&
-    selectedPlaylistIds.every((pid) => tracksSelectedCount(pid) === TRACKS_PER_PLAYLIST) &&
+    selectedPlaylistIds.length >= 1 &&
+    selectedPlaylistIds.length <= MAX_PLAYLISTS &&
+    selectedPlaylistIds.every((pid) => {
+      const c = tracksSelectedCount(pid)
+      return c >= 1 && c <= MAX_TRACKS_PER_PLAYLIST
+    }) &&
     selectedPlaylistIds.every((pid) => (edits[pid]?.name ?? '').trim().length > 0)
 
   // Build the review model (ordered exactly as the playlist track order).
@@ -281,6 +285,33 @@ export default function AdminDemoPage() {
     [refreshStatus],
   )
 
+  const [publishingProvided, setPublishingProvided] = useState(false)
+  const publishProvided = useCallback(async () => {
+    setError(null)
+    setPublishingProvided(true)
+    try {
+      const res = await fetch('/api/demo/admin', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'publish-provided', confirmPermission: true }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) {
+        setError(
+          data.error === 'Demo storage not configured'
+            ? 'R2 storage is not configured in this environment. Publish from the deployed site, where the R2 credentials exist.'
+            : data.error || 'Publish failed.',
+        )
+        return
+      }
+      await refreshStatus()
+    } catch {
+      setError('Publish request failed.')
+    } finally {
+      setPublishingProvided(false)
+    }
+  }, [refreshStatus])
+
   // ---- Render ------------------------------------------------------------
   return (
     <main className="min-h-screen bg-[#020617] px-4 py-12 text-white sm:px-6">
@@ -291,8 +322,9 @@ export default function AdminDemoPage() {
           </p>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Demo setup</h1>
           <p className="mt-2 text-[#94a3b8]">
-            Publish a fixed public snapshot from your own account. Two playlists, five
-            tracks each. Your original playlists and files are never changed.
+            Publish a fixed public snapshot from your own account. Up to {MAX_PLAYLISTS}{' '}
+            playlists, up to {MAX_TRACKS_PER_PLAYLIST} tracks each. Your original playlists and
+            files are never changed.
           </p>
         </header>
 
@@ -371,6 +403,24 @@ export default function AdminDemoPage() {
               )}
             </section>
 
+            <section className="rounded-xl border border-white/10 bg-white/5 p-6">
+              <h2 className="text-lg font-semibold">Provided demo content</h2>
+              <p className="mt-2 text-sm text-[#94a3b8]">
+                Publish the ready-made snapshot supplied for the demo — 3 playlists (NDP Group,
+                DEV Group, FIG Group), 9 routines total. This downloads the provided files into
+                the demo storage and replaces any current snapshot. Requires R2 credentials, so
+                it only works on the deployed site.
+              </p>
+              <button
+                onClick={publishProvided}
+                disabled={publishingProvided}
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#ff8a00]/50 px-5 py-2.5 text-sm font-semibold text-[#ff8a00] hover:bg-[#ff8a00]/10 disabled:opacity-50"
+              >
+                {publishingProvided && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                {publishingProvided ? 'Publishing…' : 'Publish provided content'}
+              </button>
+            </section>
+
             <button
               onClick={startSelection}
               className="rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-6 py-3 text-sm font-semibold text-white"
@@ -384,7 +434,7 @@ export default function AdminDemoPage() {
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">
-                Select two playlists ({selectedPlaylistIds.length}/{MAX_PLAYLISTS})
+                Select up to {MAX_PLAYLISTS} playlists ({selectedPlaylistIds.length}/{MAX_PLAYLISTS})
               </h2>
               <button onClick={() => setPhase('overview')} className="text-sm text-[#94a3b8] hover:text-white">
                 Cancel
@@ -430,7 +480,7 @@ export default function AdminDemoPage() {
             <div className="flex justify-end">
               <button
                 onClick={goToTrackSelection}
-                disabled={selectedPlaylistIds.length !== MAX_PLAYLISTS}
+                disabled={selectedPlaylistIds.length < 1}
                 className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
               >
                 Choose tracks
@@ -442,7 +492,7 @@ export default function AdminDemoPage() {
         {phase === 'pick-tracks' && (
           <section className="space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Choose five tracks per playlist</h2>
+              <h2 className="text-lg font-semibold">Choose tracks for each playlist</h2>
               <button onClick={() => setPhase('pick-playlists')} className="text-sm text-[#94a3b8] hover:text-white">
                 Back
               </button>
@@ -462,14 +512,14 @@ export default function AdminDemoPage() {
                       className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
                     />
                   </label>
-                  <p className={`mt-3 text-sm ${count === TRACKS_PER_PLAYLIST ? 'text-green-400' : 'text-[#94a3b8]'}`}>
-                    {count}/{TRACKS_PER_PLAYLIST} selected
+                  <p className={`mt-3 text-sm ${count >= 1 ? 'text-green-400' : 'text-[#94a3b8]'}`}>
+                    {count} selected{count > MAX_TRACKS_PER_PLAYLIST ? ` (max ${MAX_TRACKS_PER_PLAYLIST})` : ''}
                   </p>
                   <ul className="mt-2 space-y-2">
                     {pl.tracks.map((t) => {
                       const te = pe?.tracks[t.id]
                       if (!te) return null
-                      const disabled = !te.selected && count >= TRACKS_PER_PLAYLIST
+                      const disabled = !te.selected && count >= MAX_TRACKS_PER_PLAYLIST
                       const key = `${pid}:${t.id}`
                       return (
                         <li

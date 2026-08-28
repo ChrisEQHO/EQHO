@@ -6,7 +6,7 @@ import { DemoCta } from '@/components/marketing/demo-cta'
 import { SITE, getFaq, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
-  title: `FAQ — ${SITE.name}`,
+  title: `FAQ's — ${SITE.name}`,
   description:
     'Answers to common questions about EQHO Player: pricing and the 30-day free trial, offline use, manual cloud upload, supported devices and cancelling.',
   alternates: { canonical: '/faq' },
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: `${SITE.url}/faq`,
     siteName: SITE.name,
-    title: `FAQ — ${SITE.name}`,
+    title: `FAQ's — ${SITE.name}`,
     description: 'Common questions about EQHO Player, answered.',
   },
 }

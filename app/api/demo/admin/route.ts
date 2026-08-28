@@ -4,10 +4,12 @@ import { isAdminEmail } from '@/lib/access'
 import {
   readManifest,
   publishSnapshot,
+  publishSnapshotFromSources,
   setDemoEnabled,
   isDemoStorageConfigured,
   type PublishPlaylistInput,
 } from '@/lib/demo/demo-storage'
+import { PROVIDED_DEMO_CONTENT } from '@/lib/demo/provided-content'
 
 /**
  * ADMIN-ONLY demo control API. Every handler requires a valid Supabase session
@@ -95,9 +97,23 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(body.playlists)) {
       return NextResponse.json({ error: 'Missing playlists' }, { status: 400 })
     }
-    // publishSnapshot enforces exactly 2×5 and validates every source key is
-    // owned by this admin before copying.
+    // publishSnapshot enforces the size limits (1–3 playlists, 1–10 tracks each)
+    // and validates every source key is owned by this admin before copying.
     const res = await publishSnapshot(gate.user.id, body.playlists)
+    return NextResponse.json(res, { status: res.ok ? 200 : 400 })
+  }
+
+  if (body.action === 'publish-provided') {
+    // Publish the fixed, pre-logged demo content (NDP / DEV / FIG). Downloads
+    // each source file, strips metadata and writes the demo/ snapshot. Requires
+    // R2 write credentials, which exist in the deployed environment.
+    if (body.confirmPermission !== true) {
+      return NextResponse.json(
+        { error: 'Permission to publish must be confirmed' },
+        { status: 400 },
+      )
+    }
+    const res = await publishSnapshotFromSources(PROVIDED_DEMO_CONTENT)
     return NextResponse.json(res, { status: res.ok ? 200 : 400 })
   }
 
