@@ -1,7 +1,19 @@
 import { updateSession } from "@/lib/supabase/middleware"
-import { type NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Public interactive demo endpoint: it must be reachable by logged-out
+  // visitors on /features. Short-circuit BEFORE updateSession runs, so the
+  // unauthenticated /login redirect can never intercept it. Scoped to the demo
+  // API only (exact '/api/demo' plus the '/api/demo/' prefix); it does not make
+  // any other route public, and routes beneath /api/demo/ still enforce their
+  // own auth internally.
+  if (pathname === "/api/demo" || pathname.startsWith("/api/demo/")) {
+    return NextResponse.next()
+  }
+
   return await updateSession(request)
 }
 
