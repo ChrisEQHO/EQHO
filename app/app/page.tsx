@@ -8409,8 +8409,10 @@ export default function Page() {
                 );
               })}
 
-              {/* Playhead */}
-              {currentTrack && (
+              {/* Playhead — only once playback has actually progressed. At 00:00
+                  (session not started) it would otherwise sit pinned to the far
+                  left as a stray grey vertical line, so we hide it until then. */}
+              {currentTrack && trackProgress > 0 && (
                 <div
                   className="pointer-events-none absolute top-0 bottom-0 w-[2px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)]"
                   style={{ left: `${trackProgress}%` }}
@@ -10156,11 +10158,14 @@ export default function Page() {
                               />
                             );
                           })}
-                          {/* Playhead indicator */}
-                          <div 
-                            className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_4px_rgba(255,255,255,0.5)]"
-                            style={{ left: `${Math.max(8, Math.min(trackProgress, 100) * 0.92 + 8)}%` }}
-                          />
+                          {/* Playhead indicator — hidden at 00:00 so it doesn't
+                              appear as a stray grey vertical line before playback. */}
+                          {trackProgress > 0 && (
+                            <div 
+                              className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_4px_rgba(255,255,255,0.5)]"
+                              style={{ left: `${Math.max(8, Math.min(trackProgress, 100) * 0.92 + 8)}%` }}
+                            />
+                          )}
                           <div className="absolute bottom-0.5 left-2 text-[9px] text-white/60">
                             {formatDuration(currentTime)}
                           </div>
