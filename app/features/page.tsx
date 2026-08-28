@@ -28,6 +28,7 @@ import { SiteFooter } from '@/components/marketing/site-footer'
 import { ProductFrame } from '@/components/marketing/product-frame'
 import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
+import { ExploreScreenshot } from '@/components/marketing/explore-screenshot'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -92,6 +93,103 @@ const DEVICE_POINTS = [
   { icon: Tablet, text: 'Coach from a tablet or laptop browser at the side of the floor.' },
   { icon: Smartphone, text: 'Download the free app for the best experience on iPad and iPhone.' },
   { icon: WifiOff, text: 'Load your session before you travel so it plays from your device.' },
+]
+
+// Genuine EQHO Player screenshots for the "Explore every part" tour. Each row
+// alternates the screenshot and its bullet list on desktop / iPad landscape
+// (lg:) and stacks the screenshot above the list on mobile / iPad portrait.
+type ExploreSection = {
+  label: string
+  heading: string
+  image: { src: string; alt: string; width: number; height: number }
+  points?: string[]
+  groups?: { label: string; items: string[] }[]
+  reverse?: boolean
+}
+
+const EXPLORE_SECTIONS: ExploreSection[] = [
+  {
+    label: 'Playlists',
+    heading: 'Organise your playlists',
+    image: {
+      src: '/marketing/explore-library.png',
+      alt: 'EQHO Player library screen showing five local playlists — Training Playlist, Test Playlist, MIAC music, New Musics and Fig Group — each with a track count, duration, a synced status and a Send to Session button, above a drop zone for adding a playlist folder.',
+      width: 2048,
+      height: 1017,
+    },
+    points: [
+      'Add a complete folder of routine music as a playlist.',
+      'Create separate playlists for squads, levels or competitions.',
+      'See track totals, playlist durations and synchronisation status.',
+      'Review and remove individual tracks.',
+      'Send any playlist directly into the session running order.',
+      'Keep locally downloaded playlists ready on the device.',
+    ],
+  },
+  {
+    label: 'EQHO Cloud',
+    heading: 'Back up and move your music',
+    image: {
+      src: '/marketing/explore-cloud.png',
+      alt: 'EQHO Cloud screen with Upload to Cloud, Download from Cloud, Download Playlists and Push to Apps options for backing up and moving playlists between devices.',
+      width: 2048,
+      height: 1048,
+    },
+    points: [
+      'Push playlists and audio to secure EQHO Cloud storage.',
+      'Restore pushed playlists on another supported device.',
+      'Download playlists for local backup and competition preparation.',
+      'Push updated playlists to connected EQHO applications.',
+      'Keep cloud and device copies under the same EQHO account.',
+      'Use signed access URLs to help protect stored audio.',
+    ],
+    reverse: true,
+  },
+  {
+    label: 'Settings',
+    heading: 'Set the player up your way',
+    image: {
+      src: '/marketing/explore-settings.png',
+      alt: 'EQHO Player settings screen with Subscription, Playback, Session Controls, Coach Display, Countdown Timer Sound, Warnings, EQHO Cloud, Account and Danger Zone panels.',
+      width: 2048,
+      height: 1078,
+    },
+    groups: [
+      {
+        label: 'Plan & playback',
+        items: [
+          'View the current plan and subscription status.',
+          'Choose the default playback volume.',
+          'Turn automatic next-track playback on or off.',
+        ],
+      },
+      {
+        label: 'Session timing',
+        items: [
+          'Set the default gap between routines.',
+          'Choose the default number of playlist repeats.',
+          'Enable or disable back-to-back playback.',
+        ],
+      },
+      {
+        label: 'Coaching cues',
+        items: [
+          'Show a countdown before each routine.',
+          'Choose and preview the countdown sound.',
+          'Turn pause and skip-track safety warnings on or off.',
+        ],
+      },
+      {
+        label: 'Backup & account',
+        items: [
+          'Download a local playlist backup.',
+          'Push playlists to supported apps.',
+          'Change the account password or sign out securely.',
+          'Permanently delete the account and associated data.',
+        ],
+      },
+    ],
+  },
 ]
 
 function PrimaryCta({ className = '', label }: { className?: string; label?: string }) {
@@ -187,6 +285,87 @@ export default function FeaturesPage() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Explore every part (genuine screenshots) ─────────────────── */}
+        <section className="relative overflow-hidden border-t border-white/5">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(70%_60%_at_50%_0%,rgba(255,138,0,0.10),transparent_65%)]"
+          />
+          <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">A closer look</p>
+              <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                Explore every part of EQHO Player
+              </h2>
+              <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
+                From organising routine music to setting up playback and backing up playlists, EQHO Player
+                gives coaches the tools they need to prepare sessions and keep training moving.
+              </p>
+            </div>
+
+            <div className="mt-16 flex flex-col gap-20">
+              {EXPLORE_SECTIONS.map((section) => (
+                <div
+                  key={section.heading}
+                  className="grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-12"
+                >
+                  {/* Screenshot — first in the DOM so it sits ABOVE the list when
+                      stacked on mobile / iPad portrait; re-ordered on lg screens
+                      to alternate sides. */}
+                  <div className={section.reverse ? 'lg:order-2' : 'lg:order-1'}>
+                    <ExploreScreenshot
+                      src={section.image.src}
+                      alt={section.image.alt}
+                      width={section.image.width}
+                      height={section.image.height}
+                    />
+                  </div>
+
+                  <div className={section.reverse ? 'lg:order-1' : 'lg:order-2'}>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#ff8ac0]">
+                      {section.label}
+                    </p>
+                    <h3 className="mt-2 text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+                      {section.heading}
+                    </h3>
+
+                    {section.points && (
+                      <ul className="mt-6 space-y-3">
+                        {section.points.map((point) => (
+                          <li key={point} className="flex items-start gap-3 text-[15px] leading-relaxed text-[#cbd5e1]">
+                            <Check className="mt-1 h-4 w-4 shrink-0 text-[#ff8a00]" aria-hidden="true" />
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {section.groups && (
+                      <div className="mt-6 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+                        {section.groups.map((group) => (
+                          <div key={group.label}>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-[#ff8ac0]/80">
+                              {group.label}
+                            </p>
+                            <ul className="mt-3 space-y-2.5">
+                              {group.items.map((item) => (
+                                <li key={item} className="flex items-start gap-2.5 text-sm leading-relaxed text-[#cbd5e1]">
+                                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#ff8a00]" aria-hidden="true" />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
