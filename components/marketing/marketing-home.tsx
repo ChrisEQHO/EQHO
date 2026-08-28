@@ -123,10 +123,11 @@ export function MarketingHome() {
           <div className="eqho-glow-c absolute bottom-[-16%] left-[28%] h-[60vh] w-[52vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.55),rgba(255,79,163,0.35)_45%,transparent_72%)] blur-[100px]" />
         </div>
 
-        {/* z-2 — the real player screenshot, sat below + behind the copy.
-            Opacity is applied only to the image; no blur on desktop; aspect
-            ratio preserved via object-contain; edges masked; lower edge faded. */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex justify-center">
+        {/* z-2 — MOBILE/TABLET ONLY: the real player screenshot sat below + behind
+            the copy as a faded backdrop. On desktop (lg) this is hidden and the
+            screenshot instead becomes a solid framed panel in the right column of
+            the two-column hero, so copy and image never overlap. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex justify-center lg:hidden">
           <Image
             src="/marketing/hero-backdrop.png"
             alt=""
@@ -134,44 +135,67 @@ export function MarketingHome() {
             width={2940}
             height={1628}
             priority
-            className="h-auto w-[168%] max-w-none translate-y-[8%] object-contain opacity-[0.16] [mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] [-webkit-mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] sm:w-[92%] sm:translate-y-[2%] sm:opacity-[0.25] lg:w-[88%] lg:translate-y-[9%] lg:opacity-[0.33]"
+            className="h-auto w-[168%] max-w-none translate-y-[8%] object-contain opacity-[0.16] [mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] [-webkit-mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] sm:w-[92%] sm:translate-y-[2%] sm:opacity-[0.25]"
           />
         </div>
-        {/* lower-edge fade dissolves the screenshot into the page background */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-b from-transparent to-[#020617]" />
+        {/* lower-edge fade dissolves the screenshot into the page background (mobile/tablet only) */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-b from-transparent to-[#020617] lg:hidden" />
 
-        {/* z-3 — localised navy readability gradient behind the copy only */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(56%_46%_at_50%_30%,rgba(2,6,23,0.82),rgba(2,6,23,0.4)_58%,transparent_100%)]" />
+        {/* z-3 — localised navy readability gradient behind the centered copy (mobile/tablet only) */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(56%_46%_at_50%_30%,rgba(2,6,23,0.82),rgba(2,6,23,0.4)_58%,transparent_100%)] lg:hidden" />
 
-        {/* z-4 — hero copy + CTAs, balanced in the upper-middle */}
-        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-2 pt-6 text-center sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)] lg:items-start lg:justify-center lg:text-left">
-          <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)] lg:max-w-[640px]">
-            Manage your music.
-            <br />
-            Make more time for coaching.
-          </h1>
-          <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)] lg:mx-0 lg:max-w-[580px]">
-            EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
-          </p>
-          <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
-            <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
-            <Link
-              href="/features"
-              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-[#ff4fa3]/55 bg-[#0e1526] px-7 text-base font-semibold text-white transition-all hover:border-[#ff4fa3]/80 hover:bg-[#16203a] hover:shadow-[0_8px_30px_-8px_rgba(255,79,163,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 sm:w-auto"
+        {/* z-4 — hero content. Mobile/tablet: single centered column (copy over the
+            faded backdrop above). Desktop (lg): a true two-column split — all copy
+            on the LEFT, the player screenshot as a solid framed panel on the RIGHT,
+            with a column gap so the two never overlap. Column ratio is tuned so the
+            copy has room to breathe and the wide screenshot keeps correct proportions. */}
+        <div className="relative z-[4] mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-center gap-10 px-4 pb-2 pt-6 sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-12">
+          {/* Left column — copy + CTAs */}
+          <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
+              Manage your music.
+              <br />
+              Make more time for coaching.
+            </h1>
+            <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)] lg:mx-0">
+              EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
+            </p>
+            <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
+              <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
+              <Link
+                href="/features"
+                className="inline-flex h-12 w-full items-center justify-center rounded-full border border-[#ff4fa3]/55 bg-[#0e1526] px-7 text-base font-semibold text-white transition-all hover:border-[#ff4fa3]/80 hover:bg-[#16203a] hover:shadow-[0_8px_30px_-8px_rgba(255,79,163,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 sm:w-auto"
+              >
+                Explore EQHO Player
+              </Link>
+            </div>
+            <ScrollLink
+              href="/#how-it-works"
+              className="mt-[clamp(0.75rem,2vh,1.25rem)] inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 rounded"
             >
-              Explore EQHO Player
-            </Link>
+              See how it works
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </ScrollLink>
+            <p className="mt-[clamp(0.5rem,1.5vh,1rem)] text-sm text-[#94a3b8]">
+              {offer.cardNote}
+            </p>
           </div>
-          <ScrollLink
-            href="/#how-it-works"
-            className="mt-[clamp(0.75rem,2vh,1.25rem)] inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 rounded"
-          >
-            See how it works
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </ScrollLink>
-          <p className="mt-[clamp(0.5rem,1.5vh,1rem)] text-sm text-[#94a3b8]">
-            {offer.cardNote}
-          </p>
+
+          {/* Right column — framed player screenshot (desktop only). Solid dark
+              frame with a subtle border/shadow so it reads as a product panel and
+              fully hides the background behind it. */}
+          <div className="hidden lg:block">
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
+              <Image
+                src="/marketing/hero-backdrop.png"
+                alt="The EQHO Player interface showing the now playing track, running order and session controls."
+                width={2940}
+                height={1628}
+                priority
+                className="h-auto w-full object-cover"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
