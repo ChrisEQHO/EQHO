@@ -157,7 +157,7 @@ export function MarketingHome() {
             <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
             <Link
               href="/features"
-              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-[#ff4fa3]/40 bg-white/[0.03] px-7 text-base font-semibold text-white transition-all hover:border-[#ff4fa3]/70 hover:bg-white/[0.06] hover:shadow-[0_8px_30px_-8px_rgba(255,79,163,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 sm:w-auto"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-[#ff4fa3]/55 bg-[#0e1526] px-7 text-base font-semibold text-white transition-all hover:border-[#ff4fa3]/80 hover:bg-[#16203a] hover:shadow-[0_8px_30px_-8px_rgba(255,79,163,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 sm:w-auto"
             >
               Explore EQHO Player
             </Link>
