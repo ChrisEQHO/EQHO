@@ -206,6 +206,24 @@ export function MarketingHome() {
         </div>
       </section>
 
+      {/* ── Value statement — sits above the "Take a look at the player" banner.
+              Centered heading + supporting paragraph reinforcing the coaching-time
+              benefit before the visitor scrolls into the player preview. */}
+      <section className="border-t border-white/5">
+        <div className="mx-auto w-full max-w-3xl px-4 py-14 text-center sm:px-6 sm:py-20">
+          <h2 className="text-balance font-extrabold leading-[1.08] tracking-tight text-[clamp(1.75rem,4vw,2.75rem)]">
+            Floor time is for coaching,
+            <br />
+            not searching for tracks.
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-pretty leading-relaxed text-[#94a3b8] text-[clamp(1rem,1.3vw,1.125rem)]">
+            When training time is limited, every interruption takes valuable time away from your session.
+            EQHO Player keeps your running order, gaps and repeats organised, helping you maximise the time
+            available for routines. Set up your session in around 30 seconds, press play and focus on coaching.
+          </p>
+        </div>
+      </section>
+
       {/* ── "Take a look at the player below" banner — sits directly under the
               hero so that on first load the visitor sees the hero image and then
               ONLY this single CTA before scrolling. The section min-height is
