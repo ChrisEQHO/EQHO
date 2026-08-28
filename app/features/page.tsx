@@ -29,6 +29,8 @@ import { ProductFrame } from '@/components/marketing/product-frame'
 import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
 import { ExploreScreenshot } from '@/components/marketing/explore-screenshot'
+import { DemoCta } from '@/components/marketing/demo-cta'
+import { InteractiveDemoPlaceholder } from '@/components/marketing/interactive-demo-placeholder'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -221,24 +223,36 @@ export default function FeaturesPage() {
           <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-14 sm:px-6 sm:pt-20">
             <div className="mx-auto max-w-3xl text-center">
               <h1 className="text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-                Everything EQHO Player does, in one place.
+                Try EQHO Player
               </h1>
               <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                See the whole player — how you build the running order, control timing and repeats, back
-                your sessions up to the cloud, and coach from any device.
+                Explore a ready-made training session and see how the player works. No account needed.
               </p>
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
-                <Link
-                  href="/pricing"
-                  className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
-                >
-                  See pricing
-                </Link>
+              <div className="mt-8 flex justify-center">
+                <DemoCta
+                  offerCta={offer.cta}
+                  offerCardNote={offer.cardNote}
+                  demoLabel="Start the demo"
+                  demoHref="#interactive-demo"
+                  demoSamePage
+                  showSecondary={false}
+                />
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="mx-auto mt-14 max-w-5xl">
+        {/* ── Phase Two demo location ──────────────────────────────────────
+              The interactive demo will live here in Phase Two. The
+              `#interactive-demo` anchor exists in every environment so links
+              resolve, but the labelled internal placeholder only renders in
+              development/preview (hidden on the production website). A genuine
+              static preview of the player sits below it so the section is never
+              empty for public visitors. */}
+        <section id="interactive-demo" className="scroll-mt-24 border-t border-white/5">
+          <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6">
+            <InteractiveDemoPlaceholder />
+            <div className="mt-8">
               <ProductFrame />
             </div>
           </div>

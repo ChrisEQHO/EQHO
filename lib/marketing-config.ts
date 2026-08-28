@@ -264,16 +264,16 @@ export const CTA = {
 // (and re-enable the store via NEXT_PUBLIC_STORE_ENABLED) when it is ready.
 export const NAV_LINKS: { label: string; href: string }[] = [
   { label: 'The player', href: '/features' },
-  { label: 'How it works', href: '/#how-it-works' },
-  { label: 'Who it’s for', href: '/#audiences' },
+  { label: 'How it works', href: '/how-it-works' },
+  { label: 'Who it’s for', href: '/who-its-for' },
   { label: 'Pricing', href: '/pricing' },
-  { label: "FAQ's", href: '/#faq' },
+  { label: 'FAQ', href: '/faq' },
 ]
 
 /** The problem → outcome framing under the hero. */
 export const PROBLEM = {
   heading: 'Floor time is for coaching, not searching for tracks.',
-  body: 'When training time is limited, every interruption takes valuable time away from your session. EQHO Player keeps your running order, gaps and repeats organised, helping you maximise the time available for routines. Set up your session in around 30 seconds, press play and focus on coaching.',
+  body: 'Arrange your routines before training, set the gaps and repeats, then press play and focus on the floor.',
 } as const
 
 /**
@@ -283,74 +283,98 @@ export const PROBLEM = {
 export const FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: 'ListOrdered',
-    title: 'Keep the running order',
-    body: 'Your playlist stays in the order you prepared, ready for the next routine.',
+    title: 'Keep your running order',
+    body: 'Arrange routines exactly as you need them for the session.',
   },
   {
     icon: 'Timer',
     title: 'Control the gaps',
-    body: 'Choose how many seconds athletes have between routines.',
+    body: 'Choose how much time plays between routines.',
   },
   {
     icon: 'Repeat',
-    title: 'Run repetitions without stopping',
-    body: 'Use back-to-back playback and set how many times a routine should run.',
+    title: 'Repeat without searching',
+    body: 'Replay routines without leaving the session view.',
+  },
+  {
+    icon: 'ListMusic',
+    title: 'Build useful playlists',
+    body: 'Prepare playlists for partnerships, groups or complete sessions.',
   },
   {
     icon: 'Eye',
-    title: 'Make better use of floor time',
-    body: 'Spend less of the session handling music and more of it coaching.',
-  },
-  {
-    icon: 'CloudUpload',
-    title: 'Your sessions, backed up',
-    body: 'Push your playlists and audio to your EQHO account. Log in on another device and download or load your pushed session before training.',
+    title: 'Keep sessions moving',
+    body: 'Move through the running order without stopping to find music.',
   },
   {
     icon: 'MonitorSmartphone',
-    title: 'Works on all your devices',
-    body: 'Use EQHO Player in any web browser on desktop, tablet or mobile. For the best experience on iPad and iPhone, download the free app from the Apple App Store.',
-  },
-]
-
-/** How-it-works steps. Not "01/02/03" decoration — these are a real sequence. */
-export const STEPS: { title: string; body: string }[] = [
-  {
-    title: 'Arrange the routines',
-    body: 'Put the competition music in the order you want to run it.',
-  },
-  {
-    title: 'Set the session controls',
-    body: 'Choose the gap between routines, set the repeats and switch on back-to-back playback when needed.',
-  },
-  {
-    title: 'Press play and coach',
-    body: 'EQHO Player follows the session plan while you watch, teach and give feedback.',
+    title: 'Use supported devices',
+    body: 'Access pushed playlists on supported desktop, tablet and mobile devices.',
   },
 ]
 
 /**
- * Audience cards. Launch focus is gymnastics coaches and clubs — the specific
- * disciplines named here are the ones EQHO markets to. (The product is not
- * restricted to these; this is positioning only.)
+ * How-it-works steps — the real end-to-end sequence, from preparing music to
+ * checking downloaded playlists before travelling. Shown on the dedicated
+ * /how-it-works page. Not "01/02/03" decoration; these are an actual order.
  */
-export const AUDIENCES: { icon: string; title: string; body: string }[] = [
+export const STEPS: { title: string; body: string }[] = [
   {
-    icon: 'Medal',
-    title: 'Gymnastics coaches',
-    body: 'Keep every gymnast’s floor music organised and ready to play throughout the training session.',
+    title: 'Create your playlists',
+    body: 'Upload your routine music and organise it into the playlists you need.',
   },
   {
-    icon: 'Music2',
-    title: 'Every gymnastics discipline',
-    body: 'Built for Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics routines.',
+    title: 'Arrange the running order',
+    body: 'Place routines in the order you want to run them.',
   },
   {
-    icon: 'Megaphone',
-    title: 'Clubs & squads',
-    body: 'Run squad sessions with running orders, gaps and repeats so floor time keeps moving.',
+    title: 'Set the session controls',
+    body: 'Choose the gap, set repeats and turn on back-to-back playback when needed.',
+  },
+  {
+    title: 'Press play and coach',
+    body: 'EQHO follows the running order while showing the current and next routine.',
+  },
+  {
+    title: 'Push sessions to EQHO Cloud',
+    body: 'When you choose to push a playlist, its audio and session information are saved to your EQHO account.',
+  },
+  {
+    title: 'Prepare your other devices',
+    body: 'Log in on each supported device and load or download the pushed playlists you need.',
+  },
+  {
+    title: 'Check before training',
+    body: 'Downloaded playlists can be used offline. Check them before travelling.',
   },
 ]
+
+/**
+ * Who EQHO Player is for. Launch focus is gymnastics coaches and clubs, and the
+ * specific disciplines EQHO markets to. Do NOT add dance, cheer, CrossFit,
+ * general fitness, EQHO Music or a marketplace here — those are out of scope.
+ */
+export const WHO_ITS_FOR = {
+  people: [
+    {
+      icon: 'Medal',
+      title: 'Gymnastics coaches',
+      body: 'Keep every gymnast’s floor music organised and ready to play throughout the training session.',
+    },
+    {
+      icon: 'Megaphone',
+      title: 'Clubs & squads',
+      body: 'Run squad sessions with running orders, gaps and repeats so floor time keeps moving.',
+    },
+  ],
+  disciplines: [
+    'Floor and Vault Gymnastics',
+    'Women’s Artistic Gymnastics',
+    'Acrobatic Gymnastics',
+    'Aerobic Gymnastics',
+    'Rhythmic Gymnastics',
+  ],
+} as const
 
 /** FAQ — honest answers, no invented specifics. */
 export const FAQ: { q: string; a: string }[] = [
@@ -359,7 +383,7 @@ export const FAQ: { q: string; a: string }[] = [
     a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
   },
   {
-    q: 'How much does EQHO Player cost?',
+    q: 'How much does it cost?',
     a: 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.',
   },
   {
@@ -368,15 +392,23 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Where is my music stored?',
-    a: 'When you push a playlist, your audio and running order are saved securely to your EQHO account so they are backed up and available when you log in.',
+    a: 'Cloud upload is manual: when you choose to push a playlist, its audio and running order are saved securely to your EQHO account so they are backed up and available when you log in on another device.',
   },
   {
-    q: 'Can I use it on the day without internet?',
-    a: 'Yes. Downloaded playlists play directly to your device, so you can use them without an internet connection. We recommend downloading and checking all your playlists on every device you plan to use before travelling to the venue.',
+    q: 'Can I use it offline?',
+    a: 'Yes. Downloaded playlists play directly on your device without an internet connection. Download and check every playlist on each device before travelling.',
   },
   {
-    q: 'What do I need to get started?',
-    a: 'Just an EQHO account and your routine music files. Create an account and upload a folder to build your first playlist.',
+    q: 'Does everything synchronise automatically?',
+    a: 'No. EQHO Player does not synchronise automatically. Cloud upload is manual — you choose when to push a playlist, and you load or download your pushed playlists on each device before training.',
+  },
+  {
+    q: 'Can I cancel?',
+    a: 'Yes. Cancel anytime before your 30-day trial ends and you will not be charged. You can also cancel your subscription whenever you like from your account settings.',
+  },
+  {
+    q: 'Is the interactive demo saved?',
+    a: 'No. The interactive demo resets each time and does not save any changes you make. It is a way to explore the player without an account.',
   },
 ]
 
@@ -391,7 +423,7 @@ export function getFaq(now: Date = new Date()): { q: string; a: string }[] {
     ? 'EQHO Player is free to use until 31 August 2026 — just create a free account, no card required. From 1 September 2026 you can start an individual 30-day free trial: you add your payment details securely through Stripe, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
     : 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
   return FAQ.map((item) =>
-    item.q === 'How much does EQHO Player cost?' ? { ...item, a: pricingAnswer } : item,
+    item.q === 'How much does it cost?' ? { ...item, a: pricingAnswer } : item,
   )
 }
 
@@ -401,8 +433,10 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
     heading: 'Product',
     links: [
       { label: 'The player', href: '/features' },
-      { label: 'How it works', href: '/#how-it-works' },
+      { label: 'How it works', href: '/how-it-works' },
+      { label: 'Who it’s for', href: '/who-its-for' },
       { label: 'Pricing', href: '/pricing' },
+      { label: 'FAQ', href: '/faq' },
     ],
   },
   {
