@@ -187,10 +187,11 @@ export function MarketingHome() {
             </p>
           </div>
 
-          {/* Framed player screenshot (desktop only) — col 2 spanning rows 1–2 so its
-              top meets the title top and its bottom meets the paragraph bottom. min-h-0
-              keeps it from inflating the row tracks; object-cover fills the frame. */}
-          <div className="hidden lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:block lg:min-h-0 lg:self-stretch">
+          {/* Framed player screenshot (desktop only) — col 2 aligned to the TITLE row
+              only, so its top meets the title top and its bottom meets the bottom of
+              "coaching." (the last title line). min-h-0 keeps it from inflating the row
+              track; object-cover fills the frame. */}
+          <div className="hidden lg:col-start-2 lg:row-start-1 lg:row-span-1 lg:block lg:min-h-0 lg:self-stretch">
             <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
               <Image
                 src="/marketing/hero-backdrop.png"
