@@ -134,7 +134,7 @@ export function MarketingHome() {
             width={2940}
             height={1628}
             priority
-            className="h-auto w-[168%] max-w-none translate-y-[8%] object-contain opacity-[0.16] [mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] [-webkit-mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] sm:w-[92%] sm:translate-y-[2%] sm:opacity-[0.25] lg:w-[88%] lg:opacity-[0.33]"
+            className="h-auto w-[168%] max-w-none translate-y-[8%] object-contain opacity-[0.16] [mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] [-webkit-mask-image:radial-gradient(80%_84%_at_50%_46%,#000_60%,transparent_100%)] sm:w-[92%] sm:translate-y-[2%] sm:opacity-[0.25] lg:w-[88%] lg:translate-y-[9%] lg:opacity-[0.33]"
           />
         </div>
         {/* lower-edge fade dissolves the screenshot into the page background */}
@@ -144,25 +144,32 @@ export function MarketingHome() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(56%_46%_at_50%_30%,rgba(2,6,23,0.82),rgba(2,6,23,0.4)_58%,transparent_100%)]" />
 
         {/* z-4 — hero copy + CTAs, balanced in the upper-middle */}
-        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-2 pt-6 text-center sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)]">
-          <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
+        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-2 pt-6 text-center sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)] lg:items-start lg:justify-center lg:text-left">
+          <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)] lg:max-w-[640px]">
             Manage your music.
             <br />
             Make more time for coaching.
           </h1>
-          <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)]">
+          <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)] lg:mx-0 lg:max-w-[580px]">
             EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
           </p>
-          <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row">
+          <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
             <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
             <Link
               href="/features"
-              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-[#ff4fa3]/55 bg-[#0e1526] px-7 text-base font-semibold text-white transition-all hover:border-[#ff4fa3]/80 hover:bg-[#16203a] hover:shadow-[0_8px_30px_-8px_rgba(255,79,163,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 sm:w-auto"
             >
               Explore EQHO Player
             </Link>
           </div>
-          <p className="mt-[clamp(0.75rem,2vh,1.25rem)] text-sm text-[#94a3b8]">
+          <ScrollLink
+            href="/#how-it-works"
+            className="mt-[clamp(0.75rem,2vh,1.25rem)] inline-flex items-center gap-1.5 text-sm font-semibold text-[#ffb673] underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]/60 rounded"
+          >
+            See how it works
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </ScrollLink>
+          <p className="mt-[clamp(0.5rem,1.5vh,1rem)] text-sm text-[#94a3b8]">
             {offer.cardNote}
           </p>
         </div>
