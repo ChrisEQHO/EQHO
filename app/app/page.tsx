@@ -671,6 +671,11 @@ export default function Page() {
   // build, not iPhone, not desktop). Used for the on-device diagnostic/build marker
   // so we can confirm the deployed iPad is actually running this revision.
   const [isIPadWeb, setIsIPadWeb] = useState(false);
+  // True ONLY on a real desktop device (mouse-class, not iPad in either
+  // orientation, not iPhone/Android). Drives the top promo banner, which is
+  // desktop-only. Starts false so the banner is never shown (and never flashes)
+  // on mobile or iPad before device detection runs on mount.
+  const [isDesktopDevice, setIsDesktopDevice] = useState(false);
   // Collapsed by default so the temporary diagnostics can NEVER block player taps.
   const [diagCollapsed, setDiagCollapsed] = useState(true);
   // ── TEMPORARY iPad diagnostics (diagnose-only) ─────────────────────────────────
@@ -725,6 +730,8 @@ export default function Page() {
       const isTablet = isIPad || (tabletViewportMatch && !finePointer);
       const isPhone = !isIPad && window.matchMedia("(max-width: 767px)").matches;
       const isDesktop = !isIPad && !isTablet && !isPhone;
+      // Feed the desktop-only promo banner (kept in sync on resize/orientation).
+      setIsDesktopDevice(isDesktop);
       const vv = window.visualViewport;
       const next = {
         isIPad,
@@ -5883,31 +5890,34 @@ export default function Page() {
   return (
     <div
       className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
-      // Publish the banner's fixed height so the layout height calcs below can
-      // reserve space for it (keeps the bottom controls from being clipped).
-      style={{ ["--promo-banner-height" as string]: "44px" } as React.CSSProperties}
+      // Publish the banner's height so the layout height calcs below can reserve
+      // space for it. The banner is desktop-only, so on mobile/iPad this collapses
+      // to 0px and the player reclaims the full height (no empty strip).
+      style={{ ["--promo-banner-height" as string]: isDesktopDevice ? "44px" : "0px" } as React.CSSProperties}
     >
-      {/* Branded launch/trial promo banner — full width, sits above every player
-          surface. Uses the EQHO brand orange → pink gradient (matching the logo) at
-          low opacity so it reads as a subtle on-brand strip, not a loud alert. Fixed
-          44px height matches the --promo-banner-height var above. */}
-      <div className="relative z-10 flex h-11 w-full items-center justify-center gap-2 overflow-hidden border-b border-white/10 px-3 text-center bg-[linear-gradient(90deg,rgba(255,138,0,0.16),rgba(255,79,163,0.20))]">
-        <Crown size={15} className="shrink-0 text-[#ff8a00]" />
-        <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
-          <span className="sm:hidden">
-            {promoBanner.short}{" "}
-            <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              {promoBanner.shortAccent}
+      {/* Branded promo banner — DESKTOP ONLY. Removed on mobile and iPad (both
+          orientations) per product: those surfaces are the primary player and the
+          strip added clutter. Uses the EQHO brand orange → pink gradient at low
+          opacity. Fixed 44px height matches the --promo-banner-height var above. */}
+      {isDesktopDevice && (
+        <div className="relative z-10 flex h-11 w-full items-center justify-center gap-2 overflow-hidden border-b border-white/10 px-3 text-center bg-[linear-gradient(90deg,rgba(255,138,0,0.16),rgba(255,79,163,0.20))]">
+          <Crown size={15} className="shrink-0 text-[#ff8a00]" />
+          <p className="truncate text-[11px] font-semibold leading-none tracking-tight text-white sm:text-sm">
+            <span className="sm:hidden">
+              {promoBanner.short}{" "}
+              <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
+                {promoBanner.shortAccent}
+              </span>
             </span>
-          </span>
-          <span className="hidden sm:inline">
-            {promoBanner.long}{" "}
-            <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
-              {promoBanner.longAccent}
+            <span className="hidden sm:inline">
+              {promoBanner.long}{" "}
+              <span className="bg-gradient-to-r from-[#ff8a00] to-[#ff4fa3] bg-clip-text font-bold text-transparent">
+                {promoBanner.longAccent}
+              </span>
             </span>
-          </span>
-        </p>
-      </div>
+          </p>
+        </div>
+      )}
 
       {/* Unified full-screen countdown — shown on EVERY web player surface
           (desktop, iPad, mobile web) during the inter-track gap so the "get ready"
