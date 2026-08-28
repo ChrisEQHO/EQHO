@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(body.playlists)) {
       return NextResponse.json({ error: 'Missing playlists' }, { status: 400 })
     }
-    // publishSnapshot enforces exactly 2×5 and validates every source key is
-    // owned by this admin before copying.
+    // publishSnapshot enforces the size limits (1–3 playlists, 1–10 tracks each)
+    // and validates every source key is owned by this admin before copying.
     const res = await publishSnapshot(gate.user.id, body.playlists)
     return NextResponse.json(res, { status: res.ok ? 200 : 400 })
   }

@@ -115,7 +115,7 @@ export function InteractiveDemo() {
   // ---- Audio element setup + teardown -----------------------------------
   useEffect(() => {
     const audio = new Audio()
-    audio.preload = 'none' // never preload the 10 files up front
+    audio.preload = 'none' // never preload the demo files up front
     audioRef.current = audio
     return () => {
       // Stop audio when leaving the page / unmounting.

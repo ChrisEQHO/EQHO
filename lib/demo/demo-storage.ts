@@ -30,6 +30,10 @@ import {
 const DEMO_PREFIX = 'demo/'
 const MANIFEST_KEY = 'demo/manifest.json'
 
+/** Snapshot size limits (relaxed from the original fixed 2×5). */
+export const MAX_PLAYLISTS = 3
+export const MAX_TRACKS_PER_PLAYLIST = 10
+
 // ---------------------------------------------------------------------------
 // Public manifest types. Everything here is safe to expose to anonymous
 // visitors: display names, ordering, durations, and demo-relative audio keys.
@@ -245,13 +249,18 @@ export async function publishSnapshot(
   const r2 = createR2Client()
   if (!r2) return { ok: false, error: 'Demo storage not configured' }
 
-  // Validate shape: exactly 2 playlists, exactly 5 tracks each.
-  if (playlists.length !== 2) {
-    return { ok: false, error: 'Exactly two playlists are required' }
+  // Validate shape: 1–3 playlists, each with at least one track (and a sane
+  // upper bound to keep the fixed demo small). The old "exactly 2×5" rule was
+  // relaxed so the snapshot can mirror the real folder structure.
+  if (playlists.length < 1 || playlists.length > MAX_PLAYLISTS) {
+    return { ok: false, error: `Between 1 and ${MAX_PLAYLISTS} playlists are required` }
   }
   for (const p of playlists) {
-    if (p.tracks.length !== 5) {
-      return { ok: false, error: 'Each playlist must have exactly five tracks' }
+    if (p.tracks.length < 1 || p.tracks.length > MAX_TRACKS_PER_PLAYLIST) {
+      return {
+        ok: false,
+        error: `Each playlist must have 1–${MAX_TRACKS_PER_PLAYLIST} tracks`,
+      }
     }
     for (const t of p.tracks) {
       // Defence-in-depth: never copy from anywhere but the admin's own space.
