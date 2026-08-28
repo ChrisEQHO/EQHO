@@ -3,7 +3,7 @@ import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { MarketingHome } from '@/components/marketing/marketing-home'
 import { MobileEntryRedirect } from '@/components/marketing/mobile-entry-redirect'
-import { SITE, getFaq, getOfferCopy } from '@/lib/marketing-config'
+import { SITE, getOfferCopy } from '@/lib/marketing-config'
 
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
@@ -38,32 +38,20 @@ export default function HomePage() {
   const offer = getOfferCopy()
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'SoftwareApplication',
-        name: SITE.name,
-        applicationCategory: 'MultimediaApplication',
-        operatingSystem: 'Web, iOS, Android',
-        description: SITE.description,
-        url: SITE.url,
-        offers: {
-          '@type': 'Offer',
-          price: '0',
-          priceCurrency: 'GBP',
-          description: offer.preLaunch
-            ? 'Free to use until 31 August 2026. No card required.'
-            : 'Includes a 30-day free trial.',
-        },
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: getFaq().map((item) => ({
-          '@type': 'Question',
-          name: item.q,
-          acceptedAnswer: { '@type': 'Answer', text: item.a },
-        })),
-      },
-    ],
+    '@type': 'SoftwareApplication',
+    name: SITE.name,
+    applicationCategory: 'MultimediaApplication',
+    operatingSystem: 'Web, iOS, Android',
+    description: SITE.description,
+    url: SITE.url,
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'GBP',
+      description: offer.preLaunch
+        ? 'Free to use until 31 August 2026. No card required.'
+        : 'Includes a 30-day free trial.',
+    },
   }
 
   return (

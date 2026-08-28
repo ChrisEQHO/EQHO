@@ -108,7 +108,7 @@ export default async function PricingPage() {
 
               <p className="mt-6 text-center text-sm text-[#7c8596]">
                 Questions about billing?{' '}
-                <Link href="/#faq" className="text-white underline-offset-4 hover:underline">
+                <Link href="/faq" className="text-white underline-offset-4 hover:underline">
                   Read the FAQ
                 </Link>
                 .

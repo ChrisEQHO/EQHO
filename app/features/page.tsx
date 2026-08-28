@@ -29,6 +29,8 @@ import { ProductFrame } from '@/components/marketing/product-frame'
 import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
 import { ExploreScreenshot } from '@/components/marketing/explore-screenshot'
+import { DemoCta } from '@/components/marketing/demo-cta'
+import { InteractiveDemoLazy } from '@/components/marketing/interactive-demo-lazy'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -221,25 +223,55 @@ export default function FeaturesPage() {
           <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-14 sm:px-6 sm:pt-20">
             <div className="mx-auto max-w-3xl text-center">
               <h1 className="text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-                Everything EQHO Player does, in one place.
+                Try EQHO Player
               </h1>
               <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                See the whole player — how you build the running order, control timing and repeats, back
-                your sessions up to the cloud, and coach from any device.
+                Explore a ready-made training session and see how the player works. No account needed.
               </p>
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
-                <Link
-                  href="/pricing"
-                  className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
-                >
-                  See pricing
-                </Link>
+              <div className="mt-8 flex justify-center">
+                <DemoCta
+                  offerCta={offer.cta}
+                  offerCardNote={offer.cardNote}
+                  demoLabel="Start the demo"
+                  demoHref="#interactive-demo"
+                  demoSamePage
+                  showSecondary={false}
+                />
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="mx-auto mt-14 max-w-5xl">
-              <ProductFrame />
+        {/* ── Interactive demo ─────────────────────────────────────────────
+              The public, isolated demo player lives here. It is lazy-loaded
+              (code-split + only fetched when scrolled near) and reads exclusively
+              from the read-only /api/demo endpoint — no auth, Stripe, cloud sync
+              or private player code is involved. When no snapshot is published
+              (or it is disabled), the wrapper shows a graceful fallback with the
+              real static preview instead, so the section is never broken. A
+              date-driven "Create free account" CTA sits directly beneath it. */}
+        <section id="interactive-demo" className="scroll-mt-24 border-t border-white/5">
+          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+            <InteractiveDemoLazy fallback={<ProductFrame />} />
+
+            <div className="mx-auto mt-12 max-w-2xl text-center">
+              <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+                Ready to set up your own sessions?
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-pretty leading-relaxed text-[#94a3b8]">
+                The demo resets each time and doesn’t save. Create a free account to build your own
+                playlists, push them to the cloud and use them on the floor.
+              </p>
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
+                <Link
+                  href="/how-it-works"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
+                >
+                  See how it works
+                </Link>
+              </div>
+              <p className="mt-4 text-sm text-[#94a3b8]">{offer.cardNote}</p>
             </div>
           </div>
         </section>
