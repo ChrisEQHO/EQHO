@@ -144,22 +144,28 @@ export function MarketingHome() {
         {/* z-3 — localised navy readability gradient behind the centered copy (mobile/tablet only) */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(56%_46%_at_50%_30%,rgba(2,6,23,0.82),rgba(2,6,23,0.4)_58%,transparent_100%)] lg:hidden" />
 
-        {/* z-4 — hero content. Mobile/tablet: single centered column (copy over the
-            faded backdrop above). Desktop (lg): a true two-column split — all copy
-            on the LEFT, the player screenshot as a solid framed panel on the RIGHT,
-            with a column gap so the two never overlap. Column ratio is tuned so the
-            copy has room to breathe and the wide screenshot keeps correct proportions. */}
-        <div className="relative z-[4] mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-center gap-10 px-4 pb-2 pt-6 sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-12">
-          {/* Left column — copy + CTAs */}
-          <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-            <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)]">
-              Manage your music.
-              <br />
-              Make more time for coaching.
-            </h1>
-            <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)] lg:mx-0">
-              EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
-            </p>
+        {/* z-4 — hero content. Mobile/tablet: single centered flex column (copy over
+            the faded backdrop above). Desktop (lg): a two-column grid where the title
+            (row 1), coaching paragraph (row 2) and CTA group (row 3) sit in the LEFT
+            column, and the framed player screenshot occupies the RIGHT column spanning
+            ONLY rows 1–2. That makes the screenshot's top edge line up with the top of
+            the title and its bottom edge line up with the bottom of the paragraph, with
+            the CTAs sitting below that aligned band. */}
+        <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 pb-2 pt-6 text-center sm:px-6 sm:pb-[clamp(2rem,5vh,3rem)] sm:pt-[clamp(2rem,9vh,6rem)] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-x-12 lg:gap-y-0 lg:text-left">
+          {/* Title — desktop col 1 / row 1 */}
+          <h1 className="text-balance font-extrabold leading-[1.03] tracking-tight text-[clamp(2.25rem,6vw,4.25rem)] lg:col-start-1 lg:row-start-1 lg:self-start">
+            Manage your music.
+            <br />
+            Make more time for coaching.
+          </h1>
+
+          {/* Coaching paragraph — desktop col 1 / row 2 */}
+          <p className="mx-auto mt-[clamp(1rem,2.5vh,1.75rem)] max-w-[720px] text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)] lg:mx-0 lg:col-start-1 lg:row-start-2 lg:mb-0">
+            EQHO Player makes training music easier to organise and control. Save time, reduce interruptions and keep your attention on your athletes.
+          </p>
+
+          {/* CTA group — desktop col 1 / row 3 (below the aligned title+paragraph band) */}
+          <div className="flex w-full flex-col items-center lg:col-start-1 lg:row-start-3 lg:items-start">
             <div className="mt-[clamp(1.5rem,3.5vh,2.5rem)] flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
               <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
               <Link
@@ -181,18 +187,18 @@ export function MarketingHome() {
             </p>
           </div>
 
-          {/* Right column — framed player screenshot (desktop only). Solid dark
-              frame with a subtle border/shadow so it reads as a product panel and
-              fully hides the background behind it. */}
-          <div className="hidden lg:block">
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
+          {/* Framed player screenshot (desktop only) — col 2 spanning rows 1–2 so its
+              top meets the title top and its bottom meets the paragraph bottom. min-h-0
+              keeps it from inflating the row tracks; object-cover fills the frame. */}
+          <div className="hidden lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:block lg:min-h-0 lg:self-stretch">
+            <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
               <Image
                 src="/marketing/hero-backdrop.png"
                 alt="The EQHO Player interface showing the now playing track, running order and session controls."
                 width={2940}
                 height={1628}
                 priority
-                className="h-auto w-full object-cover"
+                className="h-full w-full object-cover"
               />
             </div>
           </div>
