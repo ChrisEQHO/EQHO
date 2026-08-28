@@ -68,7 +68,10 @@ export default function PrivacyPolicyPage() {
         <div className="absolute -bottom-32 right-1/4 h-80 w-80 rounded-full bg-gradient-to-tl from-[#ff8a00]/15 to-transparent blur-3xl" />
       </div>
 
-      <div className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
+      <div
+        className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14"
+        style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
+      >
         {/* Breadcrumb */}
         <nav aria-label="Breadcrumb" className="mb-8">
           <ol className="flex items-center gap-2 text-sm text-[#7c8596]">

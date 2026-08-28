@@ -416,7 +416,13 @@ function CompleteSignupContent() {
 
   // Signup form state (fallback)
   return (
-    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
+    <div
+      className="min-h-screen bg-[#020617] flex items-center justify-center overflow-y-auto px-4"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+      }}
+    >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-[#ff4fa3]/8 to-transparent rounded-full blur-3xl" />
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/8 to-transparent rounded-full blur-3xl" />
