@@ -321,11 +321,15 @@ html.capacitor {
   -webkit-overflow-scrolling: touch;
 }
 
-/* iOS Capacitor specific - ensure safe areas are respected */
-html.capacitor body {
-  /* Account for iOS status bar/Dynamic Island */
-  padding-top: env(safe-area-inset-top);
-}
+/* iOS Capacitor safe areas.
+   NOTE: we deliberately do NOT put a global `padding-top: env(safe-area-inset-top)`
+   on the body. The player (/app) is built around 100dvh + its own explicit
+   env(safe-area-inset-top) math (stack margin, panel height calcs, fullscreen/queue
+   overlays), so a body-level inset double-applied it — producing the oversized gap at
+   the top of the player and clipping the bottom controls. Instead each route owns its
+   top inset exactly once (player surfaces, auth pages, legal pages, billing, etc.).
+   env() is 0 in normal browsers, so those per-route insets are no-ops on the website
+   and only take effect inside the native iOS app. */
 
 /* When viewport-fit: cover is active, ensure content respects safe areas */
 @supports (padding-top: env(safe-area-inset-top)) {

@@ -7802,6 +7802,12 @@ export default function Page() {
             // which previously covered the bottom of the grid (e.g. the last playlist's
             // Download/delete buttons). The ResizeObserver keeps this var in sync.
             height: "calc(100dvh - var(--mobile-controls-height, 100px) - var(--promo-banner-height, 0px))",
+            // Top safe-area inset for the desktop grid. iPad landscape now renders
+            // this grid at real device width, so it must clear the iOS status bar
+            // itself (the old global body inset is gone). box-sizing:border-box keeps
+            // content inside the fixed height, so nothing overflows. env() is 0 on a
+            // real desktop, so this stays 8px there — visually unchanged.
+            paddingTop: "calc(0.5rem + env(safe-area-inset-top))",
             ...(coachViewActive ? { display: "none" } : {}),
           }}
           >

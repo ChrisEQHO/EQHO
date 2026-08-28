@@ -199,8 +199,11 @@ export default function UpgradeClient() {
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/10 to-transparent rounded-full blur-3xl" />
       </div>
 
-      {/* Header */}
-      <header className="relative flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0">
+      {/* Header — owns the iOS top safe-area inset (env() is 0 on the web). */}
+      <header
+        className="relative flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+      >
         <Link href="/login">
           <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 h-8 w-8">
             <ArrowLeft className="h-4 w-4" />

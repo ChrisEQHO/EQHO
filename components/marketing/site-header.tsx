@@ -68,6 +68,11 @@ export function SiteHeader() {
         // Deep translucent blue-black. A touch more opaque once scrolled, and
         // stronger again on mobile via the media-query custom prop below.
         borderBottom: '1px solid rgba(118, 132, 190, 0.16)',
+        // Extend the glass bar under the iOS status bar / Dynamic Island in the
+        // native app so nav content clears it. env() is 0 in normal browsers, so
+        // this has no visual effect on the website. The absolute inset-0 bg layers
+        // fill this padding, keeping the glass continuous to the top edge.
+        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* z-0 — base translucent navy, opacity bumps after scroll */}

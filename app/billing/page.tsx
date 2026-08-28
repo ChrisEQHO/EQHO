@@ -431,10 +431,11 @@ export default function BillingPage() {
       className="min-h-screen w-full"
       style={{ backgroundColor: 'var(--eqho-bg-app)' }}
     >
-      {/* Header */}
+      {/* Header — pinned to the top edge, so it owns the iOS top safe-area inset
+          (env() is 0 on the web, so this only adds space inside the native app). */}
       <header 
         className="flex items-center gap-4 px-6 py-4 border-b" 
-        style={{ borderColor: 'var(--eqho-border)' }}
+        style={{ borderColor: 'var(--eqho-border)', paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
       >
         <Link href="/app">
           <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10">

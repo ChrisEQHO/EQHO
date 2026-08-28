@@ -91,25 +91,27 @@ export default function RootLayout({
       <head>
         {/* Layout selection (runs before first paint).
 
-            iPad web player === desktop web player (product requirement). iPad Safari
-            can't fit the fixed-column desktop grid at its native CSS width, so instead
-            of a separate tablet layout we make Safari render the FULL desktop layout at
-            a fixed 1280px reference width and zoom-to-fit. Result: the exact desktop
-            grid, columns and breakpoints (xl matches at 1280), just scaled to the iPad
-            screen — identical look AND behaviour, both orientations.
+            iPad renders at its REAL device width (device-width, 1:1) — no 1280px
+            emulation. The old approach forced Safari to a fixed 1280px reference and
+            zoomed-to-fit, which made every iPad (especially portrait) show the cramped
+            desktop grid shrunk down. Now the responsive system does the work:
 
-            Mechanism: overwrite the viewport meta with `width=1280` (NO initial-scale,
-            or Safari would refuse to shrink and add horizontal scroll) and always set
-            [data-desktop-layout]. We overwrite EVERY viewport meta so Next's own
-            `viewport` export (which sets initial-scale=1) can't re-introduce 1:1.
+              • The `desktop:` CSS variant = (width >= 1024px) AND [data-desktop-layout].
+              • We still set [data-desktop-layout] on iPad, so a LANDSCAPE iPad (>=1024px
+                CSS width) gets the full multi-column desktop grid, while a PORTRAIT iPad
+                (~768-834px, < 1024px) falls through the width gate to the proven mobile
+                stacked layout. No separate tablet layout needed.
 
-            True desktops keep device-width + the desktop grid; iPhones/Android keep the
-            phone stack. The attribute + viewport are re-applied on resize/orientation
-            and after DOMContentLoaded (so the framework's meta is overwritten too). */}
+            True desktops (mouse, >=1024px) get [data-desktop-layout] + the grid; iPhones
+            and Android phones never get the attribute and keep the phone stack. We do NOT
+            override the viewport meta anymore — Next's `viewport` export already sets
+            width=device-width, initial-scale=1, viewport-fit=cover for everyone, which is
+            exactly what we want. The attribute is re-evaluated on resize/orientation and
+            after DOMContentLoaded so desktop-window resizes stay reactive. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var setVP=function(c){var l=document.querySelectorAll('meta[name=viewport]');if(!l.length){var m=document.createElement('meta');m.setAttribute('name','viewport');m.setAttribute('content',c);(document.head||d).appendChild(m);return}for(var i=0;i<l.length;i++){if(l[i].getAttribute('content')!==c){l[i].setAttribute('content',c)}}};var apply=function(){if(isIpad){setVP('width=1280, viewport-fit=cover');d.setAttribute('data-desktop-layout','');return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
+              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var apply=function(){if(isIpad){d.setAttribute('data-desktop-layout','');return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
           }}
         />
         <link rel="icon" href="/favicon.png" type="image/png" sizes="any" />
