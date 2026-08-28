@@ -19,11 +19,21 @@ import {
 export const dynamic = 'force-dynamic'
 
 async function requireAdmin() {
-  const supabase = await createClient()
-  if (!supabase) return { error: 'Auth not configured', status: 500 as const }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Any failure to establish an authenticated admin session is treated as
+  // "not signed in" (401). An anonymous caller can never be an admin, so we
+  // never surface a 500 or an internal reason to unauthenticated requests.
+  let user: { id: string; email?: string | null } | null = null
+  try {
+    const supabase = await createClient()
+    if (supabase) {
+      const {
+        data: { user: u },
+      } = await supabase.auth.getUser()
+      user = u
+    }
+  } catch {
+    user = null
+  }
   if (!user) return { error: 'Unauthorized', status: 401 as const }
   if (!isAdminEmail(user.email)) return { error: 'Forbidden', status: 403 as const }
   return { user }

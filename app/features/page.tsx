@@ -30,7 +30,7 @@ import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/f
 import { AppStoreButton } from '@/components/marketing/app-store-button'
 import { ExploreScreenshot } from '@/components/marketing/explore-screenshot'
 import { DemoCta } from '@/components/marketing/demo-cta'
-import { InteractiveDemoPlaceholder } from '@/components/marketing/interactive-demo-placeholder'
+import { InteractiveDemoLazy } from '@/components/marketing/interactive-demo-lazy'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -242,18 +242,36 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* ── Phase Two demo location ──────────────────────────────────────
-              The interactive demo will live here in Phase Two. The
-              `#interactive-demo` anchor exists in every environment so links
-              resolve, but the labelled internal placeholder only renders in
-              development/preview (hidden on the production website). A genuine
-              static preview of the player sits below it so the section is never
-              empty for public visitors. */}
+        {/* ── Interactive demo ─────────────────────────────────────────────
+              The public, isolated demo player lives here. It is lazy-loaded
+              (code-split + only fetched when scrolled near) and reads exclusively
+              from the read-only /api/demo endpoint — no auth, Stripe, cloud sync
+              or private player code is involved. When no snapshot is published
+              (or it is disabled), the wrapper shows a graceful fallback with the
+              real static preview instead, so the section is never broken. A
+              date-driven "Create free account" CTA sits directly beneath it. */}
         <section id="interactive-demo" className="scroll-mt-24 border-t border-white/5">
-          <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6">
-            <InteractiveDemoPlaceholder />
-            <div className="mt-8">
-              <ProductFrame />
+          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+            <InteractiveDemoLazy fallback={<ProductFrame />} />
+
+            <div className="mx-auto mt-12 max-w-2xl text-center">
+              <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+                Ready to set up your own sessions?
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-pretty leading-relaxed text-[#94a3b8]">
+                The demo resets each time and doesn’t save. Create a free account to build your own
+                playlists, push them to the cloud and use them on the floor.
+              </p>
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
+                <Link
+                  href="/how-it-works"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
+                >
+                  See how it works
+                </Link>
+              </div>
+              <p className="mt-4 text-sm text-[#94a3b8]">{offer.cardNote}</p>
             </div>
           </div>
         </section>
