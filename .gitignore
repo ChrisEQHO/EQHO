@@ -14,6 +14,10 @@ node_modules
 .next/
 .DS_Store
 
+# Local-only copyrighted demo audio used by scripts/ingest-demo-content.mjs.
+# Never commit these source files.
+demo-source/
+
 # Capacitor mobile builds — generated ROOT-level native projects only.
 # Anchored with a leading slash so these do NOT also match the custom
 # eqho-audio plugin's own committed sources under native/eqho-audio/.
