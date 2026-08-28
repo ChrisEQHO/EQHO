@@ -267,7 +267,7 @@ export const NAV_LINKS: { label: string; href: string }[] = [
   { label: 'How it works', href: '/how-it-works' },
   { label: 'Who it’s for', href: '/who-its-for' },
   { label: 'Pricing', href: '/pricing' },
-  { label: 'FAQ', href: '/faq' },
+  { label: "FAQ's", href: '/faq' },
 ]
 
 /** The problem → outcome framing under the hero. */
@@ -436,7 +436,7 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
       { label: 'How it works', href: '/how-it-works' },
       { label: 'Who it’s for', href: '/who-its-for' },
       { label: 'Pricing', href: '/pricing' },
-      { label: 'FAQ', href: '/faq' },
+      { label: "FAQ's", href: '/faq' },
     ],
   },
   {
