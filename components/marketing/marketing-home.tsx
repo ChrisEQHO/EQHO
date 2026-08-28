@@ -187,19 +187,19 @@ export function MarketingHome() {
             </p>
           </div>
 
-          {/* Framed player screenshot (desktop only) — col 2 aligned to the TITLE row
-              only, so its top meets the title top and its bottom meets the bottom of
-              "coaching." (the last title line). min-h-0 keeps it from inflating the row
-              track; object-cover fills the frame. */}
-          <div className="hidden lg:col-start-2 lg:row-start-1 lg:row-span-1 lg:block lg:min-h-0 lg:self-stretch">
-            <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
+          {/* Framed player screenshot (desktop only) — col 2, centered vertically
+              against the title band. The image keeps its natural aspect ratio
+              (object-contain, h-auto) so the FULL interface is shown and never cropped;
+              it simply takes the column width and centers within the title row. */}
+          <div className="hidden lg:col-start-2 lg:row-start-1 lg:row-span-1 lg:block lg:min-h-0 lg:self-center">
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
               <Image
                 src="/marketing/hero-backdrop.png"
                 alt="The EQHO Player interface showing the now playing track, running order and session controls."
                 width={2940}
                 height={1628}
                 priority
-                className="h-full w-full object-cover"
+                className="h-auto w-full object-contain"
               />
             </div>
           </div>
