@@ -454,6 +454,13 @@ export const FOOTER_LINKS: { heading: string; links: { label: string; href: stri
       { label: 'Terms of Service', href: '/terms' },
     ],
   },
+  {
+    heading: 'Contact',
+    links: [
+      { label: 'info@eqho-player.com', href: 'mailto:info@eqho-player.com' },
+      { label: 'Download the app', href: APP.appStoreUrl },
+    ],
+  },
 ]
 
 /**
