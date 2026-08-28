@@ -7924,12 +7924,15 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
             >
               <Shield size={20} />
             </Link>
-            <button
-              onClick={handleLogout}
-              className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
-            >
-              <LogOut size={20} />
-            </button>
+            {/* Sign out is hidden in the public demo — there is no session. */}
+            {!demoMode && (
+              <button
+                onClick={handleLogout}
+                className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition"
+              >
+                <LogOut size={20} />
+              </button>
+            )}
           </nav>
         </aside>
 

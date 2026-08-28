@@ -18,6 +18,10 @@ import { Loader2, Play, X } from 'lucide-react'
  * The player bundle is code-split (next/dynamic, ssr:false) and only imported
  * when the visitor actually opens the demo, so it never weighs down the initial
  * /features load.
+ *
+ * Not-published fallback: we probe /api/demo first. If no snapshot is published
+ * (or it is disabled), we render the static `fallback` (the real product frame)
+ * with no launch affordance, so the section is graceful and never broken.
  */
 
 const EqhoPlayer = dynamic(
@@ -36,6 +40,27 @@ const EqhoPlayer = dynamic(
 
 export function DemoPlayerLazy({ fallback }: { fallback?: ReactNode }) {
   const [open, setOpen] = useState(false)
+  // null = still probing, true/false = whether a published demo snapshot exists.
+  const [available, setAvailable] = useState<boolean | null>(null)
+
+  // Probe the public demo endpoint once to decide whether to offer the launcher.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/demo', { headers: { accept: 'application/json' } })
+        if (!res.ok) throw new Error(String(res.status))
+        const data = await res.json()
+        if (cancelled) return
+        setAvailable(Boolean(data?.enabled) && Array.isArray(data.playlists) && data.playlists.length > 0)
+      } catch {
+        if (!cancelled) setAvailable(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Lock background scroll while the full-screen demo overlay is open, and allow
   // Escape to close it.
@@ -55,23 +80,28 @@ export function DemoPlayerLazy({ fallback }: { fallback?: ReactNode }) {
 
   return (
     <div className="relative">
-      {/* Launch card / poster — shows the static preview with a play affordance. */}
+      {/* Poster: the real static product frame, always shown as the section's
+          visual. When a demo snapshot is published, an overlay adds the launch
+          affordance on top of it. */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f1e]">
         {fallback}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-t from-[#050814]/85 via-[#050814]/40 to-transparent p-6 text-center">
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-8 text-base font-bold text-white shadow-[0_0_30px_rgba(255,79,163,0.35)] transition hover:opacity-95"
-          >
-            <Play size={20} aria-hidden="true" />
-            Launch the interactive demo
-          </button>
-          <p className="max-w-md text-pretty text-sm text-white/70">
-            The real EQHO Player, running live with sample playlists. Nothing is saved and no
-            account is required.
-          </p>
-        </div>
+
+        {available === true && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-t from-[#050814]/85 via-[#050814]/40 to-transparent p-6 text-center">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-8 text-base font-bold text-white shadow-[0_0_30px_rgba(255,79,163,0.35)] transition hover:opacity-95"
+            >
+              <Play size={20} aria-hidden="true" />
+              Launch the interactive demo
+            </button>
+            <p className="max-w-md text-pretty text-sm text-white/70">
+              The real EQHO Player, running live with sample playlists. Nothing is saved and no
+              account is required.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Full-screen overlay hosting the actual player in demo mode. */}

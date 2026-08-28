@@ -30,7 +30,7 @@ import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/f
 import { AppStoreButton } from '@/components/marketing/app-store-button'
 import { ExploreScreenshot } from '@/components/marketing/explore-screenshot'
 import { DemoCta } from '@/components/marketing/demo-cta'
-import { InteractiveDemoLazy } from '@/components/marketing/interactive-demo-lazy'
+import { DemoPlayerLazy } from '@/components/marketing/demo-player-lazy'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -252,7 +252,7 @@ export default function FeaturesPage() {
               date-driven "Create free account" CTA sits directly beneath it. */}
         <section id="interactive-demo" className="scroll-mt-24 border-t border-white/5">
           <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-            <InteractiveDemoLazy fallback={<ProductFrame />} />
+            <DemoPlayerLazy fallback={<ProductFrame />} />
 
             <div className="mx-auto mt-12 max-w-2xl text-center">
               <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
