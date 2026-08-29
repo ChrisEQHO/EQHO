@@ -5995,12 +5995,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
   return (
     <div
+      // data-eqho-embed-root marks the embedded container so the scoped
+      // `@container eqhoembed (max-width: 1023px)` rules in globals.css can turn
+      // the embedded MOBILE player into a bounded flex column (shell scrolls,
+      // controls bar becomes an in-flow sticky row instead of a viewport-fixed
+      // bar). Those rules only match inside this named size container, so the
+      // standalone /app player and the embedded DESKTOP layout are unaffected.
+      data-eqho-embed-root={embedded ? "" : undefined}
       className={
         embedded
           ? // Fill the parent embed box and become a size container so inner
             // 100cqh calcs + all `fixed` overlays resolve to THIS box, not the
             // viewport. [container-type:size] also establishes the containing
             // block for fixed descendants (no transform, so nothing is scaled).
+            // NOTE: the embedded-mobile flex-column rules key off the NAMED
+            // `eqhoembed` container on the PARENT box (see demo-player-lazy),
+            // because a container query can't style its own container element.
             "relative h-full w-full overflow-hidden bg-[#050814] text-white [container-type:size]"
           : "relative h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
       }
@@ -10198,7 +10208,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             </div>
 
             {/* Mobile Content Area */}
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div data-eqho-mobile-content className="flex-1 min-h-0 overflow-hidden">
               {mobileTab === "nowplaying" && (
                 <div className="h-full flex flex-col overflow-hidden">
                   {/* Now Playing Section - Compact */}
@@ -11487,6 +11497,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       <div
         ref={mobileControlsRef}
         style={coachViewActive ? { display: "none" } : undefined}
+        // data-eqho-controls-bar: in embedded MOBILE mode a scoped container-query
+        // rule (globals.css) flips this from `position: fixed` to an in-flow
+        // `position: sticky` row inside the embed column, so it can never overlap
+        // the queue/content. Standalone + embedded-desktop keep `fixed`.
+        data-eqho-controls-bar
         className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10"
       >
         {/* Desktop divider (mobile + iPad use the collapse handle below instead) */}
