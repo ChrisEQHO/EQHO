@@ -50,7 +50,17 @@ export async function updateSession(request: NextRequest) {
   // for '/' would make every route public, so it's handled separately from the
   // prefix-matched list above. The player now lives at '/app' and stays protected
   // because it is NOT in publicRoutes.
-  const isPublicRoute = pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))
+  // The public interactive demo endpoint. It MUST be reachable by logged-out
+  // visitors on the /features page, otherwise the middleware 307-redirects the
+  // GET /api/demo fetch to /login and the demo never loads. An exact match on
+  // '/api/demo' plus the '/api/demo/' prefix keeps this scoped to the demo API
+  // only (it does NOT make other /api/* routes public). Routes beneath
+  // /api/demo/ — e.g. the admin publish/disable endpoint — still enforce their
+  // own auth internally (returning 401/403), so allowing them past the login
+  // redirect here does not weaken security.
+  const isDemoRoute = pathname === '/api/demo' || pathname.startsWith('/api/demo/')
+
+  const isPublicRoute = pathname === '/' || isDemoRoute || publicRoutes.some(route => pathname.startsWith(route))
 
   // If Supabase is not configured, redirect protected routes to login
   if (!supabaseUrl || !supabaseAnonKey) {

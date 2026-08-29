@@ -25,12 +25,11 @@ import {
 } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { ProductFrame } from '@/components/marketing/product-frame'
 import { SessionControlsSnapshot, CloudSnapshot } from '@/components/marketing/feature-snapshots'
 import { AppStoreButton } from '@/components/marketing/app-store-button'
 import { ExploreScreenshot } from '@/components/marketing/explore-screenshot'
 import { DemoCta } from '@/components/marketing/demo-cta'
-import { InteractiveDemoLazy } from '@/components/marketing/interactive-demo-lazy'
+import { DemoPlayerLazy } from '@/components/marketing/demo-player-lazy'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
@@ -244,15 +243,17 @@ export default function FeaturesPage() {
 
         {/* ── Interactive demo ─────────────────────────────────────────────
               The public, isolated demo player lives here. It is lazy-loaded
-              (code-split + only fetched when scrolled near) and reads exclusively
-              from the read-only /api/demo endpoint — no auth, Stripe, cloud sync
-              or private player code is involved. When no snapshot is published
-              (or it is disabled), the wrapper shows a graceful fallback with the
-              real static preview instead, so the section is never broken. A
+              (code-split, only imported when the visitor opens it) and reads
+              exclusively from the read-only /api/demo endpoint — no auth, Stripe,
+              cloud sync or private player code is involved. The "Launch live demo"
+              control is ALWAYS shown and always mounts the real <EqhoPlayer
+              demoMode />; there is no static-image fallback. Loading, empty and
+              error (with Retry) states are handled inside the player against
+              /api/demo, so production always gets the real interactive player. A
               date-driven "Create free account" CTA sits directly beneath it. */}
         <section id="interactive-demo" className="scroll-mt-24 border-t border-white/5">
           <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-            <InteractiveDemoLazy fallback={<ProductFrame />} />
+            <DemoPlayerLazy />
 
             <div className="mx-auto mt-12 max-w-2xl text-center">
               <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">

@@ -544,10 +544,20 @@ export interface DemoAudioResult {
   body: ReadableStream
   contentType: string
   contentLength?: number
+  /** Total size of the underlying object (bytes), independent of any range. */
+  totalSize?: number
+  /** Set when a Range request was satisfied (206). [start, end] inclusive. */
+  range?: { start: number; end: number; total: number }
 }
 
 export async function getDemoAudioStream(
   audioKey: string,
+  /**
+   * Optional raw HTTP `Range` header (e.g. "bytes=0-"). When present and valid,
+   * we ask R2 for exactly that byte range so the player's seek/scrub bar works.
+   * Omit it (or pass null) for a normal full-object 200 stream.
+   */
+  rangeHeader?: string | null,
 ): Promise<DemoAudioResult | null> {
   const r2 = createR2Client()
   if (!r2) return null
@@ -557,13 +567,36 @@ export async function getDemoAudioStream(
   }
   try {
     const res = await r2.client.send(
-      new GetObjectCommand({ Bucket: r2.bucket, Key: audioKey }),
+      new GetObjectCommand({
+        Bucket: r2.bucket,
+        Key: audioKey,
+        // Pass the Range through to R2 so partial content is served at the source.
+        ...(rangeHeader ? { Range: rangeHeader } : {}),
+      }),
     )
     if (!res.Body) return null
+
+    // When R2 honours a Range it returns ContentRange like "bytes 0-99/12345".
+    // Parse it so the route can emit a correct 206 + Content-Range.
+    let range: DemoAudioResult['range']
+    let totalSize = res.ContentLength
+    if (res.ContentRange) {
+      const m = /bytes\s+(\d+)-(\d+)\/(\d+)/i.exec(res.ContentRange)
+      if (m) {
+        const start = Number(m[1])
+        const end = Number(m[2])
+        const total = Number(m[3])
+        range = { start, end, total }
+        totalSize = total
+      }
+    }
+
     return {
       body: res.Body as unknown as ReadableStream,
       contentType: res.ContentType || 'audio/mpeg',
       contentLength: res.ContentLength,
+      totalSize,
+      range,
     }
   } catch {
     return null
