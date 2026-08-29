@@ -69,8 +69,15 @@ export function DemoPlayerLazy() {
       </div>
 
       {/* The real player box — fills all remaining height so the demo fits the
-          screen. min-h-0 lets the flex child shrink correctly. */}
-      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#050814] shadow-[0_0_60px_rgba(255,79,163,0.12)]">
+          screen. min-h-0 lets the flex child shrink correctly.
+          It is ALSO the named size container (`eqhoembed`): the embedded-mobile
+          layout rules in globals.css (`@container eqhoembed (max-width:1023px)`)
+          target the player root/shell/controls INSIDE this box. The container
+          must sit on this PARENT box (not the player root) because a
+          container-query cannot style the container element itself — only its
+          descendants — so the player root needs an ancestor container to receive
+          `display:flex`. */}
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#050814] shadow-[0_0_60px_rgba(255,79,163,0.12)] [container-type:size] [container-name:eqhoembed]">
         <EqhoPlayer demoMode presentation="embedded" />
       </div>
     </div>

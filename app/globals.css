@@ -33,6 +33,66 @@
   }
 }
 
+/* ── Embedded demo player: MOBILE layout fix ────────────────────────────────
+   The real mobile player was built to own the browser viewport: the mobile
+   shell is sized `height: calc(var(--eqho-vh) - var(--mobile-controls-height))`
+   and the session-controls bar is `position: fixed; bottom: 0`. That reserve-
+   the-measured-footer-height trick is fragile inside the embedded /features box
+   — the fixed bar and the shell end up competing for the same space, so the
+   "UP NEXT" queue rendered UNDER the controls and the bottom controls got
+   clipped. THE OVERLAP-CAUSING RULE is that fixed bar (`.fixed.bottom-0`)
+   combined with the viewport-height `calc()` on `[data-normal-layout="mobile"]`.
+
+   Fix: only inside the embedded player (which is the sole element with
+   `container-type: size` + `container-name: eqhoembed`) AND only while the
+   embed is at a mobile width (`max-width: 1023px`), rebuild the player as a
+   proper bounded flex column:
+     • the embed root becomes the flex column,
+     • the mobile shell grows to fill it and scrolls its own content,
+     • the controls bar leaves viewport-fixed positioning and becomes an in-flow
+       sticky row that can never overlap the content.
+   Because these rules live behind `@container eqhoembed`, they can ONLY match
+   inside the embed. The standalone /app player has no such container, and the
+   embedded DESKTOP layout is wider than 1023px, so both are left byte-for-byte
+   unchanged. */
+@container eqhoembed (max-width: 1023px) {
+  /* Outer player container → flex column. */
+  [data-eqho-embed-root] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Mobile shell → fill remaining height and scroll internally instead of the
+     viewport-height calc(). min-height:0 lets it shrink so its content (and the
+     sticky bar below) always fit. */
+  [data-eqho-embed-root] [data-normal-layout='mobile'] {
+    height: auto !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* The active tab/content area is the scroller, with room to scroll the final
+     queue item clear of the controls bar. */
+  [data-eqho-embed-root] [data-eqho-mobile-content] {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 12px;
+  }
+
+  /* Session-controls bar → its own in-flow row (sticky, not viewport-fixed), so
+     it sits below the content and never covers the queue. Safe-area bottom
+     padding is already applied by the inner grid. */
+  [data-eqho-embed-root] [data-eqho-controls-bar] {
+    position: sticky !important;
+    bottom: 0;
+    left: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto;
+  }
+}
+
 /* Global overflow prevention */
 html,
 body {
