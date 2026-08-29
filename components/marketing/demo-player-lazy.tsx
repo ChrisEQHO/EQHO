@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowUp } from 'lucide-react'
 
 /**
  * Public inline embed of the REAL EQHO player running in read-only demo mode.
@@ -43,11 +43,37 @@ export function DemoPlayerLazy() {
     <div
       id="eqho-embedded-player"
       // Scroll target for the "Try the demo below" indicator. ~96% width, capped
-      // and centred; a comfortable desktop height (the real player fills it). The
-      // player supplies its own responsive layout on tablet/mobile viewports.
-      className="mx-auto w-[96%] max-w-[1600px] scroll-mt-28 overflow-hidden rounded-2xl border border-white/10 bg-[#050814] shadow-[0_0_60px_rgba(255,79,163,0.12)] h-[clamp(640px,82vh,920px)]"
+      // and centred; the player supplies its own responsive layout on
+      // tablet/mobile viewports.
+      className="mx-auto w-[96%] max-w-[1600px] scroll-mt-28"
     >
-      <EqhoPlayer demoMode presentation="embedded" />
+      {/* Branded toolbar above the player. This REPLACES the old plain round "X"
+          that used to sit in the player's top-right corner: a clear, obvious
+          orange→pink "Back to the site" button that scrolls the visitor back up
+          to the top of the marketing page (the demo is embedded inline, so
+          "leaving" it means returning to the page, not closing an overlay). */}
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
+          Interactive demo
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-2.5 text-sm font-bold text-white shadow-[0_0_24px_rgba(255,79,163,0.35)] transition hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff4fa3]"
+        >
+          <ArrowUp size={16} aria-hidden="true" />
+          Back to the site
+        </button>
+      </div>
+
+      {/* The real player box. ~comfortable desktop height (the player fills it). */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#050814] shadow-[0_0_60px_rgba(255,79,163,0.12)] h-[clamp(640px,82vh,920px)]">
+        <EqhoPlayer demoMode presentation="embedded" />
+      </div>
     </div>
   )
 }
