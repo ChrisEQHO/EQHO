@@ -4,29 +4,38 @@ import { useEffect, useState } from "react"
 import { DemoPlayerLazy } from "@/components/marketing/demo-player-lazy"
 
 // TEMPORARY diagnostic page. Patches fetch so /api/demo returns a seeded snapshot
-// locally (this env has no published R2 snapshot), letting us see the REAL mobile
-// player layout inside the embed. Deleted after verification.
+// locally (this env has no published R2 snapshot), letting us drive the REAL
+// mobile player inside the embed. Deleted after verification.
 const SNAPSHOT = {
   enabled: true,
   playlists: [
     {
-      id: "ndp",
+      id: "p1",
       name: "NDP GROUP",
       tracks: [
-        { id: "t1", name: "AMY & SOPHIE", durationSeconds: 120 },
-        { id: "t2", name: "JAKE & AMELIA", durationSeconds: 120 },
-        { id: "t3", name: "JESS & LIV", durationSeconds: 120 },
+        { id: "p1-t1", name: "GRACE, BEA & ZARA", durationSeconds: 120 },
+        { id: "p1-t2", name: "JULIE, SOPHIA & LILLY", durationSeconds: 120 },
+        { id: "p1-t3", name: "NICK & JOSH", durationSeconds: 120 },
       ],
     },
     {
-      id: "dev",
+      id: "p2",
       name: "DEV GROUP",
       tracks: [
-        { id: "t4", name: "ROUTINE ONE", durationSeconds: 120 },
-        { id: "t5", name: "ROUTINE TWO", durationSeconds: 120 },
+        { id: "p2-t1", name: "AMY & SOPHIE", durationSeconds: 120 },
+        { id: "p2-t2", name: "JAKE & AMELIA", durationSeconds: 120 },
+        { id: "p2-t3", name: "JESS & LIV", durationSeconds: 120 },
       ],
     },
-    { id: "fig", name: "FIG GROUP", tracks: [{ id: "t6", name: "FLOOR SET", durationSeconds: 150 }] },
+    {
+      id: "p3",
+      name: "FIG GROUP",
+      tracks: [
+        { id: "p3-t1", name: "CHARLOTTE, EMMA & ROSIE", durationSeconds: 120 },
+        { id: "p3-t2", name: "DANIEL & SOPHIA", durationSeconds: 120 },
+        { id: "p3-t3", name: "EVIE & OLIVIA", durationSeconds: 120 },
+      ],
+    },
   ],
 }
 
@@ -36,7 +45,10 @@ export default function MobileDemoProbePage() {
     const orig = window.fetch
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString()
-      if (url.includes("/api/demo") && !url.includes("action=audio")) {
+      if (url.includes("/api/demo")) {
+        if (url.includes("action=audio")) {
+          return new Response(new Blob([], { type: "audio/mpeg" }), { status: 200 })
+        }
         return new Response(JSON.stringify(SNAPSHOT), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -52,8 +64,11 @@ export default function MobileDemoProbePage() {
   if (!ready) return null
   return (
     <main>
+      <div style={{ height: 240 }} className="flex items-center justify-center text-white/40">
+        (probe: page content above the demo)
+      </div>
       <DemoPlayerLazy />
-      <section style={{ height: 400 }} className="flex items-center justify-center text-white/60">
+      <section id="below-marker" style={{ height: 500 }} className="flex items-center justify-center text-white/60">
         Ready to set up your own sessions?
       </section>
     </main>
