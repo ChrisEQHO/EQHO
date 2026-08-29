@@ -92,21 +92,12 @@
     flex: 0 0 auto;
   }
 
-  /* Mobile Coach / fullscreen takeover. The real mobile player renders this as
-     `position: fixed; inset: 0; height: var(--coach-viewport-height, 100dvh)` so
-     it owns the whole device screen. Inside the embed that inline 100dvh height
-     is TALLER than the player box, so the box's `overflow: hidden` clipped the
-     coach's bottom control row (Exit Fullscreen / transport) — the reported
-     "coach controls obscured" bug, and a direct violation of the no-100dvh rule.
-     Re-anchor it to the embed box: absolute (not viewport-fixed) and bounded to
-     100% of the player root, overriding the inline height/max-height so every
-     coach control stays inside the visible, scrollable box. */
-  [data-eqho-embed-root] [data-coach-overlay='mobile'] {
-    position: absolute !important;
-    inset: 0 !important;
-    height: 100% !important;
-    max-height: 100% !important;
-  }
+  /* NOTE: The mobile Coach / fullscreen takeover is bounded to the embed box in
+     the component itself (see eqho-player.tsx — the coach overlay's inline height
+     switches from 100dvh to 100% when `embedded`). Its containing block is
+     already this player root (root has container-type: size), so `inset: 0` + a
+     100% height keeps every coach control inside the visible box without a
+     separate CSS rule here. */
 }
 
 /* Global overflow prevention */

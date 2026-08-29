@@ -7114,11 +7114,19 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         <div
           data-coach-overlay="mobile"
           className="fixed inset-0 z-[300] flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#120a20] to-[#0a1020] safe-area-inset"
-          // Height tracks the real visual viewport on iPad Safari (see the
-          // --coach-viewport-height effect), falling back to 100dvh elsewhere. This
-          // keeps the row-3 bottom controls inside the visible area so the queue never
-          // has to scroll under an off-screen control row.
-          style={{ height: "var(--coach-viewport-height, 100dvh)", maxHeight: "var(--coach-viewport-height, 100dvh)" }}
+          // Standalone: height tracks the real visual viewport on iPad Safari (see
+          // the --coach-viewport-height effect), falling back to 100dvh elsewhere,
+          // so the row-3 bottom controls stay inside the visible area.
+          // Embedded: the coach's containing block is the embed player root (root
+          // has container-type: size), so `inset-0` + height:100% bounds the coach
+          // to the embed BOX instead of 100dvh. Without this the 100dvh overlay is
+          // taller than the box and its bottom controls get clipped by the box's
+          // overflow:hidden (the reported "coach controls obscured" bug).
+          style={
+            embedded
+              ? { height: "100%", maxHeight: "100%" }
+              : { height: "var(--coach-viewport-height, 100dvh)", maxHeight: "var(--coach-viewport-height, 100dvh)" }
+          }
         >
           {/* Session Finished Mobile Takeover */}
           {showSessionFinished && (
