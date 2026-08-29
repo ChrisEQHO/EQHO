@@ -1959,12 +1959,21 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
   const [demoLoadState, setDemoLoadState] = useState<"loading" | "ready" | "empty" | "error">(
     demoMode ? "loading" : "ready"
   );
+  // Bumping this re-runs the loader — used by the error state's Retry button.
+  const [demoLoadAttempt, setDemoLoadAttempt] = useState(0);
   useEffect(() => {
     if (!demoMode) return;
     let cancelled = false;
+    setDemoLoadState("loading");
     (async () => {
       try {
-        const res = await fetch("/api/demo", { headers: { accept: "application/json" } });
+        // Same-origin, so on the deployed site this hits eqho-player.com/api/demo
+        // (which serves the published R2 snapshot). cache:no-store avoids a stale
+        // "not yet published" response being reused.
+        const res = await fetch("/api/demo", {
+          headers: { accept: "application/json" },
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(`demo fetch ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
@@ -1999,7 +2008,7 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
     return () => {
       cancelled = true;
     };
-  }, [demoMode]);
+  }, [demoMode, demoLoadAttempt]);
 
   // Load saved playlists from IndexedDB on mount
   useEffect(() => {
@@ -5972,13 +5981,59 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
 
   return (
     <div
-      className="h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
+      className="relative h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
       // Publish the banner's height so the layout height calcs below can reserve
       // space for it. The banner is desktop-only, so on mobile/iPad this collapses
       // to 0px and the player reclaims the full height (no empty strip).
       // In demo mode the promo banner is hidden, so its height is always 0.
       style={{ ["--promo-banner-height" as string]: !demoMode && isDesktopDevice ? "44px" : "0px" } as React.CSSProperties}
     >
+      {/* Demo-mode data status overlay. Covers ONLY the loading/empty/error
+          moments while /api/demo is fetched — never a static screenshot of the
+          player. On success it disappears and the real, interactive player with
+          the seeded playlists is shown underneath. Error offers a plain-text
+          message + Retry (re-runs the same-origin /api/demo fetch). */}
+      {demoMode && demoLoadState !== "ready" && (
+        <div className="absolute inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-[#050814] px-6 text-center">
+          {demoLoadState === "loading" && (
+            <>
+              <Loader2 size={32} className="animate-spin text-[#ff4fa3]" aria-hidden="true" />
+              <p className="text-sm text-white/70">Loading the demo playlists…</p>
+            </>
+          )}
+          {demoLoadState === "empty" && (
+            <>
+              <AlertTriangle size={32} className="text-[#ff8a00]" aria-hidden="true" />
+              <p className="max-w-sm text-sm text-white/70">
+                The demo playlists aren’t available right now. Please check back shortly.
+              </p>
+              <button
+                type="button"
+                onClick={() => setDemoLoadAttempt((n) => n + 1)}
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                <RefreshCw size={16} aria-hidden="true" /> Retry
+              </button>
+            </>
+          )}
+          {demoLoadState === "error" && (
+            <>
+              <AlertTriangle size={32} className="text-[#ff8a00]" aria-hidden="true" />
+              <p className="max-w-sm text-sm text-white/70">
+                We couldn’t load the demo. Please try again.
+              </p>
+              <button
+                type="button"
+                onClick={() => setDemoLoadAttempt((n) => n + 1)}
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-95"
+              >
+                <RefreshCw size={16} aria-hidden="true" /> Retry
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Branded promo banner — DESKTOP ONLY. Removed on mobile and iPad (both
           orientations) per product: those surfaces are the primary player and the
           strip added clutter. Uses the EQHO brand orange → pink gradient at low
