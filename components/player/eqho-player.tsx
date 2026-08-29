@@ -5993,6 +5993,32 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     };
   })();
 
+  // Both responsive confirmation dialogs use this single action. Keeping the
+  // session load and navigation together prevents the mobile dialog from being
+  // dismissed without also moving the user to Now Playing.
+  const confirmSendPlaylistToSession = () => {
+    if (!showSendToSessionConfirm) return;
+
+    const { name, tracks } = showSendToSessionConfirm;
+
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+
+    setPlaylist(tracks);
+    setOriginalPlaylistOrder([...tracks]);
+    setHiddenTrackIds(new Set());
+    setCurrentPlaylistName(name);
+    setCurrentIndex(0);
+    setCurrentTrack(tracks[0] ?? null);
+    setSessionRunning(false);
+    setFinishedTracks(new Set());
+    setActivePage("player");
+    setMobileTab("nowplaying");
+    setShowSendToSessionConfirm(null);
+  };
+
   return (
     <div
       // data-eqho-embed-root marks the embedded container so the scoped
@@ -6469,7 +6495,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
         {/* Send to Session Confirmation */}
         {showSendToSessionConfirm && (
-          <div className="eqho-dialog fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+          <div className="eqho-dialog fixed inset-0 z-[200] hidden desktop:flex items-center justify-center bg-black/70">
             <div className="bg-[#090f1c]/90 backdrop-blur-xl border border-white/20 rounded-2xl p-8 max-w-md text-center shadow-[0_0_40px_rgba(0,0,0,0.5)]">
               <ListMusic size={48} className="mx-auto mb-4 text-[#ff8a00]" />
               <h3 className="text-2xl font-bold text-white mb-2">Replace Current Playlist?</h3>
@@ -6482,25 +6508,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    const { name, tracks } = showSendToSessionConfirm;
-                    setShowSendToSessionConfirm(null);
-                    if (isPlaying && audioRef.current) {
-  audioRef.current.pause();
-  setIsPlaying(false);
-  }
-  setPlaylist(tracks);
-  setOriginalPlaylistOrder([...tracks]); // Store original order
-  setHiddenTrackIds(new Set()); // Clear hidden tracks when loading new playlist
-  setCurrentPlaylistName(name);
-                    setCurrentIndex(0);
-                    setCurrentTrack(tracks[0]);
-                    setSessionRunning(false);
-                    setFinishedTracks(new Set());
-                    // Switch back to the main player so the user sees the Up Next queue.
-                    setActivePage("player");
-                    setMobileTab("nowplaying");
-                  }}
+                  onClick={confirmSendPlaylistToSession}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
                 >
                   Yes, Replace
@@ -7674,25 +7682,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  const { name, tracks } = showSendToSessionConfirm;
-                  setShowSendToSessionConfirm(null);
-                  if (isPlaying && audioRef.current) {
-                    audioRef.current.pause();
-                    setIsPlaying(false);
-                  }
-                  setPlaylist(tracks);
-                  setOriginalPlaylistOrder([...tracks]); // Store original order
-                  setHiddenTrackIds(new Set());
-                  setCurrentPlaylistName(name);
-                  setCurrentIndex(0);
-                  setCurrentTrack(tracks[0]);
-                  setSessionRunning(false);
-                  setFinishedTracks(new Set());
-                  // Switch back to the main player so the loaded queue is visible.
-                  setActivePage("player");
-                  setMobileTab("nowplaying");
-                }}
+                onClick={confirmSendPlaylistToSession}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition text-sm"
               >
                 Yes, Replace
