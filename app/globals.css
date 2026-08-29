@@ -91,6 +91,13 @@
     max-width: 100% !important;
     flex: 0 0 auto;
   }
+
+  /* NOTE: The mobile Coach / fullscreen takeover is bounded to the embed box in
+     the component itself (see eqho-player.tsx — the coach overlay's inline height
+     switches from 100dvh to 100% when `embedded`). Its containing block is
+     already this player root (root has container-type: size), so `inset: 0` + a
+     100% height keeps every coach control inside the visible box without a
+     separate CSS rule here. */
 }
 
 /* Global overflow prevention */
