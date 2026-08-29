@@ -453,9 +453,23 @@ export interface EqhoPlayerProps {
    * so nothing touches customer data. Defaults to false = full production player.
    */
   demoMode?: boolean;
+  /**
+   * How the player is mounted:
+   * - "standalone" (default): the player owns the full viewport (h-[100dvh]
+   *   w-screen) exactly as the authenticated /app player always has.
+   * - "embedded": the player fills its PARENT container instead of the viewport.
+   *   The root becomes a CSS size container (container-type: size), so every
+   *   viewport-height calc resolves to the embed box (via --eqho-vh = 100cqh) and
+   *   all `fixed` descendants (glow, countdown, coach fallback, the bottom
+   *   controls bar, modals) are trapped inside the box — with NO scaling/zoom
+   *   transform. Used by the public /features demo embed. Deliberate fullscreen
+   *   still uses the Fullscreen API, which escapes the container as intended.
+   */
+  presentation?: "standalone" | "embedded";
 }
 
-export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
+export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: EqhoPlayerProps) {
+  const embedded = presentation === "embedded";
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Debounce timer for pushing a reordered playlist's track_order to the cloud.
   const reorderCloudPushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -5981,12 +5995,32 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
 
   return (
     <div
-      className="relative h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
-      // Publish the banner's height so the layout height calcs below can reserve
-      // space for it. The banner is desktop-only, so on mobile/iPad this collapses
-      // to 0px and the player reclaims the full height (no empty strip).
-      // In demo mode the promo banner is hidden, so its height is always 0.
-      style={{ ["--promo-banner-height" as string]: !demoMode && isDesktopDevice ? "44px" : "0px" } as React.CSSProperties}
+      className={
+        embedded
+          ? // Fill the parent embed box and become a size container so inner
+            // 100cqh calcs + all `fixed` overlays resolve to THIS box, not the
+            // viewport. [container-type:size] also establishes the containing
+            // block for fixed descendants (no transform, so nothing is scaled).
+            "relative h-full w-full overflow-hidden bg-[#050814] text-white [container-type:size]"
+          : "relative h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
+      }
+      // --promo-banner-height: publish the banner's height so the layout height
+      // calcs below can reserve space for it (desktop-only; 0 on mobile/iPad and
+      // in demo mode).
+      // --eqho-vh: the unit the main-view height calcs measure against. It is
+      // "100dvh" for standalone (byte-identical to the original literal) and
+      // "100cqh" when embedded so those same calcs fill the embed box instead of
+      // the viewport.
+      style={{
+        ["--promo-banner-height" as string]: !demoMode && isDesktopDevice ? "44px" : "0px",
+        ["--eqho-vh" as string]: embedded ? "100cqh" : "100dvh",
+        // Trap `fixed` descendants (the bottom controls bar, ambient glow,
+        // countdown, coach fallback, modals) inside the embed box. container-type
+        // only creates a containing block for ABSOLUTE descendants, so paint
+        // containment is what actually contains `fixed` — and it does so WITHOUT
+        // any scaling/zoom transform, so the interface stays 1:1 and crisp.
+        ...(embedded ? { contain: "paint" as const } : {}),
+      } as React.CSSProperties}
     >
       {/* Demo-mode data status overlay. Covers ONLY the loading/empty/error
           moments while /api/demo is fetched — never a static screenshot of the
@@ -7941,7 +7975,7 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
             // or with larger accessibility fonts it wraps to 2+ rows and exceeds 100px —
             // which previously covered the bottom of the grid (e.g. the last playlist's
             // Download/delete buttons). The ResizeObserver keeps this var in sync.
-            height: "calc(100dvh - var(--mobile-controls-height, 100px) - var(--promo-banner-height, 0px))",
+            height: "calc(var(--eqho-vh, 100dvh) - var(--mobile-controls-height, 100px) - var(--promo-banner-height, 0px))",
             // Top safe-area inset for the desktop grid. iPad landscape now renders
             // this grid at real device width, so it must clear the iOS status bar
             // itself (the old global body inset is gone). box-sizing:border-box keeps
@@ -10096,7 +10130,7 @@ export function EqhoPlayer({ demoMode = false }: EqhoPlayerProps) {
           // the content region always ends at the bar's top edge. Falls back to
           // 112px before the first measurement.
           height:
-            "calc(100dvh - var(--mobile-controls-height, 112px) - var(--promo-banner-height, 0px) - env(safe-area-inset-top))",
+              "calc(var(--eqho-vh, 100dvh) - var(--mobile-controls-height, 112px) - var(--promo-banner-height, 0px) - env(safe-area-inset-top))",
           // When a Coach overlay is open, fully hide this normal layout so it can
           // never show through beneath the overlay on iPad Safari. Inline display
           // wins over the base `flex`/`desktop:hidden` classes.

@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import {
   ArrowRight,
+  ArrowDown,
   ListMusic,
   ListOrdered,
   Repeat,
@@ -242,20 +243,47 @@ export default function FeaturesPage() {
         </section>
 
         {/* ── Interactive demo ─────────────────────────────────────────────
-              The public, isolated demo player lives here. It is lazy-loaded
-              (code-split, only imported when the visitor opens it) and reads
-              exclusively from the read-only /api/demo endpoint — no auth, Stripe,
-              cloud sync or private player code is involved. The "Launch live demo"
-              control is ALWAYS shown and always mounts the real <EqhoPlayer
-              demoMode />; there is no static-image fallback. Loading, empty and
-              error (with Retry) states are handled inside the player against
-              /api/demo, so production always gets the real interactive player. A
-              date-driven "Create free account" CTA sits directly beneath it. */}
+              The public, isolated demo player is embedded INLINE here (no launch
+              card, no overlay). It is lazy-loaded (code-split) and reads exclusively
+              from the read-only /api/demo endpoint — no auth, Stripe, cloud sync or
+              private player code is involved. It mounts the real shared
+              <EqhoPlayer demoMode presentation="embedded" />; there is no
+              static-image fallback. Loading, empty and error (with Retry) states are
+              handled inside the player against /api/demo, so production always gets
+              the real interactive player. The indicator button below scrolls the
+              visitor to the already-visible player. A date-driven "Create free
+              account" CTA sits further down. */}
         <section id="interactive-demo" className="scroll-mt-24 border-t border-white/5">
-          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+          <div className="w-full py-16">
+            {/* 1–4: label, heading, explanatory text, demo indicator button */}
+            <div className="mx-auto mb-10 max-w-2xl px-4 text-center sm:px-6">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#ff4fa3]">
+                Live interactive demo
+              </p>
+              <h2 className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                Try the real EQHO Player
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-pretty leading-relaxed text-[#94a3b8]">
+                This is a working demonstration of the real EQHO Player. Experiment with the
+                playlists, reorder tracks, adjust the session controls and play the routines to see
+                how everything works. Nothing you do here will be saved, so feel free to try every
+                feature.
+              </p>
+              <div className="mt-8 flex justify-center">
+                <a
+                  href="#eqho-embedded-player"
+                  className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-8 text-base font-bold text-white shadow-[0_0_30px_rgba(255,79,163,0.35)] transition hover:opacity-95"
+                >
+                  Try the demo below
+                  <ArrowDown size={20} aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+
+            {/* 5: the large, genuine embedded player (always visible below) */}
             <DemoPlayerLazy />
 
-            <div className="mx-auto mt-12 max-w-2xl text-center">
+            <div className="mx-auto mt-16 max-w-2xl px-4 text-center sm:px-6">
               <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
                 Ready to set up your own sessions?
               </h2>
