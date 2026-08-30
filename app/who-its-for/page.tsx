@@ -89,9 +89,9 @@ export default function WhoItsForPage() {
               Set the music once. Let the coaching take priority.
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-              EQHO Player is built for the people who run training sessions — coaches and clubs who need
-              routine music organised, synced to every device, and ready to play throughout the
-              session without fighting their phone.
+              EQHO Player is built to make those difficult training sessions and competition preparation
+              that bit easier — routine music organised, synced to every device, and ready to play
+              throughout the session without fighting their phone.
             </p>
           </div>
         </section>
