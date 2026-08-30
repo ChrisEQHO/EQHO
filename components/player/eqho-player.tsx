@@ -629,7 +629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────���
+  // ── Single-transition guards (fixes the countdown/next-track race) ────────────����
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -9969,7 +9969,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   <div className="bg-cyan-500/10 rounded-xl p-4 border border-cyan-500/20">
                     <p className="text-sm text-cyan-300">
                       <strong>Pro Tip:</strong> During training, use fullscreen mode on a tablet or laptop 
-                      positioned near the training floor. Athletes can see their upcoming routine and countdown in real-time.
+                      positioned where your athletes can see it. Athletes can see their upcoming routine and countdown in real-time.
                     </p>
                   </div>
                 </div>

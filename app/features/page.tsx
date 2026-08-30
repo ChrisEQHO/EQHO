@@ -92,7 +92,7 @@ const CLOUD_POINTS = [
 
 const DEVICE_POINTS = [
   { icon: Laptop, text: 'Use it in any web browser on desktop — nothing to install.' },
-  { icon: Tablet, text: 'Coach from a tablet or laptop browser at the side of the floor.' },
+  { icon: Tablet, text: 'Coach from a tablet or laptop browser at the side of the training session.' },
   { icon: Smartphone, text: 'Download the free app for the best experience on iPad and iPhone.' },
   { icon: WifiOff, text: 'Load your session before you travel so it plays from your device.' },
 ]
@@ -289,7 +289,7 @@ export default function FeaturesPage() {
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-pretty leading-relaxed text-[#94a3b8]">
                 The demo resets each time and doesn’t save. Create a free account to build your own
-                playlists, push them to the cloud and use them on the floor.
+                playlists, push them to the cloud and use them in your training sessions.
               </p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
@@ -441,7 +441,7 @@ export default function FeaturesPage() {
               </h2>
               <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
                 Choose the gap between routines, set how many times a routine repeats and switch on
-                back-to-back playback. EQHO keeps the session moving so you can stay on the floor.
+                back-to-back playback. EQHO keeps the session moving so you can stay focused on coaching.
               </p>
               <div className="mt-8">
                 <PrimaryCta label={offer.cta} />
