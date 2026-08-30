@@ -1077,7 +1077,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // static export with no middleware, so the player enforces access here too.
   //
   // The decision is delegated to the server authority (`/api/entitlement`) so
-  // the client never trusts its own clock: before the 1 Sep 2026 changeover any
+  // the client never trusts its own clock: before the 1 Oct 2026 changeover any
   // logged-in user is allowed (free phase); after it, a valid Stripe entitlement
   // (or grace window) is required. Re-checking here on load means a session left
   // open across the changeover, or a lapsed subscription, flips to /upgrade.
@@ -5963,16 +5963,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const coachViewActive = isFullscreen || showFullscreenMobilePlayer;
 
   // Promo-banner wording, driven by the SERVER phase (never the device clock):
-  //  • free phase        → "free until 31 August 2026, no card required"
+  //  • free phase        → "free until 1 October 2026, no card required"
   //  • paywall + trialing → the individual 30-day trial message
   //  • subscribed / grace / unknown → neutral brand strip (no trial claim)
   // The 44px strip always renders so the layout height calc stays stable.
   const promoBanner = (() => {
     if (entitlementPhase === "free") {
       return {
-        short: "Free until 31 Aug 2026",
+        short: "Free until 1 Oct 2026",
         shortAccent: "no card required",
-        long: "EQHO Player is free until 31 August 2026 —",
+        long: "EQHO Player is free until 1 October 2026 —",
         longAccent: "no card required",
       };
     }

@@ -11,7 +11,7 @@ export const contentType = 'image/png'
 
 export default function OpengraphImage() {
   const offer = getOfferCopy()
-  const badge = offer.preLaunch ? 'Free until 31 August 2026 — no card required' : 'Includes a 30-day free trial'
+  const badge = offer.preLaunch ? 'Free until 1 October 2026 — no card required' : 'Includes a 30-day free trial'
   return new ImageResponse(
     (
       <div

@@ -7,7 +7,7 @@ import { getLivePrice } from '@/lib/get-pricing'
 import { SITE, PRICING, getPricingCopy, PLAYER_PACKAGE } from '@/lib/marketing-config'
 
 // Always fetch fresh so the page reflects the current Stripe price AND the current
-// launch phase (the copy switches automatically on 1 September 2026).
+// launch phase (the copy switches automatically on 1 October 2026).
 export const dynamic = 'force-dynamic'
 
 // Metadata for the pricing route. Runs on the server only — no hydration concerns.

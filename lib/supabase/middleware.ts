@@ -118,7 +118,7 @@ export async function updateSession(request: NextRequest) {
 
   // Entitlement gate for the player itself (`/app`). Reached only when we're in
   // production (dev/preview returned early above) and the user is logged in.
-  // Before 1 Sep 2026 this always passes (free phase); after it, a user without
+  // Before 1 Oct 2026 this always passes (free phase); after it, a user without
   // a valid entitlement is sent to /upgrade. /account, /billing and /upgrade are
   // NOT player routes, so a blocked user can still manage or start a subscription.
   if (user) {

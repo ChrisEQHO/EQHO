@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
     return json({ error: 'Unauthorized' }, 401)
   }
 
-  // Paywall gate (enforced in production only). After 1 Sep 2026, cloud storage
+  // Paywall gate (enforced in production only). After 1 Oct 2026, cloud storage
   // access requires a valid entitlement; before then every logged-in user passes.
   const entitlement = await requirePlayerEntitlement(request, user)
   if (!entitlement.allowed) {
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Unauthorized' }, 401)
   }
 
-  // Paywall gate (enforced in production only). After 1 Sep 2026, cloud storage
+  // Paywall gate (enforced in production only). After 1 Oct 2026, cloud storage
   // access requires a valid entitlement; before then every logged-in user passes.
   const entitlement = await requirePlayerEntitlement(request, user)
   if (!entitlement.allowed) {
@@ -392,7 +392,7 @@ export async function DELETE(request: NextRequest) {
     return json({ error: 'Unauthorized' }, 401)
   }
 
-  // Paywall gate (enforced in production only). After 1 Sep 2026, cloud storage
+  // Paywall gate (enforced in production only). After 1 Oct 2026, cloud storage
   // access requires a valid entitlement; before then every logged-in user passes.
   const entitlement = await requirePlayerEntitlement(request, user)
   if (!entitlement.allowed) {

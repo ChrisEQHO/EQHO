@@ -19,7 +19,7 @@ export function generateMetadata(): Metadata {
   // phase. Pre-launch: free-until wording; from 1 Sep: the 30-day trial line.
   const offer = getOfferCopy()
   const shareTail = offer.preLaunch
-    ? 'Free to use until 31 August 2026 — no card required.'
+    ? 'Free to use until 1 October 2026 — no card required.'
     : 'Includes a 30-day free trial.'
   return {
   // Resolves relative OG/canonical URLs (e.g. '/pricing') to absolute ones.

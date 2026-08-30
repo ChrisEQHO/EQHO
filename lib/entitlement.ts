@@ -6,7 +6,7 @@
 // defer to `evaluateEntitlement` so the rule can never drift between surfaces.
 //
 // Two phases, driven by a single instant (`PAYWALL_START_AT`, default
-// 1 Sep 2026 00:00 Europe/London):
+// 1 Oct 2026 00:00 Europe/London):
 //   • BEFORE the instant  → "free" phase: any authenticated user is allowed,
 //                            no card, no Stripe.
 //   • FROM the instant on → "paywall" phase: the user needs a live entitlement
@@ -22,8 +22,9 @@ import type { ProfileSubscription, SubscriptionStatus } from "@/lib/subscription
 import { isAdminEmail } from "@/lib/access"
 
 // Default changeover instant. `+01:00` is British Summer Time, which is the
-// London offset on 1 September 2026. Overridable via env without a code change.
-export const DEFAULT_PAYWALL_START_AT = "2026-09-01T00:00:00+01:00"
+// London offset on 1 October 2026 (UK clocks don't go back until 25 Oct 2026).
+// This equals 2026-09-30T23:00:00.000Z in UTC. Overridable via env without code.
+export const DEFAULT_PAYWALL_START_AT = "2026-10-01T00:00:00+01:00"
 
 export type EntitlementPhase = "free" | "paywall"
 

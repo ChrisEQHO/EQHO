@@ -101,7 +101,7 @@ export default function UpgradeClient() {
   const handleStartTrial = async () => {
     if (!user) return
 
-    // Free phase (before the 1 Sep 2026 changeover): there is nothing to buy —
+    // Free phase (before the 1 Oct 2026 changeover): there is nothing to buy —
     // the account already has full access, so just take them into the player.
     if (getOfferCopy().preLaunch) {
       router.push('/app')
@@ -279,7 +279,7 @@ export default function UpgradeClient() {
                 <Sparkles className="h-6 w-6 text-white shrink-0" />
                 <div>
                   <p className="font-bold text-white text-lg leading-tight">
-                    {offer.preLaunch ? 'FREE until 31 Aug 2026' : '30 Days FREE'}
+                    {offer.preLaunch ? 'FREE until 1 Oct 2026' : '30 Days FREE'}
                   </p>
                   <p className="text-xs text-white/90">Full access to all EQHO Player features</p>
                 </div>
