@@ -1,4 +1,4 @@
--- Paywall / entitlement support columns for the 1 Sep 2026 changeover.
+-- Paywall / entitlement support columns for the 1 Oct 2026 changeover.
 -- Idempotent: safe to run more than once. Run in the Supabase SQL editor.
 --
 -- Adds the fields the Stripe webhook and entitlement rule need beyond what

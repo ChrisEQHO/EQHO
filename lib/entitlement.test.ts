@@ -7,13 +7,13 @@ import {
 } from './entitlement'
 import type { SubscriptionStatus } from './subscription-types'
 
-// The changeover instant under test (1 Sep 2026 00:00 Europe/London = BST +01:00).
+// The changeover instant under test (1 Oct 2026 00:00 Europe/London = BST +01:00).
 const PAYWALL = new Date(DEFAULT_PAYWALL_START_AT)
 
 // Helpers to build instants relative to the changeover.
-const beforeInstant = new Date('2026-08-31T23:59:00+01:00') // 31 Aug 23:59 BST
-const atInstant = new Date('2026-09-01T00:00:00+01:00') // 1 Sep 00:00 BST
-const afterInstant = new Date('2026-09-02T12:00:00+01:00') // well after
+const beforeInstant = new Date('2026-09-30T23:59:00+01:00') // 30 Sep 23:59 BST
+const atInstant = new Date('2026-10-01T00:00:00+01:00') // 1 Oct 00:00 BST
+const afterInstant = new Date('2026-10-02T12:00:00+01:00') // well after
 
 function profile(
   status: SubscriptionStatus,
@@ -27,16 +27,16 @@ describe('paywall clock boundary', () => {
     expect(getPaywallStartAt().toISOString()).toBe(PAYWALL.toISOString())
   })
 
-  it('31 Aug 23:59 is before the paywall', () => {
+  it('30 Sep 23:59 is before the paywall', () => {
     expect(isBeforePaywall(beforeInstant)).toBe(true)
   })
 
-  it('1 Sep 00:00 is NOT before the paywall (enforcement begins exactly then)', () => {
+  it('1 Oct 00:00 is NOT before the paywall (enforcement begins exactly then)', () => {
     expect(isBeforePaywall(atInstant)).toBe(false)
   })
 })
 
-describe('free phase (before 1 Sep 2026)', () => {
+describe('free phase (before 1 Oct 2026)', () => {
   it('allows any logged-in user with no subscription', () => {
     const r = evaluateEntitlement({ now: beforeInstant, profile: profile('free'), email: 'user@example.com' })
     expect(r.allowed).toBe(true)
@@ -51,7 +51,7 @@ describe('free phase (before 1 Sep 2026)', () => {
   })
 })
 
-describe('paywall phase (from 1 Sep 2026)', () => {
+describe('paywall phase (from 1 Oct 2026)', () => {
   it('blocks an existing free user with no trial/subscription', () => {
     const r = evaluateEntitlement({ now: atInstant, profile: profile('free'), email: 'user@example.com' })
     expect(r.allowed).toBe(false)

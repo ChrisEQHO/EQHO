@@ -54,7 +54,7 @@ export const TRIAL_LENGTH_DAYS = 30
 
 // Public launch date. Paid subscriptions become available on this date and the
 // current free version ends on the same date. Until then, no sign-up is offered.
-export const SUBSCRIPTION_LAUNCH_LABEL = '1 September 2026'
+export const SUBSCRIPTION_LAUNCH_LABEL = '1 October 2026'
 
 // A user only counts as actually subscribed when Stripe reports an active
 // subscription AND we have a Stripe subscription id on file. `trialing` and any

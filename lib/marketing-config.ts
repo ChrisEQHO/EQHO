@@ -60,7 +60,7 @@ export const LAUNCH = {
  * keep compiling; both pricing phases now show identical trial copy.
  */
 export const PRICING = {
-  launchTransitionUtc: '2026-08-31T23:00:00.000Z',
+  launchTransitionUtc: '2026-09-30T23:00:00.000Z',
   productName: 'EQHO Player',
   trialLabel: 'First 30 days free',
   ctaHref: '/signup',
@@ -96,20 +96,20 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
   const per = interval ? `${formattedPrice}/${interval}` : formattedPrice
   const frequency = interval ? `per ${interval}` : ''
 
-  // Pre-launch = the FREE phase (before 1 Sep 2026): every feature is free with
+  // Pre-launch = the FREE phase (before 1 Oct 2026): every feature is free with
   // no card and no Stripe, so copy must promise exactly that — never a trial or
   // a payment method. This mirrors getOfferCopy() and what the player enforces.
   if (isPreLaunch(now)) {
     return {
       preLaunch: true,
-      badge: 'Free until 31 August 2026',
-      heading: 'Use EQHO Player free until 31 August 2026.',
+      badge: 'Free until 1 October 2026',
+      heading: 'Use EQHO Player free until 1 October 2026.',
       supporting:
-        'Create your free account today and use every EQHO Player feature free until 31 August 2026. No card required.',
+        'Create your free account today and use every EQHO Player feature free until 1 October 2026. No card required.',
       priceLabel: 'Free',
-      frequency: 'until 31 Aug 2026',
+      frequency: 'until 1 Oct 2026',
       trialLabel: 'No card required',
-      explanation: `No payment details needed today. From 1 September 2026 you can start a 30-day free trial, then it renews at ${per} unless you cancel.`,
+      explanation: `No payment details needed today. From 1 October 2026 you can start a 30-day free trial, then it renews at ${per} unless you cancel.`,
       cta: 'Create free account',
       cardNote: 'No card required.',
     }
@@ -131,7 +131,7 @@ export function getPricingCopy(formattedPrice: string, interval: string, now: Da
 
 /**
  * Date-driven OFFER copy — the single source of truth for the changeover on
- * 1 Sep 2026 (Europe/London). Keyed off the same instant as the server-side
+ * 1 Oct 2026 (Europe/London). Keyed off the same instant as the server-side
  * entitlement authority (`PRICING.launchTransitionUtc` === PAYWALL_START_AT),
  * so what the marketing/signup/upgrade surfaces PROMISE always matches what the
  * player actually ENFORCES.
@@ -164,31 +164,31 @@ export function getOfferCopy(
 
   if (isPreLaunch(now)) {
     // FREE phase: no card, no Stripe, no price tail. The promise is simply free
-    // access until 31 Aug 2026 — never "then £4.99" (that wording is banned here
+    // access until 1 Oct 2026 — never "then £4.99" (that wording is banned here
     // because the user does NOT auto-convert; they choose to start a trial later).
     return {
       preLaunch: true,
-      headline: 'Use EQHO Player free until 31 August 2026.',
+      headline: 'Use EQHO Player free until 1 October 2026.',
       supporting:
-        'Create your free account today and use every EQHO Player feature free until 31 August 2026. No card required.',
+        'Create your free account today and use every EQHO Player feature free until 1 October 2026. No card required.',
       cta: 'Create free account',
       cardNote: 'No card required.',
       paywall: {
         newUser: {
-          heading: 'Use EQHO Player free until 31 August 2026.',
-          body: 'Create your free account today and use every EQHO Player feature free until 31 August 2026. No card required.',
+          heading: 'Use EQHO Player free until 1 October 2026.',
+          body: 'Create your free account today and use every EQHO Player feature free until 1 October 2026. No card required.',
           cta: 'Create free account',
         },
         existingUser: {
-          heading: 'You’re all set — EQHO Player is free until 31 August 2026.',
-          body: 'Keep using every EQHO Player feature free until 31 August 2026. No card required, and nothing is charged before then.',
+          heading: 'You’re all set — EQHO Player is free until 1 October 2026.',
+          body: 'Keep using every EQHO Player feature free until 1 October 2026. No card required, and nothing is charged before then.',
           cta: 'Open EQHO Player',
         },
       },
     }
   }
 
-  // PAYWALL phase (from 1 Sep 2026): each user starts their own 30-day Stripe
+  // PAYWALL phase (from 1 Oct 2026): each user starts their own 30-day Stripe
   // trial, card collected now, nothing charged until the individual trial ends.
   return {
     preLaunch: false,
@@ -230,7 +230,7 @@ export const PLAYER_PACKAGE = {
   fallbackPrice: '£4.99',
   interval: 'month',
   // Launch offer window during which the £4.99 Player price is promoted.
-  launchOfferFrom: '1 September 2026',
+  launchOfferFrom: '1 October 2026',
   launchOfferUntil: '31 January 2027',
   benefits: [
     'Unlimited playlists and session plans',
@@ -415,12 +415,12 @@ export const FAQ: { q: string; a: string }[] = [
 /**
  * FAQ with a date-driven pricing answer, so the homepage FAQ and its structured
  * data never contradict the current offer phase. Pre-launch it describes the
- * free period (no card); from 1 Sep it describes the individual 30-day trial.
+ * free period (no card); from 1 Oct it describes the individual 30-day trial.
  * All other answers are static.
  */
 export function getFaq(now: Date = new Date()): { q: string; a: string }[] {
   const pricingAnswer = isPreLaunch(now)
-    ? 'EQHO Player is free to use until 31 August 2026 — just create a free account, no card required. From 1 September 2026 you can start an individual 30-day free trial: you add your payment details securely through Stripe, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
+    ? 'EQHO Player is free to use until 1 October 2026 — just create a free account, no card required. From 1 October 2026 you can start an individual 30-day free trial: you add your payment details securely through Stripe, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
     : 'EQHO Player starts with a 30-day free trial. You add your payment details securely through Stripe when you sign up, pay nothing during the trial, and your subscription then renews automatically at £4.99/month unless you cancel. See the pricing page for the latest details.'
   return FAQ.map((item) =>
     item.q === 'How much does it cost?' ? { ...item, a: pricingAnswer } : item,

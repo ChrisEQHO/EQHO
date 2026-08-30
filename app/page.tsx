@@ -49,7 +49,7 @@ export default function HomePage() {
       price: '0',
       priceCurrency: 'GBP',
       description: offer.preLaunch
-        ? 'Free to use until 31 August 2026. No card required.'
+        ? 'Free to use until 1 October 2026. No card required.'
         : 'Includes a 30-day free trial.',
     },
   }
