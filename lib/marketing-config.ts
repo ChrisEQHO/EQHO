@@ -272,8 +272,8 @@ export const NAV_LINKS: { label: string; href: string }[] = [
 
 /** The problem → outcome framing under the hero. */
 export const PROBLEM = {
-  heading: 'Floor time is for coaching, not searching for tracks.',
-  body: 'Arrange your routines before training, set the gaps and repeats, then press play and focus on the floor.',
+  heading: 'Training time is for coaching, not searching for tracks.',
+  body: 'Arrange your routines before training, set the gaps and repeats, then press play and focus on coaching.',
 } as const
 
 /**
@@ -359,12 +359,12 @@ export const WHO_ITS_FOR = {
     {
       icon: 'Medal',
       title: 'Gymnastics coaches',
-      body: 'Keep every gymnast’s floor music organised and ready to play throughout the training session.',
+      body: 'Keep every gymnast’s routine music organised and ready to play throughout the training session.',
     },
     {
       icon: 'Megaphone',
       title: 'Clubs & squads',
-      body: 'Run squad sessions with running orders, gaps and repeats so floor time keeps moving.',
+      body: 'Run squad sessions with running orders, gaps and repeats so the training session keeps moving.',
     },
   ],
   disciplines: [
@@ -380,7 +380,7 @@ export const WHO_ITS_FOR = {
 export const FAQ: { q: string; a: string }[] = [
   {
     q: 'What is EQHO Player?',
-    a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions when floor time is limited.',
+    a: 'EQHO Player is a training music player for gymnastics coaches and clubs — across Floor and Vault Gymnastics, Women’s Artistic Gymnastics, Rhythmic, Acrobatic and Aerobic Gymnastics. It organises routine playlists and controls the order, gaps and repeats, reducing interruptions and keeping training sessions easier and more efficient.',
   },
   {
     q: 'How much does it cost?',

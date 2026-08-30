@@ -39,8 +39,8 @@ export const metadata: Metadata = {
 /** The everyday pain points EQHO Player exists to remove. */
 const PAIN_POINTS = [
   'Hunting for each routine’s music on a phone or tablet mid-session is slow and stressful.',
-  'Relying on the internet — or playing straight from emails — means a dropout can stop the floor.',
-  'Opening different files across phones and tablets is a hassle when floor time is tight.',
+  'Relying on the internet — or playing straight from emails — means a dropout can stop the session.',
+  'Opening different files across phones and tablets is a hassle when training time is tight.',
   'Changing or editing one track means re-uploading to the device — usually by plugging into a computer or emailing the file to download again.',
 ] as const
 
@@ -89,7 +89,7 @@ export default function WhoItsForPage() {
               Set the music once. Let the coaching take priority.
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-              EQHO Player is built for the people who run training floors — coaches and clubs who need
+              EQHO Player is built for the people who run training sessions — coaches and clubs who need
               routine music organised, synced to every device, and ready to play throughout the
               session without fighting their phone.
             </p>
@@ -105,7 +105,7 @@ export default function WhoItsForPage() {
               </h2>
               <p className="mt-4 text-pretty text-lg leading-relaxed text-[#94a3b8]">
                 Finding music on a tablet or phone to play one routine at a time isn’t time-efficient
-                — it’s a pain. EQHO Player was built to take that hassle off the floor.
+                — it’s a pain. EQHO Player was built to make training sessions easier and more efficient.
               </p>
             </div>
             <ul className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
@@ -247,7 +247,7 @@ export default function WhoItsForPage() {
                 <p className="mt-5 flex gap-3 rounded-2xl border border-white/10 bg-[rgba(9,15,28,0.9)] p-4 text-sm leading-relaxed text-[#cbd5e1]">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#ff8a00]" aria-hidden="true" />
                   See how many routines have been completed as the session goes, so you always know
-                  exactly where the floor is up to.
+                  exactly where the session is up to.
                 </p>
               </div>
             </div>
@@ -311,7 +311,7 @@ export default function WhoItsForPage() {
         <section className="border-t border-white/5 bg-[#050814]">
           <div className="mx-auto w-full max-w-4xl px-4 py-20 text-center sm:px-6">
             <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              Bring EQHO Player to your floor
+              Bring EQHO Player to your training sessions
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
               Try the player or start your 30-day free trial and run your next session with the music
