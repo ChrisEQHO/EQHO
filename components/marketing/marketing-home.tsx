@@ -101,6 +101,9 @@ export function MarketingHome() {
             on desktop. */}
         <div className="relative z-[4] mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 py-16 text-center sm:px-6 lg:items-start lg:py-24 lg:text-left">
           <div className="w-full max-w-xl">
+            <div className="mb-6 flex justify-center lg:justify-start">
+              <FreeUntilPill />
+            </div>
             <h1 className="text-balance font-extrabold leading-[1.05] tracking-tight text-[clamp(2.25rem,6vw,4rem)]">
               Manage your music.
               <br />
