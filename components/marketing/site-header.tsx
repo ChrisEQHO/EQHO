@@ -100,12 +100,12 @@ export function SiteHeader() {
         className="pointer-events-none absolute inset-x-0 top-full z-0 h-7 bg-gradient-to-b from-[rgba(3,7,25,0.55)] to-transparent"
       />
 
-      {/* Free-phase announcement strip. Sits above the nav row and shows on every
-          page that renders the header. Auto-hides after 1 Oct 2026 (the pill
-          returns null once getOfferCopy().preLaunch is false), so this strip
+      {/* Free-phase announcement banner. Full-width bar above the nav row, shown
+          on every page that renders the header. Auto-hides after 1 Oct 2026 (the
+          banner returns null once getOfferCopy().preLaunch is false), so it
           collapses to nothing with no code change. */}
       {getOfferCopy().preLaunch && (
-        <div className="relative z-[1] flex justify-center border-b border-white/5 px-4 pt-2 pb-2">
+        <div className="relative z-[1]">
           <FreeUntilPill />
         </div>
       )}
