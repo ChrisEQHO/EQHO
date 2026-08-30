@@ -629,7 +629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ─────────────
+  // ── Single-transition guards (fixes the countdown/next-track race) ────────────���
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -6129,13 +6129,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         </div>
       )}
 
-      {/* Unified full-screen countdown — shown on EVERY web player surface
-          (desktop, iPad, mobile web) during the inter-track gap so the "get ready"
-          countdown looks identical to the native mobile app. Mounted once at the
-          root as a fixed overlay so it covers whichever view is active. */}
-      {isGapPaused && gapCountdown > 0 && (
-        <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
-      )}
+  {/* Unified full-screen countdown — shown ONLY in full-screen Coach mode
+  (desktop Coach overlay `isFullscreen`, or mobile/iPad fullscreen player
+  `showFullscreenMobilePlayer`, both captured by `coachViewActive`) during the
+  inter-track gap. The normal player dashboard keeps its inline queue/Now Playing
+  view instead of being taken over by the big countdown. */}
+  {coachViewActive && isGapPaused && gapCountdown > 0 && (
+    <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
+  )}
 
       {/* ══════════════ TEMPORARY iPad Safari DIAGNOSTIC ═════════════════════════
           DIAGNOSE-ONLY: proves which component / responsive branch the real iPad
