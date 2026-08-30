@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { DemoCta } from '@/components/marketing/demo-cta'
+import { FreeUntilPill } from '@/components/marketing/free-until-pill'
 import { PROBLEM, FEATURES, getOfferCopy } from '@/lib/marketing-config'
 
 // Resolve config icon names to lucide components (keeps the config JSX-free).
@@ -237,6 +238,7 @@ export function MarketingHome() {
               </div>
               <div className="flex w-full flex-col gap-3 sm:w-auto">
                 <PrimaryCta className="w-full sm:w-auto" href="/signup" label={offer.cta} />
+                <FreeUntilPill className="w-full sm:w-auto" />
                 <Link
                   href="/pricing"
                   className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5"
@@ -258,8 +260,9 @@ export function MarketingHome() {
           <p className="mx-auto mt-5 max-w-xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
             Keep your music organised, your training moving and your attention where it matters most.
           </p>
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3">
             <PrimaryCta href="/signup" label={offer.cta} />
+            <FreeUntilPill />
           </div>
         </div>
       </section>

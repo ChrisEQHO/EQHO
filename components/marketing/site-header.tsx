@@ -8,7 +8,6 @@ import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { SITE, NAV_LINKS, CTA, getOfferCopy } from '@/lib/marketing-config'
 import { handleSectionLinkClick } from '@/lib/utils/scroll-to-section'
-import { FreeUntilPill } from '@/components/marketing/free-until-pill'
 
 /**
  * Public marketing header. Sticky, translucent, with a mobile drawer.
@@ -99,16 +98,6 @@ export function SiteHeader() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-full z-0 h-7 bg-gradient-to-b from-[rgba(3,7,25,0.55)] to-transparent"
       />
-
-      {/* Free-phase announcement banner. Full-width bar above the nav row, shown
-          on every page that renders the header. Auto-hides after 1 Oct 2026 (the
-          banner returns null once getOfferCopy().preLaunch is false), so it
-          collapses to nothing with no code change. */}
-      {getOfferCopy().preLaunch && (
-        <div className="relative z-[1]">
-          <FreeUntilPill />
-        </div>
-      )}
 
       <div className="relative z-[1] mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6 lg:gap-6">
         {/* Logo → home. The image already contains the full "EQHO PLAYER" wordmark,
