@@ -629,7 +629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────����
+  // ── Single-transition guards (fixes the countdown/next-track race) ────────────�����
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -7422,12 +7422,28 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             </div>
 
             {/* ROW 3: Session controls — Gap, Back-to-Back, Total Session Time and
-                Repeats, restored into Coach View. This is a real grid row (auto
-                height), so the queue (row 2) shrinks to fit and these controls never
-                overlap it. Styling, icons and handlers mirror the main player's
-                session bar so branding stays consistent. 2-up on narrow/portrait,
-                4-up across on wider iPads. */}
-            <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                Repeats. COLLAPSIBLE, mirroring the normal mobile player's bottom bar
+                (shared `bottomBarExpanded` state + the same Chevron/"Hide controls"
+                handle). The handle is always visible as a real grid row; the
+                Gap/B2B/Time/Reps grid renders only when expanded. Collapsing hands
+                the freed height back to the Up Next queue (row 2), so the controls
+                can be hidden on demand and never crowd or overlap the queue. Styling,
+                icons and handlers mirror the main player's session bar. */}
+            <div className="shrink-0 pt-1">
+              <button
+                type="button"
+                onClick={() => setBottomBarExpanded((v) => !v)}
+                aria-expanded={bottomBarExpanded}
+                aria-label={bottomBarExpanded ? "Hide session controls" : "Show session controls"}
+                className="group mb-1 flex w-full items-center justify-center gap-1.5 py-1 text-white/50 transition-colors active:text-white/80"
+              >
+                {bottomBarExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                <span className="text-[10px] font-medium uppercase tracking-wide">
+                  {bottomBarExpanded ? "Hide controls" : "Session controls"}
+                </span>
+              </button>
+              {bottomBarExpanded && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {/* Gap Between Routines */}
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#090f1c]/60 px-2 py-1.5">
                 <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/50 text-white/80">
@@ -7484,6 +7500,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   </div>
                 </div>
               </div>
+              </div>
+              )}
             </div>
 
             {/* ROW 4: Volume Slider - matches the desktop on-brand drag-track control:
