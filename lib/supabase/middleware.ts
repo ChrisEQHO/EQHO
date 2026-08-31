@@ -45,7 +45,7 @@ export async function updateSession(request: NextRequest) {
   // if the middleware redirected them to /login, search engines would index a login
   // page instead of the SEO files. They pass through the matcher (only image
   // extensions are excluded there), so they must be allowlisted here.
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/who-its-for', '/faq', '/terms', '/store', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/robots.txt', '/sitemap.xml', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/api/store', '/debug']
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/how-it-works', '/who-its-for', '/faq', '/terms', '/store', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/robots.txt', '/sitemap.xml', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/api/store', '/debug']
   // The marketing homepage is public, but ONLY as an EXACT match. Using startsWith
   // for '/' would make every route public, so it's handled separately from the
   // prefix-matched list above. The player now lives at '/app' and stays protected
