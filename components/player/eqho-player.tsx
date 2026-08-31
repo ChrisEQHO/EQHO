@@ -629,7 +629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────�����
+  // ── Single-transition guards (fixes the countdown/next-track race) ────────────������
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -7406,9 +7406,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
                             {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
                             {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                            {isHidden && (
+                            {isHidden ? (
                               <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
                                 Unhide
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }}
+                                aria-label={`Hide ${track.title} from this session`}
+                                title="Hide from this session"
+                                className="flex items-center justify-center w-7 h-7 rounded-md text-white/40 hover:text-white hover:bg-white/10 active:bg-white/15 transition shrink-0"
+                              >
+                                <X size={16} />
                               </button>
                             )}
                           </div>
