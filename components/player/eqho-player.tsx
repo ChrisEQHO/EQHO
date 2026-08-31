@@ -6041,6 +6041,28 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
+  // Embedded demo ONLY: the confirm/warning dialogs render as `fixed inset-0`
+  // overlays, but the embed box is a `[container-type:size]` container, which
+  // makes IT (not the viewport) the containing block for fixed descendants. So a
+  // dialog centers within the tall embed box, and when the page isn't scrolled
+  // exactly to the player the card lands below the fold — the user sees only the
+  // dark scrim (e.g. tapping "Pause Session"). The embed box is never taller than
+  // the viewport, so bringing it fully into view guarantees the box-centered
+  // dialog is visible. Scoped to `embedded`; the standalone /app player is not a
+  // size container and is left untouched.
+  const anyEmbeddedDialogOpen =
+    !!showPauseConfirm ||
+    !!showSkipForwardConfirm ||
+    !!showSkipBackConfirm ||
+    !!showStopConfirm ||
+    !!showSendToSessionConfirm;
+  useEffect(() => {
+    if (!embedded || !anyEmbeddedDialogOpen) return;
+    if (typeof document === "undefined") return;
+    const root = document.querySelector<HTMLElement>("[data-eqho-embed-root]");
+    root?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [embedded, anyEmbeddedDialogOpen]);
+
   return (
     <div
       // data-eqho-embed-root marks the embedded container so the scoped
