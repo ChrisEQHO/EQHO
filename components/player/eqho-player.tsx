@@ -5993,14 +5993,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     };
   })();
 
-  // Both responsive confirmation dialogs use this single action. Keeping the
-  // session load and navigation together prevents the mobile dialog from being
-  // dismissed without also moving the user to Now Playing.
-  const confirmSendPlaylistToSession = () => {
-    if (!showSendToSessionConfirm) return;
-
-    const { name, tracks } = showSendToSessionConfirm;
-
+  // Load a playlist into the session and jump to Now Playing. Shared by the
+  // confirm dialog and the direct (no-confirm) path so both behave identically.
+  // Keeping the session load and navigation together prevents the mobile flow
+  // from loading a playlist without also moving the user to Now Playing.
+  const sendPlaylistToSession = (name: string, tracks: Track[]) => {
     if (isPlaying && audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -6016,7 +6013,26 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setFinishedTracks(new Set());
     setActivePage("player");
     setMobileTab("nowplaying");
+  };
+
+  const confirmSendPlaylistToSession = () => {
+    if (!showSendToSessionConfirm) return;
+    const { name, tracks } = showSendToSessionConfirm;
+    sendPlaylistToSession(name, tracks);
     setShowSendToSessionConfirm(null);
+  };
+
+  // Mobile "Send to Session": only prompt for confirmation when a session is
+  // actually running/playing (so we don't silently interrupt it). Otherwise
+  // load straight into the session — matching the desktop "Load" button — so
+  // the demo/idle case doesn't surface an unnecessary confirmation dialog.
+  const handleSendPlaylistToSession = (name: string, tracks: Track[]) => {
+    if (tracks.length === 0) return;
+    if (sessionRunning || isPlaying) {
+      setShowSendToSessionConfirm({ name, tracks });
+    } else {
+      sendPlaylistToSession(name, tracks);
+    }
   };
 
   return (
@@ -9034,9 +9050,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               formatDuration={formatDuration}
                             />
                             
-                            <button
-                              onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
-                              className="w-full py-1.5 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
+                        <button
+                          onClick={() => handleSendPlaylistToSession(localPlaylist.name, localPlaylist.tracks)}
+                          className="w-full py-1.5 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15
                                          border border-pink-500/25 text-pink-400 text-xs font-semibold
                                          hover:from-pink-500/25 hover:to-orange-500/25 transition"
                             >
@@ -10905,7 +10921,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     {/* Send to Session / Add Buttons */}
                                     <div className="flex gap-2">
                                       <button
-                                        onClick={() => setShowSendToSessionConfirm({ name: localPlaylist.name, tracks: localPlaylist.tracks })}
+                                        onClick={() => handleSendPlaylistToSession(localPlaylist.name, localPlaylist.tracks)}
                                         disabled={localPlaylist.tracks.length === 0}
                                         className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
                                                    border border-pink-500/25 text-pink-400 text-[11px] font-semibold
