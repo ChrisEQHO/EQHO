@@ -629,7 +629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────������
+  // ── Single-transition guards (fixes the countdown/next-track race) ────────────�������
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -1892,6 +1892,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // grid is expanded. When collapsed, only the session button remains, and the
   // orange divider line acts as the collapse/expand handle.
   const [bottomBarExpanded, setBottomBarExpanded] = useState(true);
+  // Fullscreen mobile Coach view ONLY: its own collapse state for the
+  // Gap/B2B/Time/Reps controls, independent of the normal player's
+  // `bottomBarExpanded`. Defaults to COLLAPSED so the Up Next queue is the
+  // dominant, space-filling area on open (more tracks visible), matching the
+  // standalone player layout. Still fully expandable via the handle.
+  const [coachControlsExpanded, setCoachControlsExpanded] = useState(false);
   // Ref to the fixed mobile session-controls bar. We MEASURE its real rendered
   // height (which varies by device safe-area and expanded/collapsed state) and
   // publish it as the CSS var `--mobile-controls-height`, so the scrollable
@@ -7441,17 +7447,17 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             <div className="shrink-0 pt-1">
               <button
                 type="button"
-                onClick={() => setBottomBarExpanded((v) => !v)}
-                aria-expanded={bottomBarExpanded}
-                aria-label={bottomBarExpanded ? "Hide session controls" : "Show session controls"}
+                onClick={() => setCoachControlsExpanded((v) => !v)}
+                aria-expanded={coachControlsExpanded}
+                aria-label={coachControlsExpanded ? "Hide session controls" : "Show session controls"}
                 className="group mb-1 flex w-full items-center justify-center gap-1.5 py-1 text-white/50 transition-colors active:text-white/80"
               >
-                {bottomBarExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                {coachControlsExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                 <span className="text-[10px] font-medium uppercase tracking-wide">
-                  {bottomBarExpanded ? "Hide controls" : "Session controls"}
+                  {coachControlsExpanded ? "Hide controls" : "Session controls"}
                 </span>
               </button>
-              {bottomBarExpanded && (
+              {coachControlsExpanded && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {/* Gap Between Routines */}
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#090f1c]/60 px-2 py-1.5">
