@@ -17,13 +17,23 @@
 export function CountdownOverlay({
   count,
   nextTitle,
+  fill = false,
 }: {
   count: number;
   nextTitle: string;
+  /**
+   * When true, positions the overlay with `absolute inset-0` instead of
+   * `fixed inset-0`. Required for the DESKTOP coach view, which uses the native
+   * Fullscreen API: a `position: fixed` child does NOT paint reliably inside a
+   * natively-fullscreened element (it can render blank/behind the fullscreen
+   * top layer), but an `absolute inset-0` child positioned against the
+   * full-viewport fullscreen container covers it and paints correctly. The
+   * default (`fixed`) is kept for the mobile/normal surfaces where it works.
+   */
+  fill?: boolean;
 }) {
-  console.log("[v0] IPAD OVERLAY rendered visibleCountdown=", count, "mounted=true");
   return (
-    <div className="fixed inset-0 z-[400] flex flex-col items-center justify-center bg-black">
+    <div className={`${fill ? "absolute" : "fixed"} inset-0 z-[400] flex flex-col items-center justify-center bg-black`}>
       <div
         key={count}
         className="flex items-center justify-center"

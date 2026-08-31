@@ -6253,10 +6253,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             descendant of `fullscreenRef` (NOT a root sibling) because the native
             Fullscreen API paints only this element's subtree — the root-level
             CountdownOverlay can't appear over a natively-fullscreened element.
-            The parent is `hidden` (display:none) when not fullscreen, so this
-            only shows in fullscreen; z-[400] keeps it above the coach layout. */}
+            `fill` makes it `absolute inset-0` (not `fixed`): a fixed child does
+            not paint reliably inside a natively-fullscreened element, but an
+            absolute child against the full-viewport container blacks the whole
+            screen out correctly. The parent is `hidden` (display:none) when not
+            fullscreen, so this only shows in fullscreen; z-[400] sits above the
+            coach layout, matching the black takeover on mobile/normal. */}
         {isGapPaused && gapCountdown > 0 && (
-          <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
+          <CountdownOverlay fill count={gapCountdown} nextTitle={getNextTrackTitle()} />
         )}
 
         {/* Safety Confirmation Dialogs */}
