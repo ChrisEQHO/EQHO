@@ -284,33 +284,18 @@ export default function FeaturesPage() {
             {/* 5: the large, genuine embedded player (always visible below) */}
             <DemoPlayerLazy />
 
-            {/* Directly beneath the demo: a branded free-offer CTA. Uses the
-                site's pink→orange gradient for the primary "Create free account"
-                button and the blue→cyan→green FreeUntilPill to make the
-                free-until-1-October offer unmistakable. Copy is driven by the
-                shared date-aware offer, so it flips automatically at launch. */}
-            <div className="mx-auto mt-12 max-w-2xl px-4 text-center sm:px-6">
-              <h3 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
-                Liked the demo? It&apos;s free until 1 October 2026.
-              </h3>
-              <p className="mx-auto mt-3 max-w-xl text-pretty leading-relaxed text-[#94a3b8]">
-                Create your free account today and use every EQHO Player feature — build your own
-                playlists, save them to the cloud and coach live sessions. No card required.
-              </p>
-              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
-                <FreeUntilPill className="w-full sm:w-auto" />
-              </div>
-              <p className="mt-4 text-sm text-[#94a3b8]">{offer.cardNote}</p>
-            </div>
-
+            {/* Single free-offer CTA beneath the demo. Site pink→orange gradient
+                on the primary "Create free account" button, with the blue→cyan→green
+                FreeUntilPill making the free-until-1-October offer unmistakable.
+                Copy is driven by the shared date-aware offer, so it flips at launch. */}
             <div className="mx-auto mt-16 max-w-2xl px-4 text-center sm:px-6">
               <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
                 Ready to set up your own sessions?
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-pretty leading-relaxed text-[#94a3b8]">
                 The demo resets each time and doesn’t save. Create a free account to build your own
-                playlists, push them to the cloud and use them in your training sessions.
+                playlists, push them to the cloud and use them in your training sessions — free to use
+                until 1 October 2026, no card required.
               </p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
@@ -321,7 +306,9 @@ export default function FeaturesPage() {
                   See how it works
                 </Link>
               </div>
-              <p className="mt-4 text-sm text-[#94a3b8]">{offer.cardNote}</p>
+              <div className="mt-6 flex justify-center">
+                <FreeUntilPill />
+              </div>
             </div>
           </div>
         </section>
