@@ -6129,12 +6129,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         </div>
       )}
 
-  {/* Unified full-screen countdown — shown ONLY in full-screen Coach mode
-  (desktop Coach overlay `isFullscreen`, or mobile/iPad fullscreen player
-  `showFullscreenMobilePlayer`, both captured by `coachViewActive`) during the
-  inter-track gap. The normal player dashboard keeps its inline queue/Now Playing
+  {/* Full-screen gap countdown for the MOBILE/iPad fullscreen player only.
+  That view (`showFullscreenMobilePlayer`, z-[300]) is a plain fixed overlay, so
+  this z-[400] sibling paints over it correctly. The DESKTOP coach view uses the
+  native Fullscreen API (`requestFullscreen` on `fullscreenRef`), which paints
+  ONLY that element's subtree — a sibling like this can never show there, so the
+  desktop countdown is rendered as a descendant INSIDE `fullscreenRef` below.
+  The normal (non-fullscreen) player dashboard keeps its inline queue/Now Playing
   view instead of being taken over by the big countdown. */}
-  {coachViewActive && isGapPaused && gapCountdown > 0 && (
+  {showFullscreenMobilePlayer && isGapPaused && gapCountdown > 0 && (
     <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
   )}
 
@@ -6246,6 +6249,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         data-coach-overlay="desktop"
         className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
+        {/* Full-screen gap countdown for the DESKTOP coach view. Rendered as a
+            descendant of `fullscreenRef` (NOT a root sibling) because the native
+            Fullscreen API paints only this element's subtree — the root-level
+            CountdownOverlay can't appear over a natively-fullscreened element.
+            The parent is `hidden` (display:none) when not fullscreen, so this
+            only shows in fullscreen; z-[400] keeps it above the coach layout. */}
+        {isGapPaused && gapCountdown > 0 && (
+          <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
+        )}
+
         {/* Safety Confirmation Dialogs */}
         {showPauseConfirm && (
           <div className="eqho-dialog fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
