@@ -56,8 +56,11 @@ export function DemoPlayerLazy() {
           button (linking to /signup) is the primary conversion action right where
           the visitor is engaging with the live player. */}
       <div className="mb-3 flex flex-shrink-0 items-center justify-between gap-4">
-        <span className="text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
-          Interactive demo
+        <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider">
+          <span className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-[#ff4fa3] shadow-[0_0_10px_rgba(255,79,163,0.8)]" aria-hidden="true" />
+          <span className="bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+            Interactive demo
+          </span>
         </span>
         <Link
           href="/signup"
