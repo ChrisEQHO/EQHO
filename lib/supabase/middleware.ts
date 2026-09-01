@@ -98,10 +98,17 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // If user is not logged in and trying to access a protected route
+  // If user is not logged in and trying to access a protected route, send them
+  // to /login and remember where they were headed via ?next= so we can return
+  // them there after they sign in (e.g. /app -> /login?next=/app). Only the
+  // internal path+query is preserved; safeNext on the login side rejects
+  // anything that isn't a single-slash internal path, so this can't be abused
+  // as an open redirect.
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.search = ''
+    url.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(url)
   }
 
