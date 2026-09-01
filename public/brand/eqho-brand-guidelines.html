@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EQHO Player — Brand Guidelines</title>
+<style>
+  :root {
+    --canvas: #020617;
+    --pink: #ff4fa3;
+    --orange: #ff8a00;
+    --offer-blue: #2563eb;
+    --offer-cyan: #06b6d4;
+    --offer-green: #10b981;
+    --indigo: #1e1b4b;
+    --violet: #4c1d95;
+    --text: #ffffff;
+    --text-muted: #aeb9d4;
+    --text-subtle: #cbd5e1;
+    --text-faint: #94a3b8;
+    --hairline: rgba(255,255,255,0.10);
+    --card: rgba(255,255,255,0.03);
+    --brand: linear-gradient(90deg, #ff4fa3 0%, #ff8a00 100%);
+    --offer: linear-gradient(90deg, #2563eb 0%, #06b6d4 50%, #10b981 100%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--canvas);
+    color: var(--text);
+    font-family: 'Geist', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 64px 24px 96px; }
+  header.hero {
+    background: linear-gradient(90deg, rgba(2,6,23,0.55) 0%, rgba(30,27,75,0.60) 50%, rgba(76,29,149,0.45) 100%);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .hero-inner { max-width: 960px; margin: 0 auto; padding: 56px 24px; }
+  .eyebrow { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--pink); font-weight: 700; }
+  h1 { font-size: 44px; line-height: 1.1; margin: 12px 0 8px; font-weight: 800; letter-spacing: -0.02em; }
+  h1 .grad { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { color: var(--text-subtle); font-size: 17px; max-width: 620px; }
+  section { margin-top: 56px; }
+  h2 { font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); font-weight: 700; border-bottom: 1px solid var(--hairline); padding-bottom: 12px; margin-bottom: 24px; }
+  h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  p.note { color: var(--text-faint); font-size: 14px; }
+  .grid { display: grid; gap: 16px; }
+  .cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .cols-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 680px) { .cols-2, .cols-3 { grid-template-columns: 1fr; } }
+  .swatch { border-radius: 14px; overflow: hidden; border: 1px solid var(--hairline); background: var(--card); }
+  .swatch .chip { height: 96px; }
+  .swatch .meta { padding: 12px 14px; }
+  .swatch .name { font-weight: 600; font-size: 15px; }
+  .swatch .hex { font-family: 'Geist Mono', ui-monospace, monospace; color: var(--text-faint); font-size: 13px; margin-top: 2px; }
+  .swatch .use { color: var(--text-subtle); font-size: 12.5px; margin-top: 8px; }
+  .gradcard { border-radius: 16px; overflow: hidden; border: 1px solid var(--hairline); }
+  .gradcard .band { height: 120px; }
+  .gradcard .meta { padding: 14px 16px; background: var(--card); }
+  .gradcard .code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12.5px; color: var(--text-muted); margin-top: 6px; word-break: break-all; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 48px; padding: 0 28px; border-radius: 9999px; font-weight: 600; color: #fff;
+    border: 0; font-size: 15px;
+  }
+  .btn.primary { background: var(--brand); box-shadow: 0 8px 30px rgba(255,79,163,0.35); }
+  .btn.offer { background: var(--offer); box-shadow: 0 0 28px rgba(16,185,129,0.45); font-weight: 700; }
+  .type-row { display: flex; align-items: baseline; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--hairline); flex-wrap: wrap; }
+  .type-row .label { width: 130px; color: var(--text-faint); font-size: 13px; font-family: 'Geist Mono', ui-monospace, monospace; }
+  .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
+  .card { border: 1px solid var(--hairline); background: var(--card); border-radius: 16px; padding: 20px; }
+  ul.clean { list-style: none; display: grid; gap: 10px; }
+  ul.clean li { color: var(--text-subtle); font-size: 14.5px; padding-left: 20px; position: relative; }
+  ul.clean li::before { content: ""; position: absolute; left: 0; top: 9px; width: 8px; height: 8px; border-radius: 9999px; background: var(--brand); }
+  ul.dont li::before { background: #ef4444; }
+  .radius-demo { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+  .radius-demo .box { width: 84px; height: 84px; background: var(--brand); display: flex; align-items: flex-end; justify-content: center; padding: 6px; }
+  .radius-demo .box span { font-size: 11px; font-family: 'Geist Mono', monospace; color: rgba(255,255,255,0.9); }
+  footer { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--hairline); color: var(--text-faint); font-size: 13px; }
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="eyebrow">Brand Guidelines</div>
+      <h1><span class="grad">EQHO Player</span></h1>
+      <p class="lede">The complete colour, gradient, typography and imagery reference for EQHO Player — a training music player for gymnastics coaches. Every value here is taken directly from the live product.</p>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <section>
+      <h2>Core Colours</h2>
+      <div class="grid cols-3">
+        <div class="swatch"><div class="chip" style="background:#020617;border-bottom:1px solid var(--hairline)"></div><div class="meta"><div class="name">Canvas / Deep Navy</div><div class="hex">#020617</div><div class="use">Primary background everywhere — app, marketing, browser theme-color and status bar.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#ff4fa3"></div><div class="meta"><div class="name">EQHO Pink</div><div class="hex">#ff4fa3</div><div class="use">Brand gradient start. The primary action colour.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#ff8a00"></div><div class="meta"><div class="name">EQHO Orange</div><div class="hex">#ff8a00</div><div class="use">Brand gradient end. Warm accent.</div></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Free-Offer Accent</h2>
+      <p class="note" style="margin-bottom:24px">Used only for the limited "free to use until 1 October 2026" messaging — never mix with the pink/orange brand gradient.</p>
+      <div class="grid cols-3">
+        <div class="swatch"><div class="chip" style="background:#2563eb"></div><div class="meta"><div class="name">Offer Blue</div><div class="hex">#2563eb</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#06b6d4"></div><div class="meta"><div class="name">Offer Cyan</div><div class="hex">#06b6d4</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#10b981"></div><div class="meta"><div class="name">Offer Green</div><div class="hex">#10b981</div></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Neutrals &amp; Text</h2>
+      <div class="grid cols-3">
+        <div class="swatch"><div class="chip" style="background:#ffffff"></div><div class="meta"><div class="name">Text / White</div><div class="hex">#ffffff</div><div class="use">Headings and primary text.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#aeb9d4"></div><div class="meta"><div class="name">Muted Slate</div><div class="hex">#aeb9d4</div><div class="use">Secondary navigation.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#cbd5e1"></div><div class="meta"><div class="name">Subtle Slate</div><div class="hex">#cbd5e1</div><div class="use">Tertiary text.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#94a3b8"></div><div class="meta"><div class="name">Faint Slate</div><div class="hex">#94a3b8</div><div class="use">Timestamps, fine print, disabled.</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#1e1b4b"></div><div class="meta"><div class="name">Ambient Indigo</div><div class="hex">#1e1b4b</div><div class="use">Header wash (~42% opacity).</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#4c1d95"></div><div class="meta"><div class="name">Ambient Violet</div><div class="hex">#4c1d95</div><div class="use">Header wash (~30% opacity).</div></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Signature Gradients</h2>
+      <div class="grid cols-2">
+        <div class="gradcard"><div class="band" style="background:linear-gradient(90deg,#ff4fa3 0%,#ff8a00 100%)"></div><div class="meta"><h3>Brand (horizontal)</h3><div class="code">linear-gradient(90deg, #ff4fa3 0%, #ff8a00 100%)</div></div></div>
+        <div class="gradcard"><div class="band" style="background:linear-gradient(135deg,#ff4fa3 0%,#ff8a00 100%)"></div><div class="meta"><h3>Brand (diagonal)</h3><div class="code">linear-gradient(135deg, #ff4fa3 0%, #ff8a00 100%)</div></div></div>
+        <div class="gradcard"><div class="band" style="background:linear-gradient(90deg,#2563eb 0%,#06b6d4 50%,#10b981 100%)"></div><div class="meta"><h3>Free-offer accent</h3><div class="code">linear-gradient(90deg, #2563eb 0%, #06b6d4 50%, #10b981 100%)</div></div></div>
+        <div class="gradcard"><div class="band" style="background:linear-gradient(90deg,rgba(2,6,23,1) 0%,rgba(30,27,75,1) 50%,rgba(76,29,149,1) 100%)"></div><div class="meta"><h3>Header ambient</h3><div class="code">linear-gradient(90deg, rgba(2,6,23,.55), rgba(30,27,75,.42), rgba(76,29,149,.30))</div></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Buttons</h2>
+      <div class="card" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <button class="btn primary">Create free account →</button>
+        <button class="btn offer">Free until 1 October 2026</button>
+      </div>
+      <p class="note" style="margin-top:14px">Primary CTA: brand gradient + glow <span class="mono">0 8px 30px rgba(255,79,163,.35)</span>, full pill radius, white 600-weight label. Offer pill: offer gradient + glow <span class="mono">0 0 28px rgba(16,185,129,.45)</span>.</p>
+    </section>
+
+    <section>
+      <h2>Typography</h2>
+      <div class="card">
+        <div class="type-row"><div class="label">Geist 800</div><div style="font-weight:800;font-size:30px;letter-spacing:-0.02em">Press play and coach the session</div></div>
+        <div class="type-row"><div class="label">Geist 600</div><div style="font-weight:600;font-size:20px">Set the running order in 30 seconds</div></div>
+        <div class="type-row"><div class="label">Geist 400</div><div style="font-weight:400;font-size:16px;color:var(--text-subtle)">Body copy uses Geist at a relaxed 1.6 line-height for comfortable reading on dark backgrounds.</div></div>
+        <div class="type-row"><div class="label">Geist Mono</div><div class="mono" style="font-size:18px">01:54 / 1:59 &nbsp; 48:00</div></div>
+      </div>
+      <p class="note" style="margin-top:14px"><strong style="color:var(--text)">Geist</strong> for headings and body. <strong style="color:var(--text)">Geist Mono</strong> for timers, durations and numeric data. Both are Google Fonts, loaded via next/font.</p>
+    </section>
+
+    <section>
+      <h2>Corner Radius</h2>
+      <div class="card radius-demo">
+        <div class="box" style="border-radius:6px"><span>sm</span></div>
+        <div class="box" style="border-radius:8px"><span>md</span></div>
+        <div class="box" style="border-radius:10px"><span>10px</span></div>
+        <div class="box" style="border-radius:14px"><span>xl</span></div>
+        <div class="box" style="border-radius:9999px"><span>pill</span></div>
+      </div>
+      <p class="note" style="margin-top:14px">Base radius <span class="mono">0.625rem (10px)</span>. Cards use base→xl; buttons, badges and pills use full pill radius.</p>
+    </section>
+
+    <section>
+      <h2>Imagery &amp; Logo Usage</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3 style="margin-bottom:12px">Do</h3>
+          <ul class="clean">
+            <li>Place logos and imagery on the deep-navy canvas (#020617) or darker.</li>
+            <li>Reserve the pink→orange gradient for actions, the play control, and small brand marks.</li>
+            <li>Use real product screenshots (the player, queue, session controls) as hero imagery.</li>
+            <li>Keep photography warm and human — coaches and athletes in training.</li>
+            <li>Let generous negative space and the glow do the decorative work.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:12px">Don't</h3>
+          <ul class="clean dont">
+            <li>Recolour the brand gradient or swap its direction between elements.</li>
+            <li>Mix the offer (blue/cyan/green) gradient with the brand gradient.</li>
+            <li>Place the logo on light or busy backgrounds without a dark plate.</li>
+            <li>Add extra accent colours — the palette is intentionally tight.</li>
+            <li>Use gradient blobs or glowing orbs as filler decoration.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="note" style="margin-top:16px">Logo files shipped with the product: <span class="mono">eqho-player-logo.png</span>, <span class="mono">eqho-player-logo-sunset.png</span>, <span class="mono">eqho-logo.png</span> (mark), plus <span class="mono">favicon.png</span>, <span class="mono">icon-192.png</span>, <span class="mono">icon-512.png</span>.</p>
+    </section>
+
+    <footer>
+      EQHO Player — Brand Guidelines · Generated from the production codebase · Updated 1 September 2026.<br/>
+      Machine-readable versions of these tokens are available as <span class="mono">eqho-brand-tokens.json</span> and <span class="mono">eqho-brand.css</span>.
+    </footer>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,92 @@
+/* =========================================================================
+   EQHO Player — Brand CSS Variables
+   Extracted from the production codebase. Drop into any project and reference
+   via var(--eqho-*). Colours, gradients, shadows, type and radius.
+   Updated: 2026-09-01
+   ========================================================================= */
+
+:root {
+  /* ---- Core colours ---- */
+  --eqho-canvas: #020617;        /* Deep navy — primary background */
+  --eqho-pink: #ff4fa3;          /* Brand gradient start */
+  --eqho-orange: #ff8a00;        /* Brand gradient end */
+
+  --eqho-offer-blue: #2563eb;    /* Free-offer gradient start */
+  --eqho-offer-cyan: #06b6d4;    /* Free-offer gradient middle */
+  --eqho-offer-green: #10b981;   /* Free-offer gradient end */
+
+  --eqho-indigo: #1e1b4b;        /* Ambient wash */
+  --eqho-violet: #4c1d95;        /* Ambient wash */
+
+  /* ---- Text ---- */
+  --eqho-text: #ffffff;          /* Primary text / headings */
+  --eqho-text-muted: #aeb9d4;    /* Secondary nav */
+  --eqho-text-subtle: #cbd5e1;   /* Tertiary text */
+  --eqho-text-faint: #94a3b8;    /* Fine print / disabled */
+  --eqho-hairline: rgba(255, 255, 255, 0.10); /* Borders & rings */
+
+  /* ---- Signature gradients ---- */
+  --eqho-gradient-brand: linear-gradient(90deg, #ff4fa3 0%, #ff8a00 100%);
+  --eqho-gradient-brand-diagonal: linear-gradient(135deg, #ff4fa3 0%, #ff8a00 100%);
+  --eqho-gradient-offer: linear-gradient(90deg, #2563eb 0%, #06b6d4 50%, #10b981 100%);
+  --eqho-gradient-header: linear-gradient(90deg, rgba(2,6,23,0.55) 0%, rgba(30,27,75,0.42) 50%, rgba(76,29,149,0.30) 100%);
+
+  /* ---- Glows / shadows ---- */
+  --eqho-glow-brand: 0 8px 30px rgba(255, 79, 163, 0.35);
+  --eqho-glow-brand-soft: 0 4px 20px rgba(255, 79, 163, 0.30);
+  --eqho-glow-offer: 0 0 28px rgba(16, 185, 129, 0.45);
+
+  /* ---- Typography ---- */
+  --eqho-font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
+  --eqho-font-mono: 'Geist Mono', 'Geist Mono Fallback', ui-monospace, monospace;
+
+  /* ---- Radius ---- */
+  --eqho-radius: 0.625rem;
+  --eqho-radius-sm: calc(0.625rem - 4px);
+  --eqho-radius-md: calc(0.625rem - 2px);
+  --eqho-radius-lg: 0.625rem;
+  --eqho-radius-xl: calc(0.625rem + 4px);
+  --eqho-radius-pill: 9999px;
+}
+
+/* ---- Ready-made utility examples ---- */
+
+.eqho-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding: 0 1.75rem;
+  border-radius: var(--eqho-radius-pill);
+  background: var(--eqho-gradient-brand);
+  box-shadow: var(--eqho-glow-brand);
+  color: #ffffff;
+  font-family: var(--eqho-font-sans);
+  font-weight: 600;
+  border: 0;
+  cursor: pointer;
+}
+
+.eqho-btn-offer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  height: 3rem;
+  padding: 0 1.75rem;
+  border-radius: var(--eqho-radius-pill);
+  background: var(--eqho-gradient-offer);
+  box-shadow: var(--eqho-glow-offer);
+  color: #ffffff;
+  font-family: var(--eqho-font-sans);
+  font-weight: 700;
+  border: 0;
+}
+
+.eqho-text-gradient {
+  background: var(--eqho-gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
