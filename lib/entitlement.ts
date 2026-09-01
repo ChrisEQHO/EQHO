@@ -53,13 +53,17 @@ export function getPaywallStartAt(): Date {
   return new Date(DEFAULT_PAYWALL_START_AT)
 }
 
-// True only on the real deployed site. Mirrors the middleware's own check so a
-// single definition of "production" governs both enforcement and the clock.
+// True on any deployed build (production AND preview deployments); false only
+// during genuine local `next dev`. This gates the test-clock injection, so it
+// must never be spoofable in production.
+//
+// We deliberately do NOT read `NEXT_PUBLIC_V0_PREVIEW`: that public flag is set
+// (and currently malformed) in this project's PRODUCTION environment, so trusting
+// it would let a bad env value flip production into "non-production" and expose
+// the injectable clock. NODE_ENV is set by the framework and cannot be spoofed
+// this way, so it is the only signal used here.
 export function isProductionRuntime(): boolean {
-  return (
-    process.env.NODE_ENV !== "development" &&
-    process.env.NEXT_PUBLIC_V0_PREVIEW !== "true"
-  )
+  return process.env.NODE_ENV !== "development"
 }
 
 // Minimal shape shared by NextRequest (middleware) and the Web `Request`
