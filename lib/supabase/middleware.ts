@@ -13,11 +13,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // V0 Preview bypass: skip auth entirely in development
-  if (
-    process.env.NODE_ENV === "development" ||
-    process.env.NEXT_PUBLIC_V0_PREVIEW === "true"
-  ) {
+  // Local-dev bypass: skip auth entirely only during genuine `next dev`.
+  //
+  // We deliberately do NOT trust `NEXT_PUBLIC_V0_PREVIEW` here. That public flag
+  // is set in this project's PRODUCTION environment (and is currently malformed),
+  // so trusting it would bypass auth on the live site. Gating on NODE_ENV alone
+  // means the deployed site ALWAYS enforces login regardless of that env value.
+  if (process.env.NODE_ENV === "development") {
     return NextResponse.next()
   }
 
