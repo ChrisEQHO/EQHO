@@ -8,6 +8,22 @@ import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
+// Map raw Supabase auth error messages to clear, user-facing copy.
+function mapAuthError(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes('email not confirmed')) {
+    return 'Please confirm your email address before signing in. Check your inbox for the confirmation link.'
+  }
+  if (m.includes('invalid login credentials') || m.includes('invalid credentials')) {
+    return 'Invalid email or password.'
+  }
+  if (m.includes('failed to fetch') || m.includes('network')) {
+    return 'Network error. Please check your connection and try again.'
+  }
+  // Any other returned Supabase authentication error — surface it as-is.
+  return message
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,83 +73,89 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[v0] login clicked')
+
+    // Guard against repeated clicks while a request is already active.
+    if (loading) return
+
     setError(null)
     setLoading(true)
 
-    // In v0 preview mode, just redirect to player
+    // In v0 preview mode, just redirect to player.
     if (isV0Preview) {
-      console.log('[v0] login: v0 preview, redirect target: /')
       router.replace('/app')
       return
     }
 
-    const supabase = createClient()
-    
-    if (!supabase) {
-      setError('Service temporarily unavailable. Please try again later.')
-      setLoading(false)
-      return
-    }
+    try {
+      const supabase = createClient()
 
-    // Sign in with Supabase (client-side only; session is persisted to
-    // localStorage on the Capacitor build, cookies on web).
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    console.log('[v0] login Supabase response:', {
-      hasUser: !!data?.user,
-      hasSession: !!data?.session,
-      error: authError?.message ?? null,
-    })
-
-    if (authError) {
-      // Show the EXACT Supabase error and keep the email/password fields filled.
-      setError(authError.message)
-      setLoading(false)
-      return
-    }
-
-    if (!data.user) {
-      setError('Login failed. Please try again.')
-      setLoading(false)
-      return
-    }
-
-    // Immediately confirm the session was actually persisted before redirecting.
-    // This is the authoritative check for the Capacitor WebView (localStorage).
-    const { data: sessionData } = await supabase.auth.getSession()
-    const sessionExists = !!sessionData?.session
-    console.log('[v0] login session exists:', sessionExists)
-
-    if (!sessionExists) {
-      // No persisted session means the WebView storage didn't take the token, so
-      // redirecting would just bounce back to /login. Surface it instead.
-      setError('Could not start your session. Please try again.')
-      setLoading(false)
-      return
-    }
-
-    // Ensure a profiles row exists for this user (mirrors auth.users -> profiles).
-    // Skipped on the Capacitor static export (`output: export`) since there is no
-    // API server bundled; the client-side Supabase session already controls access.
-    const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
-    if (!isMobileBuild) {
-      try {
-        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
-        const ensureJson = await ensureRes.json()
-        console.log('[v0] login ensure-profile result:', ensureJson)
-      } catch (ensureErr) {
-        console.error('[v0] login ensure-profile error:', ensureErr)
+      if (!supabase) {
+        setError('Service temporarily unavailable. Please try again later.')
+        return
       }
-    }
 
-    // Free access: no subscription required, go straight to the player.
-    // The client-side Supabase session (persisted to localStorage on mobile) is
-    // what the player uses to decide login vs. player — no server/cookie needed.
-    console.log('[v0] login redirect target: /app')
-    router.replace('/app')
+      // Race every auth call against a 15s timeout so the button can never stay
+      // stuck on "Signing in…" if Supabase/WebKit stalls without resolving.
+      const withTimeout = <T,>(promise: PromiseLike<T>, ms = 15000): Promise<T> =>
+        Promise.race([
+          Promise.resolve(promise),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('__timeout__')), ms),
+          ),
+        ])
+
+      // Sign in with Supabase (client-side only; session is persisted to
+      // localStorage on the Capacitor build, cookies on web).
+      const { data, error: authError } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+      )
+
+      if (authError) {
+        setError(mapAuthError(authError.message))
+        return
+      }
+
+      if (!data.user) {
+        setError('Invalid email or password.')
+        return
+      }
+
+      // Confirm the session was actually persisted before navigating. This is the
+      // authoritative check — never redirect until Supabase reports a session.
+      const { data: sessionData } = await withTimeout(supabase.auth.getSession())
+      if (!sessionData?.session) {
+        setError('Could not start your session. Please try again.')
+        return
+      }
+
+      // Ensure a profiles row exists for this user (mirrors auth.users -> profiles).
+      // Skipped on the Capacitor static export (`output: export`) since there is no
+      // API server bundled; the client-side Supabase session already controls access.
+      // A failure here must NOT block a successful login, so it's best-effort.
+      const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+      if (!isMobileBuild) {
+        try {
+          await withTimeout(fetch('/api/ensure-profile', { method: 'POST' }), 8000)
+        } catch {
+          // Non-fatal: the client-side session already controls access.
+        }
+      }
+
+      // Session confirmed — go to the player and refresh server state so any
+      // cookie-reading middleware/RSC picks up the new auth immediately.
+      router.replace('/app')
+      router.refresh()
+    } catch (err) {
+      // Covers the 15s timeout and any network / Supabase connection failure.
+      if (err instanceof Error && err.message === '__timeout__') {
+        setError('The request timed out. Please check your connection and try again.')
+      } else {
+        setError('Network error. Please check your connection and try again.')
+      }
+    } finally {
+      // ALWAYS restore the button — success, failure, timeout or exception.
+      setLoading(false)
+    }
   }
 
   return (
