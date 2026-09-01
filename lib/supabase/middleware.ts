@@ -112,13 +112,18 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is logged in, keep them out of the auth pages (send to the player at
+  // If user is logged in, keep them out of the LOGIN page (send to the player at
   // /app). Login alone grants access - there is no subscription/trial check.
   // Note: we intentionally do NOT redirect logged-in users away from '/', so they
   // can still view the public marketing homepage while signed in (the header shows
   // an "Open EQHO" link to /app in that case).
+  //
+  // '/signup' is deliberately EXCLUDED here: visiting /signup directly must ALWAYS
+  // render the signup page, even for an authenticated user. Auto-redirecting an
+  // existing session from /signup to /app was hiding the page entirely, so it is
+  // no longer redirected.
   if (user) {
-    if (pathname === '/login' || pathname === '/signup') {
+    if (pathname === '/login') {
       const url = request.nextUrl.clone()
       url.pathname = '/app'
       return NextResponse.redirect(url)
