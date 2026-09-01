@@ -629,7 +629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────�������
+  // ── Single-transition guards (fixes the countdown/next-track race) ────────────��������
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -5867,6 +5867,33 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     );
   };
 
+  // Embedded demo ONLY: the confirm/warning dialogs render as `fixed inset-0`
+  // overlays, but the embed box is a `[container-type:size]` container, which
+  // makes IT (not the viewport) the containing block for fixed descendants. So a
+  // dialog centers within the tall embed box, and when the page isn't scrolled
+  // exactly to the player the card lands below the fold — the user sees only the
+  // dark scrim (e.g. tapping "Pause Session"). The embed box is never taller than
+  // the viewport, so bringing it fully into view guarantees the box-centered
+  // dialog is visible. Scoped to `embedded`; the standalone /app player is not a
+  // size container and is left untouched.
+  //
+  // NOTE: this hook MUST stay above the gate early-returns below so that every
+  // React hook in EqhoPlayer runs in the same order on every render. Placing it
+  // after the `gate === "checking" | "blocked-offline" | "error"` returns made
+  // the hook count change on the checking→granted transition (React error #310).
+  const anyEmbeddedDialogOpen =
+    !!showPauseConfirm ||
+    !!showSkipForwardConfirm ||
+    !!showSkipBackConfirm ||
+    !!showStopConfirm ||
+    !!showSendToSessionConfirm;
+  useEffect(() => {
+    if (!embedded || !anyEmbeddedDialogOpen) return;
+    if (typeof document === "undefined") return;
+    const root = document.querySelector<HTMLElement>("[data-eqho-embed-root]");
+    root?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [embedded, anyEmbeddedDialogOpen]);
+
   // Access gate: while we verify login + subscription, show a branded loader.
   // This prevents the player (and any cached audio) from rendering for users who
   // are not authenticated/subscribed, including on mobile builds with no middleware.
@@ -6040,28 +6067,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       sendPlaylistToSession(name, tracks);
     }
   };
-
-  // Embedded demo ONLY: the confirm/warning dialogs render as `fixed inset-0`
-  // overlays, but the embed box is a `[container-type:size]` container, which
-  // makes IT (not the viewport) the containing block for fixed descendants. So a
-  // dialog centers within the tall embed box, and when the page isn't scrolled
-  // exactly to the player the card lands below the fold — the user sees only the
-  // dark scrim (e.g. tapping "Pause Session"). The embed box is never taller than
-  // the viewport, so bringing it fully into view guarantees the box-centered
-  // dialog is visible. Scoped to `embedded`; the standalone /app player is not a
-  // size container and is left untouched.
-  const anyEmbeddedDialogOpen =
-    !!showPauseConfirm ||
-    !!showSkipForwardConfirm ||
-    !!showSkipBackConfirm ||
-    !!showStopConfirm ||
-    !!showSendToSessionConfirm;
-  useEffect(() => {
-    if (!embedded || !anyEmbeddedDialogOpen) return;
-    if (typeof document === "undefined") return;
-    const root = document.querySelector<HTMLElement>("[data-eqho-embed-root]");
-    root?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [embedded, anyEmbeddedDialogOpen]);
 
   return (
     <div
