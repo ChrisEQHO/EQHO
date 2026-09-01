@@ -8,6 +8,16 @@ import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
+// Resolve the post-login destination from ?next=, rejecting anything that
+// isn't a single-slash internal path so it can never be used as an open
+// redirect (`//evil.com`, `https://…`). Defaults to the player at /app.
+function safeNext(raw: string | null): string {
+  if (!raw) return '/app'
+  if (!raw.startsWith('/') || raw.startsWith('//')) return '/app'
+  if (raw.includes('://') || raw.includes('\\')) return '/app'
+  return raw
+}
+
 // Map raw Supabase auth error messages to clear, user-facing copy.
 function mapAuthError(message: string): string {
   const m = message.toLowerCase()
@@ -65,8 +75,10 @@ export default function LoginPage() {
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error || !user) return
 
-      // Free access: any logged-in user goes straight to the player.
-      router.replace('/app')
+      // Free access: any logged-in user goes straight to their intended
+      // destination (defaults to the player at /app).
+      const params = new URLSearchParams(window.location.search)
+      router.replace(safeNext(params.get('next')))
     }
     checkSession()
   }, [router])
@@ -80,9 +92,10 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    // In v0 preview mode, just redirect to player.
+    // In v0 preview mode, just redirect to the intended destination.
     if (isV0Preview) {
-      router.replace('/app')
+      const params = new URLSearchParams(window.location.search)
+      router.replace(safeNext(params.get('next')))
       return
     }
 
@@ -141,9 +154,11 @@ export default function LoginPage() {
         }
       }
 
-      // Session confirmed — go to the player and refresh server state so any
-      // cookie-reading middleware/RSC picks up the new auth immediately.
-      router.replace('/app')
+      // Session confirmed — go to the intended destination (defaults to the
+      // player) and refresh server state so any cookie-reading middleware/RSC
+      // picks up the new auth immediately.
+      const params = new URLSearchParams(window.location.search)
+      router.replace(safeNext(params.get('next')))
       router.refresh()
     } catch (err) {
       // Covers the 15s timeout and any network / Supabase connection failure.
