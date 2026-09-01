@@ -195,14 +195,32 @@ const EXPLORE_SECTIONS: ExploreSection[] = [
   },
 ]
 
-function PrimaryCta({ className = '', label }: { className?: string; label?: string }) {
-  return (
-    <Link
-      href={CTA.primary.href}
-      className={`inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${className}`}
-    >
+function PrimaryCta({ className = '', label, hardNav = false }: { className?: string; label?: string; hardNav?: boolean }) {
+  const classes = `inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${className}`
+  const content = (
+    <>
       {label ?? CTA.primary.label}
       <ArrowRight className="h-5 w-5" aria-hidden="true" />
+    </>
+  )
+  // hardNav renders a plain anchor, forcing a FULL-DOCUMENT navigation instead of
+  // a client-side SPA transition. On this page the signup CTAs sit under the heavy
+  // interactive demo player (large audio graph, waveform canvases, timers). A
+  // client-side transition keeps that whole React tree mounted alongside the new
+  // page during the switch, and on iOS Safari's tight per-tab memory limit that
+  // peak crashes the WebContent process — the "This page couldn't load" screen.
+  // A hard navigation tears the player down before /signup loads, giving the
+  // destination a clean, low-memory start.
+  if (hardNav) {
+    return (
+      <a href={CTA.primary.href} className={classes}>
+        {content}
+      </a>
+    )
+  }
+  return (
+    <Link href={CTA.primary.href} className={classes}>
+      {content}
     </Link>
   )
 }
@@ -298,7 +316,7 @@ export default function FeaturesPage() {
                 until 1 October 2026, no card required.
               </p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} />
+                <PrimaryCta className="w-full sm:w-auto" label={offer.cta} hardNav />
                 <Link
                   href="/how-it-works"
                   className="inline-flex h-12 w-full items-center justify-center rounded-full border border-white/15 px-7 text-base font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
@@ -451,9 +469,9 @@ export default function FeaturesPage() {
                 Choose the gap between routines, set how many times a routine repeats and switch on
                 back-to-back playback. EQHO keeps the session moving so you can stay focused on coaching.
               </p>
-              <div className="mt-8">
-                <PrimaryCta label={offer.cta} />
-              </div>
+            <div className="mt-8">
+              <PrimaryCta label={offer.cta} hardNav />
+            </div>
             </div>
             <div className="space-y-4">
               <SessionControlsSnapshot />
@@ -623,7 +641,7 @@ export default function FeaturesPage() {
               Create an account and build your first session in around 30 seconds. {offer.cardNote}
             </p>
             <div className="mt-8 flex justify-center">
-              <PrimaryCta label={offer.cta} />
+              <PrimaryCta label={offer.cta} hardNav />
             </div>
           </div>
         </section>
