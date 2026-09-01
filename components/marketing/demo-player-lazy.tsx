@@ -1,7 +1,6 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import { Loader2, ArrowRight } from 'lucide-react'
 
 /**
@@ -62,13 +61,18 @@ export function DemoPlayerLazy() {
             Interactive demo
           </span>
         </span>
-        <Link
+        {/* Plain <a> (hard navigation), NOT a Next.js <Link>. A client-side SPA
+            transition keeps this ~10k-line audio/canvas/timer-heavy player tree
+            mounted while /signup mounts, and that memory peak crashes the
+            WebContent process on real iOS Safari ("This page couldn't load").
+            A full-document navigation tears the player down first. */}
+        <a
           href="/signup"
           className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-2.5 text-sm font-bold text-white shadow-[0_0_24px_rgba(255,79,163,0.35)] transition hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff4fa3]"
         >
           Start free trial
           <ArrowRight size={16} aria-hidden="true" />
-        </Link>
+        </a>
       </div>
 
       {/* The real player box — fills all remaining height so the demo fits the

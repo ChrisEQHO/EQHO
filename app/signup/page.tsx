@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from 'lucide-react'
 import { getOfferCopy } from '@/lib/marketing-config'
+import { getSiteOrigin } from '@/lib/utils/site-url'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -54,7 +55,11 @@ export default function SignupPage() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Canonical origin (www in production, live origin in dev/preview) so
+          // the confirmation link never has to survive an apex→www redirect hop,
+          // which is where the auth code was being lost. `next=/app` tells the
+          // callback where to land the user after verification.
+          emailRedirectTo: `${getSiteOrigin()}/auth/callback?next=/app`,
           data: {
             full_name: fullName,
           },

@@ -1,0 +1,139 @@
+{
+  "name": "EQHO Player",
+  "description": "Brand design tokens for EQHO Player — a training music player for coaches. Values are extracted directly from the production codebase.",
+  "version": "1.0.0",
+  "updated": "2026-09-01",
+  "colors": {
+    "canvas": {
+      "value": "#020617",
+      "name": "Canvas / Deep Navy",
+      "usage": "Primary app + marketing background. Set on <html>, <body>, browser theme-color and status bar."
+    },
+    "brandPink": {
+      "value": "#ff4fa3",
+      "name": "EQHO Pink",
+      "usage": "Start of the signature brand gradient. Primary action color."
+    },
+    "brandOrange": {
+      "value": "#ff8a00",
+      "name": "EQHO Orange",
+      "usage": "End of the signature brand gradient. Warm accent."
+    },
+    "offerBlue": {
+      "value": "#2563eb",
+      "name": "Offer Blue",
+      "usage": "Start of the free-offer accent gradient (used on the 'free until' pill)."
+    },
+    "offerCyan": {
+      "value": "#06b6d4",
+      "name": "Offer Cyan",
+      "usage": "Middle of the free-offer accent gradient."
+    },
+    "offerGreen": {
+      "value": "#10b981",
+      "name": "Offer Green",
+      "usage": "End of the free-offer accent gradient. Signals 'free / go'."
+    },
+    "indigo": {
+      "value": "#1e1b4b",
+      "name": "Ambient Indigo",
+      "usage": "Header/hero ambient wash (used at ~42% opacity)."
+    },
+    "violet": {
+      "value": "#4c1d95",
+      "name": "Ambient Violet",
+      "usage": "Header/hero ambient wash (used at ~30% opacity)."
+    },
+    "textPrimary": {
+      "value": "#ffffff",
+      "name": "Text / White",
+      "usage": "Primary text and headings on dark canvas."
+    },
+    "textMuted": {
+      "value": "#aeb9d4",
+      "name": "Text / Muted Slate",
+      "usage": "Secondary nav and muted labels."
+    },
+    "textSubtle": {
+      "value": "#cbd5e1",
+      "name": "Text / Subtle Slate",
+      "usage": "Tertiary text, inactive menu items."
+    },
+    "textFaint": {
+      "value": "#94a3b8",
+      "name": "Text / Faint Slate",
+      "usage": "Timestamps, fine print, disabled states."
+    },
+    "hairline": {
+      "value": "rgba(255,255,255,0.10)",
+      "name": "Hairline Border",
+      "usage": "1px borders and ring outlines on cards and controls."
+    }
+  },
+  "gradients": {
+    "brand": {
+      "css": "linear-gradient(90deg, #ff4fa3 0%, #ff8a00 100%)",
+      "tailwind": "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]",
+      "usage": "Every primary CTA, the play button, brand marks and highlighted text."
+    },
+    "brandDiagonal": {
+      "css": "linear-gradient(135deg, #ff4fa3 0%, #ff8a00 100%)",
+      "tailwind": "bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]",
+      "usage": "Square/rounded icon tiles."
+    },
+    "offer": {
+      "css": "linear-gradient(90deg, #2563eb 0%, #06b6d4 50%, #10b981 100%)",
+      "tailwind": "bg-gradient-to-r from-[#2563eb] via-[#06b6d4] to-[#10b981]",
+      "usage": "The 'Free to use until 1 October 2026' pill only."
+    },
+    "headerAmbient": {
+      "css": "linear-gradient(90deg, rgba(2,6,23,0.55) 0%, rgba(30,27,75,0.42) 50%, rgba(76,29,149,0.30) 100%)",
+      "usage": "Subtle colour wash behind the site header."
+    }
+  },
+  "shadows": {
+    "brandGlow": {
+      "value": "0 8px 30px rgba(255,79,163,0.35)",
+      "usage": "Glow beneath primary pink/orange CTAs."
+    },
+    "brandGlowSoft": {
+      "value": "0 4px 20px rgba(255,79,163,0.30)",
+      "usage": "Smaller header CTAs."
+    },
+    "offerGlow": {
+      "value": "0 0 28px rgba(16,185,129,0.45)",
+      "usage": "Glow beneath the free-offer pill."
+    }
+  },
+  "typography": {
+    "sans": {
+      "family": "Geist",
+      "fallback": "Geist Fallback, system-ui, sans-serif",
+      "usage": "Headings and body. Weights used: 400, 500, 600, 700, 800.",
+      "source": "next/font/google — Geist"
+    },
+    "mono": {
+      "family": "Geist Mono",
+      "fallback": "Geist Mono Fallback, ui-monospace, monospace",
+      "usage": "Timers, durations and numeric data.",
+      "source": "next/font/google — Geist Mono"
+    }
+  },
+  "radius": {
+    "base": "0.625rem",
+    "sm": "calc(0.625rem - 4px)",
+    "md": "calc(0.625rem - 2px)",
+    "lg": "0.625rem",
+    "xl": "calc(0.625rem + 4px)",
+    "pill": "9999px",
+    "usage": "Cards use base/lg/xl. Buttons and badges use full pill radius."
+  },
+  "logos": {
+    "primary": "/eqho-player-logo.png",
+    "sunset": "/eqho-player-logo-sunset.png",
+    "mark": "/eqho-logo.png",
+    "favicon": "/favicon.png",
+    "appIcon192": "/icon-192.png",
+    "appIcon512": "/icon-512.png"
+  }
+}
