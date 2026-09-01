@@ -17,7 +17,6 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [existingAccount, setExistingAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   // Date-driven offer copy (free phase vs 30-day trial), shared with the
@@ -58,9 +57,9 @@ export default function SignupPage() {
         options: {
           // Canonical origin (www in production, live origin in dev/preview) so
           // the confirmation link never has to survive an apex→www redirect hop,
-          // which is where the auth code was being lost. `next=/app` tells the
-          // callback where to land the user after verification.
-          emailRedirectTo: `${getSiteOrigin()}/auth/callback?next=/app`,
+          // which is where the auth code was being lost. `next=/signup/success`
+          // lands confirmed signups on the success page, never directly on /app.
+          emailRedirectTo: `${getSiteOrigin()}/auth/callback?next=/signup/success`,
           data: {
             full_name: fullName,
           },
@@ -101,10 +100,9 @@ export default function SignupPage() {
     // Supabase does NOT throw on a duplicate email (to prevent email enumeration).
     // Instead it returns a user object with an EMPTY identities array and no session.
     // We must NEVER navigate to /app here: no authenticated session exists. Stay on
-    // /signup and direct the user to log in or reset their password.
+    // /signup and show the registered-email error.
     if (data?.user && (data.user.identities?.length ?? 0) === 0) {
-      setExistingAccount(true)
-      setError(null)
+      setError('This email address is already registered. Please log in instead.')
       setLoading(false)
       return
     }
@@ -182,29 +180,10 @@ export default function SignupPage() {
           <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
           <p className="text-sm text-[#94a3b8] mb-6">{offer.supporting}</p>
 
-          {error && !existingAccount && (
+          {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
               <span className="text-red-400 text-sm">{error}</span>
-            </div>
-          )}
-
-          {existingAccount && (
-            <div className="mb-4 p-4 rounded-lg bg-[#ff8a00]/10 border border-[#ff8a00]/30 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-[#ff8a00] shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="text-[#f8b56a]">
-                  An account may already exist for this email. Please log in or reset your password.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                  <Link href="/login" className="text-[#ff4fa3] hover:text-[#ff8a00] font-medium transition">
-                    Log in
-                  </Link>
-                  <Link href="/forgot-password" className="text-[#ff4fa3] hover:text-[#ff8a00] font-medium transition">
-                    Reset password
-                  </Link>
-                </div>
-              </div>
             </div>
           )}
 
