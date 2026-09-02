@@ -38,7 +38,7 @@ export default function MaintenancePage() {
 
           <p className="text-pretty text-base leading-relaxed text-white/70 sm:text-lg">
             {
-              "EQHO Player is currently undergoing updates. The site will be back live tomorrow from 12:00 (UK time). Thanks for your patience \u2014 we'll be ready for your next session."
+              "EQHO Player is currently undergoing updates. The site will be back online Thursday 3rd September from 12:00 (UK time). Thanks for your patience \u2014 we'll be ready for your next session."
             }
           </p>
         </div>
@@ -46,7 +46,7 @@ export default function MaintenancePage() {
         <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-4">
           <p className="text-sm font-medium uppercase tracking-wider text-white/50">Back online</p>
           <p className="mt-1 bg-gradient-to-r from-[#ff2d78] to-[#ff8a1f] bg-clip-text text-lg font-semibold text-transparent">
-            Tomorrow from 12:00 UK time
+            Thursday 3rd September from 12:00 UK time
           </p>
         </div>
       </div>
