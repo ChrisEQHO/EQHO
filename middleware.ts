@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server"
 // every request is rewritten to /maintenance and returns HTTP 503 so search
 // engines treat it as a temporary outage (not a permanent removal). Set back to
 // `false` (and redeploy) to bring the site fully live again.
-const MAINTENANCE_MODE = true
+const MAINTENANCE_MODE = false
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
