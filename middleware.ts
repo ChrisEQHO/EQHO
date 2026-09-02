@@ -1,8 +1,29 @@
 import { updateSession } from "@/lib/supabase/middleware"
 import { NextResponse, type NextRequest } from "next/server"
 
+// MAINTENANCE MODE ------------------------------------------------------------
+// Set to `true` to lock the entire site behind the maintenance page. When on,
+// every request is rewritten to /maintenance and returns HTTP 503 so search
+// engines treat it as a temporary outage (not a permanent removal). Set back to
+// `false` (and redeploy) to bring the site fully live again.
+const MAINTENANCE_MODE = false
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (MAINTENANCE_MODE) {
+    // Allow the maintenance page itself, the opengraph image, and the demo
+    // API is intentionally NOT exempted (nothing should be usable while locked).
+    if (pathname !== "/maintenance" && pathname !== "/opengraph-image") {
+      const url = request.nextUrl.clone()
+      url.pathname = "/maintenance"
+      return NextResponse.rewrite(url, {
+        status: 503,
+        headers: { "Retry-After": "86400" },
+      })
+    }
+    return NextResponse.next()
+  }
 
   // Public interactive demo endpoint: it must be reachable by logged-out
   // visitors on /features. Short-circuit BEFORE updateSession runs, so the
