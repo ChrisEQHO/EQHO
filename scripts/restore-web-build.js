@@ -15,6 +15,8 @@ const path = require('path')
 
 const backupDir = '.mobile-build-backup'
 const stubbedDirName = '__stubbed__'
+const envFile = '.env.production.local'
+const envBackupName = '__env_production_local__.bak'
 
 if (!fs.existsSync(backupDir)) {
   console.log('No backup found. Nothing to restore.')
@@ -72,6 +74,19 @@ function restoreStubbedFiles(dir) {
 
 restoreMovedFiles(backupDir)
 restoreStubbedFiles(stubbedRoot)
+
+// Remove the mobile `.env.production.local` written by prepare, then restore any
+// original that was backed up so the web build environment is left untouched.
+const envPath = path.join(process.cwd(), envFile)
+const envBackupPath = path.join(process.cwd(), backupDir, envBackupName)
+if (fs.existsSync(envPath)) {
+  fs.rmSync(envPath)
+  console.log(`Removed mobile ${envFile}`)
+}
+if (fs.existsSync(envBackupPath)) {
+  fs.renameSync(envBackupPath, envPath)
+  console.log(`Restored original ${envFile}`)
+}
 
 // Remove backup directory
 fs.rmSync(backupDir, { recursive: true })
