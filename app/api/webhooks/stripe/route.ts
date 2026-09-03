@@ -127,6 +127,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
   console.log('[WEBHOOK] WEBHOOK_RECEIVED: checkout.session.completed')
   console.log('[WEBHOOK] session.id:', session.id)
 
+  // EQHO Music licence purchases (Phase 1: inert). The checkout route does not
+  // create live sessions yet, so this branch should never fire in practice. It
+  // exists so that when Phase 2 is enabled the webhook already recognises the
+  // event kind and safely no-ops instead of misrouting it into the store
+  // subscription/profile logic. It intentionally writes nothing — there is no
+  // music purchase table in Phase 1 (see docs/eqho-music-architecture.md).
+  if (session.metadata?.kind === 'music_licence_purchase') {
+    console.log('[WEBHOOK] music_licence_purchase received (Phase 1 no-op). session:', session.id)
+    return
+  }
+
   // À-la-carte music-store purchases are one-off payments, not subscriptions.
   // Route them to the dedicated handler and skip the subscription/profile logic.
   if (session.mode === 'payment' || session.metadata?.kind === 'store_track_purchase') {

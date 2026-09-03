@@ -37,3 +37,28 @@ export async function resolveMusicSubscriber(
     return { isVerifiedSubscriber: false, email: null }
   }
 }
+
+// Server-component variant (no NextRequest available). Reads the Supabase
+// session directly. Used by track/basket pages purely to PREVIEW the discounted
+// price — the checkout route re-verifies via resolveMusicSubscriber before any
+// charge, so this display path is never trusted for money.
+export async function isMusicSubscriber(): Promise<boolean> {
+  try {
+    const supabase = await createClient()
+    if (!supabase) return false
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return false
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_status")
+      .eq("id", user.id)
+      .maybeSingle()
+    const status = (profile?.subscription_status as string | null) ?? null
+    return status === "active" || status === "trialing"
+  } catch {
+    return false
+  }
+}

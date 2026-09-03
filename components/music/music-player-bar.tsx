@@ -31,7 +31,7 @@ export function MusicPlayerBar() {
         />
         <div className="min-w-0 flex-1">
           <Link
-            href={`/music/tracks/${track.slug}`}
+            href={`/music/track/${track.slug}`}
             className="block truncate text-sm font-semibold text-white hover:underline"
           >
             {track.title}
