@@ -40,7 +40,7 @@ export function BrowseExplorer({ genres, moods }: { genres: string[]; moods: str
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search tracks, artists, genres or moods"
             aria-label="Search the catalogue"
-            className="w-full rounded-full border border-white/12 bg-white/[0.04] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:border-[var(--eqho-purple)]/60 focus:outline-none"
+            className="w-full rounded-full border border-white/12 bg-white/[0.04] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:border-[#ff4fa3]/60 focus:outline-none"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ export function BrowseExplorer({ genres, moods }: { genres: string[]; moods: str
             id="music-sort"
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
-            className="rounded-full border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm text-white focus:border-[var(--eqho-purple)]/60 focus:outline-none"
+            className="rounded-full border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm text-white focus:border-[#ff4fa3]/60 focus:outline-none"
           >
             {SORTS.map((s) => (
               <option key={s.key} value={s.key} className="bg-[#0a0820]">
@@ -93,7 +93,7 @@ export function BrowseExplorer({ genres, moods }: { genres: string[]; moods: str
       ) : (
         <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] py-16 text-center">
           <p className="text-sm text-white/60">No tracks match those filters.</p>
-          <button type="button" onClick={reset} className="mt-2 text-sm text-[var(--eqho-purple)] hover:underline">
+          <button type="button" onClick={reset} className="mt-2 text-sm text-[#ff4fa3] hover:underline">
             Reset and show everything
           </button>
         </div>
@@ -126,7 +126,7 @@ function FilterRow({
             onClick={() => onChange(opt)}
             className={
               active
-                ? "rounded-full bg-[var(--eqho-purple)] px-3 py-1 text-xs font-medium text-white"
+                ? "rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-3 py-1 text-xs font-medium text-white"
                 : "rounded-full border border-white/12 bg-white/[0.03] px-3 py-1 text-xs text-white/70 transition-colors hover:border-white/25 hover:text-white"
             }
           >

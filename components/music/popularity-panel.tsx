@@ -34,7 +34,7 @@ export function PopularityPanel({ sample }: { sample: TrackSampleSignals }) {
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[var(--eqho-purple)] to-[#ff4fa3]"
+                className="h-full rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]"
                 style={{ width: `${c.percent}%` }}
               />
             </div>

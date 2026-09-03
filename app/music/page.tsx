@@ -21,9 +21,10 @@ export default function MusicHomePage() {
   return (
     <div className="flex flex-col gap-12 pb-16">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[var(--eqho-purple)]/25 via-[#020617] to-[#020617] px-6 py-12 sm:px-10 sm:py-16">
+      <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/20 via-[#020617] to-[#020617] px-6 py-12 sm:px-10 sm:py-16">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#ff8a00]/15 blur-3xl" />
         <div className="relative z-10 flex max-w-2xl flex-col gap-5">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[var(--eqho-purple)]/40 bg-[var(--eqho-purple)]/10 px-3 py-1 text-xs font-medium text-[var(--eqho-purple)]">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#ff4fa3]/40 bg-[#ff4fa3]/10 px-3 py-1 text-xs font-medium text-[#ff8fc4]">
             <Sparkles className="h-3.5 w-3.5" />
             Private preview
           </span>
@@ -31,13 +32,13 @@ export default function MusicHomePage() {
             Licence distinctive music from independent creators
           </h1>
           <p className="text-pretty text-base leading-relaxed text-white/60">
-            Clear, honest licensing. Every track comes with tiered rights, watermarked previews, and a fair spotlight
-            for lesser-heard work — not just the top of the charts.
+            Clear, honest licensing. Every track comes with a single Personal Licence, watermarked previews, and a fair
+            spotlight for lesser-heard work — not just the top of the charts.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/music/browse"
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--eqho-purple)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--eqho-purple)]/85"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-[#ff4fa3]/25 transition-transform hover:scale-[1.03]"
             >
               <Compass className="h-4 w-4" />
               Browse the catalogue
@@ -76,7 +77,7 @@ export default function MusicHomePage() {
           </div>
           <Link
             href="/music/creators"
-            className="hidden shrink-0 items-center gap-1 text-sm text-[var(--eqho-purple)] hover:underline sm:inline-flex"
+            className="hidden shrink-0 items-center gap-1 text-sm text-[#ff4fa3] hover:underline sm:inline-flex"
           >
             All creators
             <ArrowRight className="h-4 w-4" />

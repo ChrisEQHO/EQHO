@@ -1,18 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { Trash2, ShoppingBasket, Loader2, Info } from "lucide-react"
 import { useMusicStore } from "./music-store"
 import { getTrackById } from "@/lib/music/seed/tracks"
 import { getCreatorById } from "@/lib/music/seed/creators"
-import { LICENCE_TIER_ORDER, getLicenceTier } from "@/lib/music/seed/licence-tiers"
 import { formatGBP } from "@/lib/music/pricing"
-import type { LicenceTierId, PriceQuote } from "@/lib/music/types"
+import type { PriceQuote } from "@/lib/music/types"
+import { ArtworkPlaceholder } from "./artwork-placeholder"
 
 export function BasketView() {
-  const { lines, removeFromBasket, setTier, clearBasket } = useMusicStore()
+  const { lines, removeFromBasket, clearBasket } = useMusicStore()
   const [quote, setQuote] = useState<PriceQuote | null>(null)
   const [isSubscriber, setIsSubscriber] = useState(false)
   const [loadingQuote, setLoadingQuote] = useState(false)
@@ -81,7 +80,7 @@ export function BasketView() {
         </div>
         <Link
           href="/music/browse"
-          className="rounded-full bg-[var(--eqho-purple)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--eqho-purple)]/85"
+          className="rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-[#ff4fa3]/25 transition-transform hover:scale-[1.03]"
         >
           Browse the catalogue
         </Link>
@@ -97,32 +96,18 @@ export function BasketView() {
           const track = getTrackById(line.trackId)
           if (!track) return null
           const creator = getCreatorById(track.creatorId)
-          const offered = LICENCE_TIER_ORDER.filter((id) => track.availableTiers.includes(id))
           return (
             <div
               key={line.trackId}
               className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-3"
             >
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg">
-                <Image src={track.artwork || "/placeholder.svg"} alt="" fill sizes="64px" className="object-cover" />
+                <ArtworkPlaceholder seed={track.id} className="h-full w-full" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">{track.title}</p>
                 <p className="truncate text-xs text-white/50">{creator?.name}</p>
-                <label className="mt-1.5 flex items-center gap-2 text-xs text-white/60">
-                  <span className="sr-only">Licence tier for {track.title}</span>
-                  <select
-                    value={line.tierId}
-                    onChange={(e) => setTier(line.trackId, e.target.value as LicenceTierId)}
-                    className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1 text-xs text-white focus:border-[var(--eqho-purple)]/60 focus:outline-none"
-                  >
-                    {offered.map((id) => (
-                      <option key={id} value={id} className="bg-[#0a0820]">
-                        {getLicenceTier(id).name} — {formatGBP(getLicenceTier(id).pricePence)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <p className="mt-1 text-xs text-white/60">Personal Licence</p>
               </div>
               <button
                 type="button"
@@ -174,13 +159,13 @@ export function BasketView() {
 
           {!isSubscriber && (
             <p className="flex items-start gap-2 rounded-lg bg-white/[0.03] p-2.5 text-xs text-white/50">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--eqho-purple)]" />
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ff4fa3]" />
               EQHO subscribers save 10% on every licence.
             </p>
           )}
 
           {checkoutState.status === "preview" && (
-            <p className="rounded-lg border border-[var(--eqho-purple)]/30 bg-[var(--eqho-purple)]/10 p-2.5 text-xs text-white/75">
+            <p className="rounded-lg border border-[#ff4fa3]/30 bg-[#ff4fa3]/10 p-2.5 text-xs text-white/75">
               {checkoutState.message}
             </p>
           )}
@@ -194,7 +179,7 @@ export function BasketView() {
             type="button"
             onClick={checkout}
             disabled={checkoutState.status === "working" || !quote}
-            className="flex items-center justify-center gap-2 rounded-full bg-[var(--eqho-purple)] px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-[var(--eqho-purple)]/85 disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-3 text-sm font-medium text-white shadow-lg shadow-[#ff4fa3]/25 transition-transform hover:scale-[1.03] disabled:opacity-60 disabled:hover:scale-100"
           >
             {checkoutState.status === "working" ? (
               <>
@@ -213,8 +198,8 @@ export function BasketView() {
 function Row({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className={accent ? "text-[var(--eqho-purple)]" : "text-white/60"}>{label}</span>
-      <span className={bold ? "text-base font-semibold text-white" : accent ? "text-[var(--eqho-purple)]" : "text-white/80"}>
+      <span className={accent ? "text-[#ff4fa3]" : "text-white/60"}>{label}</span>
+      <span className={bold ? "text-base font-semibold text-white" : accent ? "text-[#ff4fa3]" : "text-white/80"}>
         {value}
       </span>
     </div>

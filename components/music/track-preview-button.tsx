@@ -22,7 +22,7 @@ export function TrackPreviewButton({
       type="button"
       onClick={() => playTrack(trackId, previewUrl)}
       aria-label={isThisPlaying ? `Pause preview of ${title}` : `Play preview of ${title}`}
-      className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--eqho-purple)] text-white shadow-lg transition-transform hover:scale-105"
+      className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/30 transition-transform hover:scale-105"
     >
       {isThisPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 translate-x-0.5" />}
     </button>

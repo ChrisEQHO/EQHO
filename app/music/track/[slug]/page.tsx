@@ -1,4 +1,3 @@
-import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Clock, Gauge, Music2 } from "lucide-react"
@@ -8,6 +7,7 @@ import { LicenceSelector } from "@/components/music/licence-selector"
 import { PopularityPanel } from "@/components/music/popularity-panel"
 import { TrackPreviewButton } from "@/components/music/track-preview-button"
 import { TrackCard } from "@/components/music/track-card"
+import { ArtworkPlaceholder } from "@/components/music/artwork-placeholder"
 import { isMusicSubscriber } from "@/lib/music/subscriber"
 
 export function generateStaticParams() {
@@ -53,13 +53,7 @@ export default async function TrackDetailPage({ params }: { params: Promise<{ sl
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-5 sm:flex-row">
             <div className="relative aspect-square w-full max-w-[240px] shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/10">
-              <Image
-                src={track.artwork || "/placeholder.svg"}
-                alt={`Artwork for ${track.title}`}
-                fill
-                sizes="240px"
-                className="object-cover"
-              />
+              <ArtworkPlaceholder seed={track.id} className="h-full w-full" />
               <div className="absolute bottom-3 left-3">
                 <TrackPreviewButton trackId={track.id} previewUrl={track.previewUrl} title={track.title} />
               </div>
@@ -71,7 +65,7 @@ export default async function TrackDetailPage({ params }: { params: Promise<{ sl
                 {creator && (
                   <Link
                     href={`/music/creator/${creator.slug}`}
-                    className="mt-1 inline-block text-sm text-[var(--eqho-purple)] hover:underline"
+                    className="mt-1 inline-block text-sm text-[#ff4fa3] hover:underline"
                   >
                     {creator.name}
                   </Link>
@@ -118,7 +112,7 @@ export default async function TrackDetailPage({ params }: { params: Promise<{ sl
 
         {/* Right: licence selector */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <LicenceSelector trackId={track.id} availableTiers={track.availableTiers} isSubscriber={subscriber} />
+          <LicenceSelector trackId={track.id} isSubscriber={subscriber} />
         </aside>
       </div>
 
