@@ -8,7 +8,15 @@ import { NextResponse, type NextRequest } from "next/server"
 // `false` (and redeploy) to bring the site fully live again.
 const MAINTENANCE_MODE = false
 
-export async function middleware(request: NextRequest) {
+// NOTE: This file was renamed from `middleware.ts` to `proxy.ts` for Next.js 16.
+// The legacy `middleware.ts` convention still runs on the EDGE runtime, which
+// cannot bundle the entitlement gate's service-role `@supabase/supabase-js`
+// client (`import 'server-only'`) — that produced the deploy-time
+// "Edge Function 'middleware' is referencing unsupported modules" error and
+// failed every production deployment. The `proxy.ts` convention defaults to the
+// Node.js runtime, where those modules are fully supported. The logic below is
+// unchanged from the previous middleware.
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (MAINTENANCE_MODE) {
