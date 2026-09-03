@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
-import { createClient } from '@supabase/supabase-js'
-
-// Use service role key to bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +11,8 @@ export async function POST(request: NextRequest) {
     if (!sessionId) {
       return NextResponse.json({ error: 'Missing session_id' }, { status: 400 })
     }
+
+    const supabaseAdmin = getSupabaseAdmin()
 
     // Fetch the checkout session directly from Stripe
     console.log('[VERIFY-CHECKOUT] Fetching checkout session from Stripe...')

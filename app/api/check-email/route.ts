@@ -1,11 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-
-// Use service role key to bypass RLS so we can look up an account by email
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 /**
  * Returns whether an email already has a profile (account) and whether that
@@ -21,6 +15,8 @@ export async function POST(request: Request) {
     }
 
     console.log('[v0] check-email called for:', email)
+
+    const supabaseAdmin = getSupabaseAdmin()
 
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')

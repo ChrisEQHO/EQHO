@@ -1,40 +1,19 @@
 // Client-side R2 storage operations via API routes
 // All operations go through /api/r2 to keep credentials server-side
-
-import { createClient } from '@/lib/supabase/client'
-
-// The Capacitor mobile build is a STATIC EXPORT: it contains no /api routes and
-// no middleware (see scripts/prepare-mobile-build.js). A relative fetch like
-// `/api/r2` therefore resolves to the WebView's own origin and returns the SPA
-// `index.html` (text/html) — the exact reason downloads reported "N tracks
-// failed" and playback sometimes loaded HTML instead of an MP3.
 //
-// Fix: on mobile, send every R2 API call to the DEPLOYED production API over
-// full HTTPS, and authenticate with the Supabase access token as a Bearer
-// header (the cross-origin request carries no cookies). On web this base is ''
-// (same-origin) and the cookie session is used as before.
-const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
+// The mobile API base + Bearer-auth behaviour now lives in the shared
+// lib/api-client (the ONE implementation used across the whole app). R2
+// re-exports getApiBase/getAuthHeaders so existing importers (lib/cloud-sync.ts)
+// keep working unchanged, and every R2 call below uses that same behaviour:
+//   - Web:    base '' (same-origin, cookie session).
+//   - Mobile: base = deployed HTTPS origin + Supabase Bearer token, because the
+//             static export has no local /api routes or middleware.
 
-export function getApiBase(): string {
-  if (isMobileBuild) {
-    return (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://www.eqho-player.com').replace(/\/$/, '')
-  }
-  return ''
-}
+import { getApiBase, getAuthHeaders } from '@/lib/api-client'
 
-// Build the Authorization header from the current Supabase session. Harmless on
-// web (the API route still prefers the cookie session); required on mobile.
-export async function getAuthHeaders(): Promise<Record<string, string>> {
-  try {
-    const supabase = createClient()
-    if (!supabase) return {}
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    return token ? { Authorization: `Bearer ${token}` } : {}
-  } catch {
-    return {}
-  }
-}
+// Re-exported for backwards compatibility with modules that imported these from
+// r2-storage before they were centralised in lib/api-client.
+export { getApiBase, getAuthHeaders }
 
 // Check if R2 is configured (client-side check via env var prefix)
 export function isR2Configured(): boolean {

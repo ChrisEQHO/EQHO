@@ -10,6 +10,27 @@
 const fs = require('fs')
 const path = require('path')
 
+// Production backend the packaged mobile app talks to over HTTPS. The static
+// export has no server of its own, so every relative `/api/...` call must be
+// rewritten to this origin (see lib/api-client.ts). Override by exporting
+// NEXT_PUBLIC_API_BASE_URL before running this script.
+const MOBILE_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://www.eqho-player.com'
+
+// Env vars that must be baked into the mobile bundle at build time. NEXT_PUBLIC_
+// vars are inlined by Next during `next build`, so they have to be present in the
+// environment/`.env.production.local` before the build runs.
+const mobileEnv = {
+  NEXT_PUBLIC_BUILD_TARGET: 'mobile',
+  NEXT_PUBLIC_API_BASE_URL: MOBILE_API_BASE_URL,
+}
+
+// `next build` (production) loads `.env.production.local` automatically. We write
+// the mobile vars there so the build is deterministic no matter how it's invoked,
+// backing up any existing file so restore can put it back verbatim.
+const envFile = '.env.production.local'
+const envBackupName = '__env_production_local__.bak'
+
 // Server-only routes that cannot exist in a static export (`output: export`).
 // The Capacitor app talks to the hosted backend over HTTP, so these are safe to
 // exclude from the mobile bundle. `restore-web-build.js` puts them all back after.
@@ -66,6 +87,21 @@ filesToStub.forEach(({ real, stub }) => {
   }
 })
 
+// Write the mobile env vars into `.env.production.local`, backing up any existing
+// file first so restore can put it back exactly as it was.
+const envPath = path.join(process.cwd(), envFile)
+if (fs.existsSync(envPath)) {
+  fs.renameSync(envPath, path.join(process.cwd(), backupDir, envBackupName))
+  console.log(`Backed up existing ${envFile} -> ${backupDir}/${envBackupName}`)
+}
+const envContents =
+  Object.entries(mobileEnv)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n') + '\n'
+fs.writeFileSync(envPath, envContents)
+console.log(`Wrote ${envFile}:`)
+Object.entries(mobileEnv).forEach(([key, value]) => console.log(`  ${key}=${value}`))
+
 console.log('\nMobile build preparation complete.')
-console.log('Run: NEXT_PUBLIC_BUILD_TARGET=mobile pnpm build')
+console.log('Run: pnpm build')
 console.log('Then: node scripts/restore-web-build.js')

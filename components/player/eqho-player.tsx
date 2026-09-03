@@ -16,7 +16,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { useNativeSession } from "@/lib/use-native-session";
-import { createClient } from "@/lib/supabase/client";
+  import { createClient } from "@/lib/supabase/client";
+  import { apiFetch, getApiBase } from "@/lib/api-client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { clearEntitlementVerified, recordEntitlementVerified, isWithinOfflineGrace, isOnline } from "@/lib/access";
 import { 
@@ -1123,22 +1124,30 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       }
 
       try {
-        // Bearer token for the Capacitor build (static export, no cookies).
-        let token = "";
-        try {
-          const { data } = await supabase!.auth.getSession();
-          token = data.session?.access_token ?? "";
-        } catch {
-          /* fall back to cookie session */
-        }
-
-        const res = await fetch("/api/entitlement", {
-          headers: token ? { authorization: `Bearer ${token}` } : undefined,
-          cache: "no-store",
-        });
+        // Route through the shared API client: same-origin on web (cookie
+        // session), deployed HTTPS origin + Supabase Bearer token on the mobile
+        // static export. Without this, a relative /api/entitlement on Capacitor
+        // resolves to the WebView origin and returns the SPA index.html.
+        const res = await apiFetch("/api/entitlement", { cache: "no-store" });
         if (cancelled) return;
 
-        if (res.ok) {
+        const contentType = (res.headers.get("content-type") || "").toLowerCase();
+        const isJson = contentType.includes("application/json");
+
+        if (process.env.NODE_ENV !== "production") {
+          // Diagnostics only (never the token): where the request went + what
+          // came back, so a misrouted mobile call is obvious in the logs.
+          console.log("[v0][entitlement] verify response", {
+            buildTarget: process.env.NEXT_PUBLIC_BUILD_TARGET || "web",
+            apiBase: getApiBase() || "(same-origin)",
+            status: res.status,
+            contentType,
+          });
+        }
+
+        // Only trust a real JSON body. An HTML body means the request resolved
+        // to the wrong origin / was redirected — never parse it as entitlement.
+        if (res.ok && isJson) {
           const data = await res.json();
           if (data.allowed) {
             recordEntitlementVerified();
@@ -1162,8 +1171,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           return;
         }
 
-        // Other server error: fail OPEN if we verified online recently (never
-        // lock out a paying user over a blip), else show the recoverable error.
+        if (!isJson) {
+          console.error(
+            "[v0][entitlement] received non-JSON response (likely wrong origin or a redirect to a page) — treating as transient error",
+          );
+        }
+
+        // Other server error / non-JSON body: fail OPEN if we verified online
+        // recently (never lock out a paying user over a blip), else show the
+        // recoverable error.
         setGate(isWithinOfflineGrace() ? "granted" : "error");
       } catch {
         if (cancelled) return;
