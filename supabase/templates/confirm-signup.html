@@ -16,7 +16,25 @@
       https://www.eqho-player.com/eqho-player-logo.png
   Keep that file public and reachable at that URL for the logo to render.
 
-  Supabase template variable {{ .ConfirmationURL }} is substituted at send time.
+  CONFIRMATION LINK (SSR-safe, avoids the "expired even when clicked straight
+  away" failure):
+  This template intentionally does NOT use the default {{ .ConfirmationURL }},
+  which routes through Supabase's /auth/v1/verify endpoint. That endpoint burns
+  the single-use token on the FIRST GET, so email link scanners / prefetchers
+  (Outlook SafeLinks, corporate mail gateways, AV, in-app link previews) consume
+  it before the human clicks — and it also depends on the PKCE code_verifier
+  cookie, which is missing on a different browser/device.
+
+  Instead it uses the token_hash pattern that points DIRECTLY at our own callback
+  route (app/auth/callback/route.ts), which verifies the token server-side with
+  supabase.auth.verifyOtp({ type, token_hash }) — no PKCE cookie required:
+      {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/signup/success
+
+  REQUIRED dashboard config for this to resolve correctly:
+    - Site URL MUST be https://www.eqho-player.com (so the link never has to
+      survive an apex -> www redirect hop).
+    - https://www.eqho-player.com/auth/callback must be in the redirect allowlist.
+  Supabase substitutes {{ .SiteURL }} and {{ .TokenHash }} at send time.
 -->
 <!DOCTYPE html>
 <html lang="en">

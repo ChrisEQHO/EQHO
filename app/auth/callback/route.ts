@@ -6,17 +6,25 @@ import { ensureUserProfile } from '@/lib/ensure-user-profile'
 
 // Auth callback for email confirmation (signup), magic links, and OAuth.
 //
-// It accepts BOTH verification formats so it works regardless of how the
-// Supabase email template is configured:
-//   1. PKCE / OAuth:      ?code=<uuid>            -> exchangeCodeForSession
-//   2. Email OTP verify:  ?token_hash=<hash>&type -> verifyOtp
+// Two verification formats arrive here:
+//   1. Email OTP verify:  ?token_hash=<hash>&type=email  (signup confirmation)
+//   2. PKCE / OAuth:      ?code=<uuid>                    (provider redirect)
 //
-// Format 2 (token_hash) is the robust one for confirmation emails, because it
-// does NOT require the PKCE code-verifier cookie to be present in the browser
-// that opens the link. That cookie is missing whenever the link is opened in a
-// different browser/app/device than the one used to sign up (very common on
-// mobile), which is exactly why the old code-only handler dropped users back on
-// a logged-out page. See the dashboard note in the change summary.
+// CRITICAL — email confirmation is scanner-resistant and does NOT verify here.
+// The Supabase `token_hash` is STRICTLY SINGLE-USE. Email security scanners
+// (Outlook SafeLinks, Proofpoint, Mimecast…), mail-app link previews and browser
+// prefetch all issue a GET on the confirmation link BEFORE the human clicks. If
+// we called verifyOtp on this GET, that automated request would burn the one-time
+// token and the human's click would then fail as "expired" — the exact bug this
+// route previously caused. So for token_hash we DO NOT verify: we hand the token
+// to the /auth/confirm client interstitial, which only calls verifyOtp on an
+// explicit user click (scanners issue GETs but never click). This mirrors the
+// working /reset-password flow.
+//
+// The OAuth `code` flow is different: that redirect is issued live by the
+// provider to the user's own browser and is not present in any email, so it is
+// not prefetchable — exchanging it on GET here is safe and keeps existing login
+// behaviour unchanged.
 
 // Only allow internal, single-slash paths as the post-verification destination,
 // so `?next=` can never be used as an open redirect (`//evil.com`, `https://…`).
@@ -57,6 +65,22 @@ export async function GET(request: NextRequest) {
     return errorRedirect('invalid')
   }
 
+  // Email confirmation (token_hash): DO NOT verify here — redirect the token to
+  // the client interstitial so an automated GET can never consume it. No Supabase
+  // call happens on this request, so scanners/prefetch cannot burn the token.
+  if (tokenHash && type) {
+    const confirmUrl = new URL(`${origin}/auth/confirm`)
+    confirmUrl.searchParams.set('token_hash', tokenHash)
+    confirmUrl.searchParams.set('type', type)
+    confirmUrl.searchParams.set('next', next)
+    return NextResponse.redirect(confirmUrl)
+  }
+
+  // From here on it is the OAuth / PKCE `code` flow only.
+  if (!code) {
+    return errorRedirect('invalid')
+  }
+
   const cookieStore = await cookies()
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -75,17 +99,7 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  // Verify using whichever parameter the link carried.
-  let verifyError: { message?: string } | null = null
-  if (tokenHash && type) {
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
-    verifyError = error
-  } else if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    verifyError = error
-  } else {
-    return errorRedirect('invalid')
-  }
+  const { error: verifyError } = await supabase.auth.exchangeCodeForSession(code)
 
   if (verifyError) {
     // Expired/used links report as such; anything else is treated as invalid.

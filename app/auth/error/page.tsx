@@ -61,27 +61,40 @@ function AuthErrorInner() {
     }
 
     try {
-      const { error: resendError } = await supabase.auth.resend({
+      const { data: resendData, error: resendError } = await supabase.auth.resend({
         type: 'signup',
         email: email.trim(),
         options: {
-          emailRedirectTo: `${getSiteOrigin()}/auth/callback?next=/app`,
+          emailRedirectTo: `${getSiteOrigin()}/auth/callback?next=/signup/success`,
         },
+      })
+
+      // Capture the ACTUAL Supabase response so real failures are visible instead
+      // of being hidden behind a false "Check your email" screen.
+      console.log('[v0][auth/error] resend result:', {
+        ok: !resendError,
+        errorMessage: resendError?.message,
+        // @ts-expect-error - code is present on AuthError at runtime
+        errorCode: resendError?.code,
+        messageId: resendData?.messageId,
       })
 
       if (resendError) {
         const message = (resendError.message || '').toLowerCase()
-        if (message.includes('rate') || message.includes('too many')) {
-          setError('Too many attempts. Please wait a few minutes and try again.')
+        if (message.includes('rate') || message.includes('too many') || message.includes('security purposes')) {
+          setError('Too many attempts. Please wait a minute and try again.')
+        } else if (message.includes('already') && message.includes('confirm')) {
+          // Account is already verified — the honest next step is to log in.
+          setError('This account is already confirmed. Please log in instead.')
         } else {
-          // Security: avoid confirming whether the email maps to an account.
-          setSent(true)
+          // NEVER claim an email was sent when Supabase returned an error.
+          setError('We couldn\u2019t send a new link right now. Please double-check the address and try again.')
         }
         setLoading(false)
         return
       }
 
-      // Same success response whether or not the email exists / is pending.
+      // Only show success when the resend genuinely succeeded.
       setSent(true)
       setLoading(false)
     } catch {
