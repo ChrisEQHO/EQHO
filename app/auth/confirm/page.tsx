@@ -122,8 +122,12 @@ function ConfirmInner() {
 
       setStatus('done')
       // Hard navigation so the proxy/middleware picks up the freshly-set session
-      // cookies on the destination request.
-      window.location.assign(confirmation.next)
+      // cookies on the destination request. Tag the destination with confirmed=1
+      // so /signup/success renders the "account is ready" state instead of the
+      // pre-confirmation "check your email" state.
+      const dest = confirmation.next
+      const confirmedDest = dest + (dest.includes('?') ? '&' : '?') + 'confirmed=1'
+      window.location.assign(confirmedDest)
     } catch (thrown) {
       console.log('[v0][auth/confirm] verifyOtp threw:', thrown)
       setStatus('invalid')
