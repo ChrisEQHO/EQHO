@@ -1,11 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-
-// Use service role key to bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +11,8 @@ export async function POST(request: Request) {
     if (!userId || !email) {
       return NextResponse.json({ error: 'Missing userId or email' }, { status: 400 })
     }
+
+    const supabaseAdmin = getSupabaseAdmin()
 
     // First check if profile already exists
     const { data: existingProfile } = await supabaseAdmin

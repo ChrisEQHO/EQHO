@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
 
-// Use service role key for webhook operations (bypasses RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy module-scope binding. The real client is created on first property
+// access (at request time) rather than at module load, so `next build` never
+// runs `createClient(...)` during "Collecting page data". All handlers below
+// keep using `supabaseAdmin.from(...)` unchanged.
+const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseAdmin() as unknown as Record<string | symbol, unknown>
+    const value = client[prop]
+    return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(client) : value
+  },
+})
 
 // Per-profile idempotency. Stripe retries deliver the same event id more than
 // once and events can arrive out of order; we store the last handled event id on

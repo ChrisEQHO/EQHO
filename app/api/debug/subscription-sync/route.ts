@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { stripe } from '@/lib/stripe'
-
-// Admin client to bypass RLS
-const supabaseAdmin = createAdminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET() {
   try {
+    // Admin client to bypass RLS (created lazily at request time)
+    const supabaseAdmin = getSupabaseAdmin()
+
     const debugInfo: Record<string, unknown> = {
       timestamp: new Date().toISOString(),
       env_check: {
