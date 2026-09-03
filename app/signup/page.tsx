@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from 'lucide-react'
 import { getOfferCopy } from '@/lib/marketing-config'
 import { getSiteOrigin } from '@/lib/utils/site-url'
+import { apiFetch } from '@/lib/api-client'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -109,10 +110,17 @@ export default function SignupPage() {
 
     if (data?.user) {
       console.log('[v0] User created via signup:', data.user.id, data.user.email)
-      
-      // Create the profile via API (uses service role key to bypass RLS)
+
+      // Profile creation is BEST-EFFORT and must NEVER block navigation to the
+      // success page or leave the button spinning. All calls go through apiFetch
+      // so the mobile static export targets the deployed HTTPS backend (a
+      // relative /api call would hit the WebView origin and fail).
+      //
+      // create-profile takes the new user's id/email in the body and uses the
+      // service role server-side, so it works even though an email-confirmation
+      // signup returns NO active session yet.
       try {
-        const response = await fetch('/api/create-profile', {
+        const response = await apiFetch('/api/create-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -121,21 +129,24 @@ export default function SignupPage() {
             fullName: fullName,
           }),
         })
-
-        const result = await response.json()
+        const result = await response.json().catch(() => null)
         console.log('[v0] Create profile API result:', result)
       } catch (apiError) {
-        console.error('[v0] Profile creation API error:', apiError)
+        console.error('[v0] Profile creation API error (non-fatal):', apiError)
       }
 
-      // Safety net: guarantee a profiles row exists for this user even if the
-      // create-profile call above failed. Idempotent + never overwrites data.
-      try {
-        const ensureRes = await fetch('/api/ensure-profile', { method: 'POST' })
-        const ensureJson = await ensureRes.json()
-        console.log('[v0] signup ensure-profile result:', ensureJson)
-      } catch (ensureErr) {
-        console.error('[v0] signup ensure-profile error:', ensureErr)
+      // ensure-profile derives the user from the session, so it only works when a
+      // session already exists (e.g. email confirmation disabled). With email
+      // confirmation there is no session yet — skip it; the login flow ensures
+      // the profile later. Never fatal.
+      if (data.session) {
+        try {
+          const ensureRes = await apiFetch('/api/ensure-profile', { method: 'POST' })
+          const ensureJson = await ensureRes.json().catch(() => null)
+          console.log('[v0] signup ensure-profile result:', ensureJson)
+        } catch (ensureErr) {
+          console.error('[v0] signup ensure-profile error (non-fatal):', ensureErr)
+        }
       }
 
       router.push('/signup/success')
