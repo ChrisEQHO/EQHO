@@ -1,0 +1,20 @@
+User-Agent: *
+Allow: /
+Disallow: /app
+Disallow: /billing
+Disallow: /login
+Disallow: /signup
+Disallow: /complete-signup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /auth/
+Disallow: /trial
+Disallow: /upgrade
+Disallow: /subscription-success
+Disallow: /subscription/success
+Disallow: /debug
+Disallow: /api/
+Disallow: /store
+
+Host: https://www.eqho-player.com
+Sitemap: https://www.eqho-player.com/sitemap.xml

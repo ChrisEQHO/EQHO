@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/who-its-for/layout,_N_T_/who-its-for/page,_N_T_/who-its-for"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/who-its-for/__PAGE__",
+    "/who-its-for",
+    "/_index",
+    "/_head"
+  ]
+}

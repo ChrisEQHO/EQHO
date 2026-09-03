@@ -1,0 +1,3 @@
+module.exports=[77278,a=>{"use strict";var b=a.i(87697),c=a.i(56312),d=a.i(98638);a.s(["default",0,function(){let a=(0,d.useRouter)();return(0,c.useEffect)(()=>{a.replace("/app")},[a]),(0,b.jsx)("div",{className:"min-h-screen bg-[#020617] flex items-center justify-center",children:(0,b.jsx)("div",{className:"w-8 h-8 border-2 border-[#ff4fa3] border-t-transparent rounded-full animate-spin"})})}])}];
+
+//# sourceMappingURL=app_trial_page_tsx_0p5eqle._.js.map

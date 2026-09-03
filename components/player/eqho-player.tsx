@@ -823,7 +823,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // ?__hookrepro=1 we force the real checking->granted transition even under
   // preview, so non-minified React prints the hook-order table if one exists.
   const __hookRepro =
-    process.env.NODE_ENV !== "production" &&
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("__hookrepro");
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline" | "error">(
@@ -845,9 +844,17 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("__hookrepro")
         : "1";
-    const t = setTimeout(() => {
+    // Step through the SAME intermediate renders production produces:
+    //   (1) auth resolves: user + authChecked set, gate still "checking"
+    //   (2) entitlement resolves: entitlementPhase + reason set, gate still "checking"
+    //   (3) gate flips to "granted"
+    // Batching these (as before) hid any hook-count change that only appears on
+    // an intermediate render; stepping reproduces production faithfully.
+    const t1 = setTimeout(() => {
       setUser(mockUser as unknown as User);
       setAuthChecked(true);
+    }, 400);
+    const t2 = setTimeout(() => {
       if (which === "paywall" || which === "trialing") {
         setEntitlementPhase("paywall");
         setEntitlementReason(which === "trialing" ? "trialing" : "subscribed");
@@ -855,9 +862,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setEntitlementPhase("free");
         setEntitlementReason("free_period");
       }
+    }, 800);
+    const t3 = setTimeout(() => {
       setGate("granted");
-    }, 700);
-    return () => clearTimeout(t);
+    }, 1200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
