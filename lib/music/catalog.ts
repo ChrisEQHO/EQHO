@@ -5,6 +5,8 @@
 // reflects real sales (see lib/music/types.ts).
 
 import type { MusicTrack, MusicTrackWithCreator } from "@/lib/music/types"
+import type { GymnasticsCategoryId } from "@/lib/music/taxonomy"
+import { durationBandId } from "@/lib/music/taxonomy"
 import { TRACKS } from "@/lib/music/seed/tracks"
 import { CREATORS, getCreatorById } from "@/lib/music/seed/creators"
 
@@ -31,13 +33,16 @@ export function allMoods(): string[] {
 
 export interface DiscoveryFilters {
   query?: string
+  /** Gymnastics discipline — the primary discovery axis. */
+  category?: GymnasticsCategoryId | "all"
   genre?: string
-  mood?: string
+  /** Duration band id from taxonomy DURATION_BANDS. */
+  duration?: string
   sort?: SortKey
 }
 
 export function filterTracks(filters: DiscoveryFilters): MusicTrackWithCreator[] {
-  const { query, genre, mood, sort = "popular" } = filters
+  const { query, category, genre, duration, sort = "popular" } = filters
   let result = allTracksWithCreators()
 
   if (query && query.trim()) {
@@ -51,12 +56,16 @@ export function filterTracks(filters: DiscoveryFilters): MusicTrackWithCreator[]
     )
   }
 
+  if (category && category !== "all") {
+    result = result.filter((t) => t.gymnasticsCategories.includes(category))
+  }
+
   if (genre && genre !== "all") {
     result = result.filter((t) => t.genre === genre)
   }
 
-  if (mood && mood !== "all") {
-    result = result.filter((t) => t.moods.includes(mood))
+  if (duration && duration !== "all") {
+    result = result.filter((t) => durationBandId(t.durationSeconds) === duration)
   }
 
   return sortTracks(result, sort)
@@ -87,6 +96,17 @@ export function sortTracks(
   }
 }
 
+// Tracks filed under a given gymnastics discipline.
+export function tracksByCategory(
+  category: GymnasticsCategoryId,
+  limit?: number,
+): MusicTrackWithCreator[] {
+  const result = allTracksWithCreators().filter((t) =>
+    t.gymnasticsCategories.includes(category),
+  )
+  return typeof limit === "number" ? result.slice(0, limit) : result
+}
+
 // Rails for the discover page.
 export function popularRail(limit = 6): MusicTrackWithCreator[] {
   return sortTracks(allTracksWithCreators(), "popular").slice(0, limit)
@@ -104,4 +124,8 @@ export function newestRail(limit = 6): MusicTrackWithCreator[] {
 
 export function featuredCreators() {
   return CREATORS.filter((c) => c.featured)
+}
+
+export function allCreators() {
+  return CREATORS
 }

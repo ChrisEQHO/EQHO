@@ -3,61 +3,63 @@
 // These describe the SEED catalog used by the prototype and mirror the proposed
 // production schema documented in docs/eqho-music-architecture.md. No real
 // database tables are created in this phase.
+//
+// COMMERCIAL MODEL: there is exactly ONE licence — the Personal Licence at a
+// single flat price. There are no tiers and the customer never chooses a
+// licence type (spec revision §"CRITICAL COMMERCIAL CORRECTION").
 
-export type LicenceTierId = "personal" | "creator" | "commercial" | "exclusive"
+import type { GymnasticsCategoryId, MusicGenre } from "@/lib/music/taxonomy"
 
-export interface LicenceTier {
-  id: LicenceTierId
+export interface PersonalLicence {
+  id: "personal"
   name: string
-  /** One-line summary shown on the tier selector. */
+  /** One-line summary shown on the purchase card. */
   tagline: string
-  /** What the buyer is allowed to do under this licence. */
+  /** What the buyer is allowed to do under the Personal Licence. */
   rights: string[]
-  /** Base price in pence (GBP). Server-authoritative source of truth. */
+  /** Flat price in pence (GBP). Server-authoritative source of truth. */
   pricePence: number
-  /** True for the one-and-only exclusive/limited licence (removes track from sale). */
-  exclusive: boolean
 }
 
 export interface MusicCreator {
   id: string
   slug: string
+  /** Neutral slot label, e.g. "Creator 01" — NOT a real or invented name. */
   name: string
-  /** Short tagline shown under the name. */
+  /** Placeholder tagline shown under the label. */
   tagline: string
+  /** Placeholder copy describing where real creator info will appear. */
   bio: string
-  /** Country of origin (ISO-ish display name), used in discovery. */
-  country: string
-  /** Local generated avatar image path. */
-  avatar: string
-  /** Genres this creator is known for. */
-  genres: string[]
-  /** True when this is a spotlighted / featured creator. */
+  /** Accent index (0-based) driving the branded gradient placeholder artwork. */
+  accent: number
+  /** True when this placeholder is surfaced in the featured rail. */
   featured: boolean
 }
 
 export interface MusicTrack {
   id: string
   slug: string
+  /** Neutral slot label, e.g. "Track 01" — NOT invented catalogue inventory. */
   title: string
   creatorId: string
-  /** Primary genre + descriptive moods/tags used by discovery filters. */
-  genre: string
+  /** Gymnastics disciplines this placeholder is filed under (discovery axis). */
+  gymnasticsCategories: GymnasticsCategoryId[]
+  /** Primary musical genre + descriptive moods used by discovery filters. */
+  genre: MusicGenre
   moods: string[]
   bpm: number
   durationSeconds: number
   /** Musical key, shown on the detail page. */
   musicalKey: string
+  /** Placeholder description shown on the detail page. */
   description: string
-  /** Local generated cover art path. */
-  artwork: string
+  /** Accent index (0-based) driving the branded gradient placeholder artwork. */
+  accent: number
   /**
    * Watermarked/preview audio URL only. Master files never ship in the
    * prototype (see spec §33/§46 — preview vs master separation).
    */
   previewUrl: string
-  /** Which licence tiers are offered for this track. */
-  availableTiers: LicenceTierId[]
   /** Release date (ISO) for sorting "new" vs catalog. */
   releasedAt: string
   /**
@@ -82,19 +84,19 @@ export interface MusicTrackWithCreator extends MusicTrack {
   creator: MusicCreator
 }
 
-// A single line in the basket: a track + the chosen licence tier.
+// A single line in the basket. Because every track uses the one Personal
+// Licence, a line is just a track reference.
 export interface BasketLine {
   trackId: string
-  tierId: LicenceTierId
 }
 
-// Server-computed price quote returned by /api/music/price. The client renders
+// Server-computed price quote returned by /api/music/quote. The client renders
 // this but never computes or trusts its own totals (spec §27).
 export interface PriceQuoteLine {
   trackId: string
   trackTitle: string
-  tierId: LicenceTierId
-  tierName: string
+  /** Always "Personal Licence" in this model — carried for display only. */
+  licenceName: string
   basePence: number
   /** Applied subscriber discount in pence (0 when not a verified subscriber). */
   discountPence: number

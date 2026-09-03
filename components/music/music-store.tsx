@@ -22,12 +22,12 @@ import {
   useRef,
   useState,
 } from "react"
-import type { BasketLine, LicenceTierId } from "@/lib/music/types"
+import type { BasketLine } from "@/lib/music/types"
 
 interface MusicStoreValue {
   // Basket
   lines: BasketLine[]
-  addToBasket: (trackId: string, tierId: LicenceTierId) => void
+  addToBasket: (trackId: string) => void
   removeFromBasket: (trackId: string) => void
   clearBasket: () => void
   isInBasket: (trackId: string) => boolean
@@ -91,14 +91,12 @@ export function MusicStoreProvider({ children }: { children: React.ReactNode }) 
     }
   }, [])
 
-  const addToBasket = useCallback((trackId: string, tierId: LicenceTierId) => {
+  const addToBasket = useCallback((trackId: string) => {
     setLines((prev) => {
-      const existing = prev.find((l) => l.trackId === trackId)
-      if (existing) {
-        // One licence per track in the basket — update the chosen tier.
-        return prev.map((l) => (l.trackId === trackId ? { trackId, tierId } : l))
-      }
-      return [...prev, { trackId, tierId }]
+      // Every track uses the one Personal Licence, so a basket line is just a
+      // track reference and each track appears at most once.
+      if (prev.some((l) => l.trackId === trackId)) return prev
+      return [...prev, { trackId }]
     })
   }, [])
 

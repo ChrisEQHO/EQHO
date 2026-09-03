@@ -1,22 +1,17 @@
 // EQHO Music — pure, server-authoritative pricing.
 //
 // Mirrors the guarantees of lib/store/pricing.ts: every price shown in the UI
-// and every amount charged at checkout is derived HERE from the seed licence
-// tiers and the caller's verified subscription status. The browser never sends
-// a price; the checkout route recomputes the quote from these functions so the
-// display and the charge can never disagree (spec §27, §29).
+// and every amount charged at checkout is derived HERE from the single Personal
+// Licence and the caller's verified subscription status. The browser never
+// sends a price; the checkout route recomputes the quote from these functions
+// so the display and the charge can never disagree (spec §27, §29).
 
-import type {
-  BasketLine,
-  LicenceTierId,
-  PriceQuote,
-  PriceQuoteLine,
-} from "@/lib/music/types"
-import { getLicenceTier } from "@/lib/music/seed/licence-tiers"
+import type { BasketLine, PriceQuote, PriceQuoteLine } from "@/lib/music/types"
+import { PERSONAL_LICENCE } from "@/lib/music/seed/licence-tiers"
 import { getTrackById } from "@/lib/music/seed/tracks"
 
-// Verified EQHO subscribers get 10% off every licence (spec §29). This is only
-// ever applied after the caller's subscription is confirmed server-side.
+// Verified EQHO subscribers get 10% off (spec §"SUBSCRIBER DISCOUNT"). This is
+// only ever applied after the caller's subscription is confirmed server-side.
 export const SUBSCRIBER_DISCOUNT_RATE = 0.1
 
 export function formatGBP(pence: number): string {
@@ -26,44 +21,45 @@ export function formatGBP(pence: number): string {
   }).format(pence / 100)
 }
 
-// The single-line price for one track + tier, given subscriber status.
-export function priceForTier(
-  tierId: LicenceTierId,
-  isVerifiedSubscriber: boolean,
-): { basePence: number; discountPence: number; pricePence: number } {
-  const tier = getLicenceTier(tierId)
-  const basePence = tier.pricePence
+// The price for a single Personal Licence given subscriber status. The discount
+// is calculated (not hard-coded) from the flat licence price.
+export function priceForLicence(isVerifiedSubscriber: boolean): {
+  basePence: number
+  discountPence: number
+  pricePence: number
+} {
+  const basePence = PERSONAL_LICENCE.pricePence
   const discountPence = isVerifiedSubscriber
     ? Math.round(basePence * SUBSCRIBER_DISCOUNT_RATE)
     : 0
   return { basePence, discountPence, pricePence: basePence - discountPence }
 }
 
-// Build a full, authoritative quote for a basket. Unknown tracks/tiers and
-// tiers not offered for a track are silently dropped so a tampered basket can
-// never produce a charge for something that isn't really for sale.
+// Build a full, authoritative quote for a basket. Unknown tracks are silently
+// dropped so a tampered basket can never produce a charge for something that
+// isn't really for sale. Every line is one Personal Licence.
 export function quoteBasket(
   lines: BasketLine[],
   isVerifiedSubscriber: boolean,
 ): PriceQuote {
   const quoteLines: PriceQuoteLine[] = []
+  // De-duplicate: one Personal Licence per track in a basket.
+  const seen = new Set<string>()
 
   for (const line of lines) {
+    if (seen.has(line.trackId)) continue
     const track = getTrackById(line.trackId)
     if (!track) continue
-    if (!track.availableTiers.includes(line.tierId)) continue
+    seen.add(line.trackId)
 
-    const tier = getLicenceTier(line.tierId)
-    const { basePence, discountPence, pricePence } = priceForTier(
-      line.tierId,
+    const { basePence, discountPence, pricePence } = priceForLicence(
       isVerifiedSubscriber,
     )
 
     quoteLines.push({
       trackId: track.id,
       trackTitle: track.title,
-      tierId: line.tierId,
-      tierName: tier.name,
+      licenceName: PERSONAL_LICENCE.name,
       basePence,
       discountPence,
       pricePence,
