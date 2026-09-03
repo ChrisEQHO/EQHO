@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/advert-features-preview/layout,_N_T_/advert-features-preview/page,_N_T_/advert-features-preview"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/advert-features-preview/__PAGE__",
+    "/advert-features-preview",
+    "/_index",
+    "/_head"
+  ]
+}
