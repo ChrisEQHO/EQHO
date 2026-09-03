@@ -2,7 +2,17 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Mail, ArrowRight, CheckCircle } from 'lucide-react'
 
-export default function SignupSuccessPage() {
+export default async function SignupSuccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ confirmed?: string }>
+}) {
+  const params = await searchParams
+  // `confirmed=1` is set only by the post-verifyOtp navigation in
+  // /auth/confirm, so it distinguishes the after-confirmation state from the
+  // default after-signup "check your email" state. No auth logic depends on it.
+  const confirmed = params.confirmed === '1'
+
   return (
     <div className="h-screen bg-[#020617] flex items-center justify-center p-4 overflow-hidden">
       {/* Background gradient effects */}
@@ -27,8 +37,19 @@ export default function SignupSuccessPage() {
           </div>
           <div className="w-4 h-px bg-white/20" />
           <div className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded-full bg-[#ff4fa3] text-white text-xs font-bold flex items-center justify-center">2</span>
-            <span className="text-xs text-[#ff4fa3]">Verify</span>
+            {confirmed ? (
+              <>
+                <span className="w-5 h-5 rounded-full bg-[#22c55e] text-white text-xs font-bold flex items-center justify-center">
+                  <CheckCircle className="w-3 h-3" />
+                </span>
+                <span className="text-xs text-[#22c55e]">Verified</span>
+              </>
+            ) : (
+              <>
+                <span className="w-5 h-5 rounded-full bg-[#ff4fa3] text-white text-xs font-bold flex items-center justify-center">2</span>
+                <span className="text-xs text-[#ff4fa3]">Verify</span>
+              </>
+            )}
           </div>
           <div className="w-4 h-px bg-white/20" />
           <div className="flex items-center gap-1.5">
@@ -37,52 +58,76 @@ export default function SignupSuccessPage() {
           </div>
         </div>
 
-        {/* Success Card */}
-        <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-            <Mail className="w-7 h-7 text-white" />
+        {confirmed ? (
+          /* Post-confirmation: account is ready */
+          <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#22c55e]/20 border border-[#22c55e]/30 flex items-center justify-center">
+              <CheckCircle className="w-7 h-7 text-[#22c55e]" />
+            </div>
+
+            <h2 className="text-xl font-bold text-white mb-2 text-balance">Your account is ready</h2>
+            <p className="text-sm text-[#94a3b8] mb-5 text-pretty">
+              Your email has been confirmed successfully. You can now log in to EQHO Player.
+            </p>
+
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition"
+            >
+              Log in to EQHO Player
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
+        ) : (
+          /* Post-signup: waiting for email confirmation */
+          <div className="bg-[rgba(9,15,28,0.96)] border border-white/10 rounded-2xl p-6 shadow-[0_18px_45px_rgba(0,0,0,0.35)]">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+              <Mail className="w-7 h-7 text-white" />
+            </div>
 
-          <h2 className="text-xl font-bold text-white mb-2">Check your email</h2>
-          <p className="text-sm text-[#94a3b8] mb-3">
-            We&apos;ve sent you a confirmation link to verify your account.
-          </p>
-          <p className="text-xs text-[#facc15] mb-4">
-            The email may take up to 5 minutes to arrive.
-          </p>
+            <h2 className="text-xl font-bold text-white mb-2">Check your email</h2>
+            <p className="text-sm text-[#94a3b8] mb-3">
+              We&apos;ve sent you a confirmation link to verify your account.
+            </p>
+            <p className="text-xs text-[#facc15] mb-4">
+              The email may take up to 5 minutes to arrive.
+            </p>
 
-          {/* Next steps - compact */}
-          <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-3 mb-4 text-left">
-            <p className="font-semibold text-sm text-[#22c55e] mb-2">What happens next:</p>
-            <ol className="space-y-1.5 text-xs text-[#cbd5e1]">
-              <li className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                Click the link in your email to verify
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                Log in with your new account
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                Enjoy free access to EQHO Player!
-              </li>
-            </ol>
+            {/* Next steps - compact */}
+            <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-3 mb-4 text-left">
+              <p className="font-semibold text-sm text-[#22c55e] mb-2">What happens next:</p>
+              <ol className="space-y-1.5 text-xs text-[#cbd5e1]">
+                <li className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                  Click the link in your email to verify
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                  Log in with your new account
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-[#22c55e]/20 text-[#22c55e] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                  Enjoy free access to EQHO Player!
+                </li>
+              </ol>
+            </div>
+
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition"
+            >
+              Back to Login
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
+        )}
 
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(255,79,163,0.4)] transition"
-          >
-            Back to Login
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        {/* Footer */}
-        <p className="text-[#64748b] text-xs mt-4">
-          Didn&apos;t receive the email? Check spam or try signing up again.
-        </p>
+        {/* Footer - only relevant while waiting for the email */}
+        {!confirmed && (
+          <p className="text-[#64748b] text-xs mt-4">
+            Didn&apos;t receive the email? Check spam or try signing up again.
+          </p>
+        )}
       </div>
     </div>
   )
