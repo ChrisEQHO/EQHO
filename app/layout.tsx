@@ -114,6 +114,25 @@ export default function RootLayout({
               "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var apply=function(){if(isIpad){d.setAttribute('data-desktop-layout','');return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
           }}
         />
+        {/* Service-worker KILL-SWITCH (runs before first paint).
+
+            The app's old PWA/mobile era registered a cache-first service worker
+            that keeps serving STALE, genuinely-broken JS chunks to returning
+            browsers — the source of the minified React #310 crash on provably
+            clean, already-deployed code. The current app ships no SW, so nothing
+            ever evicts the old one. This proactively unregisters any lingering
+            worker and erases every Cache Storage entry, then does a single
+            (session-guarded) reload so an already-broken tab immediately
+            re-fetches the correct bundles from the network. Paired with the
+            self-destruct worker at /public/sw.js for browsers that update the
+            worker before this runs. Safe to keep permanently: it is a no-op once
+            no SW/caches remain. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if('serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){var had=rs&&rs.length>0;return Promise.all((rs||[]).map(function(r){return r.unregister()})).then(function(){var cc=(window.caches&&caches.keys)?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):Promise.resolve();return cc.then(function(){if(had&&!sessionStorage.getItem('__sw_purged')){sessionStorage.setItem('__sw_purged','1');location.reload()}})})}).catch(function(){})}}catch(e){}",
+          }}
+        />
         <link rel="icon" href="/favicon.png" type="image/png" sizes="any" />
         <link rel="apple-touch-icon" href="/favicon.png" />
         {/* iOS status bar styling */}
