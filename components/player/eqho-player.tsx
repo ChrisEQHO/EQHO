@@ -1484,7 +1484,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
     const loadCurrentPlaylist = async () => {
       try {
+        console.log("[PLAYER-BOOT] (1) current-queue restore: reading IndexedDB…");
         const cached = await getCurrentPlaylistWithFiles();
+        // Measure the memory we are about to materialize into React state. A very
+        // large total here (many/large offline tracks) is the renderer OOM that
+        // crashes authenticated /app while the file-free demo player never does.
+        const queueBytes = cached.reduce((sum, t) => sum + (t.file?.size ?? 0), 0);
+        console.log(
+          `[PLAYER-BOOT] (2) current-queue restore: ${cached.length} track(s), ` +
+            `${(queueBytes / 1048576).toFixed(1)} MB about to load into memory`
+        );
         if (cached.length > 0) {
           const restored = cached.map((t) => ({
             id: t.id,
@@ -2051,7 +2060,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (demoMode) return; // Seeded from /api/demo above; never read visitor IndexedDB.
     const loadSavedPlaylistsData = async () => {
       try {
+        console.log("[PLAYER-BOOT] (3) saved-playlists (offline library) restore: reading IndexedDB…");
         const cached = await getSavedPlaylistsWithTracks();
+        // The whole offline library is materialized here at once (every track's
+        // audio bytes + an object URL, all retained in React state for the session).
+        // This is the prime renderer-OOM suspect — demo mode skips this effect
+        // entirely, which is exactly why the public /features player never crashes.
+        const trackCount = cached.reduce((sum, pl) => sum + pl.tracks.length, 0);
+        const libraryBytes = cached.reduce(
+          (sum, pl) => sum + pl.tracks.reduce((s, t) => s + (t.file?.size ?? 0), 0),
+          0
+        );
+        console.log(
+          `[PLAYER-BOOT] (4) saved-playlists restore: ${cached.length} playlist(s), ` +
+            `${trackCount} track(s), ${(libraryBytes / 1048576).toFixed(1)} MB about to load into memory`
+        );
         if (cached.length > 0) {
           const restored = cached.map((pl) => ({
             id: pl.id,
