@@ -819,8 +819,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Free access, but login is required. The gate starts "checking" until the
   // Supabase auth check resolves: logged-in users are "granted", logged-out users
   // are redirected to /login. (No subscription/trial check - login alone is enough.)
+  // TEMP HOOK-REPRO (dev only, remove after diagnosis): when the URL carries
+  // ?__hookrepro=1 we force the real checking->granted transition even under
+  // preview, so non-minified React prints the hook-order table if one exists.
+  const __hookRepro =
+    process.env.NODE_ENV !== "production" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("__hookrepro");
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline" | "error">(
-    isV0Preview || demoMode ? "granted" : "checking"
+    (isV0Preview || demoMode) && !__hookRepro ? "granted" : "checking"
   );
   // Server-authoritative offer phase from /api/entitlement, used ONLY to pick the
   // correct promo-banner wording (never to grant access — that's `gate`). Null
@@ -828,6 +835,31 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // never flash "30-day free trial" at a user who is in the free period.
   const [entitlementPhase, setEntitlementPhase] = useState<"free" | "paywall" | null>(null);
   const [entitlementReason, setEntitlementReason] = useState<string | null>(null);
+  // TEMP HOOK-REPRO (dev only, remove after diagnosis): faithfully reproduce the
+  // PRODUCTION granted resolution — set the mock user, then set entitlementPhase +
+  // reason and flip gate->granted in one batch, exactly like lines ~1152-1158.
+  // ?__hookrepro=1 -> "free", ?__hookrepro=paywall / trialing -> paywall variants.
+  useEffect(() => {
+    if (!__hookRepro) return;
+    const which =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("__hookrepro")
+        : "1";
+    const t = setTimeout(() => {
+      setUser(mockUser as unknown as User);
+      setAuthChecked(true);
+      if (which === "paywall" || which === "trialing") {
+        setEntitlementPhase("paywall");
+        setEntitlementReason(which === "trialing" ? "trialing" : "subscribed");
+      } else {
+        setEntitlementPhase("free");
+        setEntitlementReason("free_period");
+      }
+      setGate("granted");
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
   // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
   const [accessRetryToken, setAccessRetryToken] = useState(0);
@@ -1085,6 +1117,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Offline, we honour the existing grace window so downloads keep playing.
   // -------------------------------------------------------------------------
   useEffect(() => {
+    // TEMP HOOK-REPRO (dev only): let the repro driver below own the transition
+    // so we exercise the REAL production granted path (entitlementPhase set),
+    // not the isV0Preview shortcut.
+    if (__hookRepro) return;
     if (isV0Preview) {
       setGate("granted");
       return;
