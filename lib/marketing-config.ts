@@ -259,15 +259,17 @@ export const CTA = {
 } as const
 
 /** Header navigation (anchors on the homepage + the pricing route). */
-// NOTE: The "Music store" link is intentionally omitted while the EQHO Music
-// marketplace is hidden pre-launch. Re-add `{ label: 'Music store', href: '/store' }`
-// (and re-enable the store via NEXT_PUBLIC_STORE_ENABLED) when it is ready.
+// NOTE: '/music' points to the public EQHO Music "coming soon" page (creator
+// enquiries open). The full marketplace store at '/store' remains hidden
+// pre-launch — re-add `{ label: 'Music store', href: '/store' }` (and re-enable
+// via NEXT_PUBLIC_STORE_ENABLED) when it is ready.
 export const NAV_LINKS: { label: string; href: string }[] = [
-  { label: 'The player', href: '/features' },
-  { label: 'How it works', href: '/how-it-works' },
-  { label: 'Who it’s for', href: '/who-its-for' },
-  { label: 'Pricing', href: '/pricing' },
-  { label: "FAQ's", href: '/faq' },
+{ label: 'The player', href: '/features' },
+{ label: 'How it works', href: '/how-it-works' },
+{ label: 'Who it’s for', href: '/who-its-for' },
+{ label: 'Pricing', href: '/pricing' },
+{ label: 'Music', href: '/music' },
+{ label: "FAQ's", href: '/faq' },
 ]
 
 /** The problem → outcome framing under the hero. */

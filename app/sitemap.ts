@@ -16,6 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/how-it-works', priority: 0.7 },
     { path: '/who-its-for', priority: 0.7 },
     { path: '/pricing', priority: 0.8 },
+    { path: '/music', priority: 0.6 },
     { path: '/faq', priority: 0.6 },
     { path: '/privacy-policy', priority: 0.3 },
     { path: '/terms', priority: 0.3 },

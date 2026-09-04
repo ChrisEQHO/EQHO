@@ -34,6 +34,14 @@ export default function robots(): MetadataRoute.Robots {
           '/debug',
           '/api/',
           '/store', // EQHO Music marketplace — hidden pre-launch
+          // EQHO Music unfinished marketplace child routes — the public /music
+          // coming-soon page IS indexable, but these prototype routes are not
+          // part of the public surface yet.
+          '/music/browse',
+          '/music/creators',
+          '/music/creator',
+          '/music/track',
+          '/music/basket',
         ],
       },
     ],
