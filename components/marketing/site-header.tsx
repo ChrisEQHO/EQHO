@@ -7,7 +7,8 @@ import { Menu, X, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { SITE, NAV_LINKS, CTA, getOfferCopy } from '@/lib/marketing-config'
-import { handleSectionLinkClick } from '@/lib/utils/scroll-to-section'
+ import { handleSectionLinkClick } from '@/lib/utils/scroll-to-section'
+ import { trackEvent } from '@/lib/analytics/track-event'
 
 /**
  * Public marketing header. Sticky, translucent, with a mobile drawer.
@@ -147,12 +148,14 @@ export function SiteHeader() {
             <>
               <Link
                 href={CTA.secondary.href}
+                onClick={() => trackEvent('Login Clicked', { location: 'header' })}
                 className="whitespace-nowrap text-sm font-semibold text-white/90 transition-colors hover:text-white"
               >
                 {CTA.secondary.label}
               </Link>
               <Link
                 href={CTA.headerCta.href}
+                onClick={() => trackEvent('Create Account Clicked', { location: 'header' })}
                 className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(255,79,163,0.3)] transition-transform hover:scale-[1.03]"
               >
                 {headerCtaLabel}
@@ -209,16 +212,22 @@ export function SiteHeader() {
               ) : (
                 <>
                   <Link
-                    href={CTA.secondary.href}
-                    onClick={() => setOpen(false)}
-                    className="inline-flex h-11 items-center justify-center rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  href={CTA.secondary.href}
+                  onClick={() => {
+                    trackEvent('Login Clicked', { location: 'header' })
+                    setOpen(false)
+                  }}
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                   >
                     {CTA.secondary.label}
                   </Link>
                   <Link
-                    href={CTA.headerCta.href}
-                    onClick={() => setOpen(false)}
-                    className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white"
+                  href={CTA.headerCta.href}
+                  onClick={() => {
+                    trackEvent('Create Account Clicked', { location: 'header' })
+                    setOpen(false)
+                  }}
+                  className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 text-sm font-semibold text-white"
                   >
                     {headerCtaLabel}
                     <ArrowRight className="h-4 w-4" />

@@ -11,7 +11,8 @@ import {
   Check,
   type LucideIcon,
 } from 'lucide-react'
-import { DemoCta } from '@/components/marketing/demo-cta'
+ import { DemoCta } from '@/components/marketing/demo-cta'
+ import { trackEvent } from '@/lib/analytics/track-event'
 import { FreeUntilPill } from '@/components/marketing/free-until-pill'
 import { PROBLEM, FEATURES, getOfferCopy } from '@/lib/marketing-config'
 
@@ -25,12 +26,25 @@ const ICONS: Record<string, LucideIcon> = {
   MonitorSmartphone,
 }
 
-function PrimaryCta({ className = '', href, label }: { className?: string; href: string; label: string }) {
+ function PrimaryCta({
+  className = '',
+  href,
+  label,
+  trackName,
+  trackLocation,
+ }: {
+  className?: string
+  href: string
+  label: string
+  trackName?: string
+  trackLocation?: string
+ }) {
   return (
-    <Link
-      href={href}
-      className={`inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${className}`}
-    >
+  <Link
+  href={href}
+  onClick={trackName ? () => trackEvent(trackName, trackLocation ? { location: trackLocation } : undefined) : undefined}
+  className={`inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-7 text-base font-semibold text-white shadow-[0_8px_30px_rgba(255,79,163,0.35)] transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${className}`}
+  >
       {label}
       <ArrowRight className="h-5 w-5" aria-hidden="true" />
     </Link>
@@ -169,7 +183,7 @@ export function MarketingHome() {
             Try a ready-made training session and explore the controls for yourself.
           </p>
           <div className="mt-8 flex justify-center">
-            <PrimaryCta href="/features#interactive-demo" label="Try the interactive demo" />
+            <PrimaryCta href="/features#interactive-demo" label="Try the interactive demo" trackName="Primary CTA Clicked" trackLocation="features" />
           </div>
         </div>
       </section>
@@ -240,7 +254,7 @@ export function MarketingHome() {
                 </ul>
               </div>
               <div className="flex w-full flex-col gap-3 sm:w-auto">
-                <PrimaryCta className="w-full sm:w-auto" href="/signup" label={offer.cta} />
+                <PrimaryCta className="w-full sm:w-auto" href="/signup" label={offer.cta} trackName="Pricing CTA Clicked" trackLocation="pricing" />
                 <FreeUntilPill className="w-full sm:w-auto" />
                 <Link
                   href="/pricing"
@@ -264,7 +278,7 @@ export function MarketingHome() {
             Keep your music organised, your training moving and your attention where it matters most.
           </p>
           <div className="mt-8 flex flex-col items-center gap-3">
-            <PrimaryCta href="/signup" label={offer.cta} />
+            <PrimaryCta href="/signup" label={offer.cta} trackName="Create Account Clicked" trackLocation="footer-cta" />
             <FreeUntilPill />
           </div>
         </div>

@@ -9,6 +9,7 @@ import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from 'lucide-react'
 import { getOfferCopy } from '@/lib/marketing-config'
 import { getSiteOrigin } from '@/lib/utils/site-url'
 import { apiFetch } from '@/lib/api-client'
+import { trackEvent } from '@/lib/analytics/track-event'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -146,10 +147,15 @@ export default function SignupPage() {
           console.log('[v0] signup ensure-profile result:', ensureJson)
         } catch (ensureErr) {
           console.error('[v0] signup ensure-profile error (non-fatal):', ensureErr)
-        }
       }
+    }
 
-      router.push('/signup/success')
+    // Genuine account creation succeeded (Supabase returned a real new user and
+    // passed the "already registered" guards above). Fire the anonymous event
+    // here, never on button click — no email, name or user id is sent.
+    trackEvent('Signup Success')
+
+    router.push('/signup/success')
       return
     }
 
