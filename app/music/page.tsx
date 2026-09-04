@@ -1,94 +1,170 @@
-import Link from "next/link"
-import { ArrowRight, Sparkles, Compass } from "lucide-react"
-import { popularRail, lessUsedRail, newestRail, featuredCreators } from "@/lib/music/catalog"
-import { TRACKS } from "@/lib/music/seed/tracks"
-import { TrackRail } from "@/components/music/track-rail"
-import { CreatorCard } from "@/components/music/creator-card"
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { SiteHeader } from '@/components/marketing/site-header'
+import { SiteFooter } from '@/components/marketing/site-footer'
+import { CreatorInterestForm } from '@/components/music/creator-interest-form'
+import { MusicViewedBeacon } from '@/components/music/music-viewed-beacon'
+import { SITE } from '@/lib/marketing-config'
 
-export const metadata = {
-  title: "EQHO Music — Licence music from independent creators",
-  description: "A private preview of the EQHO Music marketplace.",
+export const metadata: Metadata = {
+  title: `Music — ${SITE.name}`,
+  description:
+    'EQHO Music is coming: a curated catalogue of tracks built for gymnastics routines, ready to drop straight into the EQHO Player. Creators can register their interest now.',
+  alternates: { canonical: '/music' },
+  openGraph: {
+    type: 'website',
+    url: `${SITE.url}/music`,
+    siteName: SITE.name,
+    title: `Music — ${SITE.name}`,
+    description:
+      'A curated catalogue of tracks built for gymnastics routines, coming to the EQHO Player. Creators can register their interest now.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `Music — ${SITE.name}`,
+    description:
+      'A curated catalogue of tracks built for gymnastics routines, coming to the EQHO Player.',
+  },
 }
 
-export default function MusicHomePage() {
-  const popular = popularRail(5)
-  const lessUsed = lessUsedRail(5)
-  const newest = newestRail(5)
-  const creators = featuredCreators()
+const COACH_POINTS = [
+  {
+    title: 'Made for routines',
+    body: 'Tracks arranged for floor and rhythmic routines — the right length, energy, and structure, not generic stock loops.',
+  },
+  {
+    title: 'Cleared for competition',
+    body: 'Every track will come with the licence you need to use it in training and competition with confidence.',
+  },
+  {
+    title: 'One tap into the Player',
+    body: 'Find a track, add it to a routine, and it is ready in the EQHO Player you already use — no exporting, no faff.',
+  },
+]
 
-  const trackCountByCreator = (creatorId: string) => TRACKS.filter((t) => t.creatorId === creatorId).length
+const CREATOR_POINTS = [
+  'Reach coaches and gymnasts who need routine-ready music every season.',
+  'Keep your rights — you decide what you list and licence.',
+  'Get paid fairly for tracks that find a real, repeat audience.',
+]
 
+export default function MusicComingSoonPage() {
   return (
-    <div className="flex flex-col gap-12 pb-16">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/20 via-[#020617] to-[#020617] px-6 py-12 sm:px-10 sm:py-16">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#ff8a00]/15 blur-3xl" />
-        <div className="relative z-10 flex max-w-2xl flex-col gap-5">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#ff4fa3]/40 bg-[#ff4fa3]/10 px-3 py-1 text-xs font-medium text-[#ff8fc4]">
-            <Sparkles className="h-3.5 w-3.5" />
-            Private preview
-          </span>
-          <h1 className="text-balance text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            Licence distinctive music from independent creators
-          </h1>
-          <p className="text-pretty text-base leading-relaxed text-white/60">
-            Clear, honest licensing. Every track comes with a single Personal Licence, watermarked previews, and a fair
-            spotlight for lesser-heard work — not just the top of the charts.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/music/browse"
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-[#ff4fa3]/25 transition-transform hover:scale-[1.03]"
-            >
-              <Compass className="h-4 w-4" />
-              Browse the catalogue
-            </Link>
-            <Link
-              href="/music/creators"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-2.5 text-sm font-medium text-white/80 transition-colors hover:border-white/30 hover:text-white"
-            >
-              Meet the creators
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+    <>
+      <MusicViewedBeacon />
+      <SiteHeader />
+      <main className="bg-[#020617] text-white">
+        {/* Hero */}
+        <section className="relative overflow-hidden">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[460px] bg-[radial-gradient(70%_60%_at_50%_-10%,rgba(255,79,163,0.18),transparent_60%)]"
+          />
+          <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-16 sm:px-6 sm:pt-20">
+            <div className="mx-auto max-w-2xl text-center">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-4 py-1.5 text-xs font-semibold text-[#ffb673]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#ff8a00]" />
+                Coming soon
+              </span>
+              <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
+                Routine-ready music,{' '}
+                <span className="bg-[linear-gradient(135deg,#ff4fa3,#ff8a00)] bg-clip-text text-transparent">
+                  built into EQHO
+                </span>
+              </h1>
+              <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-[#94a3b8] sm:text-lg">
+                We&apos;re building a curated catalogue of tracks made for
+                gymnastics routines — cleared for competition and ready to drop
+                straight into the EQHO Player. It&apos;s on the way.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link
+                  href="#creators"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#ff4fa3,#ff8a00)] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(255,79,163,0.6)] transition hover:scale-[1.02]"
+                >
+                  I make music — register interest
+                </Link>
+                <Link
+                  href="/features"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/5"
+                >
+                  Explore the player
+                </Link>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <TrackRail
-        title="Popular this month"
-        description="What other creators are licensing most. Sample data — illustrative only."
-        tracks={popular}
-      />
-
-      <TrackRail
-        title="Hidden gems"
-        description="Fresh and lesser-used tracks that deserve a listen — surfaced fairly, not buried."
-        tracks={lessUsed}
-      />
-
-      <TrackRail title="New arrivals" description="The latest additions to the catalogue." tracks={newest} />
-
-      {/* Featured creators */}
-      <section className="flex flex-col gap-4">
-        <div className="flex items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold text-white">Featured creators</h2>
-            <p className="text-sm text-white/50">Independent artists building their catalogue on EQHO.</p>
+        {/* What it will be — for coaches & gymnasts */}
+        <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+              For coaches &amp; gymnasts
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-relaxed text-[#94a3b8] sm:text-base">
+              The same focus that shaped the EQHO Player, now applied to the
+              music itself.
+            </p>
           </div>
-          <Link
-            href="/music/creators"
-            className="hidden shrink-0 items-center gap-1 text-sm text-[#ff4fa3] hover:underline sm:inline-flex"
-          >
-            All creators
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {creators.map((creator) => (
-            <CreatorCard key={creator.id} creator={creator} trackCount={trackCountByCreator(creator.id)} />
-          ))}
-        </div>
-      </section>
-    </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            {COACH_POINTS.map((point) => (
+              <div
+                key={point.title}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"
+              >
+                <h3 className="text-base font-semibold text-white">{point.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#94a3b8]">
+                  {point.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* For creators — enquiry form */}
+        <section
+          id="creators"
+          className="relative scroll-mt-24 overflow-hidden border-t border-white/10"
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[360px] bg-[radial-gradient(60%_60%_at_50%_110%,rgba(255,138,0,0.14),transparent_60%)]"
+          />
+          <div className="mx-auto grid w-full max-w-5xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-start">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#ff4fa3]/30 bg-[#ff4fa3]/10 px-4 py-1.5 text-xs font-semibold text-[#ff9ecb]">
+                For music creators
+              </span>
+              <h2 className="mt-5 text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+                Make music for gymnasts? We&apos;d love to hear from you.
+              </h2>
+              <p className="mt-4 text-pretty text-sm leading-relaxed text-[#94a3b8] sm:text-base">
+                We&apos;re inviting composers and producers to help build the EQHO
+                Music catalogue. Register your interest and we&apos;ll be in touch
+                as the creator programme opens.
+              </p>
+              <ul className="mt-6 flex flex-col gap-3">
+                {CREATOR_POINTS.map((point) => (
+                  <li key={point} className="flex items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[linear-gradient(135deg,#ff4fa3,#ff8a00)]"
+                    />
+                    <span className="text-sm leading-relaxed text-[#cbd5e1]">
+                      {point}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+              <CreatorInterestForm />
+            </div>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
+    </>
   )
 }
