@@ -1148,7 +1148,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // to "checking", which re-runs this verification.
     if (gate !== "checking") return;
 
-    // Hard navigation helper — the Next.js client router has been observed to
+    // Hard navigation helper ��� the Next.js client router has been observed to
     // silently no-op in this app's environment, and window.location.replace also
     // works in the Capacitor static export. router.replace is a fast-path first.
     const hardRedirect = (path: string) => {
@@ -7250,9 +7250,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               }}
                               aria-label={`Hide ${track.title} from this session`}
                               title="Hide from this session"
-                              className="ml-1 flex items-center justify-center w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition shrink-0"
+                              className="ml-1 flex items-center justify-center w-6 h-6 rounded-md text-red-500 hover:text-red-400 hover:bg-red-500/15 transition shrink-0"
                             >
-                              <X size={14} />
+                              <X size={16} strokeWidth={2.75} />
                             </button>
                           )}
                         </SortableTrackItem>
@@ -7545,9 +7545,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                 onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }}
                                 aria-label={`Hide ${track.title} from this session`}
                                 title="Hide from this session"
-                                className="flex items-center justify-center w-7 h-7 rounded-md text-white/40 hover:text-white hover:bg-white/10 active:bg-white/15 transition shrink-0"
+                                className="flex items-center justify-center w-7 h-7 rounded-md text-red-500 hover:text-red-400 hover:bg-red-500/15 active:bg-red-500/25 transition shrink-0"
                               >
-                                <X size={16} />
+                                <X size={18} strokeWidth={2.75} />
                               </button>
                             )}
                           </div>
