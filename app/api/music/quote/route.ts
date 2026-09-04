@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getTrackById } from "@/lib/music/seed/tracks"
-import { LICENCE_TIERS } from "@/lib/music/seed/licence-tiers"
 import { resolveMusicSubscriber } from "@/lib/music/subscriber"
 import { quoteBasket } from "@/lib/music/pricing"
-import type { BasketLine, LicenceTierId } from "@/lib/music/types"
+import type { BasketLine } from "@/lib/music/types"
 
 // Server-authoritative price quote for a basket. The client sends only
 // { trackId, tierId } pairs; every amount is recomputed here from the seed
@@ -22,17 +21,18 @@ export async function POST(request: NextRequest) {
     rawLines = []
   }
 
-  // Validate + normalise every line against the real catalogue. Unknown tracks,
-  // tiers not offered by that track, or malformed entries are dropped.
+  // Validate + normalise every line against the real catalogue. Unknown tracks
+  // and malformed entries are dropped. Every line is one Personal Licence, so a
+  // line is just a validated track reference.
   const lines: BasketLine[] = []
+  const seen = new Set<string>()
   for (const entry of rawLines as Array<Record<string, unknown>>) {
     const trackId = typeof entry?.trackId === "string" ? entry.trackId : ""
-    const tierId = typeof entry?.tierId === "string" ? (entry.tierId as LicenceTierId) : ("" as LicenceTierId)
+    if (!trackId || seen.has(trackId)) continue
     const track = getTrackById(trackId)
     if (!track) continue
-    if (!(tierId in LICENCE_TIERS)) continue
-    if (!track.availableTiers.includes(tierId)) continue
-    lines.push({ trackId, tierId })
+    seen.add(trackId)
+    lines.push({ trackId })
   }
 
   const quote = quoteBasket(lines, isVerifiedSubscriber)
