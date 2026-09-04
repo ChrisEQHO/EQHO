@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
+import { trackEvent } from '@/lib/analytics/track-event'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 // Resolve the post-login destination from ?next=, rejecting anything that
@@ -153,6 +154,12 @@ export default function LoginPage() {
           // Non-fatal: the client-side session already controls access.
         }
       }
+
+      // Session confirmed — this is a GENUINE successful login (Supabase returned
+      // a user AND a persisted session). Fire the anonymous analytics event here,
+      // never on button click, so failed/timed-out logins never count. No email,
+      // user id or any personal data is sent.
+      trackEvent('Login Success')
 
       // Session confirmed — go to the intended destination (defaults to the
       // player) and refresh server state so any cookie-reading middleware/RSC

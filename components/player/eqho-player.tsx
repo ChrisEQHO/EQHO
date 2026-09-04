@@ -19,6 +19,7 @@ import { useNativeSession } from "@/lib/use-native-session";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
+import { trackEvent } from "@/lib/analytics/track-event";
 import { clearEntitlementVerified, recordEntitlementVerified, isWithinOfflineGrace, isOnline } from "@/lib/access";
 import { 
   fetchCloudPlaylists, 
@@ -3950,6 +3951,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     b2bRepeatedTrackIdRef.current = null;
     setBackToBackPlayed(false);
     setShowSessionFinished(true);
+    trackEvent("Session Ended");
   };
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
@@ -4303,6 +4305,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (alreadyExists) return;
 
     setPlaylist((current) => [...current, track]);
+    trackEvent("Track Added");
   };
 
   const moveTrack = (fromIndex: number, toIndex: number) => {
@@ -4722,7 +4725,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const handleAudioDurationChange = () => captureDuration();
   // Keep the shared isPlaying state in lockstep with the element's real state so
   // every view shows the correct play/pause status (and manual pauses stick).
-  const handleAudioPlay = () => setIsPlaying(true);
+  const handleAudioPlay = () => {
+    setIsPlaying(true);
+    trackEvent("Track Played");
+  };
   const handleAudioPause = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -5926,6 +5932,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (queue.length > 0) {
       playQueueItem(queue[0]);
     }
+
+    trackEvent("Session Started");
   };
 
   const PlayPauseButton = ({ track, onPlay }: { track: Track; onPlay?: (track: Track) => void }) => {
@@ -6134,6 +6142,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setFinishedTracks(new Set());
     setActivePage("player");
     setMobileTab("nowplaying");
+    trackEvent("Playlist Loaded");
   };
 
   const confirmSendPlaylistToSession = () => {
