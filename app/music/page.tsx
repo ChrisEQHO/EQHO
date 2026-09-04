@@ -9,7 +9,7 @@ import { SITE } from '@/lib/marketing-config'
 export const metadata: Metadata = {
   title: `Music — ${SITE.name}`,
   description:
-    'EQHO Music is coming: a curated catalogue of tracks built for gymnastics routines, ready to drop straight into the EQHO Player. Creators can register their interest now.',
+    'EQHO Music is coming: a curated catalogue of tracks for gymnastics routines, crafted by top composers and choreographers. Free to use in training; licensed for competition. Creators can register their interest now.',
   alternates: { canonical: '/music' },
   openGraph: {
     type: 'website',
@@ -17,13 +17,13 @@ export const metadata: Metadata = {
     siteName: SITE.name,
     title: `Music — ${SITE.name}`,
     description:
-      'A curated catalogue of tracks built for gymnastics routines, coming to the EQHO Player. Creators can register their interest now.',
+      'A curated catalogue of tracks for gymnastics routines, crafted by top composers and choreographers. Free to train with; licensed for competition. Creators can register their interest now.',
   },
   twitter: {
     card: 'summary_large_image',
     title: `Music — ${SITE.name}`,
     description:
-      'A curated catalogue of tracks built for gymnastics routines, coming to the EQHO Player.',
+      'A curated catalogue of tracks for gymnastics routines, crafted by top composers and choreographers.',
   },
 }
 
@@ -33,12 +33,12 @@ const COACH_POINTS = [
     body: 'Tracks arranged for floor and rhythmic routines — the right length, energy, and structure, not generic stock loops.',
   },
   {
-    title: 'Cleared for competition',
-    body: 'Every track will come with the licence you need to use it in training and competition with confidence.',
+    title: 'Free to train, licensed to compete',
+    body: 'Use any track in training at no cost. You only need a licence when you take a routine to competition — so you can plan with confidence.',
   },
   {
-    title: 'One tap into the Player',
-    body: 'Find a track, add it to a routine, and it is ready in the EQHO Player you already use — no exporting, no faff.',
+    title: 'Crafted by the best',
+    body: 'We work only with top composers and choreographers — people with years of experience who know exactly what wins on the floor.',
   },
 ]
 
@@ -74,8 +74,8 @@ export default function MusicComingSoonPage() {
               </h1>
               <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-[#94a3b8] sm:text-lg">
                 We&apos;re building a curated catalogue of tracks made for
-                gymnastics routines — cleared for competition and ready to drop
-                straight into the EQHO Player. It&apos;s on the way.
+                gymnastics routines — crafted by top composers and
+                choreographers, and cleared for competition. It&apos;s on the way.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
