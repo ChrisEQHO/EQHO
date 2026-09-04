@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
 import { getTrackById } from "@/lib/music/seed/tracks"
 import { getCreatorById } from "@/lib/music/seed/creators"
-import { LICENCE_TIERS, getLicenceTier } from "@/lib/music/seed/licence-tiers"
+import { PERSONAL_LICENCE } from "@/lib/music/seed/licence-tiers"
 import { resolveMusicSubscriber } from "@/lib/music/subscriber"
 import { quoteBasket } from "@/lib/music/pricing"
-import type { BasketLine, LicenceTierId } from "@/lib/music/types"
+import type { BasketLine } from "@/lib/music/types"
 
 // EQHO Music basket checkout.
 //
@@ -40,20 +40,15 @@ export async function POST(request: NextRequest) {
     }
 
     const lines: BasketLine[] = []
+    const seen = new Set<string>()
     for (const entry of rawLines as Array<Record<string, unknown>>) {
       const trackId = typeof entry?.trackId === "string" ? entry.trackId : ""
-      const tierId = typeof entry?.tierId === "string" ? (entry.tierId as LicenceTierId) : ("" as LicenceTierId)
+      if (!trackId || seen.has(trackId)) continue
       const track = getTrackById(trackId)
       if (!track) continue
-      if (!(tierId in LICENCE_TIERS)) continue
-      if (!track.availableTiers.includes(tierId)) continue
-      // De-dupe: one licence per track per basket (highest tier wins if repeated).
-      const existing = lines.find((l) => l.trackId === trackId)
-      if (existing) {
-        if (getLicenceTier(tierId).pricePence > getLicenceTier(existing.tierId).pricePence) existing.tierId = tierId
-        continue
-      }
-      lines.push({ trackId, tierId })
+      // De-dupe: one Personal Licence per track per basket.
+      seen.add(trackId)
+      lines.push({ trackId })
     }
 
     if (lines.length === 0) {
@@ -93,7 +88,7 @@ export async function POST(request: NextRequest) {
           currency: "gbp",
           unit_amount: pricePence,
           product_data: {
-            name: `${track.title} — ${getLicenceTier(line.tierId).name} licence`,
+            name: `${track.title} — ${PERSONAL_LICENCE.name}`,
             description: creator ? `by ${creator.name}` : undefined,
           },
         },
@@ -101,7 +96,7 @@ export async function POST(request: NextRequest) {
     })
 
     const basketFingerprint = lines
-      .map((l) => `${l.trackId}:${l.tierId}`)
+      .map((l) => l.trackId)
       .sort()
       .join("|")
 

@@ -4,7 +4,7 @@ import { ArrowLeft, MapPin } from "lucide-react"
 import { CREATORS, getCreatorBySlug } from "@/lib/music/seed/creators"
 import { getTracksByCreator } from "@/lib/music/seed/tracks"
 import { TrackCard } from "@/components/music/track-card"
-import { CreatorAvatar } from "@/components/music/artwork-placeholder"
+import { ArtworkPlaceholder } from "@/components/music/artwork-placeholder"
 
 export function generateStaticParams() {
   return CREATORS.map((c) => ({ slug: c.slug }))
@@ -37,7 +37,7 @@ export default async function CreatorDetailPage({ params }: { params: Promise<{ 
       {/* Creator header */}
       <header className="flex flex-col gap-5 sm:flex-row sm:items-end">
         <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-2xl ring-2 ring-white/10">
-          <CreatorAvatar seed={creator.id} name={creator.name} className="h-full w-full" />
+          <ArtworkPlaceholder variant="creator" accent={creator.accent} className="h-full w-full" />
         </div>
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold text-white">{creator.name}</h1>
