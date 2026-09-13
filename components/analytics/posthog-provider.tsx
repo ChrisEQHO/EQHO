@@ -12,7 +12,7 @@
  * never take down the app or the Player.
  */
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useSubscription } from "@/lib/subscription-context"
 import {
@@ -24,9 +24,27 @@ import {
 } from "@/lib/analytics/posthog-client"
 import { onConsentChange } from "@/lib/analytics/consent"
 
-export function PostHogProvider() {
+/**
+ * Isolated pageview tracker. This is the ONLY piece that reads
+ * useSearchParams(), so it is wrapped in <Suspense> by PostHogProvider to keep
+ * every route statically prerenderable. It renders nothing.
+ */
+function PostHogPageview() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  // Manual pageviews. Query string is included only as the raw path PostHog
+  // reads; we never attach custom PII props here.
+  useEffect(() => {
+    if (!pathname) return
+    const qs = searchParams?.toString()
+    capturePageview(qs ? `${pathname}?${qs}` : pathname)
+  }, [pathname, searchParams])
+
+  return null
+}
+
+export function PostHogProvider() {
   const { profile } = useSubscription()
 
   // Init once, then react to consent changes.
@@ -39,14 +57,6 @@ export function PostHogProvider() {
     return () => unsub()
   }, [])
 
-  // Manual pageviews. Query string is included only as the raw path PostHog
-  // reads; we never attach custom PII props here.
-  useEffect(() => {
-    if (!pathname) return
-    const qs = searchParams?.toString()
-    capturePageview(qs ? `${pathname}?${qs}` : pathname)
-  }, [pathname, searchParams])
-
   // Identify strictly by internal user id; reset when signed out.
   useEffect(() => {
     if (profile?.id) {
@@ -56,5 +66,9 @@ export function PostHogProvider() {
     }
   }, [profile?.id, profile?.subscription_status])
 
-  return null
+  return (
+    <Suspense fallback={null}>
+      <PostHogPageview />
+    </Suspense>
+  )
 }
