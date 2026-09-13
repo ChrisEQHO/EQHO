@@ -4,6 +4,8 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { CapacitorInit } from '@/components/capacitor-init'
 import { SubscriptionProvider } from '@/lib/subscription-context'
+import { PostHogProvider } from '@/components/analytics/posthog-provider'
+import { ConsentBanner } from '@/components/analytics/consent-banner'
 import { getOfferCopy } from '@/lib/marketing-config'
 import './globals.css'
 
@@ -144,7 +146,9 @@ export default function RootLayout({
         <CapacitorInit />
         <SubscriptionProvider>
           {children}
+          {process.env.NODE_ENV === 'production' && !isMobileBuild && <PostHogProvider />}
         </SubscriptionProvider>
+        {process.env.NODE_ENV === 'production' && !isMobileBuild && <ConsentBanner />}
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <Analytics />}
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <SpeedInsights />}
       </body>

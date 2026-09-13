@@ -19,6 +19,8 @@
 // track/playlist/routine names, file names, URLs, tokens or free-text input.
 
 import { track } from '@vercel/analytics'
+import { captureEvent } from './posthog-client'
+import type { AnalyticsEvent } from './events'
 
 // Matches the gate used for <Analytics /> in app/layout.tsx.
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
@@ -34,8 +36,15 @@ export function trackEvent(name: string, props?: EventProps): void {
     if (isMobileBuild) return
     if (process.env.NODE_ENV !== 'production') return
 
+    // Existing pipeline — unchanged.
     if (props) track(name, props)
     else track(name)
+
+    // Fan the SAME event out to PostHog. captureEvent applies the property
+    // allowlist/sanitizer and no-ops entirely when PostHog isn't configured, so
+    // this can neither leak PII nor break if the key is absent. The name is a
+    // free string here (existing call sites) forwarded verbatim to PostHog.
+    captureEvent(name as AnalyticsEvent, props)
   } catch {
     // Analytics must never surface an error to the product. Swallow everything.
   }
