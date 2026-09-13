@@ -4,6 +4,8 @@ import { createClient as createSSRClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { deleteAllUserObjects } from '@/lib/r2-admin'
+import { runAccountDeletion } from '@/lib/account-deletion'
+import { captureServer, ANALYTICS_EVENTS } from '@/lib/analytics/posthog-server'
 
 // Lazily build a Stripe client from the secret key. We deliberately do NOT import
 // the shared `@/lib/stripe` singleton: it instantiates `new Stripe(KEY!)` at module
@@ -32,6 +34,11 @@ function getStripe(): Stripe | null {
 //
 // Security: the target user is ALWAYS the server-verified session/token user.
 // No id is ever accepted from the client, so a caller can only delete itself.
+// The security-critical ordering + best-effort/failure semantics live in the
+// pure `runAccountDeletion` core (unit-tested in lib/account-deletion.test.ts);
+// this route only supplies the real Supabase/Stripe/R2/analytics side effects.
+//
+// Privacy: this route never logs the user id, email, tokens, or file names.
 // ---------------------------------------------------------------------------
 
 const CORS_HEADERS: Record<string, string> = {
@@ -85,115 +92,95 @@ export async function POST(request: NextRequest) {
   const supabase = await createSSRClient()
   if (!supabase) return json({ success: false, error: 'Auth not configured' }, 500)
 
-  const user = await resolveUser(request, supabase)
-  if (!user) return json({ success: false, error: 'Not authenticated' }, 401)
+  const hasServiceKey = Boolean(supabaseUrl && supabaseServiceKey)
 
-  // Deleting the Auth user requires the service role key. Without it we can only
-  // wipe data but not the login itself, which would leave a "deleted" account
-  // that can still sign in — so we refuse rather than half-delete.
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('[v0] /api/account/delete: SUPABASE_SERVICE_ROLE_KEY is not configured')
-    return json(
-      { success: false, error: 'Account deletion is temporarily unavailable. Please contact support.' },
-      500,
-    )
-  }
+  // Admin client (service role) for privileged reads/deletes that bypass RLS.
+  // Only built when the key is present; the core refuses deletion otherwise.
+  const adminClient =
+    hasServiceKey && supabaseUrl && supabaseServiceKey
+      ? createServiceClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        })
+      : null
 
-  const userId = user.id
-  console.log('[v0] /api/account/delete: deleting user', userId)
+  const stripe = getStripe()
 
-  try {
-    // Admin client (service role) for privileged reads/deletes that bypass RLS.
-    const adminClient = createServiceClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
+  const result = await runAccountDeletion({
+    hasServiceKey,
 
-    // 1) Cancel Stripe subscription(s) immediately so deleting the account also
-    //    unsubscribes the user. Read the Stripe refs from the profile BEFORE we
-    //    delete the row. Immediate cancel (not cancel_at_period_end) since the
-    //    whole account is going away. Best-effort: skipped if Stripe isn't configured.
-    const stripe = getStripe()
-    try {
-      if (!stripe) throw new Error('Stripe not configured')
-      const { data: profile } = await adminClient
+    // Server-verified caller — never a client-supplied id.
+    resolveUserId: async () => {
+      const user = await resolveUser(request, supabase)
+      return user?.id ?? null
+    },
+
+    getStripeRefs: async (userId) => {
+      if (!adminClient) return { subscriptionId: null, customerId: null }
+      const { data } = await adminClient
         .from('profiles')
         .select('stripe_subscription_id, stripe_customer_id')
         .eq('id', userId)
         .maybeSingle()
-
-      const subscriptionId = profile?.stripe_subscription_id as string | null | undefined
-      const customerId = profile?.stripe_customer_id as string | null | undefined
-
-      if (subscriptionId) {
-        try {
-          await stripe.subscriptions.cancel(subscriptionId)
-          console.log('[v0] /api/account/delete: cancelled subscription', subscriptionId)
-        } catch (subErr) {
-          console.warn('[v0] /api/account/delete: subscription cancel skipped:', subErr)
-        }
+      return {
+        subscriptionId: (data?.stripe_subscription_id as string | null) ?? null,
+        customerId: (data?.stripe_customer_id as string | null) ?? null,
       }
+    },
 
-      // Safety net: sweep the customer for any OTHER live subscriptions so the
-      // user cannot be left subscribed after deleting their account.
-      if (customerId) {
-        try {
-          const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 })
-          for (const sub of subs.data) {
-            if (sub.id === subscriptionId) continue
-            if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
-              try {
-                await stripe.subscriptions.cancel(sub.id)
-                console.log('[v0] /api/account/delete: cancelled extra subscription', sub.id)
-              } catch (innerErr) {
-                console.warn('[v0] /api/account/delete: extra subscription cancel skipped:', sub.id, innerErr)
-              }
-            }
-          }
-        } catch (listErr) {
-          console.warn('[v0] /api/account/delete: could not list customer subscriptions:', listErr)
-        }
-      }
-    } catch (stripeErr) {
-      // Never block account deletion on a Stripe error — log and continue.
-      console.warn('[v0] /api/account/delete: Stripe cancellation step failed:', stripeErr)
-    }
+    cancelSubscription: async (subscriptionId) => {
+      if (!stripe) throw new Error('Stripe not configured')
+      await stripe.subscriptions.cancel(subscriptionId)
+    },
 
-    // 2) Delete every R2 object owned by the user (best-effort).
-    const r2Result = await deleteAllUserObjects(userId)
-    console.log('[v0] /api/account/delete: R2 cleanup', r2Result)
+    listCancellableSubscriptions: async (customerId) => {
+      if (!stripe) return []
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 })
+      return subs.data
+        .filter((s) => s.status === 'active' || s.status === 'trialing' || s.status === 'past_due')
+        .map((s) => s.id)
+    },
 
-    // 3) Delete Supabase data rows (service role bypasses RLS so this is reliable).
-    const { error: trackError } = await adminClient.from('cloud_tracks').delete().eq('user_id', userId)
-    if (trackError) console.warn('[v0] /api/account/delete: cloud_tracks delete error:', trackError.message)
+    deleteStorageObjects: async (userId) => {
+      await deleteAllUserObjects(userId)
+    },
 
-    const { error: playlistError } = await adminClient.from('cloud_playlists').delete().eq('user_id', userId)
-    if (playlistError) console.warn('[v0] /api/account/delete: cloud_playlists delete error:', playlistError.message)
+    deleteUserRows: async (userId) => {
+      if (!adminClient) return
+      // allSettled: one failing table must not stop the others (and the Auth-user
+      // deletion cascades FK-linked rows regardless).
+      await Promise.allSettled([
+        adminClient.from('cloud_tracks').delete().eq('user_id', userId),
+        adminClient.from('cloud_playlists').delete().eq('user_id', userId),
+        adminClient.from('profiles').delete().eq('id', userId),
+      ])
+    },
 
-    const { error: profileError } = await adminClient.from('profiles').delete().eq('id', userId)
-    if (profileError) console.warn('[v0] /api/account/delete: profiles delete error:', profileError.message)
+    deleteAuthUser: async (userId) => {
+      if (!adminClient) throw new Error('Service role not configured')
+      const { error } = await adminClient.auth.admin.deleteUser(userId)
+      if (error) throw error
+    },
 
-    // 4) Delete the Auth user. This is the step that truly removes the account.
-    const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId)
-    if (deleteError) {
-      console.error('[v0] /api/account/delete: auth user delete failed:', deleteError)
-      return json(
-        { success: false, error: 'We could not fully delete your account. Please contact support.' },
-        500,
-      )
-    }
+    captureAccountDeleted: async (userId, hadSubscription) => {
+      await captureServer(userId, ANALYTICS_EVENTS.account_deleted, {
+        reason: 'user_initiated',
+        had_subscription: hadSubscription,
+      })
+    },
 
-    // 5) Clear the local (web) session cookies. On mobile there is no cookie
-    //    session; the client wipes its stored token after a success response.
-    try {
+    signOut: async () => {
       await supabase.auth.signOut()
-    } catch {
-      // Session is already invalid once the user is gone — safe to ignore.
-    }
+    },
+  })
 
-    console.log('[v0] /api/account/delete: completed for', userId)
-    return json({ success: true })
-  } catch (error) {
-    console.error('[v0] /api/account/delete error:', error)
-    return json({ success: false, error: 'An unexpected error occurred' }, 500)
+  if (result.success) {
+    console.log('[v0] /api/account/delete: completed')
+  } else {
+    console.warn('[v0] /api/account/delete: not completed —', result.error)
   }
+
+  return json(
+    result.success ? { success: true } : { success: false, error: result.error },
+    result.status,
+  )
 }

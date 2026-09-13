@@ -17,6 +17,7 @@ export const ANALYTICS_EVENTS = {
   // --- Auth / account (fires today) ---
   signed_up: "signed_up",
   logged_in: "logged_in",
+  account_deleted: "account_deleted",
 
   // --- Subscription (fires today, server-side via Stripe webhook) ---
   subscription_started: "subscription_started",
@@ -51,6 +52,7 @@ export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EV
 export const ACTIVE_EVENTS: ReadonlySet<AnalyticsEvent> = new Set([
   ANALYTICS_EVENTS.signed_up,
   ANALYTICS_EVENTS.logged_in,
+  ANALYTICS_EVENTS.account_deleted,
   ANALYTICS_EVENTS.subscription_started,
   ANALYTICS_EVENTS.subscription_cancelled,
   ANALYTICS_EVENTS.music_page_viewed,
@@ -94,6 +96,7 @@ export const ALLOWED_PROP_KEYS: ReadonlySet<string> = new Set([
   "count",
   "value",
   "enabled",
+  "had_subscription",
 ])
 
 /** Primitive property values we allow. Objects/arrays/functions are dropped. */
