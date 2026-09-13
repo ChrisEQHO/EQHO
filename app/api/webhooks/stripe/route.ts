@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { captureServer } from '@/lib/analytics/posthog-server'
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
 
@@ -490,6 +492,17 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription, even
   }
 
   console.log('[WEBHOOK] SUCCESS: Subscription updated:', JSON.stringify(updateData))
+
+  // Server-side analytics: a subscription reaching trialing/active is the
+  // authoritative "started" signal. Keyed by the internal profile id (never an
+  // email). Idempotent per Stripe event via isDuplicateEvent above, so retries
+  // and repeated `updated` events cannot double-count. No-ops without a key.
+  if (isProStatus) {
+    await captureServer(profile.id, ANALYTICS_EVENTS.subscription_started, {
+      plan: 'pro',
+      reason: subscription.status,
+    })
+  }
 }
 
 // Stripe fires this ~3 days before a trial ends. We don't change entitlement
@@ -569,6 +582,13 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription, even
   }
 
   console.log('[WEBHOOK] SUCCESS: Subscription canceled (grace until period end):', JSON.stringify(data))
+
+  // Server-side analytics: authoritative cancellation signal, keyed by the
+  // internal profile id. Idempotent per Stripe event via isDuplicateEvent
+  // above. No-ops without a PostHog key.
+  await captureServer(profile.id, ANALYTICS_EVENTS.subscription_cancelled, {
+    plan: 'pro',
+  })
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice, eventId: string) {
