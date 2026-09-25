@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import Image from "next/image";
 import {
   DndContext,
@@ -1979,7 +1979,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // page content can reserve exactly the right amount of space instead of a
   // hardcoded guess that let the bar cover the final playlist on iPhone.
   const mobileControlsRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the bar's REAL height is published to
+  // `--mobile-controls-height` BEFORE the first paint. Otherwise the scrollable
+  // content region falls back to the 112px default while the expanded bar is
+  // ~230px, leaving the region ~118px too tall so its final Up Next rows sit
+  // behind the fixed controls and cannot be scrolled into view until a later
+  // relayout (e.g. reordering a track) happened to fire after the measurement.
+  // Measuring synchronously on open makes the complete scrollable height correct
+  // immediately, with no reorder required. (Player is client-only, so there is
+  // no SSR useLayoutEffect warning.)
+  useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     const el = mobileControlsRef.current;
     if (!el) return;
@@ -1990,6 +1999,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       }
     };
     setVar();
+    // Re-measure on the next frame to catch the iOS safe-area inset settling.
+    const raf = window.requestAnimationFrame(setVar);
     // Re-measure whenever the bar itself resizes (expand/collapse, font scaling).
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(setVar) : null;
     ro?.observe(el);
@@ -1999,6 +2010,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const t = window.setTimeout(setVar, 300);
     return () => {
       ro?.disconnect();
+      window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", setVar);
       window.removeEventListener("orientationchange", setVar);
       window.clearTimeout(t);
@@ -7516,7 +7528,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <p className="text-white/40 text-xs">No tracks in queue</p>
                   </div>
                 ) : (
-                  <div className="p-2 pb-3">
+                  <div className="p-2 pb-[calc(env(safe-area-inset-bottom)+16px)]">
                     <SortableTrackList
                       ids={playlist.map((t) => t.id)}
                       onReorder={reorderPlaylistByIds}
@@ -10629,7 +10641,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           <p className="text-white/25 text-xs mt-1">Go to Playlists tab to add music</p>
                         </div>
                       ) : (
-                        <div className="space-y-1">
+                        <div className="space-y-1 pb-[calc(env(safe-area-inset-bottom)+16px)]">
                           {(() => {
                             // Render the playlist in its TRUE order (no pinning of the
                             // now-playing track). This makes every row -- including the
