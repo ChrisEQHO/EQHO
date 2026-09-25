@@ -36,6 +36,14 @@ export function TrackPreviewPlayer({
       setPlaying(false)
       setCurrent(0)
     }
+    // Drive the button state from the element's OWN events, not optimistically.
+    // On iOS the OS can pause playback (call, another app, Control Centre) with
+    // no click — event-driven state keeps the icon in sync in every case.
+    const onPlay = () => {
+      setPlaying(true)
+      setLoading(false)
+    }
+    const onPause = () => setPlaying(false)
     const onPlaying = () => setLoading(false)
     const onWaiting = () => setLoading(true)
     const onError = () => {
@@ -46,6 +54,8 @@ export function TrackPreviewPlayer({
     audio.addEventListener('timeupdate', onTime)
     audio.addEventListener('loadedmetadata', onMeta)
     audio.addEventListener('ended', onEnd)
+    audio.addEventListener('play', onPlay)
+    audio.addEventListener('pause', onPause)
     audio.addEventListener('playing', onPlaying)
     audio.addEventListener('waiting', onWaiting)
     audio.addEventListener('error', onError)
@@ -53,28 +63,35 @@ export function TrackPreviewPlayer({
       audio.removeEventListener('timeupdate', onTime)
       audio.removeEventListener('loadedmetadata', onMeta)
       audio.removeEventListener('ended', onEnd)
+      audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('pause', onPause)
       audio.removeEventListener('playing', onPlaying)
       audio.removeEventListener('waiting', onWaiting)
       audio.removeEventListener('error', onError)
     }
   }, [durationSeconds])
 
-  const toggle = async () => {
+  // Synchronous on purpose: iOS Safari only treats play() as user-initiated when
+  // it is called directly inside the tap handler. Any `await` before play()
+  // "spends" the gesture and playback is silently blocked on iPad/iPhone. So we
+  // call play() immediately and handle the returned promise without awaiting it;
+  // the `play`/`pause` element events drive the button state.
+  const toggle = () => {
     const audio = audioRef.current
     if (!audio) return
     setError(false)
-    if (playing) {
+    if (!audio.paused) {
       audio.pause()
-      setPlaying(false)
       return
     }
-    try {
-      setLoading(true)
-      await audio.play()
-      setPlaying(true)
-    } catch {
-      setError(true)
-      setLoading(false)
+    setLoading(true)
+    const started = audio.play()
+    if (started && typeof started.then === 'function') {
+      started.catch(() => {
+        setError(true)
+        setLoading(false)
+        setPlaying(false)
+      })
     }
   }
 
