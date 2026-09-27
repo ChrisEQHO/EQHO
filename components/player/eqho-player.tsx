@@ -624,6 +624,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [playlistRound, setPlaylistRound] = useState(1); // which repeat round we're on (1-based)
   const [finishedTracks, setFinishedTracks] = useState<Set<string>>(new Set()); // track IDs fully finished across all repeats
   const [isGapPaused, setIsGapPaused] = useState(false);
+  // User pressed Pause during the inter-track countdown. While held, the gap
+  // deadline is cleared and the exact remaining time is kept in the ref below so
+  // Play resumes the countdown from where it stopped.
+  const [isGapHeld, setIsGapHeld] = useState(false);
+  const gapHeldRemainingMsRef = useRef<number | null>(null);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
   // Absolute wall-clock time (ms, Date.now()) at which the next track must start.
@@ -4031,6 +4036,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           !(e.target instanceof HTMLInputElement) && 
           !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
+        if (isGapPausedRef.current) {
+          void toggleSession();
+          return;
+        }
         if (currentTrack) {
           if (isPlaying && audioRef.current) {
             audioRef.current.pause();
@@ -4123,6 +4132,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   };
 
   const toggleSession = async () => {
+    // JS-driven inter-track countdown: Play/Pause holds or resumes the countdown.
+    // Without this, the "not playing" branch below called play() on the ENDED
+    // element (restarting the finished track) while the countdown kept running.
+    if (isGapPausedRef.current && !nativeSessionRef.current.activeRef.current) {
+      toggleGapHold();
+      return;
+    }
     // Native locked-screen session path (iOS/Android shell). Native owns the
     // whole sequence, so Start begins a native session and the button toggles
     // native pause/resume thereafter.
@@ -4789,6 +4805,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         const gapId = ++gapIdCounterRef.current;
         activeGapIdRef.current = gapId;
         nextTrackFiredRef.current = false;
+        gapHeldRemainingMsRef.current = null;
+        setIsGapHeld(false);
         setIsPlaying(false);
         setIsGapPaused(true);
         setGapCountdown(_gapSeconds);
@@ -5201,7 +5219,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const anchor = ctx.currentTime + 0.06; // "now" == full gap remaining
       const style = beepSoundRef.current;
       const collect: OscillatorNode[] = [];
-      const last = Math.min(c, gapSeconds);
+      // floor() keeps integer gaps identical and, when resuming a held countdown
+      // with a fractional remainder, skips beeps whose moment has already passed.
+      const last = Math.min(c, Math.floor(gapSeconds));
       // Exactly `last` beep EVENTS (e.g. 3 -> counts 3,2,1). Each event may emit more
       // than one oscillator (some styles are chords/double-tones), so oscillator
       // count > event count is expected and NOT a duplicate-beep bug.
@@ -5368,12 +5388,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       nextTrackFiredRef.current = true; // no auto-transition should fire for the old gap
       gapCallbackRef.current = null;
       nextTrackStartAtRef.current = null;
+      gapHeldRemainingMsRef.current = null;
       lastBeepedCountdown.current = -1;
       lastDisplayedCountdownRef.current = -1;
       cancelScheduledBeeps();
       clearVisualCountdownTimers();
       // Tear down the gap UI so the countdown overlay can't stay stuck on screen.
       setGapCountdown(0);
+      setIsGapHeld(false);
       setIsGapPaused(false);
       console.log("[v0] GAP INVALIDATED source=", source, "newGapId=", activeGapIdRef.current);
     },
@@ -5400,17 +5422,63 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const cb = gapCallbackRef.current;
       gapCallbackRef.current = null;
       nextTrackStartAtRef.current = null;
+      gapHeldRemainingMsRef.current = null;
       lastBeepedCountdown.current = -1;
       lastDisplayedCountdownRef.current = -1;
       cancelScheduledBeeps();
       clearVisualCountdownTimers();
       setGapCountdown(0);
+      setIsGapHeld(false);
       setIsGapPaused(false);
       console.log("[v0] NEXT TRACK FIRED source=", source, "gapId=", gapId, cb ? "(cb present)" : "(no cb)");
       if (cb) cb();
     },
     [cancelScheduledBeeps, clearVisualCountdownTimers],
   );
+
+  // Play/Pause during the inter-track countdown. The track has already ended, so
+  // there is no audio to pause — the countdown itself is what must stop. Hold:
+  // capture the exact remaining time, clear the deadline (which freezes the ticker,
+  // reconcilers and resume handlers) and cancel pending number timeouts and beeps.
+  // Resume: re-anchor the deadline from the remaining time and reschedule only the
+  // numbers/beeps still ahead. The gap id is unchanged, so the single-fire guard
+  // still starts the next track exactly once.
+  const toggleGapHold = () => {
+    if (!isGapPausedRef.current || nextTrackFiredRef.current) return;
+    const gapId = activeGapIdRef.current;
+    const heldMs = gapHeldRemainingMsRef.current;
+
+    if (heldMs == null) {
+      const startAt = nextTrackStartAtRef.current;
+      if (startAt == null) return;
+      const remainingMs = Math.max(0, startAt - Date.now());
+      gapHeldRemainingMsRef.current = remainingMs;
+      nextTrackStartAtRef.current = null;
+      cancelScheduledBeeps();
+      clearVisualCountdownTimers();
+      const shown = Math.max(1, Math.ceil(remainingMs / 1000));
+      lastDisplayedCountdownRef.current = shown;
+      setGapCountdown(shown);
+      setIsGapHeld(true);
+      return;
+    }
+
+    gapHeldRemainingMsRef.current = null;
+    nextTrackStartAtRef.current = Date.now() + heldMs;
+    scheduleCountdownBeeps(heldMs / 1000);
+    clearVisualCountdownTimers();
+    for (let value = Math.ceil(heldMs / 1000) - 1; value >= 1; value--) {
+      const id = setTimeout(() => {
+        if (activeGapIdRef.current !== gapId) return;
+        if (nextTrackFiredRef.current) return;
+        if (gapHeldRemainingMsRef.current != null) return;
+        lastDisplayedCountdownRef.current = value;
+        setGapCountdown(value);
+      }, Math.max(0, heldMs - value * 1000));
+      visualCountdownTimeoutsRef.current.push(id);
+    }
+    setIsGapHeld(false);
+  };
 
   // Evaluate the timestamp-anchored gap against the WALL CLOCK (Date.now()):
   //  - if the target start time has passed, start the next track now;
@@ -5464,7 +5532,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // and the silent keepalive keeps the audio pipeline warm. This is the SAME
   // shared engine for every surface — no separate iPad timer or countdown path.
   useEffect(() => {
-    if (!isGapPaused) return;
+    if (!isGapPaused || isGapHeld) return;
     // The gap this ticker instance belongs to. If a new gap starts (or the gap is
     // invalidated), evaluateGap(gapId) sees the id has changed and stops without
     // firing — the core defense against the countdown/next-track race.
@@ -5500,9 +5568,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // aborted gap can never fire stray beeps into the next track.
       cancelScheduledBeeps();
     };
-  }, [isGapPaused, evaluateGap, startGapKeepAlive, stopGapKeepAlive, cancelScheduledBeeps]);
+  }, [isGapPaused, isGapHeld, evaluateGap, startGapKeepAlive, stopGapKeepAlive, cancelScheduledBeeps]);
 
-  // ── DISPLAY RECONCILIATION (fallback only — NOT the 1-second driver) ───────────
+  // ── DISPLAY RECONCILIATION (fallback only — NOT the 1-second driver) ────���──────
   // The normal 5->4->3->2->1 display is driven by the individual one-shot timeouts
   // scheduled in scheduleVisibleCountdown at gap start. Those give a reliable
   // foreground sequence. This effect only RE-SYNCS the number after Safari has
