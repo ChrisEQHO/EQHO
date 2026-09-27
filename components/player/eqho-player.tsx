@@ -16,6 +16,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { useNativeSession } from "@/lib/use-native-session";
+import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
@@ -628,6 +629,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // deadline is cleared and the exact remaining time is kept in the ref below so
   // Play resumes the countdown from where it stopped.
   const [isGapHeld, setIsGapHeld] = useState(false);
+  // Freezes every `.countdown-flash` number (inline, button, overlay) at its
+  // current frame while the countdown is held, and resumes it from there.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("eqho-gap-held", isGapHeld);
+    return () => root.classList.remove("eqho-gap-held");
+  }, [isGapHeld]);
   const gapHeldRemainingMsRef = useRef<number | null>(null);
   const [gapCountdown, setGapCountdown] = useState(0);
   const gapCallbackRef = useRef<(() => void) | null>(null);
@@ -5457,12 +5465,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (heldMs == null) {
       const startAt = nextTrackStartAtRef.current;
       if (startAt == null) return;
-      const remainingMs = Math.max(0, startAt - Date.now());
+      const remainingMs = holdRemainingMs(startAt, Date.now());
       gapHeldRemainingMsRef.current = remainingMs;
       nextTrackStartAtRef.current = null;
       cancelScheduledBeeps();
       clearVisualCountdownTimers();
-      const shown = Math.max(1, Math.ceil(remainingMs / 1000));
+      const shown = heldDisplayValue(remainingMs);
       lastDisplayedCountdownRef.current = shown;
       setGapCountdown(shown);
       setIsGapHeld(true);
@@ -5470,17 +5478,17 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
 
     gapHeldRemainingMsRef.current = null;
-    nextTrackStartAtRef.current = Date.now() + heldMs;
+    nextTrackStartAtRef.current = resumeDeadline(heldMs, Date.now());
     scheduleCountdownBeeps(heldMs / 1000);
     clearVisualCountdownTimers();
-    for (let value = Math.ceil(heldMs / 1000) - 1; value >= 1; value--) {
+    for (const { value, delayMs } of remainingVisibleSteps(heldMs)) {
       const id = setTimeout(() => {
         if (activeGapIdRef.current !== gapId) return;
         if (nextTrackFiredRef.current) return;
         if (gapHeldRemainingMsRef.current != null) return;
         lastDisplayedCountdownRef.current = value;
         setGapCountdown(value);
-      }, Math.max(0, heldMs - value * 1000));
+      }, delayMs);
       visualCountdownTimeoutsRef.current.push(id);
     }
     setIsGapHeld(false);
@@ -6404,7 +6412,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   The normal (non-fullscreen) player dashboard keeps its inline queue/Now Playing
   view instead of being taken over by the big countdown. */}
   {showFullscreenMobilePlayer && isGapPaused && gapCountdown > 0 && (
-    <CountdownOverlay count={gapCountdown} nextTitle={getNextTrackTitle()} />
+    <CountdownOverlay
+      count={gapCountdown}
+      nextTitle={getNextTrackTitle()}
+      paused={isGapHeld}
+      onTogglePause={handlePauseClick}
+    />
   )}
 
       {/* ══════════════ TEMPORARY iPad Safari DIAGNOSTIC ═════════════════════════
@@ -6526,7 +6539,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             fullscreen, so this only shows in fullscreen; z-[400] sits above the
             coach layout, matching the black takeover on mobile/normal. */}
         {isGapPaused && gapCountdown > 0 && (
-          <CountdownOverlay fill count={gapCountdown} nextTitle={getNextTrackTitle()} />
+          <CountdownOverlay
+            fill
+            count={gapCountdown}
+            nextTitle={getNextTrackTitle()}
+            paused={isGapHeld}
+            onTogglePause={handlePauseClick}
+          />
         )}
 
         {/* Safety Confirmation Dialogs */}
@@ -7173,7 +7192,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   disabled={!currentTrack && playlist.length === 0}
                   className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
                 >
-                  {isGapPaused ? (
+                  {isGapPaused && !isGapHeld ? (
                     <span className="text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                   ) : isPlaying ? <Pause size={28} /> : <Play size={28} />}
                 </button>
@@ -7569,7 +7588,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 <StepBack size={22} className="text-white" />
               </button>
               <button onClick={handlePauseClick} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
-                {isGapPaused ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
+                {isGapPaused && !isGapHeld ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
               </button>
               <button onClick={handleSkipForwardClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                 <StepForward size={22} className="text-white" />
@@ -8851,7 +8870,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 disabled={!currentTrack && playlist.length === 0}
                 className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
               >
-                {isGapPaused ? (
+                {isGapPaused && !isGapHeld ? (
                   <span className="text-xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                 ) : isPlaying ? (
                   <Pause size={28} />
@@ -10603,7 +10622,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               <StepBack size={18} className="text-white" />
                             </button>
                             <button onClick={handlePauseClick} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
-                              {isPlaying ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
+                              {isPlaying || (isGapPaused && !isGapHeld) ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
                             </button>
                             <button onClick={handleSkipForwardClick} className="p-2 rounded-full hover:bg-white/10 transition">
                               <StepForward size={18} className="text-white" />
@@ -11902,7 +11921,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/40 active:scale-[0.99]"
             }`}
           >
-            {isGapPaused ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
+            {isGapPaused && !isGapHeld ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
           </button>
         </div>
 

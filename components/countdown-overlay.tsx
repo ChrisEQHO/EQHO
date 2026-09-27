@@ -1,5 +1,7 @@
 "use client";
 
+import { Pause, Play } from "lucide-react";
+
 /**
  * Full-screen "get ready" countdown overlay shown during the gap between tracks.
  *
@@ -18,9 +20,18 @@ export function CountdownOverlay({
   count,
   nextTitle,
   fill = false,
+  paused = false,
+  onTogglePause,
 }: {
   count: number;
   nextTitle: string;
+  /** True while the countdown is held; freezes the number animation. */
+  paused?: boolean;
+  /**
+   * The overlay covers the player's own Pause button, so it must provide the
+   * Pause/Resume control itself or the countdown can't be paused from here.
+   */
+  onTogglePause?: () => void;
   /**
    * When true, positions the overlay with `absolute inset-0` instead of
    * `fixed inset-0`. Required for the DESKTOP coach view, which uses the native
@@ -43,7 +54,10 @@ export function CountdownOverlay({
         // frame, the number is STILL fully visible at its resting state. (The old
         // keyframes began at opacity:0/scale:0.6, so a stalled animation left each
         // freshly key-remounted number invisible on iPad — the frozen-countdown bug.)
-        style={{ animation: "eqhoCountdownPop 0.9s ease-out" }}
+        style={{
+          animation: "eqhoCountdownPop 0.9s ease-out",
+          animationPlayState: paused ? "paused" : "running",
+        }}
       >
         <svg
           viewBox="0 0 200 170"
@@ -90,6 +104,23 @@ export function CountdownOverlay({
           {nextTitle}
         </p>
       </div>
+
+      {onTogglePause && (
+        <button
+          type="button"
+          onClick={onTogglePause}
+          aria-label={paused ? "Resume countdown" : "Pause countdown"}
+          aria-pressed={paused}
+          className="mt-8 flex h-16 w-16 touch-manipulation items-center justify-center rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-[0_0_30px_rgba(255,79,179,0.4)]"
+        >
+          {paused ? <Play size={28} /> : <Pause size={28} />}
+        </button>
+      )}
+      {paused && (
+        <p className="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-white/60" role="status">
+          Paused
+        </p>
+      )}
 
       <style jsx>{`
         /* Scale-only emphasis. opacity stays 1 at every keyframe and the element's
