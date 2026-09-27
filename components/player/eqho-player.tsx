@@ -4146,7 +4146,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       if (nativeSessionRef.current.activeRef.current) {
         if (isPlaying) {
           // Respect the same pause-warning flow as the JS path.
-          setShowStopConfirm(true);
+          if (showPauseWarningRef.current) setShowStopConfirm(true);
+          else confirmPauseSession();
         } else {
           await nativeSessionRef.current.play();
         }
@@ -4176,9 +4177,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // drift on mobile WebViews where onPlay/onPause don't fire reliably).
     const actuallyPlaying = !audioRef.current.paused && !audioRef.current.ended;
 
-    // If playing, show confirmation before pausing
+    // If playing, show confirmation before pausing (only when the pause warning
+    // is enabled; otherwise pause immediately).
     if (actuallyPlaying) {
-      setShowStopConfirm(true);
+      if (showPauseWarningRef.current) setShowStopConfirm(true);
+      else confirmPauseSession();
       return;
     }
 
@@ -4707,6 +4710,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // and the next-track transition still run exactly as before. Kept in sync with
   // settings.countdownSound below.
   const countdownSoundRef = useRef(true);
+  // Pause-warning on/off, read by toggleSession (defined before `settings`, and
+  // captured by long-lived listeners), so it must be a ref to never go stale.
+  const showPauseWarningRef = useRef(true);
   // Pending preview beep timers, so a newly-started preview can cancel the one
   // in progress (only one preview may play at a time — spec §3).
   const previewTimersRef = useRef<number[]>([]);
@@ -5159,7 +5165,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           tone("square", frequency * 1.2, isFinalBeep ? 0.3 : 0.2, len);
           if (isFinalBeep) tone("sawtooth", frequency * 2.4, 0.3, len);
         } else {
-          // "classic" (default) — the restored original EQHO beep: square
+          // "classic" (default) ��� the restored original EQHO beep: square
           // fundamental + sine fifth harmonic, loud and bright to cut through
           // music, with an octave ping on the final beep. This branch also serves
           // as the FALLBACK (§8) for any unrecognized style id.
@@ -5685,6 +5691,40 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   countdownSecondsRef.current = settings.countdownSeconds;
   beepSoundRef.current = settings.beepSound;
   countdownSoundRef.current = settings.countdownSound;
+  showPauseWarningRef.current = settings.showPauseWarning;
+
+  // Persist the pause/skip warning toggles so they survive refresh/reopen,
+  // mirroring the eqho-beep-prefs pattern below. Only strict booleans are
+  // applied, so malformed/null stored values fall back to the defaults.
+  const warningPrefsLoadedRef = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("eqho-warning-prefs");
+      if (raw) {
+        const saved = JSON.parse(raw) as { showPauseWarning?: unknown; showSkipWarning?: unknown };
+        setSettings((s) => ({
+          ...s,
+          ...(typeof saved.showPauseWarning === "boolean" ? { showPauseWarning: saved.showPauseWarning } : {}),
+          ...(typeof saved.showSkipWarning === "boolean" ? { showSkipWarning: saved.showSkipWarning } : {}),
+        }));
+      }
+    } catch {
+      // ignore malformed/unavailable storage
+    } finally {
+      warningPrefsLoadedRef.current = true;
+    }
+  }, []);
+  useEffect(() => {
+    if (!warningPrefsLoadedRef.current) return;
+    try {
+      localStorage.setItem(
+        "eqho-warning-prefs",
+        JSON.stringify({ showPauseWarning: settings.showPauseWarning, showSkipWarning: settings.showSkipWarning }),
+      );
+    } catch {
+      // ignore storage write failures (private mode, quota)
+    }
+  }, [settings.showPauseWarning, settings.showSkipWarning]);
 
   // Persist ONLY the countdown-sound preferences (selected sound + sound on/off)
   // so the user's choice survives refresh, restart and re-login. Scoped to sound
