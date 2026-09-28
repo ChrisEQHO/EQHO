@@ -54,6 +54,25 @@ import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS
 
 import { cancelSubscription, resumeSubscription } from "@/app/actions/subscription";
 import { SortableTrackList, SortableTrackItem, TrackDragHandle } from "@/components/sortable-track-list";
+import {
+  PlaylistCloudPanel,
+  PlaylistConflictDialog,
+  type CloudPlaylistRow,
+  type ConflictResolution,
+  type LocalPlaylistRow,
+  type PanelNotice,
+  type PlaylistPanelTab,
+} from "@/components/player/playlist-cloud-panel";
+import {
+  CLOUD_LINKS_STORAGE_KEY,
+  deriveCloudDeviceStatus,
+  deriveLocalCloudStatus,
+  parseCloudLinks,
+  resolveCloudForLocal,
+  resolveLocalForCloud,
+  type CloudConflictKind,
+  type CloudLinks,
+} from "@/lib/playlist-cloud-links";
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
@@ -988,6 +1007,17 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   //  - 'success' => green "Push Successful" (auto-reverts to the Synced pill)
   //  - 'failed'  => red "Push Unsuccessful" (clickable to retry; persists)
   const [pushStatus, setPushStatus] = useState<Record<string, 'pushing' | 'success' | 'failed'>>({});
+  // Playlist panel: device/cloud tabs, persistent local<->cloud links, and real
+  // per-playlist upload/download progress.
+  const [playlistPanelTab, setPlaylistPanelTab] = useState<PlaylistPanelTab>('device');
+  const [cloudLinks, setCloudLinks] = useState<CloudLinks>({});
+  const cloudLinksLoadedRef = useRef(false);
+  const [uploadProgressById, setUploadProgressById] = useState<Record<string, number>>({});
+  const [cloudDeviceDownloads, setCloudDeviceDownloads] = useState<Record<string, { state: 'downloading' | 'failed'; progress: number }>>({});
+  const [cloudConflict, setCloudConflict] = useState<{ cloudId: string; localId: string; name: string; kind: CloudConflictKind } | null>(null);
+  const [panelNotice, setPanelNotice] = useState<PanelNotice | null>(null);
+  const [cloudRefreshing, setCloudRefreshing] = useState(false);
+  const [deviceOnline, setDeviceOnline] = useState(true);
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
   // Drives the cloud status banner colour: true => green (full success), false => pink/red (partial/error).
   const [cloudSaveSuccess, setCloudSaveSuccess] = useState<boolean>(false);
@@ -2264,16 +2294,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Find the cloud playlist that corresponds to a local one. After upload the cloud
   // id may be a server-generated UUID (different from the local id), so match by id
   // first and fall back to matching by name.
+  // A persistent link (recorded on upload/download) always wins, so renamed
+  // playlists stay paired with the same cloud row.
   const findCloudPlaylistFor = (localPlaylist: { id: string; name: string }) =>
-    cloudPlaylists.find(cp => cp.id === localPlaylist.id) ||
-    cloudPlaylists.find(cp => cp.name === localPlaylist.name);
+    resolveCloudForLocal(localPlaylist, cloudPlaylists, cloudLinks);
 
   // "Cloud Available" playlists: exist in the cloud but are NOT present on this
-  // device yet. Match by id OR name (an uploaded playlist keeps its local id while
-  // the cloud copy gets a server UUID), so a synced local playlist never also
-  // appears as a duplicate cloud-only card.
+  // device yet, so a synced local playlist never also appears as a duplicate card.
   const cloudOnlyPlaylists = cloudPlaylists.filter(
-    cp => !savedPlaylists.some(sp => sp.id === cp.id || sp.name === cp.name)
+    cp => !resolveLocalForCloud(cp, savedPlaylists, cloudLinks)
   );
 
   // Per-playlist cloud sync status:
@@ -2311,6 +2340,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setPushStatus((prev) => ({ ...prev, [playlistId]: 'pushing' }));
     setCloudSaveSuccess(false);
     setCloudSaveMessage(`Syncing ${localPlaylist.name}...`);
+    setPanelNotice(null);
+    setUploadProgressById((prev) => ({ ...prev, [playlistId]: 0 }));
+    const linkedCloudId = cloudLinks[playlistId]?.cloudId ?? findCloudPlaylistFor(localPlaylist)?.id;
+    const clearUploadProgress = () =>
+      setUploadProgressById((prev) => {
+        const next = { ...prev };
+        delete next[playlistId];
+        return next;
+      });
 
     try {
       const result = await syncPlaylistToCloud({
@@ -2324,13 +2362,32 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           uploadedAt: t.uploadedAt,
           file: t.file!,
         })),
+      }, {
+        cloudPlaylistId: linkedCloudId,
+        onProgress: (completed, total) => {
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+          setUploadProgressById((prev) => ({ ...prev, [playlistId]: pct }));
+        },
       });
+      clearUploadProgress();
 
       // Requirement #5: a partial failure (some tracks failed) is treated as
       // unsuccessful and must NOT be marked as fully synced.
       const partialFailure = result.success && (result.failedTracks ?? 0) > 0;
 
       if (result.success && !partialFailure) {
+        if (result.cloudPlaylist) {
+          const cloudRow = result.cloudPlaylist;
+          setCloudLinks((prev) => ({
+            ...prev,
+            [playlistId]: {
+              cloudId: cloudRow.id,
+              cloudUpdatedAt: cloudRow.updated_at,
+              localSignature: playlistSignature(localPlaylist),
+            },
+          }));
+        }
+        setPanelNotice({ tone: 'success', text: `${localPlaylist.name} is synced to EQHO Cloud.` });
         setSyncStatus('success');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'success' }));
         // Single-playlist success messages (green banner via cloudSaveSuccess).
@@ -2357,6 +2414,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setSyncStatus('error');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
+        setPanelNotice({
+          tone: 'error',
+          text: partialFailure
+            ? `Some tracks in ${localPlaylist.name} failed to upload. Your local playlist is unchanged.`
+            : `Upload failed for ${localPlaylist.name}${result.error ? `: ${result.error}` : ''}. Your local playlist is unchanged.`,
+        });
         // Show the ACTUAL reason returned by the server/uploader (now propagated
         // through syncPlaylistToCloud) instead of a generic message. Falls back to
         // a safe default if none was provided.
@@ -2377,6 +2440,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       }
     } catch (error) {
       console.error("Sync failed:", error);
+      clearUploadProgress();
+      setPanelNotice({ tone: 'error', text: `Upload failed for ${localPlaylist.name}. Your local playlist is unchanged.` });
       setSyncStatus('error');
       setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
       setCloudSaveSuccess(false);
@@ -2877,6 +2942,277 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Enqueue a playlist for offline download (used by the compact status icon).
   const enqueueDeviceDownload = (localPlaylist: { id: string }) => {
     setDownloadQueue(prev => (prev.includes(localPlaylist.id) ? prev : [...prev, localPlaylist.id]));
+  };
+
+  // ---- Playlist panel: persistent links, online state, cloud downloads ----
+
+  useEffect(() => {
+    if (demoMode) return;
+    try {
+      setCloudLinks(parseCloudLinks(window.localStorage.getItem(CLOUD_LINKS_STORAGE_KEY)));
+    } catch { /* storage unavailable: links stay in memory only */ }
+    cloudLinksLoadedRef.current = true;
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode || !cloudLinksLoadedRef.current) return;
+    try {
+      window.localStorage.setItem(CLOUD_LINKS_STORAGE_KEY, JSON.stringify(cloudLinks));
+    } catch { /* non-fatal */ }
+  }, [cloudLinks, demoMode]);
+
+  useEffect(() => {
+    const update = () => setDeviceOnline(navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  const savedPlaylistsRef = useRef(savedPlaylists);
+  savedPlaylistsRef.current = savedPlaylists;
+
+  const cloudPanelAvailable = !demoMode && !!user && isCloudSyncAvailable();
+
+  const refreshCloudPlaylists = async () => {
+    if (!cloudPanelAvailable || !navigator.onLine || cloudRefreshing) return;
+    setCloudRefreshing(true);
+    try {
+      setCloudPlaylists(await fetchCloudPlaylists());
+    } catch (error) {
+      console.error('[v0] Failed to refresh cloud playlists:', error);
+      setPanelNotice({ tone: 'error', text: 'Could not refresh EQHO Cloud. Please try again.' });
+    } finally {
+      setCloudRefreshing(false);
+    }
+  };
+
+  const handlePlaylistPanelTabChange = (tab: PlaylistPanelTab) => {
+    setPlaylistPanelTab(tab);
+    setPanelNotice(null);
+    if (tab === 'cloud') void refreshCloudPlaylists();
+  };
+
+  // Download a cloud playlist (metadata + every audio file via the signed R2
+  // route) into the existing savedPlaylists/IndexedDB storage. Nothing is
+  // written locally unless every track downloaded and the IndexedDB write succeeded.
+  const downloadCloudPlaylistToDevice = async (cloudId: string, mode: 'new' | 'replace' | 'save-both') => {
+    if (cloudDeviceDownloads[cloudId]?.state === 'downloading') return;
+    const cloud = cloudPlaylists.find((c) => c.id === cloudId);
+    if (!cloud) return;
+    if (!navigator.onLine) {
+      setPanelNotice({ tone: 'error', text: "You're offline. Reconnect to download from EQHO Cloud." });
+      return;
+    }
+
+    setPanelNotice(null);
+    setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
+
+    try {
+      const { playlist: restored, failedTracks, totalTracks } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+        setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: pct } }));
+      });
+
+      const complete =
+        !!restored && totalTracks > 0 && failedTracks.length === 0 && restored.tracks.length === totalTracks;
+      if (!restored || !complete) {
+        throw new Error(
+          failedTracks.length > 0
+            ? `${failedTracks.length} of ${totalTracks} tracks could not be downloaded`
+            : 'The playlist could not be downloaded',
+        );
+      }
+
+      const existingLocal = resolveLocalForCloud(cloud, savedPlaylistsRef.current, cloudLinks);
+      const takenIds = new Set(savedPlaylistsRef.current.map((p) => p.id));
+      const targetId =
+        mode === 'replace' && existingLocal
+          ? existingLocal.id
+          : !takenIds.has(cloudId)
+            ? cloudId
+            : crypto.randomUUID();
+      const renamedLocalId = mode === 'save-both' && existingLocal ? crypto.randomUUID() : null;
+
+      const downloaded = {
+        id: targetId,
+        name: restored.name,
+        tracks: restored.tracks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          sub: "Downloaded Track",
+          duration: formatDuration(t.durationSeconds),
+          fileName: t.fileName,
+          url: URL.createObjectURL(t.file),
+          durationSeconds: t.durationSeconds,
+          uploadedAt: t.uploadedAt,
+          file: t.file,
+        })),
+      };
+
+      const apply = (list: typeof savedPlaylists) => {
+        if (mode === 'replace' && existingLocal) {
+          return list.map((p) => (p.id === existingLocal.id ? downloaded : p));
+        }
+        const base = renamedLocalId && existingLocal
+          ? list.map((p) => (p.id === existingLocal.id ? { ...p, id: renamedLocalId, name: `${p.name} (this device)` } : p))
+          : list;
+        return [...base, downloaded];
+      };
+
+      // Persist to IndexedDB first so "Downloaded" is only shown once the audio is
+      // genuinely stored and available offline.
+      await saveSavedPlaylistsWithTracks(
+        apply(savedPlaylistsRef.current).map((p) => ({
+          id: p.id,
+          name: p.name,
+          tracks: p.tracks.map((t) => ({
+            id: t.id,
+            title: t.title,
+            fileName: t.fileName,
+            durationSeconds: t.durationSeconds,
+            uploadedAt: t.uploadedAt,
+            file: t.file,
+          })),
+        })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
+      );
+
+      setSavedPlaylists((prev) => apply(prev));
+      setCloudLinks((prev) => {
+        const next = { ...prev };
+        if (existingLocal && mode === 'save-both') delete next[existingLocal.id];
+        next[targetId] = {
+          cloudId,
+          cloudUpdatedAt: cloud.updated_at,
+          localSignature: playlistSignature(downloaded),
+        };
+        return next;
+      });
+      setCloudDeviceDownloads((prev) => {
+        const next = { ...prev };
+        delete next[cloudId];
+        return next;
+      });
+      setPanelNotice({ tone: 'success', text: 'Playlist downloaded and ready to use offline.' });
+    } catch (error) {
+      console.error('[v0] Cloud playlist download failed:', error);
+      setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'failed', progress: 0 } }));
+      setPanelNotice({
+        tone: 'error',
+        text: `Download failed for ${cloud.name}${error instanceof Error ? `: ${error.message}` : ''}. Nothing was saved — try again.`,
+      });
+    }
+  };
+
+  const resolveCloudConflict = (resolution: ConflictResolution) => {
+    const conflict = cloudConflict;
+    setCloudConflict(null);
+    if (!conflict) return;
+    const cloud = cloudPlaylists.find((c) => c.id === conflict.cloudId);
+    switch (resolution) {
+      case 'download-update':
+      case 'replace-with-cloud':
+        void downloadCloudPlaylistToDevice(conflict.cloudId, 'replace');
+        break;
+      case 'save-both':
+        void downloadCloudPlaylistToDevice(conflict.cloudId, 'save-both');
+        break;
+      case 'keep-current':
+        if (cloud) {
+          setCloudLinks((prev) =>
+            prev[conflict.localId]
+              ? { ...prev, [conflict.localId]: { ...prev[conflict.localId], dismissedCloudUpdatedAt: cloud.updated_at } }
+              : prev,
+          );
+        }
+        break;
+      case 'keep-local-upload':
+        void handleSyncPlaylistToCloud(conflict.localId);
+        break;
+    }
+  };
+
+  const addSavedPlaylistToQueue = (id: string) => {
+    const pl = savedPlaylists.find((p) => p.id === id);
+    if (!pl || pl.tracks.length === 0) return;
+    // Append this playlist's tracks to the existing queue to build one master playlist
+    setPlaylist((prev) => {
+      const next = [...prev, ...pl.tracks];
+      if (prev.length === 0) {
+        setCurrentPlaylistName(pl.name);
+        setCurrentIndex(0);
+        setCurrentTrack(next[0]);
+      }
+      return next;
+    });
+  };
+
+  const localPanelRows: LocalPlaylistRow[] = savedPlaylists.map((pl) => {
+    const push = pushStatus[pl.id];
+    const status = deriveLocalCloudStatus({
+      uploadState: push === 'pushing' || syncingPlaylistId === pl.id ? 'uploading' : push === 'failed' ? 'failed' : undefined,
+      cloudMatched: !!findCloudPlaylistFor(pl),
+      link: cloudLinks[pl.id],
+      localSignature: playlistSignature(pl),
+      fallbackInSync: getPlaylistCloudStatus(pl) === 'synced',
+    });
+    return {
+      id: pl.id,
+      name: pl.name,
+      trackCount: pl.tracks.length,
+      status,
+      uploadProgress: uploadProgressById[pl.id] ?? null,
+    };
+  });
+
+  const cloudPanelRows: CloudPlaylistRow[] = cloudPlaylists.map((cp) => {
+    const local = resolveLocalForCloud(cp, savedPlaylists, cloudLinks);
+    const dl = cloudDeviceDownloads[cp.id];
+    const { status, conflict } = deriveCloudDeviceStatus({
+      downloadState: dl?.state,
+      localCopy: local ? { signature: playlistSignature(local) } : undefined,
+      link: local ? cloudLinks[local.id] : undefined,
+      cloudUpdatedAt: cp.updated_at,
+    });
+    const sizeBytes = cp.tracks.reduce((sum, t) => sum + (t.fileSize || 0), 0);
+    return {
+      id: cp.id,
+      name: cp.name,
+      trackCount: cp.tracks.length,
+      updatedAt: cp.updated_at,
+      sizeBytes: sizeBytes > 0 ? sizeBytes : undefined,
+      status,
+      downloadProgress: dl?.state === 'downloading' ? dl.progress : null,
+      conflict,
+    };
+  });
+
+  const reviewCloudUpdate = (cloudId: string) => {
+    const row = cloudPanelRows.find((r) => r.id === cloudId);
+    const cloud = cloudPlaylists.find((c) => c.id === cloudId);
+    const local = cloud ? resolveLocalForCloud(cloud, savedPlaylists, cloudLinks) : undefined;
+    if (!row || !local) return;
+    setCloudConflict({ cloudId, localId: local.id, name: row.name, kind: row.conflict ?? 'cloud-newer' });
+  };
+
+  const sharedPanelProps = {
+    tab: playlistPanelTab,
+    onTabChange: handlePlaylistPanelTabChange,
+    localRows: localPanelRows,
+    cloudRows: cloudPanelRows,
+    cloudAvailable: cloudPanelAvailable,
+    uploadSupported: !isMobileBuild,
+    isOnline: deviceOnline,
+    cloudLoading: cloudRefreshing,
+    notice: panelNotice,
+    onUpload: (id: string) => { void handleSyncPlaylistToCloud(id); },
+    onAddToQueue: addSavedPlaylistToQueue,
+    onDownload: (cloudId: string) => { void downloadCloudPlaylistToDevice(cloudId, 'new'); },
+    onReviewUpdate: reviewCloudUpdate,
+    onRefreshCloud: () => { void refreshCloudPlaylists(); },
   };
   const handleDownloadAllPlaylists = async () => {
     if (isExporting) return;
@@ -3682,7 +4018,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   //
   // The track.url is ALWAYS a natively-playable source:
   //   • local uploads  -> blob:      (URL.createObjectURL(file))
-  //   • cloud tracks    -> https:     (R2/Supabase)
+  //   �� cloud tracks    -> https:     (R2/Supabase)
   //   • offline saves   -> file:/capacitor: (Capacitor Filesystem)
   // We NEVER convert to a data: URL — iOS WKWebView rejects data: audio with
   // NotSupportedError / MediaError code 4 (readyState 0, networkState 3).
@@ -8260,6 +8596,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         </div>
       )}
 
+      <PlaylistConflictDialog
+        conflict={cloudConflict}
+        uploadSupported={!isMobileBuild}
+        onResolve={resolveCloudConflict}
+        onCancel={() => setCloudConflict(null)}
+      />
+
       {/* Remove Saved Playlist Confirmation - guards accidental "Clear" link clicks */}
       {playlistToRemove && (
         <div
@@ -8407,133 +8750,37 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   }}
                   className="hidden"
                 />
-                {savedPlaylists.length === 0 ? (
-                  <label
-                    htmlFor="file-upload-input"
-                    className={`flex-1 flex flex-col items-center justify-center cursor-pointer rounded-xl border border-dashed p-6 text-center transition ${
-                      isDraggingUpload ? "border-cyan-300 bg-cyan-400/10" : "border-[#ff4fa3]/50"
-                    }`}
-                  >
-                    <UploadCloud className={`mx-auto mb-3 ${isDraggingUpload ? "text-cyan-300" : "text-[#ff8a00]"}`} size={32} />
-                    <p className="text-white font-bold text-sm">Drag &amp; drop a folder here</p>
-                    <p className="text-white/50 text-[11px] mt-1.5 leading-relaxed max-w-[200px]">
-                      Drop an entire folder into this area &mdash; each folder becomes its own playlist.
-                    </p>
-                    <p className="text-white/30 text-[9px] mt-2">MP3, WAV, M4A &bull; or click to choose a folder</p>
-                  </label>
-                ) : (
-                  <div className="space-y-2 flex-1 overflow-y-auto">
-                    {savedPlaylists.map((pl) => (
-                      <div
-                        key={pl.id}
-                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.currentTarget.classList.remove("drag-over");
-                          const trackJson = e.dataTransfer.getData("trackJson");
-                          const trackId = e.dataTransfer.getData("trackId");
-                          if (trackJson && trackId) {
-                            const track: Track = JSON.parse(trackJson);
-                            setSavedPlaylists((prev) => prev.map((p) => p.id === pl.id ? { ...p, tracks: [...p.tracks, track] } : p));
-                            setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
-                          }
-                        }}
-                        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-white/[0.03] border border-dashed border-transparent [&.drag-over]:border-pink-500/50"
-                        onDragEnter={(e) => e.currentTarget.classList.add("drag-over")}
-                        onDragLeave={(e) => e.currentTarget.classList.remove("drag-over")}
-                      >
-                        <ListMusic size={14} className="text-[#ff4fa3] shrink-0" />
-                        <span className="flex-1 truncate text-white text-[11px]">{pl.name}</span>
-                        {(() => {
-                          const dState = getDeviceDownloadState(pl);
-                          const pct = downloadProgress[pl.id] ?? 0;
-                          const tooltip =
-                            dState === 'downloading' ? `Downloading... ${pct}%`
-                            : dState === 'queued' ? 'Waiting to download'
-                            : dState === 'downloaded' ? 'Available offline'
-                            : dState === 'update' ? 'Available offline'
-                            : dState === 'failed' ? 'Download failed'
-                            : 'Download playlist for offline use';
-                          const colorClass =
-                            dState === 'downloading' ? 'text-cyan-400 animate-pulse'
-                            : dState === 'queued' ? 'text-white/40'
-                            : dState === 'downloaded' ? 'text-green-400'
-                            : dState === 'update' ? 'text-green-400'
-                            : dState === 'failed' ? 'text-red-500'
-                            : 'text-white';
-                          const Icon =
-                            dState === 'downloading' ? Loader2
-                            : dState === 'failed' ? AlertCircle
-                            : dState === 'downloaded' || dState === 'update' ? Check
-                            : Download;
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                // Green can be clicked again to refresh/re-download.
-                                if (dState === 'downloading' || dState === 'queued') return;
-                                enqueueDeviceDownload(pl);
-                              }}
-                              disabled={pl.tracks.length === 0}
-                              className={`shrink-0 transition disabled:opacity-30 ${colorClass}`}
-                              title={tooltip}
-                              aria-label={tooltip}
-                            >
-                              <Icon size={14} className={dState === 'downloading' ? 'animate-spin' : ''} />
-                            </button>
-                          );
-                        })()}
-                        <button
-                          onClick={() => {
-                            if (pl.tracks.length === 0) return;
-                            // Append this playlist's tracks to the existing queue to build one master playlist
-                            setPlaylist((prev) => {
-                              const next = [...prev, ...pl.tracks];
-                              // If the queue was empty, start it on the first added track
-                              if (prev.length === 0) {
-                                setCurrentPlaylistName(pl.name);
-                                setCurrentIndex(0);
-                                setCurrentTrack(next[0]);
-                              }
-                              return next;
-                            });
-                          }}
-                          disabled={pl.tracks.length === 0}
-                          className="rounded border border-cyan-500/50 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-30"
-                          title="Add to the current Up Next queue"
-                        >
-                          Add
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (pl.tracks.length > 0) {
-                              if (sessionRunning || isPlaying) {
-                                setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
-                              } else {
-                                setPlaylist(pl.tracks);
-                                setCurrentPlaylistName(pl.name);
-                                setCurrentIndex(0);
-                                setCurrentTrack(pl.tracks[0]);
-                              }
-                            }
-                          }}
-                          disabled={pl.tracks.length === 0}
-                          className="rounded border border-pink-500/50 bg-pink-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-pink-400 hover:bg-pink-500/20 disabled:opacity-30"
-                          title="Replace the current queue with this playlist"
-                        >
-                          Load
-                        </button>
-                        <button
-                          onClick={() => setPlaylistToRemove({ id: pl.id, name: pl.name })}
-                          className="text-[9px] font-semibold text-orange-400 hover:text-orange-300 transition"
-                          title="Remove this saved playlist"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <PlaylistCloudPanel
+                  variant="sidebar"
+                  {...sharedPanelProps}
+                  uploadInputId="file-upload-input"
+                  onOpenPlaylist={(id) => {
+                    const pl = savedPlaylists.find((p) => p.id === id);
+                    if (!pl || pl.tracks.length === 0) return;
+                    if (sessionRunning || isPlaying) {
+                      setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
+                    } else {
+                      setPlaylist(pl.tracks);
+                      setCurrentPlaylistName(pl.name);
+                      setCurrentIndex(0);
+                      setCurrentTrack(pl.tracks[0]);
+                    }
+                  }}
+                  onClear={(id) => {
+                    const pl = savedPlaylists.find((p) => p.id === id);
+                    if (pl) setPlaylistToRemove({ id: pl.id, name: pl.name });
+                  }}
+                  onRowDrop={(id, e) => {
+                    e.preventDefault();
+                    const trackJson = e.dataTransfer.getData("trackJson");
+                    const trackId = e.dataTransfer.getData("trackId");
+                    if (trackJson && trackId) {
+                      const track: Track = JSON.parse(trackJson);
+                      setSavedPlaylists((prev) => prev.map((p) => (p.id === id ? { ...p, tracks: [...p.tracks, track] } : p)));
+                      setUploadedTracks((prev) => prev.filter((t) => t.id !== trackId));
+                    }
+                  }}
+                />
               </div>
             </aside>
 
@@ -11056,6 +11303,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       }`}
                     >
                       <input
+                        id="mobile-folder-upload-input"
                         type="file"
                         // @ts-expect-error - non-standard folder selection attributes
                         webkitdirectory=""
@@ -11115,228 +11363,45 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       paddingBottom: "calc(env(safe-area-inset-bottom) + 24px)",
                     }}
                   >
-                    {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
-                        <Folder size={32} className="mx-auto mb-2 text-white/20" />
-                        <h3 className="text-sm font-bold text-white/60">No playlists yet</h3>
-                        <p className="text-[10px] text-white/40 mt-1">Drop a folder above to create your first playlist</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 pb-2">
-                        {/* Local Playlists */}
-                        {savedPlaylists.length > 0 && (
-                          <div>
-                            <div className="flex items-center justify-between mb-2 sticky top-0 bg-[#050816] py-1 z-10">
-                              <h3 className="text-[10px] font-bold text-white/60 flex items-center gap-1.5 uppercase tracking-wider">
-                                <Folder size={12} />
-                                Local Playlists
-                                <span className="text-white/30 font-normal lowercase">({savedPlaylists.length})</span>
-                              </h3>
-                              <button
-                                onClick={() => setShowClearLibraryConfirm(true)}
-                                className="px-2 py-0.5 text-[9px] font-semibold text-[#ff8a00] bg-[#ff8a00]/10 border border-[#ff8a00]/30 rounded-md"
-                              >
-                                Clear All
-                              </button>
-                            </div>
-                            <div className="space-y-2">
-                              {savedPlaylists.map((localPlaylist) => {
-                                const cloudStatus = getPlaylistCloudStatus(localPlaylist);
-                                const isInCloud = cloudStatus !== 'new';
-                                const isSyncing = syncingPlaylistId === localPlaylist.id;
-                                const totalDuration = localPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
-                                
-                                return (
-                                  <div
-                                    key={localPlaylist.id}
-                                    className="rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:border-pink-500/40 transition"
-                                  >
-                                    {/* Header Row */}
-                                    <div className="flex items-start gap-2 mb-2">
-                                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
-                                        <ListMusic size={16} />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <h4 className="text-sm font-bold text-white truncate">{localPlaylist.name}</h4>
-                                        <div className="flex items-center gap-1.5 text-[10px] text-white/50">
-                                          <span>{localPlaylist.tracks.length} tracks</span>
-                                          <span className="text-white/20">|</span>
-                                          <span>{formatDuration(totalDuration)}</span>
-                                        </div>
-                                      </div>
-                                      {/* Action Buttons */}
-                                      <div className="flex gap-1 shrink-0">
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
-                                          disabled={isSyncing}
-                                          className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
-                                        >
-                                          {isSyncing ? <Loader2 size={12} className="animate-spin text-cyan-400" /> : <Cloud size={12} className={isInCloud ? "text-cyan-400" : "text-white/40"} />}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDeletePlaylistConfirm({ id: localPlaylist.id, name: localPlaylist.name }); }}
-                                          className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center"
-                                        >
-                                          <Trash2 size={12} className="text-white/40" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Cloud Sync Status / Action */}
-                                    {cloudStatus === 'synced' ? (
-                                      <div className="mb-2 flex items-center gap-1 text-[9px] text-cyan-400">
-                                        <Cloud size={9} />
-                                        Synced to cloud
-                                      </div>
-                                    ) : !isMobileBuild && (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); handleSyncPlaylistToCloud(localPlaylist.id); }}
-                                        disabled={isSyncing}
-                                        className="mb-2 w-full py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-semibold hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                      >
-                                        {isSyncing ? <Loader2 size={10} className="animate-spin" /> : <Cloud size={10} />}
-                                        {cloudStatus === 'new' ? 'Upload to Cloud' : 'Push Updates'}
-                                      </button>
-                                    )}
-                                    
-                                    {/* Track list with per-track permanent delete */}
-                                    <PlaylistTrackRows
-                                      tracks={localPlaylist.tracks}
-                                      expanded={expandedPlaylistIds.has(localPlaylist.id)}
-                                      onToggleExpand={() => togglePlaylistExpanded(localPlaylist.id)}
-                                      onRequestDelete={(trackId) => {
-                                        const t = localPlaylist.tracks.find((tr) => tr.id === trackId);
-                                        if (t) setConfirmDeleteTrack({ playlistId: localPlaylist.id, track: t });
-                                      }}
-                                      deletingTrackId={deletingTrackId}
-                                      formatDuration={formatDuration}
-                                      compact
-                                    />
-                                    
-                                    {/* Send to Session / Add Buttons */}
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() => handleSendPlaylistToSession(localPlaylist.name, localPlaylist.tracks)}
-                                        disabled={localPlaylist.tracks.length === 0}
-                                        className="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500/15 to-orange-500/15 
-                                                   border border-pink-500/25 text-pink-400 text-[11px] font-semibold
-                                                   hover:from-pink-500/25 hover:to-orange-500/25 transition disabled:opacity-30"
-                                        title="Replace the current queue with this playlist"
-                                      >
-                                        Send to Session
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          if (localPlaylist.tracks.length === 0) return;
-                                          // Append this playlist's tracks to the existing queue to build one master playlist
-                                          setPlaylist((prev) => {
-                                            const next = [...prev, ...localPlaylist.tracks];
-                                            if (prev.length === 0) {
-                                              setCurrentPlaylistName(localPlaylist.name);
-                                              setCurrentIndex(0);
-                                              setCurrentTrack(next[0]);
-                                            }
-                                            return next;
-                                          });
-                                        }}
-                                        disabled={localPlaylist.tracks.length === 0}
-                                        className="py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500/15 to-blue-500/15 
-                                                   border border-cyan-500/25 text-cyan-400 text-[11px] font-semibold
-                                                   hover:from-cyan-500/25 hover:to-blue-500/25 transition disabled:opacity-30"
-                                        title="Add to the current Up Next queue"
-                                      >
-                                        Add
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Cloud Available Playlists (in cloud, not yet on this device) */}
-                        {cloudOnlyPlaylists.length > 0 && (
-                          <div>
-                            <h3 className="text-[10px] font-bold text-white/60 mb-2 flex items-center gap-1.5 uppercase tracking-wider sticky top-0 bg-[#050816] py-1 z-10">
-                              <Cloud size={12} className="text-cyan-400" />
-                              Cloud Available
-                              <span className="text-white/30 font-normal normal-case">({cloudOnlyPlaylists.length})</span>
-                            </h3>
-                            <div className="space-y-2">
-                              {cloudOnlyPlaylists
-                                .map((cloudPlaylist) => {
-                                  const totalDuration = cloudPlaylist.tracks.reduce((sum, t) => sum + (t.durationSeconds || 0), 0);
-                                  const isDownloading = downloadingPlaylistId === cloudPlaylist.id;
-                                  
-                                  return (
-                                    <div
-                                      key={cloudPlaylist.id}
-                                      className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3"
-                                    >
-                                      {/* Header Row */}
-                                      <div className="flex items-start gap-2 mb-2">
-                                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
-                                          <Cloud size={16} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <h4 className="text-sm font-bold text-white truncate">{cloudPlaylist.name}</h4>
-                                          <div className="flex items-center gap-1.5 text-[10px] text-white/50">
-                                            <span>{cloudPlaylist.tracks.length} tracks</span>
-                                            <span className="text-white/20">|</span>
-                                            <span>{formatDuration(totalDuration)}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Track Preview */}
-                                      <div className="space-y-0.5 mb-2">
-                                        {cloudPlaylist.tracks.slice(0, 2).map((track, idx) => (
-                                          <div key={track.id} className="flex items-center gap-1.5 text-[10px] text-white/40">
-                                            <span className="w-3 text-white/25">{idx + 1}.</span>
-                                            <span className="truncate flex-1">{track.title}</span>
-                                            <span className="text-white/25">{formatDuration(track.durationSeconds || 0)}</span>
-                                          </div>
-                                        ))}
-                                        {cloudPlaylist.tracks.length > 2 && (
-                                          <p className="text-[9px] text-white/25 pl-4">+{cloudPlaylist.tracks.length - 2} more tracks</p>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Download to Device: downloads audio from R2 by storage_path,
-                                          then the playlist appears in the local library as Synced. */}
-                                      <button
-                                        type="button"
-                                        onPointerDown={(e) => { e.stopPropagation(); }}
-                                        onTouchStart={(e) => { e.stopPropagation(); }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          console.log("[v0] DOWNLOAD BUTTON TAPPED", { playlistId: cloudPlaylist.id, name: cloudPlaylist.name });
-                                          handleDownloadCloudPlaylist(cloudPlaylist.id);
-                                        }}
-                                        disabled={isDownloading}
-                                        className="w-full py-2 rounded-lg bg-cyan-500/15 
-                                                   border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold
-                                                   hover:bg-cyan-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                        title="Download this playlist's audio to this device"
-                                      >
-                                        {isDownloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                                        {isDownloading ? 'Downloading…' : 'Download to Device'}
-                                      </button>
-                                      {cloudDownloadResult[cloudPlaylist.id] && !isDownloading && (
-                                        <p className={`mt-1.5 text-[10px] font-medium flex items-center gap-1 ${cloudDownloadResult[cloudPlaylist.id].ok ? 'text-green-400' : 'text-red-400'}`}>
-                                          {cloudDownloadResult[cloudPlaylist.id].ok ? <Check size={11} /> : <AlertCircle size={11} />}
-                                          {cloudDownloadResult[cloudPlaylist.id].message}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                    <PlaylistCloudPanel
+                      variant="mobile"
+                      {...sharedPanelProps}
+                      uploadInputId="mobile-folder-upload-input"
+                      onOpenPlaylist={(id) => {
+                        const pl = savedPlaylists.find((p) => p.id === id);
+                        if (pl) handleSendPlaylistToSession(pl.name, pl.tracks);
+                      }}
+                      onClear={(id) => {
+                        const pl = savedPlaylists.find((p) => p.id === id);
+                        if (pl) setShowDeletePlaylistConfirm({ id: pl.id, name: pl.name });
+                      }}
+                      renderLocalExtra={(id) => {
+                        const pl = savedPlaylists.find((p) => p.id === id);
+                        if (!pl) return null;
+                        return (
+                          <PlaylistTrackRows
+                            tracks={pl.tracks}
+                            expanded={expandedPlaylistIds.has(pl.id)}
+                            onToggleExpand={() => togglePlaylistExpanded(pl.id)}
+                            onRequestDelete={(trackId) => {
+                              const t = pl.tracks.find((tr) => tr.id === trackId);
+                              if (t) setConfirmDeleteTrack({ playlistId: pl.id, track: t });
+                            }}
+                            deletingTrackId={deletingTrackId}
+                            formatDuration={formatDuration}
+                            compact
+                          />
+                        );
+                      }}
+                    />
+                    {savedPlaylists.length > 0 && playlistPanelTab === "device" && (
+                      <button
+                        type="button"
+                        onClick={() => setShowClearLibraryConfirm(true)}
+                        className="mt-3 w-full rounded-md border border-[#ff8a00]/30 bg-[#ff8a00]/10 py-1.5 text-[10px] font-semibold text-[#ff8a00]"
+                      >
+                        Clear all playlists on this device
+                      </button>
                     )}
                   </div>
                 </div>

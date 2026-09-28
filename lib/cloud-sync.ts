@@ -25,6 +25,7 @@ export interface CloudPlaylistTrack {
   fileName: string
   durationSeconds: number
   storage_path: string
+  fileSize?: number
 }
 
 export interface CloudPlaylist {
@@ -105,9 +106,14 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
   const supabase = createClient()
   if (!supabase) return []
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // Explicit owner filter on top of RLS: only this user's playlists are requested.
   const { data, error } = await supabase
     .from('playlists')
     .select('*')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -123,7 +129,8 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
   // device yet. We only need lightweight metadata + the R2 storage_path here.
   const { data: trackRows, error: tracksError } = await supabase
     .from('tracks')
-    .select('id, title, storage_path, duration, playlist_id, created_at')
+    .select('id, title, storage_path, duration, playlist_id, created_at, file_size')
+    .eq('user_id', user.id)
 
   if (tracksError) {
     console.error('Error fetching tracks for cloud playlists:', tracksError)
@@ -139,6 +146,7 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
       fileName,
       durationSeconds: t.duration || 0,
       storage_path: t.storage_path || '',
+      fileSize: typeof t.file_size === 'number' ? t.file_size : undefined,
     }
     const arr = tracksByPlaylist.get(t.playlist_id) || []
     arr.push(uiTrack)
@@ -170,9 +178,12 @@ export async function fetchCloudPlaylistWithTracks(playlistId: string): Promise<
   const supabase = createClient()
   if (!supabase) return { playlist: null, tracks: [] }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { playlist: null, tracks: [] }
+
   const [playlistResult, tracksResult] = await Promise.all([
-    supabase.from('playlists').select('*').eq('id', playlistId).single(),
-    supabase.from('tracks').select('*').eq('playlist_id', playlistId)
+    supabase.from('playlists').select('*').eq('id', playlistId).eq('user_id', user.id).maybeSingle(),
+    supabase.from('tracks').select('*').eq('playlist_id', playlistId).eq('user_id', user.id)
   ])
 
   return {
@@ -595,7 +606,18 @@ export async function getTrackStreamUrl(storagePath: string): Promise<string | n
 // FULL SYNC OPERATIONS
 // =====================
 
-export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise<{
+export interface PlaylistUploadOptions {
+  // Persistent link to an existing cloud playlist. When present the upload
+  // updates that exact row instead of matching by name, so "Upload changes"
+  // never creates a duplicate cloud playlist.
+  cloudPlaylistId?: string
+  onProgress?: (completed: number, total: number) => void
+}
+
+export async function syncPlaylistToCloud(
+  localPlaylist: LocalPlaylist,
+  options?: PlaylistUploadOptions,
+): Promise<{
   success: boolean
   cloudPlaylist?: CloudPlaylist
   uploadedTracks: number
@@ -634,11 +656,15 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
   // local data as the source of truth and never does failing per-id lookups
   // (the old `.eq('id', track.id).single()` lookup returned 406 when the row
   // didn't exist, blocking the upload entirely).
-  const result = await uploadPlaylistToCloud({
-    id: localPlaylist.id,
-    name: localPlaylist.name,
-    tracks: localPlaylist.tracks,
-  })
+  const result = await uploadPlaylistToCloud(
+    {
+      id: localPlaylist.id,
+      name: localPlaylist.name,
+      tracks: localPlaylist.tracks,
+    },
+    undefined,
+    options,
+  )
 
   if (!result.success) {
     console.error('[v0] syncPlaylistToCloud: upload failed:', result.error)
@@ -646,15 +672,15 @@ export async function syncPlaylistToCloud(localPlaylist: LocalPlaylist): Promise
     return { success: false, uploadedTracks: 0, error: result.error || 'Unable to push routine.' }
   }
 
-  // Resolve the resulting cloud playlist row to return to the caller.
-  const { data: cloudPlaylist } = await supabase
-    .from('playlists')
-    .select('*')
-    .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
-    .eq('name', localPlaylist.name)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Resolve the exact cloud row that was written (by its persistent id).
+  const { data: cloudPlaylist } = result.cloudPlaylistId
+    ? await supabase
+        .from('playlists')
+        .select('*')
+        .eq('id', result.cloudPlaylistId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+    : { data: null }
 
   return {
     success: true,
@@ -1069,12 +1095,14 @@ export async function uploadPlaylistToCloud(
     showPauseWarning: boolean
     showSkipWarning: boolean
     playlistRepeats: number
-  }
+  },
+  options?: PlaylistUploadOptions,
 ): Promise<{
   success: boolean
   uploadedTracks: number
   skippedTracks: number
   failedTracks?: number
+  cloudPlaylistId?: string
   error?: string
 }> {
   if (isMobileBuild) return { success: false, uploadedTracks: 0, skippedTracks: 0, error: 'Read-only on mobile' }
@@ -1095,7 +1123,17 @@ export async function uploadPlaylistToCloud(
     // matching this user's playlist by name (avoids "invalid input syntax for type uuid").
     let existingPlaylist: CloudPlaylist | null = null
 
-    if (isValidUuid(localPlaylist.id)) {
+    if (isValidUuid(options?.cloudPlaylistId)) {
+      const { data } = await supabase
+        .from('playlists')
+        .select('*')
+        .eq('id', options!.cloudPlaylistId!)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      existingPlaylist = data
+    }
+
+    if (!existingPlaylist && isValidUuid(localPlaylist.id)) {
       const { data } = await supabase
         .from('playlists')
         .select('*')
@@ -1170,6 +1208,14 @@ export async function uploadPlaylistToCloud(
       existingTrackKeys.set(cloudTrackKey(ct.title, ct.storage_path || ''), ct.id)
     }
 
+    const totalTracks = localPlaylist.tracks.length
+    let processed = 0
+    options?.onProgress?.(0, totalTracks)
+    const reportProgress = () => {
+      processed++
+      options?.onProgress?.(processed, totalTracks)
+    }
+
     for (const track of localPlaylist.tracks) {
       // Skip if an equivalent track already exists in the cloud for this playlist.
       const existingId = existingTrackKeys.get(cloudTrackKey(track.title, track.fileName))
@@ -1177,6 +1223,7 @@ export async function uploadPlaylistToCloud(
         console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: already in cloud`)
         trackOrder.push(existingId)
         skippedCount++
+        reportProgress()
         continue
       }
 
@@ -1185,6 +1232,7 @@ export async function uploadPlaylistToCloud(
       if (!track.file) {
         console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: no audio File resolved locally`)
         skippedCount++
+        reportProgress()
         continue
       }
 
@@ -1210,6 +1258,7 @@ export async function uploadPlaylistToCloud(
       } else {
         failedCount++
       }
+      reportProgress()
     }
 
     // If we tried to upload tracks (they had audio) but every one failed, this is a
@@ -1235,14 +1284,30 @@ export async function uploadPlaylistToCloud(
     // track names and durations are stored per-track in the `tracks` table).
     // NOTE: Cloud upload intentionally does NOT write coach_settings, profiles,
     // player settings, volume, gap/countdown/back-to-back, or subscription data.
-    await updateCloudPlaylist(existingPlaylist.id, {
+    const manifestSaved = await updateCloudPlaylist(existingPlaylist.id, {
       track_order: trackOrder,
       name: localPlaylist.name,
     })
+    if (!manifestSaved) {
+      return {
+        success: false,
+        uploadedTracks: uploadedCount,
+        skippedTracks: skippedCount,
+        failedTracks: failedCount,
+        cloudPlaylistId: existingPlaylist.id,
+        error: 'The playlist order could not be saved to EQHO Cloud. Please try again.',
+      }
+    }
 
     // NOTE: success here means the playlist manifest was updated. Per-track upload
     // failures are surfaced via `failedTracks` so the UI can flag partial failures.
-    return { success: true, uploadedTracks: uploadedCount, skippedTracks: skippedCount, failedTracks: failedCount }
+    return {
+      success: true,
+      uploadedTracks: uploadedCount,
+      skippedTracks: skippedCount,
+      failedTracks: failedCount,
+      cloudPlaylistId: existingPlaylist.id,
+    }
   } catch (error) {
     console.error('Error uploading playlist to cloud:', error)
     return { 
