@@ -1,5 +1,10 @@
 import { createClient } from '@/lib/supabase/client'
 import {
+  describeManifestError,
+  sanitizeTrackOrder,
+  type ManifestSaveResult,
+} from '@/lib/playlist-manifest'
+import {
   uploadTrackToR2,
   downloadTrackFromR2,
   deleteTrackFromR2,
@@ -290,40 +295,59 @@ export async function createCloudPlaylist(
   return data
 }
 
-export async function updateCloudPlaylist(
-  playlistId: string,
-  updates: Partial<Pick<CloudPlaylist, 'name' | 'description' | 'track_order' | 'gap_seconds'>>
-): Promise<boolean> {
-  // NOTE: allowed on the mobile (Capacitor) build too. Like delete, this hits the
-  // DEPLOYED https route with a Bearer token (getApiBase + getAuthHeaders), so
-  // reordering a playlist in the iPad app also persists the new track order.
+type CloudPlaylistUpdates = Partial<Pick<CloudPlaylist, 'name' | 'description' | 'track_order' | 'gap_seconds'>>
 
-  // Update via the authoritative server route. The previous implementation ran
-  // the Supabase update on the CLIENT with the anon key; without an RLS UPDATE
-  // policy that update matched 0 rows and returned no error, so a reordered
-  // track_order "saved" in the UI but never persisted — the playlist reverted to
-  // its old order on the next upload/fetch. The /api/playlists/update route
-  // verifies ownership and writes with the service role, so it always takes effect.
+async function postPlaylistUpdate(playlistId: string, updates: CloudPlaylistUpdates): Promise<ManifestSaveResult> {
   try {
     const response = await fetch(`${getApiBase()}/api/playlists/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
       body: JSON.stringify({ playlistId, updates }),
     })
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      console.error('[v0] updateCloudPlaylist failed', response.status, detail)
-      return false
+    const body = await response.json().catch(() => ({} as Record<string, unknown>))
+    if (response.ok && body?.success === true) return { success: true, status: response.status }
+    return {
+      success: false,
+      status: response.status,
+      stage: typeof body?.stage === 'string' ? (body.stage as ManifestSaveResult['stage']) : undefined,
+      code: typeof body?.code === 'string' ? body.code : undefined,
     }
-
-    const result = await response.json().catch(() => ({}))
-    return result?.success === true
-  } catch (error) {
-    console.error('[v0] updateCloudPlaylist error', error)
-    return false
+  } catch {
+    return { success: false, stage: 'network' }
   }
 }
+
+// Saves via the authoritative route and reports the safe failure stage/code.
+// A 401 usually means the access token expired mid-upload (long uploads), so
+// refresh the session once and retry before giving up.
+export async function saveCloudPlaylistManifest(
+  playlistId: string,
+  updates: CloudPlaylistUpdates,
+): Promise<ManifestSaveResult> {
+  let result = await postPlaylistUpdate(playlistId, updates)
+  if (!result.success && result.status === 401) {
+    const supabase = createClient()
+    const { error } = supabase ? await supabase.auth.refreshSession() : { error: true }
+    if (!error) result = await postPlaylistUpdate(playlistId, updates)
+  }
+  if (!result.success) {
+    console.error('[v0] playlist manifest save failed', {
+      status: result.status,
+      stage: result.stage,
+      code: result.code,
+      tracks: Array.isArray(updates.track_order) ? updates.track_order.length : undefined,
+    })
+  }
+  return result
+}
+
+export async function updateCloudPlaylist(
+  playlistId: string,
+  updates: CloudPlaylistUpdates
+): Promise<boolean> {
+  return (await saveCloudPlaylistManifest(playlistId, updates)).success
+}
+
 
 export interface DeleteCloudPlaylistResult {
   success: boolean
@@ -1138,16 +1162,22 @@ export async function uploadPlaylistToCloud(
         .from('playlists')
         .select('*')
         .eq('id', localPlaylist.id)
+        .eq('user_id', user.id)
         .maybeSingle()
       existingPlaylist = data
     }
 
     if (!existingPlaylist) {
+      // A previous failed attempt can leave several same-name rows. maybeSingle()
+      // errors (PGRST116) on >1 row and returns null, which made every retry
+      // create yet another duplicate. Resume into the oldest one instead.
       const { data } = await supabase
         .from('playlists')
         .select('*')
         .eq('user_id', user.id)
         .eq('name', localPlaylist.name)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
       existingPlaylist = data
     }
@@ -1198,10 +1228,22 @@ export async function uploadPlaylistToCloud(
     // a stable identity (title + fileName) rather than by id. Cloud track IDs are
     // server-generated UUIDs, so looking up by the local id is meaningless and also
     // errors on non-UUID local ids. Local playlist data is the source of truth.
-    const { data: existingCloudTracks } = await supabase
+    const { data: existingCloudTracks, error: existingTracksError } = await supabase
       .from('tracks')
       .select('id, title, storage_path')
       .eq('playlist_id', existingPlaylist.id)
+      .eq('user_id', user.id)
+
+    // Without this list every track would be re-uploaded as a duplicate.
+    if (existingTracksError) {
+      return {
+        success: false,
+        uploadedTracks: 0,
+        skippedTracks: 0,
+        cloudPlaylistId: existingPlaylist.id,
+        error: `Could not read existing cloud tracks (tracks:${existingTracksError.code || 'error'}). Please try again.`,
+      }
+    }
 
     const existingTrackKeys = new Map<string, string>() // identity key -> cloud track id
     for (const ct of existingCloudTracks || []) {
@@ -1284,18 +1326,18 @@ export async function uploadPlaylistToCloud(
     // track names and durations are stored per-track in the `tracks` table).
     // NOTE: Cloud upload intentionally does NOT write coach_settings, profiles,
     // player settings, volume, gap/countdown/back-to-back, or subscription data.
-    const manifestSaved = await updateCloudPlaylist(existingPlaylist.id, {
-      track_order: trackOrder,
+    const manifest = await saveCloudPlaylistManifest(existingPlaylist.id, {
+      track_order: sanitizeTrackOrder(trackOrder),
       name: localPlaylist.name,
     })
-    if (!manifestSaved) {
+    if (!manifest.success) {
       return {
         success: false,
         uploadedTracks: uploadedCount,
         skippedTracks: skippedCount,
         failedTracks: failedCount,
         cloudPlaylistId: existingPlaylist.id,
-        error: 'The playlist order could not be saved to EQHO Cloud. Please try again.',
+        error: describeManifestError(manifest),
       }
     }
 
