@@ -315,7 +315,10 @@ body {
 
 .countdown-flash {
   animation: countdown-pulse 0.9s ease-in-out infinite;
-}
+  }
+  .eqho-gap-held .countdown-flash {
+  animation-play-state: paused;
+  }
 
 /* ── Marketing hero ambient glow ─────────────────────────────────────────────
    Large, heavily blurred radial light fields that drift slowly behind the hero

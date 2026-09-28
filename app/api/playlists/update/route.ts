@@ -118,6 +118,9 @@ export async function POST(request: NextRequest) {
   if (!playlist) return json({ error: 'Playlist not found' }, 404)
   if (playlist.user_id !== user.id) return json({ error: 'Forbidden' }, 403)
 
+  // Bump the sync version so other devices can detect that this playlist changed.
+  updates.updated_at = new Date().toISOString()
+
   const { error: updateErr } = await admin
     .from('playlists')
     .update(updates)
