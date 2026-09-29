@@ -134,7 +134,7 @@ export function SortableTrackItem({
 
   return (
     <TrackDragHandleContext.Provider
-      value={{ attributes: attributes as Record<string, unknown>, listeners, setActivatorNodeRef }}
+      value={{ attributes: attributes as unknown as Record<string, unknown>, listeners, setActivatorNodeRef }}
     >
       <div ref={setNodeRef} style={style} className={className} onClick={onClick}>
         {children}

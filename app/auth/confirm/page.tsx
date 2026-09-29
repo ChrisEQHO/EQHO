@@ -102,7 +102,6 @@ function ConfirmInner() {
         hasSession: !!data?.session,
         userId: data?.user?.id,
         errorMessage: error?.message,
-        // @ts-expect-error - code is present on AuthError at runtime
         errorCode: error?.code,
       })
 

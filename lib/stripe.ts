@@ -8,6 +8,10 @@ import Stripe from 'stripe'
 // at build time. The Proxy defers creation to first property access (request
 // time), where the key is always available, while every `import { stripe }`
 // caller keeps working unchanged.
+// Pinned runtime API version. The installed SDK's types describe a newer
+// version; field-shape differences are handled in lib/stripe-shape.ts.
+export const STRIPE_API_VERSION = '2025-05-28.basil' as unknown as NonNullable<NonNullable<ConstructorParameters<typeof Stripe>[1]>['apiVersion']>
+
 let cachedStripe: Stripe | null = null
 
 function getStripe(): Stripe {
@@ -19,7 +23,7 @@ function getStripe(): Stripe {
   }
 
   cachedStripe = new Stripe(key, {
-    apiVersion: '2025-05-28.basil',
+    apiVersion: STRIPE_API_VERSION,
     typescript: true,
   })
   return cachedStripe

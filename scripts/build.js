@@ -57,6 +57,26 @@ if (!isMobile) {
   process.exit(0)
 }
 
+// Validate required public config before moving any files. Only variable
+// names are printed, never their values.
+const REQUIRED_MOBILE_ENV = [
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'NEXT_PUBLIC_API_BASE_URL',
+]
+const missingEnv = REQUIRED_MOBILE_ENV.filter((name) => !String(process.env[name] || '').trim())
+if (missingEnv.length > 0) {
+  console.error(
+    `[build] Mobile build aborted. Missing required environment variable(s): ${missingEnv.join(', ')}`,
+  )
+  process.exit(1)
+}
+const apiBase = String(process.env.NEXT_PUBLIC_API_BASE_URL).trim()
+if (!/^https:\/\//i.test(apiBase)) {
+  console.error('[build] Mobile build aborted. NEXT_PUBLIC_API_BASE_URL must be an https:// URL.')
+  process.exit(1)
+}
+
 // Self-heal: a previously interrupted mobile build (crash / Ctrl-C / OOM) can
 // leave server-only routes stranded in `.mobile-build-backup`, so the working
 // tree is half-moved. Building on top of that half-moved tree is what triggers

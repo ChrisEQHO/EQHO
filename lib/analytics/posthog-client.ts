@@ -60,7 +60,7 @@ export async function initPostHog(): Promise<PostHog | null> {
       },
       // Low sample rate: replay is a rare, consented diagnostic — not default-on.
       loaded: (ph) => {
-        applyConsent(ph)
+        applyConsent(ph as unknown as PostHog)
       },
     })
     instance = posthog

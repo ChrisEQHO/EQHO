@@ -269,6 +269,9 @@ function TextSetting({ label, value }: { label: string; value: string }) {
   );
 }
 
+// iPad diagnostic overlay is kept for future device debugging but disabled.
+const IPAD_DIAG_OVERLAY_ENABLED: boolean = false;
+
 interface Track {
   id: string;
   title: string;
@@ -852,14 +855,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Free access, but login is required. The gate starts "checking" until the
   // Supabase auth check resolves: logged-in users are "granted", logged-out users
   // are redirected to /login. (No subscription/trial check - login alone is enough.)
-  // TEMP HOOK-REPRO (dev only, remove after diagnosis): when the URL carries
-  // ?__hookrepro=1 we force the real checking->granted transition even under
-  // preview, so non-minified React prints the hook-order table if one exists.
-  const __hookRepro =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("__hookrepro");
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline" | "error">(
-    (isV0Preview || demoMode) && !__hookRepro ? "granted" : "checking"
+    isV0Preview || demoMode ? "granted" : "checking"
   );
   // Server-authoritative offer phase from /api/entitlement, used ONLY to pick the
   // correct promo-banner wording (never to grant access — that's `gate`). Null
@@ -867,45 +864,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // never flash "30-day free trial" at a user who is in the free period.
   const [entitlementPhase, setEntitlementPhase] = useState<"free" | "paywall" | null>(null);
   const [entitlementReason, setEntitlementReason] = useState<string | null>(null);
-  // TEMP HOOK-REPRO (dev only, remove after diagnosis): faithfully reproduce the
-  // PRODUCTION granted resolution — set the mock user, then set entitlementPhase +
-  // reason and flip gate->granted in one batch, exactly like lines ~1152-1158.
-  // ?__hookrepro=1 -> "free", ?__hookrepro=paywall / trialing -> paywall variants.
-  useEffect(() => {
-    if (!__hookRepro) return;
-    const which =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("__hookrepro")
-        : "1";
-    // Step through the SAME intermediate renders production produces:
-    //   (1) auth resolves: user + authChecked set, gate still "checking"
-    //   (2) entitlement resolves: entitlementPhase + reason set, gate still "checking"
-    //   (3) gate flips to "granted"
-    // Batching these (as before) hid any hook-count change that only appears on
-    // an intermediate render; stepping reproduces production faithfully.
-    const t1 = setTimeout(() => {
-      setUser(mockUser as unknown as User);
-      setAuthChecked(true);
-    }, 400);
-    const t2 = setTimeout(() => {
-      if (which === "paywall" || which === "trialing") {
-        setEntitlementPhase("paywall");
-        setEntitlementReason(which === "trialing" ? "trialing" : "subscribed");
-      } else {
-        setEntitlementPhase("free");
-        setEntitlementReason("free_period");
-      }
-    }, 800);
-    const t3 = setTimeout(() => {
-      setGate("granted");
-    }, 1200);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
   // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
   const [accessRetryToken, setAccessRetryToken] = useState(0);
@@ -1174,10 +1132,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Offline, we honour the existing grace window so downloads keep playing.
   // -------------------------------------------------------------------------
   useEffect(() => {
-    // TEMP HOOK-REPRO (dev only): let the repro driver below own the transition
-    // so we exercise the REAL production granted path (entitlementPhase set),
-    // not the isV0Preview shortcut.
-    if (__hookRepro) return;
     if (isV0Preview) {
       setGate("granted");
       return;
@@ -1591,8 +1545,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           const restored = cached.map((t) => ({
             id: t.id,
             title: t.title,
-            sub: t.sub || "Uploaded Track",
-            duration: t.duration || formatDuration(t.durationSeconds),
+            sub: "Uploaded Track",
+            duration: formatDuration(t.durationSeconds),
             fileName: t.fileName,
             url: URL.createObjectURL(t.file),
             durationSeconds: t.durationSeconds,
@@ -2187,8 +2141,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             tracks: pl.tracks.map((t) => ({
               id: t.id,
               title: t.title,
-              sub: t.sub || "Uploaded Track",
-              duration: t.duration || formatDuration(t.durationSeconds),
+              sub: "Uploaded Track",
+              duration: formatDuration(t.durationSeconds),
               fileName: t.fileName,
               url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
@@ -2393,7 +2347,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // Single-playlist success messages (green banner via cloudSaveSuccess).
         setCloudSaveMessage(
           wasModified
-            ? 'Updates pushed successfully'
+            ? 'Changes saved to EQHO Cloud'
             : `Uploaded ${localPlaylist.name} successfully`
         );
         setCloudSaveSuccess(true);
@@ -6378,7 +6332,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
   const startSession = () => {
     const queueTracks = playlist.map((track) => ({
-      title: track.title,
+      ...track,
       duration: formatDuration(track.durationSeconds),
     }));
 
@@ -6763,7 +6717,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           intercept taps meant for the player; only the toggle button is
           interactive. Collapsed to a small badge by default. Does not change
           playback, countdown, styling or layout. Remove once verified. */}
-      {false && isIPadWeb && diag && (
+      {IPAD_DIAG_OVERLAY_ENABLED && isIPadWeb && diag && (
         <div
           className="pointer-events-none fixed top-0 right-0 z-[999] flex max-w-[100vw] flex-col items-end"
           style={{ paddingTop: "calc(6px + env(safe-area-inset-top))", paddingRight: "8px" }}
@@ -9389,6 +9343,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             const newTrack: Track = {
                               id: crypto.randomUUID(),
                               title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
                               fileName: file.name,
                               url,
                               durationSeconds: Math.round(audio.duration),
@@ -9551,7 +9507,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     : cardPushStatus === 'pushing'
                                       ? `Pushing ${localPlaylist.name}`
                                       : cardPushStatus === 'success'
-                                        ? `${localPlaylist.name} pushed successfully`
+                                        ? `${localPlaylist.name} saved to EQHO Cloud`
                                         : cloudStatus === 'new'
                                           ? `Upload ${localPlaylist.name} to cloud`
                                           : `Push updates for ${localPlaylist.name}`
@@ -9795,13 +9751,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             <Send size={18} />
                           </div>
                           <div>
-                            <h2 className="text-lg font-bold">Push to Apps</h2>
-                            <p className="text-white/50 text-sm">Sync to mobile and tablet</p>
+                            <h2 className="text-lg font-bold">Save all to EQHO Cloud</h2>
+                            <p className="text-white/50 text-sm">Playlists and audio, saved to your account</p>
                           </div>
                         </div>
                         <p className="text-white/70 text-sm mb-4">
-                          Send your latest desktop playlists to your EQHO mobile and tablet apps. 
-                          Make sure all devices are logged into the same EQHO account.
+                          Saves your playlists and audio to your EQHO account. On another device, open EQHO Cloud and choose Download to this device.
                         </p>
                         <button
                           onClick={handlePushToApps}
@@ -9813,7 +9768,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           ) : (
                             <Send size={18} />
                           )}
-                          Push to Apps
+                          Save all to EQHO Cloud
                         </button>
                       </div>
                     )}
@@ -10172,7 +10127,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           ) : (
                             <Send size={16} />
                           )}
-                          Push to Apps
+                          Save all to EQHO Cloud
                         </button>
                         <p className="text-xs text-white/50 mt-2">
                           Send your latest desktop playlists to your logged-in EQHO apps.
@@ -10596,12 +10551,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   <div>
                     <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
                       <Send size={16} className="text-[#ff8a00]" />
-                      Push to Apps
+                      Save all to EQHO Cloud
                     </h3>
                     <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Desktop users can press <strong className="text-white">Push to Apps</strong> to send the latest desktop playlists to the EQHO mobile and tablet apps</li>
-                      <li>The apps must be logged into the same EQHO account</li>
-                      <li>The apps will update from the cloud when refreshed or reopened</li>
+                      <li>Press <strong className="text-white">Save all to EQHO Cloud</strong> to save your playlists and audio to your EQHO account</li>
+                      <li>On another device, sign in to the same EQHO account, open EQHO Cloud and choose <strong className="text-white">Download to this device</strong></li>
+                      <li>Audio is never downloaded automatically. A playlist is only available offline after it has been downloaded to that device</li>
                     </ul>
                   </div>
                   
@@ -10626,7 +10581,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <ul className="list-disc list-inside space-y-1 text-white/60 text-sm">
                       <li>If playlists do not appear, log out and log back in</li>
                       <li>Check your internet connection</li>
-                      <li>Press <strong className="text-white">Push to Apps</strong> again from desktop</li>
+                      <li>Press <strong className="text-white">Save all to EQHO Cloud</strong> again, then choose <strong className="text-white">Update download</strong> on the other device</li>
                       <li>Confirm all devices are using the same EQHO account email</li>
                     </ul>
                   </div>
@@ -10860,7 +10815,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
+                              <h3 className="text-sm font-bold text-white truncate">{currentTrack.title}</h3>
                               <PlayCountBadge count={completionCounts[currentTrack.id] || 0} />
                             </div>
                             <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
@@ -11234,6 +11189,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                   const newTrack: Track = {
                                     id: crypto.randomUUID(),
                                     title: file.name.replace(/\.[^/.]+$/, ""),
+                                    sub: "Uploaded Track",
+                                    duration: formatDuration(Math.round(audio.duration)),
                                     fileName: file.name,
                                     url,
                                     durationSeconds: Math.round(audio.duration),
@@ -11622,7 +11579,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               ) : (
                                 <Send size={12} />
                               )}
-                              Push to Apps
+                              Save all to EQHO Cloud
                             </button>
                             <p className="text-[9px] text-white/50">
                               Send your latest playlists to your logged-in EQHO apps.

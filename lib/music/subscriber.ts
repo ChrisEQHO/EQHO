@@ -26,6 +26,7 @@ export async function resolveMusicSubscriber(
 
   try {
     const supabase = await createClient()
+    if (!supabase) return { isVerifiedSubscriber: false, email: null }
     const user = await resolveUserFromRequest(request, supabase)
     if (!user) return { isVerifiedSubscriber: false, email: null }
 

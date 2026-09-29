@@ -54,7 +54,7 @@ export async function updateSession(request: NextRequest) {
   // who is not allowlisted — so an unauthorised visitor sees "not found", never
   // a login page that would reveal the area exists. The API routes under
   // /api/music enforce the same allowlist check internally.
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/how-it-works', '/who-its-for', '/faq', '/terms', '/store', '/music', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/robots.txt', '/sitemap.xml', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/entitlement', '/api/verify-checkout', '/api/check-email', '/api/debug', '/api/r2', '/api/store', '/api/music', '/debug']
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/how-it-works', '/who-its-for', '/faq', '/terms', '/store', '/music', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/robots.txt', '/sitemap.xml', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/entitlement', '/api/verify-checkout', '/api/r2', '/api/store', '/api/music']
   // The marketing homepage is public, but ONLY as an EXACT match. Using startsWith
   // for '/' would make every route public, so it's handled separately from the
   // prefix-matched list above. The player now lives at '/app' and stays protected
