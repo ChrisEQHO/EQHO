@@ -8,6 +8,13 @@ import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { trackEvent } from '@/lib/analytics/track-event'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import {
+  classifyAuthMessage,
+  classifyThrown,
+  isAuthConfigured,
+  loginError,
+  LOGIN_TIMEOUT_SENTINEL,
+} from '@/lib/auth-errors'
 
 // Resolve the post-login destination from ?next=, rejecting anything that
 // isn't a single-slash internal path so it can never be used as an open
@@ -19,21 +26,6 @@ function safeNext(raw: string | null): string {
   return raw
 }
 
-// Map raw Supabase auth error messages to clear, user-facing copy.
-function mapAuthError(message: string): string {
-  const m = message.toLowerCase()
-  if (m.includes('email not confirmed')) {
-    return 'Please confirm your email address before signing in. Check your inbox for the confirmation link.'
-  }
-  if (m.includes('invalid login credentials') || m.includes('invalid credentials')) {
-    return 'Invalid email or password.'
-  }
-  if (m.includes('failed to fetch') || m.includes('network')) {
-    return 'Network error. Please check your connection and try again.'
-  }
-  // Any other returned Supabase authentication error — surface it as-is.
-  return message
-}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -101,10 +93,10 @@ export default function LoginPage() {
     }
 
     try {
-      const supabase = createClient()
+      const supabase = isAuthConfigured() ? createClient() : null
 
       if (!supabase) {
-        setError('Service temporarily unavailable. Please try again later.')
+        setError(loginError('missing-config').message)
         return
       }
 
@@ -114,7 +106,7 @@ export default function LoginPage() {
         Promise.race([
           Promise.resolve(promise),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('__timeout__')), ms),
+            setTimeout(() => reject(new Error(LOGIN_TIMEOUT_SENTINEL)), ms),
           ),
         ])
 
@@ -125,12 +117,12 @@ export default function LoginPage() {
       )
 
       if (authError) {
-        setError(mapAuthError(authError.message))
+        setError(classifyAuthMessage(authError.message).message)
         return
       }
 
       if (!data.user) {
-        setError('Invalid email or password.')
+        setError(loginError('invalid-credentials').message)
         return
       }
 
@@ -138,7 +130,7 @@ export default function LoginPage() {
       // authoritative check — never redirect until Supabase reports a session.
       const { data: sessionData } = await withTimeout(supabase.auth.getSession())
       if (!sessionData?.session) {
-        setError('Could not start your session. Please try again.')
+        setError(loginError('no-session').message)
         return
       }
 
@@ -169,11 +161,7 @@ export default function LoginPage() {
       router.refresh()
     } catch (err) {
       // Covers the 15s timeout and any network / Supabase connection failure.
-      if (err instanceof Error && err.message === '__timeout__') {
-        setError('The request timed out. Please check your connection and try again.')
-      } else {
-        setError('Network error. Please check your connection and try again.')
-      }
+      setError(classifyThrown(err).message)
     } finally {
       // ALWAYS restore the button — success, failure, timeout or exception.
       setLoading(false)
