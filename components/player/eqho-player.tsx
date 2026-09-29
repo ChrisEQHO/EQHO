@@ -41,7 +41,6 @@ import {
   updateCloudPlaylist,
   isCloudSyncAvailable,
   checkProStatus,
-  pushToApps,
   uploadPlaylistToCloud,
   syncAllPlaylistsToCloud,
   downloadAllPlaylistsFromCloud,
@@ -966,8 +965,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Cloud sync state
   const [isExporting, setIsExporting] = useState(false);
   const [isPushingToApps, setIsPushingToApps] = useState(false);
-  const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
-  const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
   // "Sync All" progress + result state.
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncAllProgress, setSyncAllProgress] = useState<{ current: number; total: number } | null>(null);
@@ -3152,8 +3149,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       status,
       downloadProgress: dl?.state === 'downloading' ? dl.progress : null,
       conflict,
+      localPlayable: !!local && local.tracks.length > 0,
     };
   });
+
+  const addCloudPlaylistToSession = (cloudId: string) => {
+    const cloud = cloudPlaylists.find((c) => c.id === cloudId);
+    const local = cloud ? resolveLocalForCloud(cloud, savedPlaylists, cloudLinks) : undefined;
+    if (local) addSavedPlaylistToQueue(local.id);
+  };
+
+  const openEqhoCloud = () => {
+    setActivePage("player");
+    setMobileTab("playlists");
+    handlePlaylistPanelTabChange("cloud");
+  };
 
   const reviewCloudUpdate = (cloudId: string) => {
     const row = cloudPanelRows.find((r) => r.id === cloudId);
@@ -3177,6 +3187,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     onAddToQueue: addSavedPlaylistToQueue,
     onDownload: (cloudId: string) => { void downloadCloudPlaylistToDevice(cloudId, 'new'); },
     onReviewUpdate: reviewCloudUpdate,
+    onAddCloudToSession: addCloudPlaylistToSession,
+    onDeleteCloud: (cloudId: string) => {
+      const cloud = cloudPlaylists.find((c) => c.id === cloudId);
+      if (cloud) setShowDeleteCloudPlaylistConfirm({ id: cloud.id, name: cloud.name });
+    },
     onRefreshCloud: () => { void refreshCloudPlaylists(); },
   };
   const handleDownloadAllPlaylists = async () => {
@@ -3442,148 +3457,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       playlistsToUpload.map((p) => `${p.name} (${p.tracks.length})`)
     );
     return playlistsToUpload;
-  };
-
-  // Handler for Upload to Cloud button - uploads playlists to R2 storage
-  const handleUploadToCloud = async () => {
-    if (isUploadingToCloud) return;
-    
-    setIsUploadingToCloud(true);
-    setCloudSaveSuccess(false);
-    setCloudSaveMessage('Uploading to cloud...');
-    
-    try {
-      if (!isCloudStorageAvailable()) {
-        setCloudSaveMessage('Cloud storage not configured');
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-        return;
-      }
-
-      // Prepare playlists for upload using ONLY the visible sidebar playlists
-      // (savedPlaylists). IndexedDB is consulted only to resolve each track's audio.
-      const playlistsToSync = await buildPlaylistsToSync();
-
-      // Upload ONLY playlists + audio + a simple manifest. We intentionally do NOT
-      // sync profiles, coach_settings, subscription, or player settings.
-      const result = await syncAllPlaylistsToCloud(playlistsToSync);
-      console.log('[v0] handleUploadToCloud: result', result);
-
-      // Total visible playlists we attempted to sync (matches the sidebar folders).
-      const totalPlaylists = playlistsToSync.length;
-      const syncedPlaylists = result.syncedPlaylists;
-
-      if (result.success && syncedPlaylists >= totalPlaylists && totalPlaylists > 0) {
-        // All visible playlists synced successfully -> green banner.
-        setCloudSaveMessage(`Uploaded ${syncedPlaylists}/${totalPlaylists} playlists successfully`);
-        setCloudSaveSuccess(true);
-        const playlists = await fetchCloudPlaylists();
-        setCloudPlaylists(playlists);
-      } else if (result.success) {
-        // Succeeded but not every visible playlist synced -> keep pink (partial).
-        setCloudSaveMessage(`Uploaded ${syncedPlaylists}/${totalPlaylists} playlists`);
-        setCloudSaveSuccess(false);
-        const playlists = await fetchCloudPlaylists();
-        setCloudPlaylists(playlists);
-      } else if (result.errors && result.errors.length > 0) {
-        // Show the real reason (e.g. R2 not configured) rather than a misleading success.
-        setCloudSaveMessage(result.errors[0]);
-        setCloudSaveSuccess(false);
-      } else {
-        setCloudSaveMessage('Upload completed with some errors');
-        setCloudSaveSuccess(false);
-      }
-      
-      setTimeout(() => setCloudSaveMessage(null), 5000);
-    } catch (error) {
-      console.error("Upload to cloud failed:", error);
-      setCloudSaveSuccess(false);
-      setCloudSaveMessage('Upload failed. Check your connection.');
-      setTimeout(() => setCloudSaveMessage(null), 3000);
-    } finally {
-      setIsUploadingToCloud(false);
-    }
-  };
-
-  // Handler for Download from Cloud button - downloads all playlists from R2
-  const handleDownloadFromCloud = async () => {
-    if (isDownloadingFromCloud) return;
-    
-    setIsDownloadingFromCloud(true);
-    setCloudSaveSuccess(false);
-    setCloudSaveMessage('Downloading from cloud...');
-    
-    try {
-      if (!isCloudStorageAvailable()) {
-        setCloudSaveMessage('Cloud storage not configured');
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-        return;
-      }
-
-      const result = await downloadAllPlaylistsFromCloud();
-      
-      if (result.error) {
-        setCloudSaveMessage(result.error);
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-        return;
-      }
-
-      if (result.playlists.length > 0) {
-        // Merge cloud playlists with local playlists (match by id or name so a
-        // playlist already present locally isn't duplicated).
-        const newPlaylists = result.playlists
-          .filter(p => !savedPlaylists.some(sp => sp.id === p.id || sp.name === p.name))
-          .map(p => ({
-            id: p.id,
-            name: p.name,
-            tracks: p.tracks.map(t => ({
-              id: t.id,
-              title: t.title,
-              sub: "Cloud Track",
-              duration: formatDuration(t.durationSeconds),
-              fileName: t.fileName,
-              // Object URL so the restored audio is immediately playable.
-              url: URL.createObjectURL(t.file),
-              durationSeconds: t.durationSeconds,
-              uploadedAt: t.uploadedAt,
-              file: t.file,
-            })),
-          }));
-
-        if (newPlaylists.length > 0) {
-          // Each cloud playlist becomes its own separate local playlist folder.
-          // The savedPlaylists effect persists them (with audio) into IndexedDB.
-          setSavedPlaylists(prev => [...prev, ...newPlaylists]);
-          console.log(`[v0][cloud-restore] Final restored playlist count: ${newPlaylists.length}`);
-          const failNote = result.failedTracks.length > 0
-            ? ` (${result.failedTracks.length} track${result.failedTracks.length === 1 ? '' : 's'} failed)`
-            : '';
-          setCloudSaveMessage(`Restored ${newPlaylists.length} playlist${newPlaylists.length === 1 ? '' : 's'} from cloud${failNote}`);
-          setCloudSaveSuccess(result.failedTracks.length === 0);
-        } else {
-          setCloudSaveMessage('All cloud playlists already restored locally');
-          setCloudSaveSuccess(true);
-        }
-
-        // Surface exactly which tracks failed to download.
-        if (result.failedTracks.length > 0) {
-          console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
-        }
-      } else if (result.failedTracks.length > 0) {
-        console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
-        setCloudSaveMessage(`No playlists restored — ${result.failedTracks.length} track(s) failed to download`);
-        setCloudSaveSuccess(false);
-      } else {
-        setCloudSaveMessage('No playlists found in cloud');
-      }
-      
-      setTimeout(() => setCloudSaveMessage(null), 5000);
-    } catch (error) {
-      console.error("Download from cloud failed:", error);
-      setCloudSaveMessage('Download failed. Check your connection.');
-      setTimeout(() => setCloudSaveMessage(null), 3000);
-    } finally {
-      setIsDownloadingFromCloud(false);
-    }
   };
 
   // Handler for Push to Apps button (Desktop only) - Uses R2 + Supabase
@@ -9662,67 +9535,34 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     {cloudSaveMessage && (
                       <div className={`px-4 py-3 rounded-xl ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
                         <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
-                          {(isExporting || isPushingToApps || isUploadingToCloud || isDownloadingFromCloud) && <Loader2 size={16} className="animate-spin" />}
+                          {(isExporting || isPushingToApps) && <Loader2 size={16} className="animate-spin" />}
                           {cloudSaveMessage}
                         </p>
                       </div>
                     )}
                     
-                    {/* Upload to Cloud Section */}
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-400 flex items-center justify-center">
-                          <CloudUpload size={18} />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-bold">Upload to Cloud</h2>
-                          <p className="text-white/50 text-sm">Sync playlists to R2 storage</p>
-                        </div>
-                      </div>
-                      <p className="text-white/70 text-sm mb-4">
-                        Upload all your playlists and audio files to secure cloud storage. 
-                        Your files are stored in Cloudflare R2 with signed URLs for privacy.
-                      </p>
-                      <button
-                        onClick={handleUploadToCloud}
-                        disabled={isUploadingToCloud}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {isUploadingToCloud ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <CloudUpload size={18} />
-                        )}
-                        Upload to Cloud
-                      </button>
-                    </div>
-                    
-                    {/* Download from Cloud Section */}
+                    {/* Open EQHO Cloud playlists */}
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-400 flex items-center justify-center">
                           <CloudDownload size={18} />
                         </div>
                         <div>
-                          <h2 className="text-lg font-bold">Download from Cloud</h2>
-                          <p className="text-white/50 text-sm">Restore playlists from R2 storage</p>
+                          <h2 className="text-lg font-bold">Your EQHO Cloud playlists</h2>
+                          <p className="text-white/50 text-sm">Save, download and update one playlist at a time</p>
                         </div>
                       </div>
                       <p className="text-white/70 text-sm mb-4">
-                        Download and restore all your playlists from the cloud. 
-                        Use this when setting up a new device or after reinstalling.
+                        Open the EQHO Cloud tab in your playlists to see what&apos;s saved to your account,
+                        download a playlist to this device, or review updates and conflicts.
                       </p>
                       <button
-                        onClick={handleDownloadFromCloud}
-                        disabled={isDownloadingFromCloud}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        type="button"
+                        onClick={openEqhoCloud}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center justify-center gap-2"
                       >
-                        {isDownloadingFromCloud ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <CloudDownload size={18} />
-                        )}
-                        Download from Cloud
+                        <Cloud size={18} />
+                        Open EQHO Cloud
                       </button>
                     </div>
                     
@@ -9795,7 +9635,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       <ul className="space-y-3 text-white/70 text-sm">
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
-                          <span>Push a playlist to save its audio and running order to your account</span>
+                          <span>Save a playlist to EQHO Cloud to keep its audio and running order in your account</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
@@ -10141,7 +9981,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           Save all to EQHO Cloud
                         </button>
                         <p className="text-xs text-white/50 mt-2">
-                          Send your latest desktop playlists to your logged-in EQHO apps.
+                          Saves every playlist on this device to your EQHO account. Other devices download them from EQHO Cloud.{" "}
+                          <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
+                            Open EQHO Cloud
+                          </button>
                         </p>
                       </div>
                     )}
@@ -11593,7 +11436,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               Save all to EQHO Cloud
                             </button>
                             <p className="text-[9px] text-white/50">
-                              Send your latest playlists to your logged-in EQHO apps.
+                              Saves every playlist on this device to your EQHO account.{" "}
+                              <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
+                                Open EQHO Cloud
+                              </button>
                             </p>
                           </>
                         )}

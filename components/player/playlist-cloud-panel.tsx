@@ -59,6 +59,7 @@ export interface CloudPlaylistRow {
   status: CloudDeviceStatus;
   downloadProgress: number | null;
   conflict: CloudConflictKind | null;
+  localPlayable: boolean;
 }
 
 export interface PanelNotice {
@@ -84,6 +85,8 @@ interface PlaylistCloudPanelProps {
   onClear: (id: string) => void;
   onDownload: (cloudId: string) => void;
   onReviewUpdate: (cloudId: string) => void;
+  onAddCloudToSession: (cloudId: string) => void;
+  onDeleteCloud: (cloudId: string) => void;
   onRefreshCloud: () => void;
   onRowDrop?: (id: string, e: DragEvent<HTMLDivElement>) => void;
   renderLocalExtra?: (id: string) => ReactNode;
@@ -436,7 +439,7 @@ function DeviceTab(props: TabProps) {
 function localBadge(row: LocalPlaylistRow) {
   switch (row.status) {
     case "synced":
-      return <StatusBadge tone="success" icon={Check}>Synced</StatusBadge>;
+      return <StatusBadge tone="success" icon={Check}>Synced · Saved to cloud</StatusBadge>;
     case "uploading":
       return (
         <StatusBadge tone="progress" icon={Loader2} spin>
@@ -446,9 +449,9 @@ function localBadge(row: LocalPlaylistRow) {
     case "upload-failed":
       return <StatusBadge tone="error" icon={AlertCircle}>Upload failed</StatusBadge>;
     case "updates-available":
-      return <StatusBadge tone="progress" icon={CloudUpload}>Changes not in cloud</StatusBadge>;
+      return <StatusBadge tone="progress" icon={CloudUpload}>Changes not saved</StatusBadge>;
     default:
-      return <StatusBadge tone="device" icon={HardDrive}>On this device</StatusBadge>;
+      return <StatusBadge tone="device" icon={HardDrive}>Not saved to cloud</StatusBadge>;
   }
 }
 
@@ -475,7 +478,7 @@ function LocalCard({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
       className={`${primary ? PRIMARY_BTN : SECONDARY_BTN} ${size} ${FOCUS_RING} ${primary && !compact ? "min-[420px]:flex-1" : ""}`}
     >
       <Play size={13} aria-hidden="true" />
-      Open playlist
+      Open
     </button>
   );
   const queueBtn = (
@@ -486,7 +489,7 @@ function LocalCard({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
       className={`${SECONDARY_BTN} ${size} ${FOCUS_RING}`}
     >
       <Plus size={13} aria-hidden="true" />
-      Add to queue
+      Add to session
     </button>
   );
 
@@ -542,7 +545,7 @@ function LocalCard({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
                 className={`${CLOUD_GHOST_BTN} ${size} ${FOCUS_RING}`}
               >
                 <CloudUpload size={13} aria-hidden="true" />
-                {row.status === "updates-available" ? "Upload changes" : "Save to EQHO Cloud"}
+                {row.status === "updates-available" ? "Save changes" : "Save to EQHO Cloud"}
                 {uploadHint && <span className="sr-only">{` (${uploadHint})`}</span>}
               </button>
             )}
@@ -573,14 +576,14 @@ function RowMenu({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-white/10 bg-[#0b1224] text-white">
         <DropdownMenuItem disabled={row.trackCount === 0} onSelect={() => props.onAddToQueue(row.id)}>
-          Add to queue
+          Add to session
         </DropdownMenuItem>
         <DropdownMenuItem disabled={row.trackCount === 0} onSelect={() => props.onOpenPlaylist(row.id)}>
-          Open playlist
+          Open
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-white/10" />
         <DropdownMenuItem onSelect={() => props.onClear(row.id)} className="text-red-300 focus:bg-red-500/15 focus:text-red-200">
-          Clear from this device
+          Remove from this device
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -647,7 +650,7 @@ function CloudTab(props: TabProps) {
 function cloudBadge(row: CloudPlaylistRow) {
   switch (row.status) {
     case "downloaded":
-      return <StatusBadge tone="device" icon={HardDrive}>Downloaded</StatusBadge>;
+      return <StatusBadge tone="device" icon={HardDrive}>Downloaded · Ready offline</StatusBadge>;
     case "downloading":
       return (
         <StatusBadge tone="progress" icon={Loader2} spin>
@@ -655,11 +658,15 @@ function cloudBadge(row: CloudPlaylistRow) {
         </StatusBadge>
       );
     case "update-available":
-      return <StatusBadge tone="progress" icon={AlertCircle}>Update available</StatusBadge>;
+      return row.conflict === "both-changed" ? (
+        <StatusBadge tone="error" icon={AlertTriangle}>Conflict needs review</StatusBadge>
+      ) : (
+        <StatusBadge tone="progress" icon={AlertCircle}>Update available</StatusBadge>
+      );
     case "download-failed":
       return <StatusBadge tone="error" icon={AlertCircle}>Download failed</StatusBadge>;
     default:
-      return <StatusBadge tone="cloud" icon={Cloud}>In EQHO Cloud</StatusBadge>;
+      return <StatusBadge tone="cloud" icon={Cloud}>Saved to cloud</StatusBadge>;
   }
 }
 
@@ -674,18 +681,20 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
     .join(" · ");
   const primaryWide = !compact ? "min-[420px]:flex-1" : "";
 
+  const addToSessionBtn = (primary: boolean) => (
+    <button
+      type="button"
+      onClick={() => props.onAddCloudToSession(row.id)}
+      className={`${primary ? PRIMARY_BTN : SECONDARY_BTN} ${size} ${FOCUS_RING} ${primary ? primaryWide : ""}`}
+    >
+      <Plus size={13} aria-hidden="true" />
+      Add to session
+    </button>
+  );
+
   let actions: ReactNode;
   if (row.status === "downloaded") {
-    actions = (
-      <button
-        type="button"
-        onClick={() => props.onTabChange("device")}
-        className={`${SECONDARY_BTN} ${size} ${FOCUS_RING} ${primaryWide}`}
-      >
-        <HardDrive size={13} aria-hidden="true" />
-        Open on this device
-      </button>
-    );
+    actions = row.localPlayable ? addToSessionBtn(true) : null;
   } else if (row.status === "downloading") {
     actions = (
       <button type="button" disabled aria-busy="true" className={`${PRIMARY_BTN} ${size} ${primaryWide}`}>
@@ -694,17 +703,21 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
       </button>
     );
   } else if (row.status === "update-available") {
+    const conflicted = row.conflict === "both-changed";
     actions = (
-      <button
-        type="button"
-        onClick={() => props.onReviewUpdate(row.id)}
-        disabled={offline}
-        title={offline ? "Reconnect to download" : undefined}
-        className={`${PRIMARY_BTN} ${size} ${FOCUS_RING} ${primaryWide}`}
-      >
-        <Download size={13} aria-hidden="true" />
-        Review update
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => props.onReviewUpdate(row.id)}
+          disabled={offline}
+          title={offline ? "Reconnect to download" : undefined}
+          className={`${PRIMARY_BTN} ${size} ${FOCUS_RING} ${primaryWide}`}
+        >
+          {conflicted ? <AlertTriangle size={13} aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
+          {conflicted ? "Review conflict" : "Update download"}
+        </button>
+        {row.localPlayable && addToSessionBtn(false)}
+      </>
     );
   } else {
     const failed = row.status === "download-failed";
@@ -717,7 +730,7 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
         className={`${PRIMARY_BTN} ${size} ${FOCUS_RING} ${primaryWide}`}
       >
         {failed ? <RefreshCw size={13} aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
-        {failed ? "Try download again" : "Download"}
+        {failed ? "Try download again" : "Download to this device"}
         {offline && <span className="sr-only"> (Reconnect to download)</span>}
       </button>
     );
@@ -733,7 +746,13 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
       badge={cloudBadge(row)}
       compact={compact}
       failed={row.status === "download-failed"}
+      menu={<CloudRowMenu row={row} {...props} />}
     >
+      {row.conflict === "both-changed" && row.status === "update-available" && (
+        <p className="text-[11px] leading-relaxed text-white/60">
+          This playlist changed on this device and in EQHO Cloud. Review it to choose which version to keep.
+        </p>
+      )}
       {row.status === "not-downloaded" && (
         <p className="text-[11px] leading-relaxed text-white/55">
           Available in EQHO Cloud. Not downloaded to this device yet.
@@ -753,6 +772,35 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
         <p className="text-[10px] leading-relaxed text-white/45">Reconnect to download.</p>
       )}
     </PlaylistCardShell>
+  );
+}
+
+function CloudRowMenu({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={`flex shrink-0 items-center justify-center rounded-md text-white/55 hover:bg-white/10 hover:text-white ${FOCUS_RING} ${
+          props.compact ? "size-8 [@media(pointer:coarse)]:size-11" : "size-11"
+        }`}
+        aria-label={`More options for ${row.name} in EQHO Cloud`}
+        title="More options"
+      >
+        <MoreHorizontal size={16} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="border-white/10 bg-[#0b1224] text-white">
+        <DropdownMenuItem disabled={!row.localPlayable} onSelect={() => props.onAddCloudToSession(row.id)}>
+          Add to session
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="bg-white/10" />
+        <DropdownMenuItem
+          disabled={!props.isOnline}
+          onSelect={() => props.onDeleteCloud(row.id)}
+          className="text-red-300 focus:bg-red-500/15 focus:text-red-200"
+        >
+          Delete from EQHO Cloud permanently
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -788,7 +836,9 @@ export function PlaylistConflictDialog({
   onCancel: () => void;
 }) {
   const both = conflict?.kind === "both-changed";
-  const btn = "rounded-md border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+  const btn =
+    "flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
+  const explain = (text: string) => <span className="text-[11px] font-normal leading-relaxed opacity-80">{text}</span>;
   return (
     <Dialog open={!!conflict} onOpenChange={(open) => { if (!open) onCancel(); }}>
       <DialogContent className="border-white/10 bg-[#0b1224] text-white sm:max-w-md">
@@ -810,27 +860,37 @@ export function PlaylistConflictDialog({
                 onClick={() => onResolve("keep-local-upload")}
                 className={`${btn} border-violet-400/50 bg-violet-400/15 text-violet-200 hover:bg-violet-400/25`}
               >
-                Keep local version and upload it
+                Keep device version and upload it
+                {explain(
+                  uploadSupported
+                    ? "Replaces the EQHO Cloud copy with the version on this device. Cloud changes are overwritten."
+                    : "Uploading is available on the EQHO website.",
+                )}
               </button>
               <button type="button" onClick={() => onResolve("replace-with-cloud")} className={`${btn} border-cyan-500/50 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20`}>
-                Replace with cloud version
+                Replace device version with cloud version
+                {explain("Downloads the EQHO Cloud copy and replaces the one on this device. Changes made on this device are lost.")}
               </button>
               <button type="button" onClick={() => onResolve("save-both")} className={`${btn} border-white/20 bg-white/5 text-white hover:bg-white/10`}>
-                Save both as separate playlists
+                Keep both
+                {explain("Downloads the cloud copy as a separate playlist and renames this device's copy to “(this device)”. Nothing is overwritten.")}
               </button>
             </>
           ) : (
             <>
               <button type="button" onClick={() => onResolve("download-update")} className={`${btn} border-cyan-500/50 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20`}>
-                Download update
+                Update download
+                {explain("Replaces the copy on this device with the newer EQHO Cloud version.")}
               </button>
               <button type="button" onClick={() => onResolve("keep-current")} className={`${btn} border-white/20 bg-white/5 text-white hover:bg-white/10`}>
                 Keep current version
+                {explain("Keeps this device's copy. This update won't be offered again until the cloud changes.")}
               </button>
             </>
           )}
           <button type="button" onClick={onCancel} className={`${btn} border-transparent text-white/60 hover:text-white`}>
             Cancel
+            {explain("Nothing changes.")}
           </button>
         </DialogFooter>
       </DialogContent>
