@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   // TEMP (diagnose-only): route the local prod probe build to a separate dist
   // dir so it never clobbers the running dev server's .next. Removed after diagnosis.
   ...(process.env.BUILD_PROBE === '1' && { distDir: '.next-probe' }),

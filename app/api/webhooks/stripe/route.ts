@@ -5,6 +5,7 @@ import { captureServer } from '@/lib/analytics/posthog-server'
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
+import { getInvoiceSubscriptionId, getSubscriptionPeriodEndDate } from '@/lib/stripe-shape'
 
 // Lazy module-scope binding. The real client is created on first property
 // access (at request time) rather than at module load, so `next build` never
@@ -166,7 +167,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
     try {
       const customer = await stripe.customers.retrieve(customerId)
       if (customer && !customer.deleted) {
-        customerEmail = (customer as Stripe.Customer).email || undefined
+        customerEmail = (customer as Stripe.Customer).email ?? null
         console.log('[WEBHOOK] Got email from Stripe customer:', customerEmail)
       }
     } catch (err) {
@@ -199,7 +200,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
       console.log('[WEBHOOK]   status:', subscription.status)
       console.log('[WEBHOOK]   trial_start:', subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : 'none')
       console.log('[WEBHOOK]   trial_end:', subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : 'none')
-      console.log('[WEBHOOK]   current_period_end:', new Date(subscription.current_period_end * 1000).toISOString())
+      console.log('[WEBHOOK]   current_period_end:', getSubscriptionPeriodEndDate(subscription)?.toISOString() ?? 'none')
 
       // Use actual subscription data
       subscriptionStatus = subscription.status
@@ -209,7 +210,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, eventId
       trialEnd = subscription.trial_end 
         ? new Date(subscription.trial_end * 1000)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      currentPeriodEnd = new Date(subscription.current_period_end * 1000)
+      currentPeriodEnd = getSubscriptionPeriodEndDate(subscription) ?? trialEnd
     } catch (subError) {
       console.log('[WEBHOOK] WARNING: Could not retrieve subscription:', subError instanceof Error ? subError.message : subError)
       console.log('[WEBHOOK] Using default trial values instead')
@@ -476,7 +477,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription, even
       ...(isProStatus ? { has_used_trial: true } : {}),
       stripe_subscription_id: subscription.id,
       trial_end: trialEnd,
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      current_period_end: getSubscriptionPeriodEndDate(subscription)?.toISOString() ?? null,
       // Surfaced on the billing screen so a user who cancelled sees when access
       // ends. The entitlement rule keeps them in until current_period_end.
       cancel_at_period_end: subscription.cancel_at_period_end ?? false,
@@ -559,8 +560,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription, even
   // lib/entitlement.ts keeps a canceled user in the player until the end of the
   // period they already paid for, then blocks them. Stripe still provides the
   // period end on the deleted subscription, so refresh it to stay precise.
-  const currentPeriodEnd = subscription.current_period_end
-    ? new Date(subscription.current_period_end * 1000).toISOString()
+  const periodEndDate = getSubscriptionPeriodEndDate(subscription)
+  const currentPeriodEnd = periodEndDate
+    ? periodEndDate.toISOString()
     : undefined
 
   const { data, error } = await supabaseAdmin
@@ -633,12 +635,13 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice, eventId: string) 
   console.log('[WEBHOOK] ========== PAYMENT SUCCEEDED ==========')
   console.log('[WEBHOOK] invoice.id:', invoice.id)
   console.log('[WEBHOOK] invoice.customer:', invoice.customer)
-  console.log('[WEBHOOK] invoice.subscription:', invoice.subscription)
+  const invoiceSubscriptionId = getInvoiceSubscriptionId(invoice)
+  console.log('[WEBHOOK] invoice.subscription:', invoiceSubscriptionId)
   
   const customerId = invoice.customer as string
 
   // Only update if this is for an active subscription
-  if (invoice.subscription) {
+  if (invoiceSubscriptionId) {
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id')

@@ -5,7 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+    if (!supabase) {
+      return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 })
+    }
+
     // Get the logged-in user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     

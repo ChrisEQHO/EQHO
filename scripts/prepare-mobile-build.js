@@ -37,6 +37,12 @@ const envBackupName = '__env_production_local__.bak'
 const filesToMove = [
   'app/icon.tsx',
   'app/apple-icon.tsx',
+  'app/opengraph-image.tsx', // edge-rendered OG image; web-only, not exportable
+  'app/sitemap.ts', // SEO metadata routes are web-only
+  'app/robots.ts',
+  'app/debug', // admin-only, server-gated diagnostics
+  'app/pricing', // live Stripe price, rendered per request
+  'app/store', // server-resolved catalog + entitlements
   'app/auth', // whole auth folder (callback route handler + error page)
   'app/api', // all API route handlers (POST/dynamic, Supabase/Stripe/R2)
   'middleware.ts', // middleware is not supported with output: export

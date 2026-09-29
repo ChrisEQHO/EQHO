@@ -1,46 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { debugNotFound, resolveDebugAccess } from '@/lib/debug-guard'
 
-// Debug endpoint to check current user's subscription status
-export async function GET(request: NextRequest) {
+export const dynamic = 'force-dynamic'
+
+// Reports ONLY the caller's own subscription state. Admin-only in production.
+export async function GET() {
+  const access = await resolveDebugAccess()
+  if (!access.allowed) return debugNotFound()
+  if (!access.userId) {
+    return NextResponse.json({ authenticated: false }, { status: 401 })
+  }
+
   try {
     const supabase = await createClient()
-    
-    // Get the logged-in user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return NextResponse.json({
-        authenticated: false,
-        error: authError?.message || 'Not logged in',
-      })
+    if (!supabase) {
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 })
     }
 
-    // Get profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+      .select('subscription_status, plan, trial_end, current_period_end, updated_at')
+      .eq('id', access.userId)
+      .maybeSingle()
 
-    const accessAllowed = profile?.subscription_status === 'active' || 
-                          profile?.subscription_status === 'trialing'
+    const accessAllowed =
+      profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing'
 
     return NextResponse.json({
       authenticated: true,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
-      profile: profile || null,
-      profileError: profileError?.message || null,
+      profileFound: !!profile,
+      profile: profile ?? null,
+      profileError: profileError ? 'lookup_failed' : null,
       accessAllowed,
       timestamp: new Date().toISOString(),
     })
-  } catch (error) {
-    return NextResponse.json({
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

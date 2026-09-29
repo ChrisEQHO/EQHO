@@ -74,7 +74,6 @@ function AuthErrorInner() {
       console.log('[v0][auth/error] resend result:', {
         ok: !resendError,
         errorMessage: resendError?.message,
-        // @ts-expect-error - code is present on AuthError at runtime
         errorCode: resendError?.code,
         messageId: resendData?.messageId,
       })

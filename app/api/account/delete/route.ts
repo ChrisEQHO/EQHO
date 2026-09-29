@@ -16,7 +16,7 @@ function getStripe(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY
   if (!key) return null
   try {
-    return new Stripe(key, { apiVersion: '2025-05-28.basil', typescript: true })
+    return new Stripe(key, { apiVersion: '2025-05-28.basil' as unknown as NonNullable<NonNullable<ConstructorParameters<typeof Stripe>[1]>['apiVersion']>, typescript: true })
   } catch {
     return null
   }

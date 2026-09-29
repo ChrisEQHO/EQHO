@@ -182,7 +182,7 @@ export default function DebugSubscriptionPage() {
     }
   }
 
-  const Row = ({ label, value, isGood, isBad }: { label: string; value: string | null | boolean; isGood?: boolean; isBad?: boolean }) => (
+  const Row = ({ label, value, isGood, isBad }: { label: string; value: string | null | boolean | undefined; isGood?: boolean; isBad?: boolean }) => (
     <div className="flex justify-between py-2 border-b border-[#1e293b]">
       <span className="text-[#94a3b8]">{label}</span>
       <span className={`font-mono text-sm ${isGood ? 'text-green-400' : isBad ? 'text-red-400' : 'text-white'}`}>

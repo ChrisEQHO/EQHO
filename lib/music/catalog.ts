@@ -36,13 +36,14 @@ export interface DiscoveryFilters {
   /** Gymnastics discipline — the primary discovery axis. */
   category?: GymnasticsCategoryId | "all"
   genre?: string
+  mood?: string
   /** Duration band id from taxonomy DURATION_BANDS. */
   duration?: string
   sort?: SortKey
 }
 
 export function filterTracks(filters: DiscoveryFilters): MusicTrackWithCreator[] {
-  const { query, category, genre, duration, sort = "popular" } = filters
+  const { query, category, genre, mood, duration, sort = "popular" } = filters
   let result = allTracksWithCreators()
 
   if (query && query.trim()) {
@@ -62,6 +63,10 @@ export function filterTracks(filters: DiscoveryFilters): MusicTrackWithCreator[]
 
   if (genre && genre !== "all") {
     result = result.filter((t) => t.genre === genre)
+  }
+
+  if (mood && mood !== "all") {
+    result = result.filter((t) => t.moods.includes(mood))
   }
 
   if (duration && duration !== "all") {

@@ -16,7 +16,19 @@ import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { useNativeSession } from "@/lib/use-native-session";
+import {
+  applyNativeEvent,
+  createCompletionLatch,
+  decideSkipBack,
+  decideSkipForward,
+  decideTrackEnd,
+  type NativeSessionEvent,
+  type PlaybackViewState,
+} from "@/lib/playback/sequencer";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
+import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
+import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
+import { HelpGuideSections } from "@/components/player/help-guide-sections";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
@@ -32,7 +44,6 @@ import {
   updateCloudPlaylist,
   isCloudSyncAvailable,
   checkProStatus,
-  pushToApps,
   uploadPlaylistToCloud,
   syncAllPlaylistsToCloud,
   downloadAllPlaylistsFromCloud,
@@ -75,6 +86,14 @@ import {
 } from "@/lib/playlist-cloud-links";
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
+import {
+  SETTINGS_STORAGE_KEY,
+  createDefaultSettings,
+  loadStoredSettings,
+  shouldApplyDefaultToLiveState,
+  type PlayerSettings,
+  type SettingKey,
+} from "@/lib/player-settings";
 import {
   Home,
   ListMusic,
@@ -128,7 +147,7 @@ import {
   CreditCard,
   HelpCircle,
   BookOpen,
-  MousePointer,
+  
   Move,
   Fullscreen,
   Smartphone,
@@ -268,6 +287,9 @@ function TextSetting({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+// iPad diagnostic overlay is kept for future device debugging but disabled.
+const IPAD_DIAG_OVERLAY_ENABLED: boolean = false;
 
 interface Track {
   id: string;
@@ -493,6 +515,8 @@ export interface EqhoPlayerProps {
 export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: EqhoPlayerProps) {
   const embedded = presentation === "embedded";
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // One "session finished" per session, whether web or native ended it.
+  const completionLatchRef = useRef(createCompletionLatch());
   // Debounce timer for pushing a reordered playlist's track_order to the cloud.
   const reorderCloudPushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Web Audio volume control. iOS/iPadOS WKWebView makes HTMLMediaElement.volume
@@ -663,7 +687,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────��������
+  // ── Single-transition guards (fixes the countdown/next-track race) ───────────�����������
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -852,14 +876,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Free access, but login is required. The gate starts "checking" until the
   // Supabase auth check resolves: logged-in users are "granted", logged-out users
   // are redirected to /login. (No subscription/trial check - login alone is enough.)
-  // TEMP HOOK-REPRO (dev only, remove after diagnosis): when the URL carries
-  // ?__hookrepro=1 we force the real checking->granted transition even under
-  // preview, so non-minified React prints the hook-order table if one exists.
-  const __hookRepro =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("__hookrepro");
   const [gate, setGate] = useState<"checking" | "granted" | "blocked-offline" | "error">(
-    (isV0Preview || demoMode) && !__hookRepro ? "granted" : "checking"
+    isV0Preview || demoMode ? "granted" : "checking"
   );
   // Server-authoritative offer phase from /api/entitlement, used ONLY to pick the
   // correct promo-banner wording (never to grant access — that's `gate`). Null
@@ -867,45 +885,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // never flash "30-day free trial" at a user who is in the free period.
   const [entitlementPhase, setEntitlementPhase] = useState<"free" | "paywall" | null>(null);
   const [entitlementReason, setEntitlementReason] = useState<string | null>(null);
-  // TEMP HOOK-REPRO (dev only, remove after diagnosis): faithfully reproduce the
-  // PRODUCTION granted resolution — set the mock user, then set entitlementPhase +
-  // reason and flip gate->granted in one batch, exactly like lines ~1152-1158.
-  // ?__hookrepro=1 -> "free", ?__hookrepro=paywall / trialing -> paywall variants.
-  useEffect(() => {
-    if (!__hookRepro) return;
-    const which =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("__hookrepro")
-        : "1";
-    // Step through the SAME intermediate renders production produces:
-    //   (1) auth resolves: user + authChecked set, gate still "checking"
-    //   (2) entitlement resolves: entitlementPhase + reason set, gate still "checking"
-    //   (3) gate flips to "granted"
-    // Batching these (as before) hid any hook-count change that only appears on
-    // an intermediate render; stepping reproduces production faithfully.
-    const t1 = setTimeout(() => {
-      setUser(mockUser as unknown as User);
-      setAuthChecked(true);
-    }, 400);
-    const t2 = setTimeout(() => {
-      if (which === "paywall" || which === "trialing") {
-        setEntitlementPhase("paywall");
-        setEntitlementReason(which === "trialing" ? "trialing" : "subscribed");
-      } else {
-        setEntitlementPhase("free");
-        setEntitlementReason("free_period");
-      }
-    }, 800);
-    const t3 = setTimeout(() => {
-      setGate("granted");
-    }, 1200);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
   // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
   const [accessRetryToken, setAccessRetryToken] = useState(0);
@@ -997,8 +976,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Cloud sync state
   const [isExporting, setIsExporting] = useState(false);
   const [isPushingToApps, setIsPushingToApps] = useState(false);
-  const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
-  const [isUploadingToCloud, setIsUploadingToCloud] = useState(false);
   // "Sync All" progress + result state.
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncAllProgress, setSyncAllProgress] = useState<{ current: number; total: number } | null>(null);
@@ -1174,10 +1151,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Offline, we honour the existing grace window so downloads keep playing.
   // -------------------------------------------------------------------------
   useEffect(() => {
-    // TEMP HOOK-REPRO (dev only): let the repro driver below own the transition
-    // so we exercise the REAL production granted path (entitlementPhase set),
-    // not the isV0Preview shortcut.
-    if (__hookRepro) return;
     if (isV0Preview) {
       setGate("granted");
       return;
@@ -1591,8 +1564,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           const restored = cached.map((t) => ({
             id: t.id,
             title: t.title,
-            sub: t.sub || "Uploaded Track",
-            duration: t.duration || formatDuration(t.durationSeconds),
+            sub: "Uploaded Track",
+            duration: formatDuration(t.durationSeconds),
             fileName: t.fileName,
             url: URL.createObjectURL(t.file),
             durationSeconds: t.durationSeconds,
@@ -2187,8 +2160,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             tracks: pl.tracks.map((t) => ({
               id: t.id,
               title: t.title,
-              sub: t.sub || "Uploaded Track",
-              duration: t.duration || formatDuration(t.durationSeconds),
+              sub: "Uploaded Track",
+              duration: formatDuration(t.durationSeconds),
               fileName: t.fileName,
               url: URL.createObjectURL(t.file),
               durationSeconds: t.durationSeconds,
@@ -2393,7 +2366,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // Single-playlist success messages (green banner via cloudSaveSuccess).
         setCloudSaveMessage(
           wasModified
-            ? 'Updates pushed successfully'
+            ? 'Changes saved to EQHO Cloud'
             : `Uploaded ${localPlaylist.name} successfully`
         );
         setCloudSaveSuccess(true);
@@ -3135,9 +3108,23 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
+  const [showSessionTip, setShowSessionTip] = useState(false);
+
+  const maybeShowSessionTip = (addedTrackCount: number) => {
+    if (shouldShowSessionTip({ state: readOnboarding(), previousQueueLength: playlist.length, addedTrackCount })) {
+      setShowSessionTip(true);
+    }
+  };
+
+  const dismissSessionTip = () => {
+    setShowSessionTip(false);
+    markOnboarding("sessionTipDismissed");
+  };
+
   const addSavedPlaylistToQueue = (id: string) => {
     const pl = savedPlaylists.find((p) => p.id === id);
     if (!pl || pl.tracks.length === 0) return;
+    maybeShowSessionTip(pl.tracks.length);
     // Append this playlist's tracks to the existing queue to build one master playlist
     setPlaylist((prev) => {
       const next = [...prev, ...pl.tracks];
@@ -3187,8 +3174,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       status,
       downloadProgress: dl?.state === 'downloading' ? dl.progress : null,
       conflict,
+      localPlayable: !!local && local.tracks.length > 0,
     };
   });
+
+  const addCloudPlaylistToSession = (cloudId: string) => {
+    const cloud = cloudPlaylists.find((c) => c.id === cloudId);
+    const local = cloud ? resolveLocalForCloud(cloud, savedPlaylists, cloudLinks) : undefined;
+    if (local) addSavedPlaylistToQueue(local.id);
+  };
+
+  const openEqhoCloud = () => {
+    setActivePage("player");
+    setMobileTab("playlists");
+    handlePlaylistPanelTabChange("cloud");
+  };
 
   const reviewCloudUpdate = (cloudId: string) => {
     const row = cloudPanelRows.find((r) => r.id === cloudId);
@@ -3212,6 +3212,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     onAddToQueue: addSavedPlaylistToQueue,
     onDownload: (cloudId: string) => { void downloadCloudPlaylistToDevice(cloudId, 'new'); },
     onReviewUpdate: reviewCloudUpdate,
+    onAddCloudToSession: addCloudPlaylistToSession,
+    onDeleteCloud: (cloudId: string) => {
+      const cloud = cloudPlaylists.find((c) => c.id === cloudId);
+      if (cloud) setShowDeleteCloudPlaylistConfirm({ id: cloud.id, name: cloud.name });
+    },
     onRefreshCloud: () => { void refreshCloudPlaylists(); },
   };
   const handleDownloadAllPlaylists = async () => {
@@ -3477,148 +3482,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       playlistsToUpload.map((p) => `${p.name} (${p.tracks.length})`)
     );
     return playlistsToUpload;
-  };
-
-  // Handler for Upload to Cloud button - uploads playlists to R2 storage
-  const handleUploadToCloud = async () => {
-    if (isUploadingToCloud) return;
-    
-    setIsUploadingToCloud(true);
-    setCloudSaveSuccess(false);
-    setCloudSaveMessage('Uploading to cloud...');
-    
-    try {
-      if (!isCloudStorageAvailable()) {
-        setCloudSaveMessage('Cloud storage not configured');
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-        return;
-      }
-
-      // Prepare playlists for upload using ONLY the visible sidebar playlists
-      // (savedPlaylists). IndexedDB is consulted only to resolve each track's audio.
-      const playlistsToSync = await buildPlaylistsToSync();
-
-      // Upload ONLY playlists + audio + a simple manifest. We intentionally do NOT
-      // sync profiles, coach_settings, subscription, or player settings.
-      const result = await syncAllPlaylistsToCloud(playlistsToSync);
-      console.log('[v0] handleUploadToCloud: result', result);
-
-      // Total visible playlists we attempted to sync (matches the sidebar folders).
-      const totalPlaylists = playlistsToSync.length;
-      const syncedPlaylists = result.syncedPlaylists;
-
-      if (result.success && syncedPlaylists >= totalPlaylists && totalPlaylists > 0) {
-        // All visible playlists synced successfully -> green banner.
-        setCloudSaveMessage(`Uploaded ${syncedPlaylists}/${totalPlaylists} playlists successfully`);
-        setCloudSaveSuccess(true);
-        const playlists = await fetchCloudPlaylists();
-        setCloudPlaylists(playlists);
-      } else if (result.success) {
-        // Succeeded but not every visible playlist synced -> keep pink (partial).
-        setCloudSaveMessage(`Uploaded ${syncedPlaylists}/${totalPlaylists} playlists`);
-        setCloudSaveSuccess(false);
-        const playlists = await fetchCloudPlaylists();
-        setCloudPlaylists(playlists);
-      } else if (result.errors && result.errors.length > 0) {
-        // Show the real reason (e.g. R2 not configured) rather than a misleading success.
-        setCloudSaveMessage(result.errors[0]);
-        setCloudSaveSuccess(false);
-      } else {
-        setCloudSaveMessage('Upload completed with some errors');
-        setCloudSaveSuccess(false);
-      }
-      
-      setTimeout(() => setCloudSaveMessage(null), 5000);
-    } catch (error) {
-      console.error("Upload to cloud failed:", error);
-      setCloudSaveSuccess(false);
-      setCloudSaveMessage('Upload failed. Check your connection.');
-      setTimeout(() => setCloudSaveMessage(null), 3000);
-    } finally {
-      setIsUploadingToCloud(false);
-    }
-  };
-
-  // Handler for Download from Cloud button - downloads all playlists from R2
-  const handleDownloadFromCloud = async () => {
-    if (isDownloadingFromCloud) return;
-    
-    setIsDownloadingFromCloud(true);
-    setCloudSaveSuccess(false);
-    setCloudSaveMessage('Downloading from cloud...');
-    
-    try {
-      if (!isCloudStorageAvailable()) {
-        setCloudSaveMessage('Cloud storage not configured');
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-        return;
-      }
-
-      const result = await downloadAllPlaylistsFromCloud();
-      
-      if (result.error) {
-        setCloudSaveMessage(result.error);
-        setTimeout(() => setCloudSaveMessage(null), 3000);
-        return;
-      }
-
-      if (result.playlists.length > 0) {
-        // Merge cloud playlists with local playlists (match by id or name so a
-        // playlist already present locally isn't duplicated).
-        const newPlaylists = result.playlists
-          .filter(p => !savedPlaylists.some(sp => sp.id === p.id || sp.name === p.name))
-          .map(p => ({
-            id: p.id,
-            name: p.name,
-            tracks: p.tracks.map(t => ({
-              id: t.id,
-              title: t.title,
-              sub: "Cloud Track",
-              duration: formatDuration(t.durationSeconds),
-              fileName: t.fileName,
-              // Object URL so the restored audio is immediately playable.
-              url: URL.createObjectURL(t.file),
-              durationSeconds: t.durationSeconds,
-              uploadedAt: t.uploadedAt,
-              file: t.file,
-            })),
-          }));
-
-        if (newPlaylists.length > 0) {
-          // Each cloud playlist becomes its own separate local playlist folder.
-          // The savedPlaylists effect persists them (with audio) into IndexedDB.
-          setSavedPlaylists(prev => [...prev, ...newPlaylists]);
-          console.log(`[v0][cloud-restore] Final restored playlist count: ${newPlaylists.length}`);
-          const failNote = result.failedTracks.length > 0
-            ? ` (${result.failedTracks.length} track${result.failedTracks.length === 1 ? '' : 's'} failed)`
-            : '';
-          setCloudSaveMessage(`Restored ${newPlaylists.length} playlist${newPlaylists.length === 1 ? '' : 's'} from cloud${failNote}`);
-          setCloudSaveSuccess(result.failedTracks.length === 0);
-        } else {
-          setCloudSaveMessage('All cloud playlists already restored locally');
-          setCloudSaveSuccess(true);
-        }
-
-        // Surface exactly which tracks failed to download.
-        if (result.failedTracks.length > 0) {
-          console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
-        }
-      } else if (result.failedTracks.length > 0) {
-        console.log('[v0][cloud-restore] Failed tracks:', result.failedTracks);
-        setCloudSaveMessage(`No playlists restored — ${result.failedTracks.length} track(s) failed to download`);
-        setCloudSaveSuccess(false);
-      } else {
-        setCloudSaveMessage('No playlists found in cloud');
-      }
-      
-      setTimeout(() => setCloudSaveMessage(null), 5000);
-    } catch (error) {
-      console.error("Download from cloud failed:", error);
-      setCloudSaveMessage('Download failed. Check your connection.');
-      setTimeout(() => setCloudSaveMessage(null), 3000);
-    } finally {
-      setIsDownloadingFromCloud(false);
-    }
   };
 
   // Handler for Push to Apps button (Desktop only) - Uses R2 + Supabase
@@ -4311,8 +4174,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setPlaylistRound(1);
     b2bRepeatedTrackIdRef.current = null;
     setBackToBackPlayed(false);
-    setShowSessionFinished(true);
-    trackEvent("Session Ended");
+    if (completionLatchRef.current.fire()) {
+      setShowSessionFinished(true);
+      trackEvent("Session Ended");
+    }
   };
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
@@ -4508,7 +4373,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setIsGapPaused(false);
         setGapCountdown(0);
         setShowSessionFinished(false);
-        setSessionRunning(true);
+        completionLatchRef.current.reset(); setSessionRunning(true);
         const started = await startNativeSessionIfPossible(firstVisibleIdx);
         if (started) return;
         // Couldn't materialize any files - fall through to the JS <audio> path.
@@ -4540,7 +4405,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // WKWebView src-normalization mismatch that broke resume in the app.
       const srcLoaded =
         !!audioRef.current.src && loadedUrlRef.current === currentTrack.url;
-      setSessionRunning(true);
+      completionLatchRef.current.reset(); setSessionRunning(true);
       if (srcLoaded) {
         // Same track already loaded - resume from the current position.
         try {
@@ -4579,7 +4444,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       setIsGapPaused(false);
       setGapCountdown(0);
       setShowSessionFinished(false);
-      setSessionRunning(true);
+      completionLatchRef.current.reset(); setSessionRunning(true);
       // playTrackFresh clears the back-to-back flag and starts the track.
       playTrackFresh(firstTrack, firstVisibleIdx);
     }
@@ -4818,33 +4683,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
-    // Find next non-hidden track. Skipping forward always starts the next track
-    // fresh (playTrackFresh clears the back-to-back flag).
-    let nextIdx = currentIndex + 1;
-    while (nextIdx < playlist.length && hiddenTrackIds.has(playlist[nextIdx].id)) {
-      nextIdx++;
-    }
-
-    if (nextIdx < playlist.length) {
-      playTrackFresh(playlist[nextIdx], nextIdx);
+    // Skipping forward always starts the next track fresh (playTrackFresh clears
+    // the back-to-back flag), using the same queue rules as track end.
+    const decision = decideSkipForward({
+      playlist,
+      currentIndex,
+      hiddenTrackIds,
+      playlistRound,
+      playlistRepeats,
+    });
+    if (decision.type === "noop") return;
+    if (decision.type === "play") {
+      if (decision.nextRound !== playlistRound) setPlaylistRound(decision.nextRound);
+      playTrackFresh(playlist[decision.index], decision.index);
       return;
     }
-
-    // Past the last visible track - repeat another round or end the session.
-    if (playlistRound < playlistRepeats) {
-      let firstVisibleIdx = 0;
-      while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
-        firstVisibleIdx++;
-      }
-      if (firstVisibleIdx < playlist.length) {
-        setPlaylistRound((r) => r + 1);
-        playTrackFresh(playlist[firstVisibleIdx], firstVisibleIdx);
-      } else {
-        endSession();
-      }
-    } else {
-      endSession();
-    }
+    endSession();
   };
 
   const goToPreviousTrack = () => {
@@ -4862,18 +4716,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // Only auto-play after skip-back if the player was already playing.
     const wasPlaying = isPlaying;
 
-    // Find previous visible (non-hidden) track before the current index
-    let prevVisibleIdx = -1;
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      if (!hiddenTrackIds.has(playlist[i].id)) {
-        prevVisibleIdx = i;
-        break;
-      }
-    }
-
-    // If within first 2 seconds and there is a previous visible track, go to it.
-    // Moving to a different track starts a fresh back-to-back cycle.
-    if (audioRef.current.currentTime < 2 && prevVisibleIdx >= 0) {
+    // Early in a track: go to the previous visible track (fresh back-to-back
+    // cycle). Otherwise restart the current one.
+    const decision = decideSkipBack(
+      { playlist, currentIndex, hiddenTrackIds },
+      audioRef.current.currentTime,
+    );
+    if (decision.type === "previous") {
+      const prevVisibleIdx = decision.index;
       const prevTrack = playlist[prevVisibleIdx];
       if (prevTrack) {
         b2bRepeatedTrackIdRef.current = null;
@@ -4945,34 +4795,68 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // When active, NATIVE owns sequencing (advancing tracks, gap timing, countdown
   // beeps) and keeps running while the device is LOCKED; these callbacks only
   // mirror native events back into React state so the UI matches what's playing.
+  // Latest shared view state, read by the native mirror below so every native
+  // event goes through the same pure reducer (lib/playback/sequencer).
+  const playbackViewRef = useRef<PlaybackViewState>({
+    currentIndex,
+    currentTrackId: null,
+    isPlaying,
+    currentTime,
+    duration: trackDuration,
+    isGapPaused,
+    gapCountdown,
+    sessionFinished: false,
+  });
+  playbackViewRef.current = {
+    currentIndex,
+    currentTrackId: playlist[currentIndex]?.id ?? null,
+    isPlaying,
+    currentTime,
+    duration: trackDuration,
+    isGapPaused,
+    gapCountdown,
+    sessionFinished: completionLatchRef.current.fired,
+  };
+  const mirrorNativeEvent = (event: NativeSessionEvent) => {
+    const prev = playbackViewRef.current;
+    const next = applyNativeEvent(prev, event);
+    playbackViewRef.current = next;
+    if (next.currentIndex !== prev.currentIndex || event.type === "trackChanged") {
+      setCurrentIndex(next.currentIndex);
+      const t = playlistRef.current[next.currentIndex];
+      if (t) setCurrentTrack(t);
+    }
+    if (next.currentTime !== prev.currentTime) setCurrentTime(next.currentTime);
+    if (next.duration !== prev.duration) setTrackDuration(next.duration);
+    if (next.isPlaying !== prev.isPlaying) setIsPlaying(next.isPlaying);
+    if (next.isGapPaused !== prev.isGapPaused) setIsGapPaused(next.isGapPaused);
+    if (next.gapCountdown !== prev.gapCountdown) setGapCountdown(next.gapCountdown);
+    if (next.sessionFinished && !prev.sessionFinished && completionLatchRef.current.fire()) {
+      setShowSessionFinished(true);
+    }
+  };
+
   const nativeSession = useNativeSession({
     onTrackChanged: ({ index, duration }) => {
-      setCurrentIndex(index);
-      const t = playlistRef.current[index];
-      if (t) setCurrentTrack(t);
-      setTrackDuration(duration || 0);
-      setCurrentTime(0);
-      setIsGapPaused(false);
-      setGapCountdown(0);
-      setIsPlaying(true);
-      // New track started �� arm the completion detector for it.
+      mirrorNativeEvent({
+        type: "trackChanged",
+        index,
+        duration,
+        trackId: playlistRef.current[index]?.id ?? null,
+      });
+      // New track started - arm the completion detector for it.
       nativeTrackCompletedRef.current = false;
     },
     onGapStarted: ({ seconds }) => {
-      setIsGapPaused(true);
-      setGapCountdown(seconds);
+      mirrorNativeEvent({ type: "gapStarted", seconds });
       // The gap begins after a track finishes; re-arm for the upcoming track (also
       // covers back-to-back replays of the same track between gaps).
       nativeTrackCompletedRef.current = false;
     },
-    onGapTick: (remaining) => setGapCountdown(remaining),
-    onGapEnded: () => {
-      setIsGapPaused(false);
-      setGapCountdown(0);
-    },
+    onGapTick: (remaining) => mirrorNativeEvent({ type: "gapTick", remaining }),
+    onGapEnded: () => mirrorNativeEvent({ type: "gapEnded" }),
     onPosition: ({ currentTime, duration }) => {
-      setCurrentTime(currentTime);
-      if (duration) setTrackDuration(duration);
+      mirrorNativeEvent({ type: "position", currentTime, duration });
       // Completion detection for the NATIVE sequencer. Counts one full play when
       // playback reaches the track's natural end. A skip advances (onTrackChanged)
       // before reaching the end, so it never false-counts. Re-arm if position
@@ -4985,13 +4869,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         markTrackCompleted(playlistRef.current[currentIndexRef.current]?.id);
       }
     },
-    onPlayStateChanged: (playing) => setIsPlaying(playing),
-    onSessionFinished: (reason) => {
-      setIsPlaying(false);
-      setIsGapPaused(false);
-      setGapCountdown(0);
-      if (reason === "completed") setShowSessionFinished(true);
-    },
+    onPlayStateChanged: (playing) => mirrorNativeEvent({ type: "playState", playing }),
+    onSessionFinished: (reason) => mirrorNativeEvent({ type: "sessionFinished", reason }),
     onError: (message) => console.log("[v0] native audio error:", message),
   });
   const nativeSessionRef = useRef(nativeSession);
@@ -5194,12 +5073,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     //    keyed by the actually-playing track id, so it can't desync. If this track
     //    hasn't consumed its repeat yet, replay it and mark it consumed; when the
     //    repeat ends we'll fall through to the advance path below.
-    const endedTrack = _playlist[_currentIndex];
-    if (
-      _backToBack &&
-      endedTrack?.url &&
-      b2bRepeatedTrackIdRef.current !== endedTrack.id
-    ) {
+    //    1b) Autoplay OFF holds after the routine. 2) Advance to the next visible
+    //    track, 3) repeat a round, or finish. Rules live in lib/playback/sequencer
+    //    so skip-forward and track-end always agree on the queue.
+    const decision = decideTrackEnd({
+      playlist: _playlist,
+      currentIndex: _currentIndex,
+      hiddenTrackIds: _hiddenTrackIds,
+      playlistRound: _playlistRound,
+      playlistRepeats: _playlistRepeats,
+      backToBack: _backToBack,
+      b2bRepeatedTrackId: b2bRepeatedTrackIdRef.current,
+      autoplayNext: autoplayNextRef.current,
+    });
+
+    if (decision.type === "replay") {
+      const endedTrack = _playlist[decision.index];
       b2bRepeatedTrackIdRef.current = endedTrack.id;
       setBackToBackPlayed(true); // keep UI ("Up Next") state in sync
       playAfterGap(
@@ -5210,25 +5099,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
-    // 1b) Autoplay Next Track is OFF: the current routine (including any back-to-back
-    //     repeat) has finished, so stop here instead of advancing. The coach can
-    //     manually skip forward to continue. Keeps the session "running" (not ended)
-    //     so Resume/Skip still work.
-    if (!autoplayNextRef.current) {
+    if (decision.type === "hold") {
+      // Session stays "running" so Resume/Skip still work.
       setIsPlaying(false);
       setIsGapPaused(false);
       setGapCountdown(0);
       return;
     }
 
-    // 2) Advance to the next visible track. playTrackFresh clears the back-to-back
-    //    flag so the next track gets its own full back-to-back cycle.
-    let nextIdx = _currentIndex + 1;
-    while (nextIdx < _playlist.length && _hiddenTrackIds.has(_playlist[nextIdx].id)) {
-      nextIdx++;
-    }
-    if (nextIdx < _playlist.length) {
-      const nextTrack = _playlist[nextIdx];
+    if (decision.type === "play") {
+      const nextTrack = _playlist[decision.index];
+      const nextIdx = decision.index;
+      if (decision.nextRound !== _playlistRound) setPlaylistRound(decision.nextRound);
       playAfterGap(
         () => playTrackFresh(nextTrack, nextIdx),
         nextTrack?.title || "",
@@ -5237,25 +5119,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
-    // 3) End of playlist - repeat another round or finish the session.
-    if (_playlistRound < _playlistRepeats) {
-      let firstVisibleIdx = 0;
-      while (firstVisibleIdx < _playlist.length && _hiddenTrackIds.has(_playlist[firstVisibleIdx].id)) {
-        firstVisibleIdx++;
-      }
-      if (firstVisibleIdx < _playlist.length) {
-        const firstTrack = _playlist[firstVisibleIdx];
-        setPlaylistRound((r) => r + 1);
-        playAfterGap(
-          () => playTrackFresh(firstTrack, firstVisibleIdx),
-          firstTrack?.title || "",
-          firstTrack?.id || "",
-        );
-        return;
-      }
-    }
-
-    // No more rounds (or everything hidden) - end the session.
     endSession();
   };
 
@@ -6015,19 +5878,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setShowPlaylistModal(false);
   };
 
-  const [settings, setSettings] = useState({
-    defaultVolume: 80,
-    countdownSeconds: 3,
-    gapSeconds: 10,
-    playlistRepeats: 1,
-    backToBack: false,
-    autoplayNext: true,
-    showCountdown: true,
-    showPauseWarning: true,
-    showSkipWarning: true,
-    beepSound: DEFAULT_BEEP_SOUND,
-    countdownSound: true,
-  });
+  const [settings, setSettings] = useState<PlayerSettings<BeepSoundId>>(() => createDefaultSettings(DEFAULT_BEEP_SOUND));
 
   // Keep the playback-engine refs in sync with the live settings every render.
   autoplayNextRef.current = settings.autoplayNext;
@@ -6037,102 +5888,58 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   countdownSoundRef.current = settings.countdownSound;
   showPauseWarningRef.current = settings.showPauseWarning;
 
-  // Persist the pause/skip warning toggles so they survive refresh/reopen,
-  // mirroring the eqho-beep-prefs pattern below. Only strict booleans are
-  // applied, so malformed/null stored values fall back to the defaults.
-  const warningPrefsLoadedRef = useRef(false);
+  // Desktop and mobile settings share one state object and one storage key.
+  // Older per-feature keys (warnings, countdown sound) are migrated on load.
+  const settingsLoadedRef = useRef(false);
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("eqho-warning-prefs");
-      if (raw) {
-        const saved = JSON.parse(raw) as { showPauseWarning?: unknown; showSkipWarning?: unknown };
-        setSettings((s) => ({
-          ...s,
-          ...(typeof saved.showPauseWarning === "boolean" ? { showPauseWarning: saved.showPauseWarning } : {}),
-          ...(typeof saved.showSkipWarning === "boolean" ? { showSkipWarning: saved.showSkipWarning } : {}),
-        }));
-      }
+      const stored = loadStoredSettings(localStorage, BEEP_SOUNDS.map((b) => b.id));
+      setSettings((s) => ({ ...s, ...stored }));
+      // No session is running on mount, so saved defaults seed the player.
+      if (typeof stored.gapSeconds === "number") setGapSeconds(stored.gapSeconds);
+      if (typeof stored.playlistRepeats === "number") setPlaylistRepeats(stored.playlistRepeats);
+      if (typeof stored.backToBack === "boolean") setBackToBack(stored.backToBack);
+      if (typeof stored.defaultVolume === "number") setVolume(stored.defaultVolume);
     } catch {
-      // ignore malformed/unavailable storage
+      // ignore unavailable storage
     } finally {
-      warningPrefsLoadedRef.current = true;
+      settingsLoadedRef.current = true;
     }
   }, []);
   useEffect(() => {
-    if (!warningPrefsLoadedRef.current) return;
+    if (!settingsLoadedRef.current) return;
     try {
-      localStorage.setItem(
-        "eqho-warning-prefs",
-        JSON.stringify({ showPauseWarning: settings.showPauseWarning, showSkipWarning: settings.showSkipWarning }),
-      );
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch {
       // ignore storage write failures (private mode, quota)
     }
-  }, [settings.showPauseWarning, settings.showSkipWarning]);
-
-  // Persist ONLY the countdown-sound preferences (selected sound + sound on/off)
-  // so the user's choice survives refresh, restart and re-login. Scoped to sound
-  // on purpose: gap, repeat, volume and countdown-length are owned elsewhere.
-  // Uses the same `eqho-*` localStorage convention as the rest of the app.
-  const beepPrefsLoadedRef = useRef(false);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("eqho-beep-prefs");
-      if (raw) {
-        const saved = JSON.parse(raw) as {
-          beepSound?: string;
-          countdownSound?: boolean;
-          showCountdown?: boolean; // legacy key from an earlier build
-        };
-        // Validate the stored sound id against the current catalog; unknown/renamed
-        // ids (e.g. old "chime"/"tick") fall back to the default (§8).
-        const validSound = BEEP_SOUNDS.some((b) => b.id === saved.beepSound)
-          ? (saved.beepSound as BeepSoundId)
-          : undefined;
-        // On/off: prefer the new key, migrate from the legacy `showCountdown` if the
-        // new one is absent.
-        const soundOn =
-          typeof saved.countdownSound === "boolean"
-            ? saved.countdownSound
-            : typeof saved.showCountdown === "boolean"
-              ? saved.showCountdown
-              : undefined;
-        setSettings((s) => ({
-          ...s,
-          ...(validSound ? { beepSound: validSound } : {}),
-          ...(typeof soundOn === "boolean" ? { countdownSound: soundOn } : {}),
-        }));
-      }
-    } catch {
-      // ignore malformed/unavailable storage
-    } finally {
-      beepPrefsLoadedRef.current = true;
-    }
-  }, []);
-  useEffect(() => {
-    // Don't overwrite storage until after the initial load has run.
-    if (!beepPrefsLoadedRef.current) return;
-    try {
-      localStorage.setItem(
-        "eqho-beep-prefs",
-        JSON.stringify({ beepSound: settings.beepSound, countdownSound: settings.countdownSound }),
-      );
-    } catch {
-      // ignore storage write failures (private mode, quota)
-    }
-  }, [settings.beepSound, settings.countdownSound]);
+  }, [settings]);
 
   const updateSetting = (key: string, value: any) => {
     setSettings((current) => ({
       ...current,
       [key]: value,
     }));
-    // Sync settings to player state variables
+    // While a session runs, defaults are saved for the next session only, so
+    // the current session's gap, repeats, mode and volume are never reset.
+    if (!shouldApplyDefaultToLiveState(key as SettingKey, sessionRunning)) return;
     if (key === "gapSeconds") setGapSeconds(value);
     if (key === "playlistRepeats") setPlaylistRepeats(value);
     if (key === "backToBack") setBackToBack(value);
     if (key === "defaultVolume") setVolume(value);
   };
+
+  // When a session ends, the session controls go back to the saved defaults.
+  const prevSessionRunningRef = useRef(sessionRunning);
+  useEffect(() => {
+    const wasRunning = prevSessionRunningRef.current;
+    prevSessionRunningRef.current = sessionRunning;
+    if (!wasRunning || sessionRunning) return;
+    setGapSeconds(settings.gapSeconds);
+    setPlaylistRepeats(settings.playlistRepeats);
+    setBackToBack(settings.backToBack);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionRunning]);
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
@@ -6200,11 +6007,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
-  // Wrapper functions to keep settings and player state in sync
+  // Current-session controls. These change only the running session, never the saved defaults.
   const updateGapSeconds = (newValue: number | ((prev: number) => number)) => {
     setGapSeconds((prev) => {
       const val = typeof newValue === "function" ? newValue(prev) : newValue;
-      setSettings((s) => ({ ...s, gapSeconds: val }));
       return val;
     });
   };
@@ -6212,7 +6018,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const updatePlaylistRepeats = (newValue: number | ((prev: number) => number)) => {
     setPlaylistRepeats((prev) => {
       const val = typeof newValue === "function" ? newValue(prev) : newValue;
-      setSettings((s) => ({ ...s, playlistRepeats: val }));
       return val;
     });
   };
@@ -6223,7 +6028,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const val =
       typeof newValue === "function" ? newValue(backToBackRef.current) : newValue;
     setBackToBack(val);
-    setSettings((s) => ({ ...s, backToBack: val }));
     // Turning back-to-back ON lets the currently playing track still earn its
     // repeat, so clear the consumed marker (and the UI flag) for it.
     if (val) {
@@ -6378,7 +6182,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
   const startSession = () => {
     const queueTracks = playlist.map((track) => ({
-      title: track.title,
+      ...track,
       duration: formatDuration(track.durationSeconds),
     }));
 
@@ -6391,7 +6195,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
     setSessionQueue(queue);
     setCurrentQueueIndex(0);
-    setSessionRunning(true);
+    completionLatchRef.current.reset(); setSessionRunning(true);
 
     if (queue.length > 0) {
       playQueueItem(queue[0]);
@@ -6625,6 +6429,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (sessionRunning || isPlaying) {
       setShowSendToSessionConfirm({ name, tracks });
     } else {
+      maybeShowSessionTip(tracks.length);
       sendPlaylistToSession(name, tracks);
     }
   };
@@ -6763,7 +6568,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           intercept taps meant for the player; only the toggle button is
           interactive. Collapsed to a small badge by default. Does not change
           playback, countdown, styling or layout. Remove once verified. */}
-      {false && isIPadWeb && diag && (
+      {IPAD_DIAG_OVERLAY_ENABLED && isIPadWeb && diag && (
         <div
           className="pointer-events-none fixed top-0 right-0 z-[999] flex max-w-[100vw] flex-col items-end"
           style={{ paddingTop: "calc(6px + env(safe-area-inset-top))", paddingRight: "8px" }}
@@ -6814,6 +6619,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
+      {showSessionTip && <SessionTip onDismiss={dismissSessionTip} />}
+
       {/* Silent keepalive loop — see silentKeepAliveRef. Kept inaudible; only
           played during the inter-track gap to stop iPad Safari from throttling
           the countdown timer. */}
@@ -8761,6 +8568,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     if (sessionRunning || isPlaying) {
                       setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
                     } else {
+                      maybeShowSessionTip(pl.tracks.length);
                       setPlaylist(pl.tracks);
                       setCurrentPlaylistName(pl.name);
                       setCurrentIndex(0);
@@ -9389,6 +9197,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             const newTrack: Track = {
                               id: crypto.randomUUID(),
                               title: file.name.replace(/\.[^/.]+$/, ""),
+                              sub: "Uploaded Track",
+                              duration: formatDuration(Math.round(audio.duration)),
                               fileName: file.name,
                               url,
                               durationSeconds: Math.round(audio.duration),
@@ -9460,13 +9270,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
             {/* Playlists Grid - Full Width */}
             {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-center">
-                <Folder size={40} className="mx-auto mb-3 text-white/20" />
-                <h3 className="text-base font-bold text-white/60">No playlists yet</h3>
-                <p className="text-white/40 mt-1 text-sm">Drop a folder above to create your first playlist</p>
+              <div className="mx-auto max-w-md">
+                <FirstUseSteps uploadInputId="library-folder-upload-input" onOpenCloud={openEqhoCloud} />
               </div>
             ) : (
               <div className="space-y-6">
+                {savedPlaylists.length === 0 && (
+                  <div className="max-w-md">
+                    <FirstUseSteps uploadInputId="library-folder-upload-input" onOpenCloud={openEqhoCloud} compact />
+                  </div>
+                )}
                 {/* Local Playlists */}
                 {savedPlaylists.length > 0 && (
                   <div>
@@ -9551,7 +9364,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     : cardPushStatus === 'pushing'
                                       ? `Pushing ${localPlaylist.name}`
                                       : cardPushStatus === 'success'
-                                        ? `${localPlaylist.name} pushed successfully`
+                                        ? `${localPlaylist.name} saved to EQHO Cloud`
                                         : cloudStatus === 'new'
                                           ? `Upload ${localPlaylist.name} to cloud`
                                           : `Push updates for ${localPlaylist.name}`
@@ -9695,67 +9508,34 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     {cloudSaveMessage && (
                       <div className={`px-4 py-3 rounded-xl ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
                         <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
-                          {(isExporting || isPushingToApps || isUploadingToCloud || isDownloadingFromCloud) && <Loader2 size={16} className="animate-spin" />}
+                          {(isExporting || isPushingToApps) && <Loader2 size={16} className="animate-spin" />}
                           {cloudSaveMessage}
                         </p>
                       </div>
                     )}
                     
-                    {/* Upload to Cloud Section */}
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-400 flex items-center justify-center">
-                          <CloudUpload size={18} />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-bold">Upload to Cloud</h2>
-                          <p className="text-white/50 text-sm">Sync playlists to R2 storage</p>
-                        </div>
-                      </div>
-                      <p className="text-white/70 text-sm mb-4">
-                        Upload all your playlists and audio files to secure cloud storage. 
-                        Your files are stored in Cloudflare R2 with signed URLs for privacy.
-                      </p>
-                      <button
-                        onClick={handleUploadToCloud}
-                        disabled={isUploadingToCloud}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {isUploadingToCloud ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <CloudUpload size={18} />
-                        )}
-                        Upload to Cloud
-                      </button>
-                    </div>
-                    
-                    {/* Download from Cloud Section */}
+                    {/* Open EQHO Cloud playlists */}
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-400 flex items-center justify-center">
                           <CloudDownload size={18} />
                         </div>
                         <div>
-                          <h2 className="text-lg font-bold">Download from Cloud</h2>
-                          <p className="text-white/50 text-sm">Restore playlists from R2 storage</p>
+                          <h2 className="text-lg font-bold">Your EQHO Cloud playlists</h2>
+                          <p className="text-white/50 text-sm">Save, download and update one playlist at a time</p>
                         </div>
                       </div>
                       <p className="text-white/70 text-sm mb-4">
-                        Download and restore all your playlists from the cloud. 
-                        Use this when setting up a new device or after reinstalling.
+                        Open the EQHO Cloud tab in your playlists to see what&apos;s saved to your account,
+                        download a playlist to this device, or review updates and conflicts.
                       </p>
                       <button
-                        onClick={handleDownloadFromCloud}
-                        disabled={isDownloadingFromCloud}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        type="button"
+                        onClick={openEqhoCloud}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-400 text-white font-semibold hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center justify-center gap-2"
                       >
-                        {isDownloadingFromCloud ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <CloudDownload size={18} />
-                        )}
-                        Download from Cloud
+                        <Cloud size={18} />
+                        Open EQHO Cloud
                       </button>
                     </div>
                     
@@ -9795,13 +9575,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             <Send size={18} />
                           </div>
                           <div>
-                            <h2 className="text-lg font-bold">Push to Apps</h2>
-                            <p className="text-white/50 text-sm">Sync to mobile and tablet</p>
+                            <h2 className="text-lg font-bold">Save all to EQHO Cloud</h2>
+                            <p className="text-white/50 text-sm">Playlists and audio, saved to your account</p>
                           </div>
                         </div>
                         <p className="text-white/70 text-sm mb-4">
-                          Send your latest desktop playlists to your EQHO mobile and tablet apps. 
-                          Make sure all devices are logged into the same EQHO account.
+                          Saves your playlists and audio to your EQHO account. On another device, open EQHO Cloud and choose Download to this device.
                         </p>
                         <button
                           onClick={handlePushToApps}
@@ -9813,7 +9592,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           ) : (
                             <Send size={18} />
                           )}
-                          Push to Apps
+                          Save all to EQHO Cloud
                         </button>
                       </div>
                     )}
@@ -9829,7 +9608,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       <ul className="space-y-3 text-white/70 text-sm">
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
-                          <span>Push a playlist to save its audio and running order to your account</span>
+                          <span>Save a playlist to EQHO Cloud to keep its audio and running order in your account</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
@@ -10022,8 +9801,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
                       <Timer size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Session Controls</h2>
+                    <h2 className="text-lg font-bold">Session defaults</h2>
                   </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Used when a new session starts. To change the session that&apos;s playing now, use the session controls on the player.
+                  </p>
+                  {sessionRunning && (
+                    <p role="status" className="mb-4 rounded-lg border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-3 py-2 text-xs text-[#ffb35c] leading-relaxed">
+                      A session is playing. Changes here apply to your next session and won&apos;t interrupt this one.
+                    </p>
+                  )}
                   <div className="space-y-4">
                     <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
                     <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
@@ -10043,20 +9830,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
                     <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
                   </div>
-                </div>
 
-                {/* Countdown Timer Sound — dedicated section. The ON/OFF toggle
-                    controls SOUND ONLY (the visual countdown above still runs when
-                    off). The radio list picks which beep plays; each row has a
-                    preview that uses the same generator as the live countdown. */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Volume2 size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Countdown Timer Sound</h2>
-                  </div>
-                  <div className="space-y-4">
+                  {/* Countdown sound: the toggle controls SOUND ONLY (the visual
+                      countdown above still runs when off). Each row previews with
+                      the same generator as the live countdown. */}
+                  <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                      <Volume2 size={14} aria-hidden="true" />
+                      Countdown sound
+                    </h3>
                     <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
 
                     <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
@@ -10107,8 +9889,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
                       <AlertTriangle size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Warnings</h2>
+                    <h2 className="text-lg font-bold">Safety warnings</h2>
                   </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Ask before pausing or skipping while a routine is playing, so the music isn&apos;t stopped by accident.
+                  </p>
                   <div className="space-y-4">
                     <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
                     <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
@@ -10172,10 +9957,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           ) : (
                             <Send size={16} />
                           )}
-                          Push to Apps
+                          Save all to EQHO Cloud
                         </button>
                         <p className="text-xs text-white/50 mt-2">
-                          Send your latest desktop playlists to your logged-in EQHO apps.
+                          Saves every playlist on this device to your EQHO account. Other devices download them from EQHO Cloud.{" "}
+                          <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
+                            Open EQHO Cloud
+                          </button>
                         </p>
                       </div>
                     )}
@@ -10266,372 +10054,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             {/* Help Content */}
             <div className="p-8 space-y-8">
               
-              {/* Getting Started */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                    <Play size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Getting Started</h2>
-                </div>
-                <p className="text-white/70 mb-4">
-                  EQHO Player is designed for coaches and athletes to manage training music with precision timing controls. 
-                  The player allows you to create playlists, set gaps between routines, and use full-screen coach mode during training sessions.
-                </p>
-                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                  <p className="text-sm text-white/60">
-                    <strong className="text-white">Quick Start:</strong> Upload one or more folders of music files to create playlists, 
-                    then load a playlist (or add several together) into your session and press Start Session.
-                  </p>
-                </div>
-              </div>
-
-              {/* Uploading Playlists */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                    <UploadCloud size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Uploading Playlists</h2>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Folder size={16} className="text-[#ff8a00]" />
-                      Prepare Your Music on Your Computer
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Before uploading, organize your music files into folders on your computer. Each folder will become a separate playlist. 
-                      Name your folders clearly (e.g., &quot;Training Day 1&quot;, &quot;Warm Up Routines&quot;). 
-                      Supported formats: MP3, WAV, M4A.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <MousePointer size={16} className="text-[#ff8a00]" />
-                      Click to Upload
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the &quot;Upload Files & Playlists&quot; area on the home screen to open a file picker. 
-                      Select multiple audio files to create a new playlist.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Move size={16} className="text-[#ff8a00]" />
-                      Drag & Drop Folders
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Drag a folder directly from your computer onto the upload area. The folder name becomes the playlist name, 
-                      and all audio files inside are added as tracks. This is the fastest way to create organized playlists.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Managing Playlists */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                    <ListMusic size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Managing Playlists</h2>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-pink-400 bg-pink-500/20 border border-pink-500/30">Load</span>
-                      Loading a Playlist
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the <strong className="text-pink-400">Load</strong> button on any saved playlist to load it into your current session. 
-                      This <strong className="text-white">replaces</strong> whatever is currently in the Up Next queue, and the tracks appear in the Session Queue on the right side of the screen.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 bg-cyan-500/20 border border-cyan-500/30">Add</span>
-                      Combining Multiple Playlists
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the <strong className="text-cyan-400">Add</strong> button on a saved playlist to <strong className="text-white">append</strong> its tracks to the end of your current Up Next queue 
-                      instead of replacing it. Use this to stack several playlists together into one master playlist for a single session, all playing back-to-back in order. 
-                      If the queue is empty, Add simply starts a new queue with that playlist.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <RotateCcw size={16} className="text-cyan-400" />
-                      Reset Playlist
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the <strong className="text-cyan-400">Reset</strong> button (with circular arrow icon) to restore the playlist to its original order 
-                      and mark all tracks as unplayed. This is useful when starting a new training session.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <X size={16} className="text-[#ff8a00]" />
-                      Clear Playlist
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the <strong className="text-[#ff8a00]">Clear Playlist</strong> button to remove all tracks from your current session. 
-                      If a session is running, you&apos;ll be asked to confirm before clearing.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2">
-                      Deleting Saved Playlists
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the trash icon on any saved playlist to permanently delete it. This action cannot be undone, 
-                      so make sure you have backups of your music files on your computer.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reordering Routines */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                    <GripVertical size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Reordering Routines</h2>
-                </div>
-                <div className="space-y-4">
-                  <p className="text-white/70">
-                    You can reorder tracks in your session queue using drag and drop:
-                  </p>
-                  <ol className="list-decimal list-inside space-y-2 text-white/70 text-sm">
-                    <li>Click and hold anywhere on the track row you want to move</li>
-                    <li>Drag the track up or down to your desired position</li>
-                    <li>A <strong className="text-cyan-400">cyan indicator line</strong> shows where the track will be placed</li>
-                    <li>Release to drop the track in its new position</li>
-                  </ol>
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <p className="text-sm text-white/60">
-                      <strong className="text-yellow-400">Tip:</strong> Reorder your routines before starting a session 
-                      to match your training schedule.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Hiding Tracks */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
-                    <X size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Hiding & Showing Tracks</h2>
-                </div>
-                <div className="space-y-4">
-                  <p className="text-white/70">
-                    Sometimes you may want to skip certain tracks without removing them from your playlist:
-                  </p>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <X size={16} className="text-orange-400" />
-                      Hide a Track
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the <strong className="text-orange-400">X button</strong> on any track to hide it from your session. Hidden tracks will be skipped during playback 
-                      but remain in your playlist for future use. The track will appear grayed out with strikethrough text.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 bg-cyan-500/20 border border-cyan-500/30">Unhide</span>
-                      Show a Hidden Track
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      Click the <strong className="text-cyan-400">Unhide</strong> button on a hidden track to restore it to your session. It will be included in playback again.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <RotateCcw size={16} className="text-blue-400" />
-                      Restore All Hidden Tracks
-                    </h3>
-                    <p className="text-white/70 text-sm">
-                      If you&apos;ve hidden multiple tracks, click the <strong className="text-blue-400">Restore</strong> button in the queue header to unhide all tracks at once.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Bar Controls */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                    <SlidersHorizontal size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Bottom Bar Controls</h2>
-                </div>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Users size={16} className="text-white" />
-                        <h3 className="font-semibold text-white">Gap Between Routines</h3>
-                      </div>
-                      <p className="text-white/60 text-sm">
-                        Set the pause time between each routine. Use the +/- buttons to adjust in 5-second increments. 
-                        This gives athletes time to reset before the next routine starts.
-                      </p>
-                    </div>
-                    <div className="bg-white/5 rounded-xl p-4 border border-pink-500/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <RefreshCw size={16} className="text-pink-500" />
-                        <h3 className="font-semibold text-white">Back to Back (B2B)</h3>
-                      </div>
-                      <p className="text-white/60 text-sm">
-                        When enabled, each routine plays twice in a row before moving to the next track. 
-                        Perfect for practice runs where athletes repeat their routine immediately.
-                      </p>
-                    </div>
-                    <div className="bg-white/5 rounded-xl p-4 border border-orange-400/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Clock size={16} className="text-orange-400" />
-                        <h3 className="font-semibold text-white">Total Session Time</h3>
-                      </div>
-                      <p className="text-white/60 text-sm">
-                        Shows the total estimated duration of your session based on all tracks, gaps, and repeat settings.
-                      </p>
-                    </div>
-                    <div className="bg-white/5 rounded-xl p-4 border border-cyan-400/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Repeat size={16} className="text-cyan-400" />
-                        <h3 className="font-semibold text-white">Repeat Playlist</h3>
-                      </div>
-                      <p className="text-white/60 text-sm">
-                        Set how many times the entire playlist should repeat. Useful for endurance training 
-                        or when running multiple rounds of training.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fullscreen Coach Mode */}
-              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
-                    <Maximize2 size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Fullscreen Coach Mode</h2>
-                </div>
-                <div className="space-y-4">
-                  <p className="text-white/70">
-                    Fullscreen mode provides a large, easy-to-read display perfect for use during training sessions.
-                  </p>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2">How to Enter Fullscreen</h3>
-                    <p className="text-white/70 text-sm">
-                      Click the fullscreen icon (expand arrows) in the Now Playing section to enter coach mode. 
-                      On mobile, tap the &quot;Coach&quot; button in the navigation tabs.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-2">Best Practices for Training</h3>
-                    <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Connect your device to a large screen or projector for visibility</li>
-                      <li>Position the display where both coach and athletes can see it</li>
-                      <li>Set appropriate gap times to allow athletes to prepare</li>
-                      <li>Use the countdown feature to give athletes a heads-up before their music starts</li>
-                      <li>The large timer display helps athletes track their routine timing</li>
-                    </ul>
-                  </div>
-                  <div className="bg-cyan-500/10 rounded-xl p-4 border border-cyan-500/20">
-                    <p className="text-sm text-cyan-300">
-                      <strong>Pro Tip:</strong> During training, use fullscreen mode on a tablet or laptop 
-                      positioned where your athletes can see it. Athletes can see their upcoming routine and countdown in real-time.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Cloud Playlists and App Sync */}
-              <div className="rounded-2xl border border-[#ff4fa3]/20 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                    <Cloud size={18} />
-                  </div>
-                  <h2 className="text-xl font-bold">Cloud Playlists and App Sync</h2>
-                </div>
-                <p className="text-white/70 mb-6">
-                  EQHO Player saves your playlists, routines, session presets, and coach settings to your EQHO account 
-                  so you can access them across web, desktop, mobile, and tablet.
-                </p>
-                
-                <div className="space-y-6">
-                  {/* Saving to EQHO Cloud */}
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <CloudUpload size={16} className="text-[#ff8a00]" />
-                      Saving to EQHO Cloud
-                    </h3>
-                    <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Push a playlist to save its audio and running order to your account</li>
-                      <li>Pro users can access saved data across devices</li>
-                      <li>Look for the &quot;All changes saved&quot; message to confirm sync</li>
-                    </ul>
-                  </div>
-                  
-                  {/* Download Playlists */}
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <FileDown size={16} className="text-[#ff8a00]" />
-                      Download Playlists
-                    </h3>
-                    <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Use <strong className="text-white">Download Playlists</strong> in Settings to save a local backup</li>
-                      <li>The backup includes playlists, routine details, session presets, and coach settings</li>
-                      <li>This is useful before competitions or when preparing offline</li>
-                    </ul>
-                  </div>
-                  
-                  {/* Push to Apps */}
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Send size={16} className="text-[#ff8a00]" />
-                      Push to Apps
-                    </h3>
-                    <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Desktop users can press <strong className="text-white">Push to Apps</strong> to send the latest desktop playlists to the EQHO mobile and tablet apps</li>
-                      <li>The apps must be logged into the same EQHO account</li>
-                      <li>The apps will update from the cloud when refreshed or reopened</li>
-                    </ul>
-                  </div>
-                  
-                  {/* Account Email */}
-                  <div>
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <Users size={16} className="text-[#ff8a00]" />
-                      Account Email
-                    </h3>
-                    <ul className="list-disc list-inside space-y-1 text-white/70 text-sm">
-                      <li>Your saved playlists and subscription are linked to your EQHO login email</li>
-                      <li>Use the same email on web, desktop, mobile, tablet, and Stripe billing</li>
-                    </ul>
-                  </div>
-                  
-                  {/* Troubleshooting */}
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-                      <AlertCircle size={16} className="text-yellow-400" />
-                      Troubleshooting
-                    </h3>
-                    <ul className="list-disc list-inside space-y-1 text-white/60 text-sm">
-                      <li>If playlists do not appear, log out and log back in</li>
-                      <li>Check your internet connection</li>
-                      <li>Press <strong className="text-white">Push to Apps</strong> again from desktop</li>
-                      <li>Confirm all devices are using the same EQHO account email</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
+              <HelpGuideSections />
 
               {/* Keyboard Shortcuts */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
@@ -10860,7 +10283,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         <div className="flex items-center gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <h3 className="text-sm font-bold text-white truncate">{currentTrack.title || currentTrack.name}</h3>
+                              <h3 className="text-sm font-bold text-white truncate">{currentTrack.title}</h3>
                               <PlayCountBadge count={completionCounts[currentTrack.id] || 0} />
                             </div>
                             <p className="text-xs text-white/50">{isPlaying ? "Playing" : isGapPaused ? `Gap: ${gapCountdown}s` : "Paused"}</p>
@@ -11234,6 +10657,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                   const newTrack: Track = {
                                     id: crypto.randomUUID(),
                                     title: file.name.replace(/\.[^/.]+$/, ""),
+                                    sub: "Uploaded Track",
+                                    duration: formatDuration(Math.round(audio.duration)),
                                     fileName: file.name,
                                     url,
                                     durationSeconds: Math.round(audio.duration),
@@ -11430,12 +10855,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       </div>
                     </div>
 
-                    {/* Session Controls */}
+                    {/* Session defaults */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Timer size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Session Controls</span>
+                        <span className="text-[10px] font-bold text-white">Session defaults</span>
                       </div>
+                      <p className="text-[10px] text-white/50 leading-relaxed mb-2">
+                        Used when a new session starts. The player&apos;s session controls change the current session only.
+                      </p>
+                      {sessionRunning && (
+                        <p role="status" className="text-[10px] text-[#ffb35c] leading-relaxed mb-2">
+                          A session is playing. Changes here apply to your next session.
+                        </p>
+                      )}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-white/70">Default Gap</span>
@@ -11544,11 +10977,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       </div>
                     </div>
 
-                    {/* Warnings */}
+                    {/* Safety warnings */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle size={14} className="text-yellow-400" />
-                        <span className="text-[10px] font-bold text-white">Warnings</span>
+                        <span className="text-[10px] font-bold text-white">Safety warnings</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -11622,10 +11055,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               ) : (
                                 <Send size={12} />
                               )}
-                              Push to Apps
+                              Save all to EQHO Cloud
                             </button>
                             <p className="text-[9px] text-white/50">
-                              Send your latest playlists to your logged-in EQHO apps.
+                              Saves every playlist on this device to your EQHO account.{" "}
+                              <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
+                                Open EQHO Cloud
+                              </button>
                             </p>
                           </>
                         )}

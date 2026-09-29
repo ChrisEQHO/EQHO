@@ -235,23 +235,6 @@ function CompleteSignupContent() {
     if (data.user && (data.user.identities?.length ?? 0) === 0) {
       console.log('[v0] Duplicate email detected via empty identities array')
       setError('This email address is already registered. Please log in instead.')
-
-      try {
-        const res = await fetch('/api/check-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        })
-        const info = await res.json()
-        console.log('[v0] check-email result:', info)
-        if (info.exists) {
-          router.push(info.hasAccess ? '/' : '/upgrade')
-          return
-        }
-      } catch (checkErr) {
-        console.error('[v0] check-email error:', checkErr)
-      }
-
       setLoading(false)
       return
     }
