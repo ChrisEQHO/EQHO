@@ -26,6 +26,8 @@ import {
   type PlaybackViewState,
 } from "@/lib/playback/sequencer";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
+import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
+import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
@@ -3097,9 +3099,23 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
+  const [showSessionTip, setShowSessionTip] = useState(false);
+
+  const maybeShowSessionTip = (addedTrackCount: number) => {
+    if (shouldShowSessionTip({ state: readOnboarding(), previousQueueLength: playlist.length, addedTrackCount })) {
+      setShowSessionTip(true);
+    }
+  };
+
+  const dismissSessionTip = () => {
+    setShowSessionTip(false);
+    markOnboarding("sessionTipDismissed");
+  };
+
   const addSavedPlaylistToQueue = (id: string) => {
     const pl = savedPlaylists.find((p) => p.id === id);
     if (!pl || pl.tracks.length === 0) return;
+    maybeShowSessionTip(pl.tracks.length);
     // Append this playlist's tracks to the existing queue to build one master playlist
     setPlaylist((prev) => {
       const next = [...prev, ...pl.tracks];
@@ -6463,6 +6479,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (sessionRunning || isPlaying) {
       setShowSendToSessionConfirm({ name, tracks });
     } else {
+      maybeShowSessionTip(tracks.length);
       sendPlaylistToSession(name, tracks);
     }
   };
@@ -6652,6 +6669,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
+      {showSessionTip && <SessionTip onDismiss={dismissSessionTip} />}
+
       {/* Silent keepalive loop — see silentKeepAliveRef. Kept inaudible; only
           played during the inter-track gap to stop iPad Safari from throttling
           the countdown timer. */}
@@ -8599,6 +8618,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     if (sessionRunning || isPlaying) {
                       setShowSendToSessionConfirm({ name: pl.name, tracks: pl.tracks });
                     } else {
+                      maybeShowSessionTip(pl.tracks.length);
                       setPlaylist(pl.tracks);
                       setCurrentPlaylistName(pl.name);
                       setCurrentIndex(0);
@@ -9300,13 +9320,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
             {/* Playlists Grid - Full Width */}
             {savedPlaylists.length === 0 && cloudPlaylists.length === 0 ? (
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-center">
-                <Folder size={40} className="mx-auto mb-3 text-white/20" />
-                <h3 className="text-base font-bold text-white/60">No playlists yet</h3>
-                <p className="text-white/40 mt-1 text-sm">Drop a folder above to create your first playlist</p>
+              <div className="mx-auto max-w-md">
+                <FirstUseSteps uploadInputId="library-folder-upload-input" onOpenCloud={openEqhoCloud} />
               </div>
             ) : (
               <div className="space-y-6">
+                {savedPlaylists.length === 0 && (
+                  <div className="max-w-md">
+                    <FirstUseSteps uploadInputId="library-folder-upload-input" onOpenCloud={openEqhoCloud} compact />
+                  </div>
+                )}
                 {/* Local Playlists */}
                 {savedPlaylists.length > 0 && (
                   <div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type DragEvent, type ReactNode } from "react";
+import { FirstUseSteps } from "./first-use-guide";
 import {
   AlertCircle,
   AlertTriangle,
@@ -398,30 +399,11 @@ function DeviceTab(props: TabProps) {
 
   if (localRows.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-white/15 p-4 text-center">
-        <ListMusic size={24} className="text-white/35" aria-hidden="true" />
-        <p className="text-xs leading-relaxed text-white/65 text-pretty">
-          No playlists on this device yet. Add a music folder, or download a playlist from EQHO Cloud.
-        </p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => document.getElementById(props.uploadInputId)?.click()}
-            className={`${PRIMARY_BTN} ${buttonSize(compact)} ${FOCUS_RING}`}
-          >
-            <Plus size={13} aria-hidden="true" />
-            Add music folder
-          </button>
-          <button
-            type="button"
-            onClick={() => props.onTabChange("cloud")}
-            className={`${CLOUD_GHOST_BTN} border border-violet-400/30 ${buttonSize(compact)} ${FOCUS_RING}`}
-          >
-            <Cloud size={13} aria-hidden="true" />
-            View EQHO Cloud
-          </button>
-        </div>
-      </div>
+      <FirstUseSteps
+        uploadInputId={props.uploadInputId}
+        onOpenCloud={() => props.onTabChange("cloud")}
+        compact={compact}
+      />
     );
   }
 
