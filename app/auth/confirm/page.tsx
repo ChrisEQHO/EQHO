@@ -8,17 +8,13 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
 import { apiFetch } from '@/lib/api-client'
+import { safeInternalPath } from '@/lib/auth-routes'
 import { CheckCircle2, AlertCircle, Mail } from 'lucide-react'
 
 type Status = 'ready' | 'verifying' | 'done' | 'invalid' | 'expired'
 
-// Only allow internal, single-slash destinations so `?next=` can never be used
-// as an open redirect.
 function safeNext(raw: string | null): string {
-  if (!raw) return '/signup/success'
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/signup/success'
-  if (raw.includes('://') || raw.includes('\\')) return '/signup/success'
-  return raw
+  return safeInternalPath(raw, '/signup/success')
 }
 
 // Credentials carried by the confirmation link, captured ONCE on mount.

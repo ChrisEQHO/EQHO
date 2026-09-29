@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { evaluateForUser } from '@/lib/entitlement-server'
+import { isPublicRoute as isPublicPath, resolveAuthRedirect } from '@/lib/auth-routes'
 
 // Login is REQUIRED (but the app is free - there is no subscription/trial check).
 // Logged-out users hitting a protected route are redirected to /login; logged-in
@@ -54,7 +55,7 @@ export async function updateSession(request: NextRequest) {
   // who is not allowlisted — so an unauthorised visitor sees "not found", never
   // a login page that would reveal the area exists. The API routes under
   // /api/music enforce the same allowlist check internally.
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/auth/error', '/pricing', '/features', '/how-it-works', '/who-its-for', '/faq', '/terms', '/store', '/music', '/subscription-success', '/subscription/success', '/complete-signup', '/upgrade', '/privacy-policy', '/robots.txt', '/sitemap.xml', '/api/webhooks', '/api/create-checkout-session', '/api/create-profile', '/api/entitlement', '/api/verify-checkout', '/api/r2', '/api/store', '/api/music']
+  // The route list itself lives in lib/auth-routes.ts (PUBLIC_ROUTE_PREFIXES).
   // The marketing homepage is public, but ONLY as an EXACT match. Using startsWith
   // for '/' would make every route public, so it's handled separately from the
   // prefix-matched list above. The player now lives at '/app' and stays protected
@@ -67,9 +68,7 @@ export async function updateSession(request: NextRequest) {
   // /api/demo/ — e.g. the admin publish/disable endpoint — still enforce their
   // own auth internally (returning 401/403), so allowing them past the login
   // redirect here does not weaken security.
-  const isDemoRoute = pathname === '/api/demo' || pathname.startsWith('/api/demo/')
-
-  const isPublicRoute = pathname === '/' || isDemoRoute || publicRoutes.some(route => pathname.startsWith(route))
+  const isPublicRoute = isPublicPath(pathname)
 
   // If Supabase is not configured, redirect protected routes to login
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -111,30 +110,16 @@ export async function updateSession(request: NextRequest) {
   // internal path+query is preserved; safeNext on the login side rejects
   // anything that isn't a single-slash internal path, so this can't be abused
   // as an open redirect.
-  if (!user && !isPublicRoute) {
+  const authRedirect = resolveAuthRedirect({
+    pathname,
+    search: request.nextUrl.search,
+    hasUser: Boolean(user),
+  })
+  if (authRedirect.type === 'redirect') {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.search = ''
-    url.searchParams.set('next', pathname + request.nextUrl.search)
+    url.pathname = authRedirect.pathname
+    url.search = authRedirect.search
     return NextResponse.redirect(url)
-  }
-
-  // If user is logged in, keep them out of the LOGIN page (send to the player at
-  // /app). Login alone grants access - there is no subscription/trial check.
-  // Note: we intentionally do NOT redirect logged-in users away from '/', so they
-  // can still view the public marketing homepage while signed in (the header shows
-  // an "Open EQHO" link to /app in that case).
-  //
-  // '/signup' is deliberately EXCLUDED here: visiting /signup directly must ALWAYS
-  // render the signup page, even for an authenticated user. Auto-redirecting an
-  // existing session from /signup to /app was hiding the page entirely, so it is
-  // no longer redirected.
-  if (user) {
-    if (pathname === '/login') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/app'
-      return NextResponse.redirect(url)
-    }
   }
 
   // Entitlement gate for the player itself (`/app`). Reached only when we're in

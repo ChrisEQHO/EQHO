@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { safeInternalPath } from '@/lib/auth-routes'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { isV0Preview } from '@/lib/utils/preview'
@@ -16,14 +17,8 @@ import {
   LOGIN_TIMEOUT_SENTINEL,
 } from '@/lib/auth-errors'
 
-// Resolve the post-login destination from ?next=, rejecting anything that
-// isn't a single-slash internal path so it can never be used as an open
-// redirect (`//evil.com`, `https://…`). Defaults to the player at /app.
 function safeNext(raw: string | null): string {
-  if (!raw) return '/app'
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/app'
-  if (raw.includes('://') || raw.includes('\\')) return '/app'
-  return raw
+  return safeInternalPath(raw, '/app')
 }
 
 

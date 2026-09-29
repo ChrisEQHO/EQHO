@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { safeInternalPath } from '@/lib/auth-routes'
 import { ensureUserProfile } from '@/lib/ensure-user-profile'
 
 // Auth callback for email confirmation (signup), magic links, and OAuth.
@@ -26,13 +27,8 @@ import { ensureUserProfile } from '@/lib/ensure-user-profile'
 // not prefetchable — exchanging it on GET here is safe and keeps existing login
 // behaviour unchanged.
 
-// Only allow internal, single-slash paths as the post-verification destination,
-// so `?next=` can never be used as an open redirect (`//evil.com`, `https://…`).
 function safeNext(raw: string | null): string {
-  if (!raw) return '/app'
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/app'
-  if (raw.includes('://') || raw.includes('\\')) return '/app'
-  return raw
+  return safeInternalPath(raw, '/app')
 }
 
 export async function GET(request: NextRequest) {
