@@ -86,6 +86,14 @@ import {
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
+  SETTINGS_STORAGE_KEY,
+  createDefaultSettings,
+  loadStoredSettings,
+  shouldApplyDefaultToLiveState,
+  type PlayerSettings,
+  type SettingKey,
+} from "@/lib/player-settings";
+import {
   Home,
   ListMusic,
   Music,
@@ -678,7 +686,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // per second, so it stays correct even when iOS suspends/throttles JS timers
   // while the app is backgrounded or the phone is locked. null = no gap pending.
   const nextTrackStartAtRef = useRef<number | null>(null);
-  // ── Single-transition guards (fixes the countdown/next-track race) ────────────��������
+  // ── Single-transition guards (fixes the countdown/next-track race) ───────────����������
   // Every gap countdown gets a unique monotonic id. The ticker captures the id it
   // was started for and passes it back to fireNextTrack; any callback whose id no
   // longer matches the active gap (a stale rAF/timeout from a previous gap, a skip,
@@ -5869,19 +5877,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setShowPlaylistModal(false);
   };
 
-  const [settings, setSettings] = useState({
-    defaultVolume: 80,
-    countdownSeconds: 3,
-    gapSeconds: 10,
-    playlistRepeats: 1,
-    backToBack: false,
-    autoplayNext: true,
-    showCountdown: true,
-    showPauseWarning: true,
-    showSkipWarning: true,
-    beepSound: DEFAULT_BEEP_SOUND,
-    countdownSound: true,
-  });
+  const [settings, setSettings] = useState<PlayerSettings<BeepSoundId>>(() => createDefaultSettings(DEFAULT_BEEP_SOUND));
 
   // Keep the playback-engine refs in sync with the live settings every render.
   autoplayNextRef.current = settings.autoplayNext;
@@ -5891,102 +5887,58 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   countdownSoundRef.current = settings.countdownSound;
   showPauseWarningRef.current = settings.showPauseWarning;
 
-  // Persist the pause/skip warning toggles so they survive refresh/reopen,
-  // mirroring the eqho-beep-prefs pattern below. Only strict booleans are
-  // applied, so malformed/null stored values fall back to the defaults.
-  const warningPrefsLoadedRef = useRef(false);
+  // Desktop and mobile settings share one state object and one storage key.
+  // Older per-feature keys (warnings, countdown sound) are migrated on load.
+  const settingsLoadedRef = useRef(false);
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("eqho-warning-prefs");
-      if (raw) {
-        const saved = JSON.parse(raw) as { showPauseWarning?: unknown; showSkipWarning?: unknown };
-        setSettings((s) => ({
-          ...s,
-          ...(typeof saved.showPauseWarning === "boolean" ? { showPauseWarning: saved.showPauseWarning } : {}),
-          ...(typeof saved.showSkipWarning === "boolean" ? { showSkipWarning: saved.showSkipWarning } : {}),
-        }));
-      }
+      const stored = loadStoredSettings(localStorage, BEEP_SOUNDS.map((b) => b.id));
+      setSettings((s) => ({ ...s, ...stored }));
+      // No session is running on mount, so saved defaults seed the player.
+      if (typeof stored.gapSeconds === "number") setGapSeconds(stored.gapSeconds);
+      if (typeof stored.playlistRepeats === "number") setPlaylistRepeats(stored.playlistRepeats);
+      if (typeof stored.backToBack === "boolean") setBackToBack(stored.backToBack);
+      if (typeof stored.defaultVolume === "number") setVolume(stored.defaultVolume);
     } catch {
-      // ignore malformed/unavailable storage
+      // ignore unavailable storage
     } finally {
-      warningPrefsLoadedRef.current = true;
+      settingsLoadedRef.current = true;
     }
   }, []);
   useEffect(() => {
-    if (!warningPrefsLoadedRef.current) return;
+    if (!settingsLoadedRef.current) return;
     try {
-      localStorage.setItem(
-        "eqho-warning-prefs",
-        JSON.stringify({ showPauseWarning: settings.showPauseWarning, showSkipWarning: settings.showSkipWarning }),
-      );
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch {
       // ignore storage write failures (private mode, quota)
     }
-  }, [settings.showPauseWarning, settings.showSkipWarning]);
-
-  // Persist ONLY the countdown-sound preferences (selected sound + sound on/off)
-  // so the user's choice survives refresh, restart and re-login. Scoped to sound
-  // on purpose: gap, repeat, volume and countdown-length are owned elsewhere.
-  // Uses the same `eqho-*` localStorage convention as the rest of the app.
-  const beepPrefsLoadedRef = useRef(false);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("eqho-beep-prefs");
-      if (raw) {
-        const saved = JSON.parse(raw) as {
-          beepSound?: string;
-          countdownSound?: boolean;
-          showCountdown?: boolean; // legacy key from an earlier build
-        };
-        // Validate the stored sound id against the current catalog; unknown/renamed
-        // ids (e.g. old "chime"/"tick") fall back to the default (§8).
-        const validSound = BEEP_SOUNDS.some((b) => b.id === saved.beepSound)
-          ? (saved.beepSound as BeepSoundId)
-          : undefined;
-        // On/off: prefer the new key, migrate from the legacy `showCountdown` if the
-        // new one is absent.
-        const soundOn =
-          typeof saved.countdownSound === "boolean"
-            ? saved.countdownSound
-            : typeof saved.showCountdown === "boolean"
-              ? saved.showCountdown
-              : undefined;
-        setSettings((s) => ({
-          ...s,
-          ...(validSound ? { beepSound: validSound } : {}),
-          ...(typeof soundOn === "boolean" ? { countdownSound: soundOn } : {}),
-        }));
-      }
-    } catch {
-      // ignore malformed/unavailable storage
-    } finally {
-      beepPrefsLoadedRef.current = true;
-    }
-  }, []);
-  useEffect(() => {
-    // Don't overwrite storage until after the initial load has run.
-    if (!beepPrefsLoadedRef.current) return;
-    try {
-      localStorage.setItem(
-        "eqho-beep-prefs",
-        JSON.stringify({ beepSound: settings.beepSound, countdownSound: settings.countdownSound }),
-      );
-    } catch {
-      // ignore storage write failures (private mode, quota)
-    }
-  }, [settings.beepSound, settings.countdownSound]);
+  }, [settings]);
 
   const updateSetting = (key: string, value: any) => {
     setSettings((current) => ({
       ...current,
       [key]: value,
     }));
-    // Sync settings to player state variables
+    // While a session runs, defaults are saved for the next session only, so
+    // the current session's gap, repeats, mode and volume are never reset.
+    if (!shouldApplyDefaultToLiveState(key as SettingKey, sessionRunning)) return;
     if (key === "gapSeconds") setGapSeconds(value);
     if (key === "playlistRepeats") setPlaylistRepeats(value);
     if (key === "backToBack") setBackToBack(value);
     if (key === "defaultVolume") setVolume(value);
   };
+
+  // When a session ends, the session controls go back to the saved defaults.
+  const prevSessionRunningRef = useRef(sessionRunning);
+  useEffect(() => {
+    const wasRunning = prevSessionRunningRef.current;
+    prevSessionRunningRef.current = sessionRunning;
+    if (!wasRunning || sessionRunning) return;
+    setGapSeconds(settings.gapSeconds);
+    setPlaylistRepeats(settings.playlistRepeats);
+    setBackToBack(settings.backToBack);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionRunning]);
 
   // Handler for pause button with warning check
   const handlePauseClick = () => {
@@ -6054,11 +6006,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
-  // Wrapper functions to keep settings and player state in sync
+  // Current-session controls. These change only the running session, never the saved defaults.
   const updateGapSeconds = (newValue: number | ((prev: number) => number)) => {
     setGapSeconds((prev) => {
       const val = typeof newValue === "function" ? newValue(prev) : newValue;
-      setSettings((s) => ({ ...s, gapSeconds: val }));
       return val;
     });
   };
@@ -6066,7 +6017,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const updatePlaylistRepeats = (newValue: number | ((prev: number) => number)) => {
     setPlaylistRepeats((prev) => {
       const val = typeof newValue === "function" ? newValue(prev) : newValue;
-      setSettings((s) => ({ ...s, playlistRepeats: val }));
       return val;
     });
   };
@@ -6077,7 +6027,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const val =
       typeof newValue === "function" ? newValue(backToBackRef.current) : newValue;
     setBackToBack(val);
-    setSettings((s) => ({ ...s, backToBack: val }));
     // Turning back-to-back ON lets the currently playing track still earn its
     // repeat, so clear the consumed marker (and the UI flag) for it.
     if (val) {
@@ -9851,8 +9800,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
                       <Timer size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Session Controls</h2>
+                    <h2 className="text-lg font-bold">Session defaults</h2>
                   </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Used when a new session starts. To change the session that&apos;s playing now, use the session controls on the player.
+                  </p>
+                  {sessionRunning && (
+                    <p role="status" className="mb-4 rounded-lg border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-3 py-2 text-xs text-[#ffb35c] leading-relaxed">
+                      A session is playing. Changes here apply to your next session and won&apos;t interrupt this one.
+                    </p>
+                  )}
                   <div className="space-y-4">
                     <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
                     <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
@@ -9872,20 +9829,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
                     <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
                   </div>
-                </div>
 
-                {/* Countdown Timer Sound — dedicated section. The ON/OFF toggle
-                    controls SOUND ONLY (the visual countdown above still runs when
-                    off). The radio list picks which beep plays; each row has a
-                    preview that uses the same generator as the live countdown. */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Volume2 size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Countdown Timer Sound</h2>
-                  </div>
-                  <div className="space-y-4">
+                  {/* Countdown sound: the toggle controls SOUND ONLY (the visual
+                      countdown above still runs when off). Each row previews with
+                      the same generator as the live countdown. */}
+                  <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                      <Volume2 size={14} aria-hidden="true" />
+                      Countdown sound
+                    </h3>
                     <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
 
                     <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
@@ -9936,8 +9888,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
                       <AlertTriangle size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Warnings</h2>
+                    <h2 className="text-lg font-bold">Safety warnings</h2>
                   </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Ask before pausing or skipping while a routine is playing, so the music isn&apos;t stopped by accident.
+                  </p>
                   <div className="space-y-4">
                     <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
                     <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
@@ -11264,12 +11219,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       </div>
                     </div>
 
-                    {/* Session Controls */}
+                    {/* Session defaults */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Timer size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Session Controls</span>
+                        <span className="text-[10px] font-bold text-white">Session defaults</span>
                       </div>
+                      <p className="text-[10px] text-white/50 leading-relaxed mb-2">
+                        Used when a new session starts. The player&apos;s session controls change the current session only.
+                      </p>
+                      {sessionRunning && (
+                        <p role="status" className="text-[10px] text-[#ffb35c] leading-relaxed mb-2">
+                          A session is playing. Changes here apply to your next session.
+                        </p>
+                      )}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-white/70">Default Gap</span>
@@ -11378,11 +11341,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       </div>
                     </div>
 
-                    {/* Warnings */}
+                    {/* Safety warnings */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle size={14} className="text-yellow-400" />
-                        <span className="text-[10px] font-bold text-white">Warnings</span>
+                        <span className="text-[10px] font-bold text-white">Safety warnings</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
