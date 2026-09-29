@@ -8721,12 +8721,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               >
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-white uppercase tracking-[0.15em] text-[10px] font-black">Playlists</h2>
-                  <label
-                    htmlFor="file-upload-input"
-                    className="cursor-pointer text-[#ff8a00] font-bold text-xs hover:text-[#ffa733] transition"
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("file-upload-input")?.click()}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-md bg-cyan-400 px-2.5 text-[11px] font-semibold text-[#051322] transition hover:bg-cyan-300 active:bg-cyan-500 outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a] [@media(pointer:coarse)]:min-h-11"
                   >
-                    + Upload Folder
-                  </label>
+                    + Add music folder
+                  </button>
                 </div>
                 <input
                   id="file-upload-input"
@@ -11325,31 +11326,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         className="hidden"
                       />
                       <div className="flex items-center justify-center gap-2">
-                        <UploadCloud className="text-[#ff8a00]" size={18} />
-                        <span className="text-white font-bold text-xs">Drop folder to create playlist</span>
+                        <UploadCloud className="text-cyan-300" size={18} aria-hidden="true" />
+                        <span className="text-white font-bold text-xs">+ Add music folder</span>
+                        <span className="text-white/50 text-[11px]">or drop one here</span>
                       </div>
                     </label>
                   </div>
-
-{/* Cloud Sync Status */}
-                    {user && isCloudSyncAvailable() && isPro && (
-                    <div className="shrink-0 flex items-center justify-between mb-2 p-2 rounded-lg bg-white/[0.03] border border-white/10">
-                      <div className="flex items-center gap-2 text-[10px] text-white/60">
-                        <Cloud size={12} className="text-cyan-400" />
-                        <span>{cloudPlaylists.length} cloud</span>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          const playlists = await fetchCloudPlaylists();
-                          setCloudPlaylists(playlists);
-                        }}
-                        className="px-2 py-1 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-[9px] font-medium flex items-center gap-1"
-                      >
-                        <RefreshCw size={10} />
-                        Refresh
-                      </button>
-                    </div>
-                  )}
 
                   {/* Scrollable Playlists List */}
                   <div
@@ -11398,7 +11380,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       <button
                         type="button"
                         onClick={() => setShowClearLibraryConfirm(true)}
-                        className="mt-3 w-full rounded-md border border-[#ff8a00]/30 bg-[#ff8a00]/10 py-1.5 text-[10px] font-semibold text-[#ff8a00]"
+                        className="mt-3 min-h-11 w-full rounded-md border border-red-400/30 bg-transparent text-[11px] font-semibold text-red-300 transition hover:bg-red-500/10 active:bg-red-500/15 outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                       >
                         Clear all playlists on this device
                       </button>
