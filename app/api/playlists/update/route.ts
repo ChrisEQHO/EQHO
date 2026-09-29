@@ -3,6 +3,7 @@ import { createClient as createSSRClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { requirePlayerEntitlement } from '@/lib/entitlement-server'
+import { isUuid, sanitizeTrackOrder } from '@/lib/playlist-manifest'
 
 // ---------------------------------------------------------------------------
 // CORS (mirrors /api/r2 + /api/playlists/delete so the Capacitor app can call
@@ -61,12 +62,12 @@ export async function POST(request: NextRequest) {
   if (!supabase) return json({ error: 'Auth not configured' }, 500)
 
   const user = await resolveUser(request, supabase)
-  if (!user) return json({ error: 'Unauthorized' }, 401)
+  if (!user) return json({ error: 'Unauthorized', stage: 'auth' }, 401)
 
   // Paywall gate (production only). Free phase passes everyone through.
   const entitlement = await requirePlayerEntitlement(request, user)
   if (!entitlement.allowed) {
-    return json({ error: 'Subscription required', reason: entitlement.result.reason }, 402)
+    return json({ error: 'Subscription required', stage: 'entitlement', reason: entitlement.result.reason }, 402)
   }
 
   let playlistId = ''
@@ -87,12 +88,14 @@ export async function POST(request: NextRequest) {
   if (typeof rawUpdates.description === 'string') updates.description = rawUpdates.description
   if (typeof rawUpdates.gap_seconds === 'number') updates.gap_seconds = rawUpdates.gap_seconds
   if (Array.isArray(rawUpdates.track_order)) {
-    // track_order must be an array of strings (cloud track ids).
-    updates.track_order = rawUpdates.track_order.filter((v): v is string => typeof v === 'string')
+    updates.track_order = sanitizeTrackOrder(rawUpdates.track_order)
   }
 
   if (Object.keys(updates).length === 0) {
-    return json({ error: 'No valid fields to update' }, 400)
+    return json({ error: 'No valid fields to update', stage: 'request' }, 400)
+  }
+  if (!isUuid(playlistId)) {
+    return json({ error: 'Invalid playlistId', stage: 'request' }, 400)
   }
 
   const serviceUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -112,14 +115,15 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (ownErr) {
-    console.error('[v0] playlist update: ownership lookup failed', ownErr.message)
-    return json({ error: 'Lookup failed' }, 500)
+    console.error('[v0] playlist update: ownership lookup failed', ownErr.code, ownErr.message)
+    return json({ error: 'Lookup failed', stage: 'lookup', code: ownErr.code }, 500)
   }
-  if (!playlist) return json({ error: 'Playlist not found' }, 404)
-  if (playlist.user_id !== user.id) return json({ error: 'Forbidden' }, 403)
+  if (!playlist) return json({ error: 'Playlist not found', stage: 'lookup' }, 404)
+  if (playlist.user_id !== user.id) return json({ error: 'Forbidden', stage: 'ownership' }, 403)
 
-  // Bump the sync version so other devices can detect that this playlist changed.
-  updates.updated_at = new Date().toISOString()
+  // updated_at is deliberately NOT written here: the update_playlists_updated_at
+  // trigger bumps it on every UPDATE, and writing it explicitly fails the whole
+  // update (PGRST204) on any database where that column/trigger isn't present.
 
   const { error: updateErr } = await admin
     .from('playlists')
@@ -128,8 +132,8 @@ export async function POST(request: NextRequest) {
     .eq('user_id', user.id)
 
   if (updateErr) {
-    console.error('[v0] playlist update: update failed', updateErr.message)
-    return json({ error: 'Failed to update playlist' }, 500)
+    console.error('[v0] playlist update: update failed', updateErr.code, updateErr.message)
+    return json({ error: 'Failed to update playlist', stage: 'update', code: updateErr.code }, 500)
   }
 
   console.log('[v0] playlist update: success', { playlistId, fields: Object.keys(updates) })
