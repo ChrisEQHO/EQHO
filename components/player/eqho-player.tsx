@@ -16,6 +16,15 @@ import { CSS } from "@dnd-kit/utilities";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { useNativeSession } from "@/lib/use-native-session";
+import {
+  applyNativeEvent,
+  createCompletionLatch,
+  decideSkipBack,
+  decideSkipForward,
+  decideTrackEnd,
+  type NativeSessionEvent,
+  type PlaybackViewState,
+} from "@/lib/playback/sequencer";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
@@ -496,6 +505,8 @@ export interface EqhoPlayerProps {
 export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: EqhoPlayerProps) {
   const embedded = presentation === "embedded";
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // One "session finished" per session, whether web or native ended it.
+  const completionLatchRef = useRef(createCompletionLatch());
   // Debounce timer for pushing a reordered playlist's track_order to the cloud.
   const reorderCloudPushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Web Audio volume control. iOS/iPadOS WKWebView makes HTMLMediaElement.volume
@@ -4265,8 +4276,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setPlaylistRound(1);
     b2bRepeatedTrackIdRef.current = null;
     setBackToBackPlayed(false);
-    setShowSessionFinished(true);
-    trackEvent("Session Ended");
+    if (completionLatchRef.current.fire()) {
+      setShowSessionFinished(true);
+      trackEvent("Session Ended");
+    }
   };
 
   // Synchronous (no async before play()) so the iOS tap gesture is preserved.
@@ -4462,7 +4475,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setIsGapPaused(false);
         setGapCountdown(0);
         setShowSessionFinished(false);
-        setSessionRunning(true);
+        completionLatchRef.current.reset(); setSessionRunning(true);
         const started = await startNativeSessionIfPossible(firstVisibleIdx);
         if (started) return;
         // Couldn't materialize any files - fall through to the JS <audio> path.
@@ -4494,7 +4507,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // WKWebView src-normalization mismatch that broke resume in the app.
       const srcLoaded =
         !!audioRef.current.src && loadedUrlRef.current === currentTrack.url;
-      setSessionRunning(true);
+      completionLatchRef.current.reset(); setSessionRunning(true);
       if (srcLoaded) {
         // Same track already loaded - resume from the current position.
         try {
@@ -4533,7 +4546,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       setIsGapPaused(false);
       setGapCountdown(0);
       setShowSessionFinished(false);
-      setSessionRunning(true);
+      completionLatchRef.current.reset(); setSessionRunning(true);
       // playTrackFresh clears the back-to-back flag and starts the track.
       playTrackFresh(firstTrack, firstVisibleIdx);
     }
@@ -4772,33 +4785,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
-    // Find next non-hidden track. Skipping forward always starts the next track
-    // fresh (playTrackFresh clears the back-to-back flag).
-    let nextIdx = currentIndex + 1;
-    while (nextIdx < playlist.length && hiddenTrackIds.has(playlist[nextIdx].id)) {
-      nextIdx++;
-    }
-
-    if (nextIdx < playlist.length) {
-      playTrackFresh(playlist[nextIdx], nextIdx);
+    // Skipping forward always starts the next track fresh (playTrackFresh clears
+    // the back-to-back flag), using the same queue rules as track end.
+    const decision = decideSkipForward({
+      playlist,
+      currentIndex,
+      hiddenTrackIds,
+      playlistRound,
+      playlistRepeats,
+    });
+    if (decision.type === "noop") return;
+    if (decision.type === "play") {
+      if (decision.nextRound !== playlistRound) setPlaylistRound(decision.nextRound);
+      playTrackFresh(playlist[decision.index], decision.index);
       return;
     }
-
-    // Past the last visible track - repeat another round or end the session.
-    if (playlistRound < playlistRepeats) {
-      let firstVisibleIdx = 0;
-      while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
-        firstVisibleIdx++;
-      }
-      if (firstVisibleIdx < playlist.length) {
-        setPlaylistRound((r) => r + 1);
-        playTrackFresh(playlist[firstVisibleIdx], firstVisibleIdx);
-      } else {
-        endSession();
-      }
-    } else {
-      endSession();
-    }
+    endSession();
   };
 
   const goToPreviousTrack = () => {
@@ -4816,18 +4818,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // Only auto-play after skip-back if the player was already playing.
     const wasPlaying = isPlaying;
 
-    // Find previous visible (non-hidden) track before the current index
-    let prevVisibleIdx = -1;
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      if (!hiddenTrackIds.has(playlist[i].id)) {
-        prevVisibleIdx = i;
-        break;
-      }
-    }
-
-    // If within first 2 seconds and there is a previous visible track, go to it.
-    // Moving to a different track starts a fresh back-to-back cycle.
-    if (audioRef.current.currentTime < 2 && prevVisibleIdx >= 0) {
+    // Early in a track: go to the previous visible track (fresh back-to-back
+    // cycle). Otherwise restart the current one.
+    const decision = decideSkipBack(
+      { playlist, currentIndex, hiddenTrackIds },
+      audioRef.current.currentTime,
+    );
+    if (decision.type === "previous") {
+      const prevVisibleIdx = decision.index;
       const prevTrack = playlist[prevVisibleIdx];
       if (prevTrack) {
         b2bRepeatedTrackIdRef.current = null;
@@ -4899,34 +4897,68 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // When active, NATIVE owns sequencing (advancing tracks, gap timing, countdown
   // beeps) and keeps running while the device is LOCKED; these callbacks only
   // mirror native events back into React state so the UI matches what's playing.
+  // Latest shared view state, read by the native mirror below so every native
+  // event goes through the same pure reducer (lib/playback/sequencer).
+  const playbackViewRef = useRef<PlaybackViewState>({
+    currentIndex,
+    currentTrackId: null,
+    isPlaying,
+    currentTime,
+    duration: trackDuration,
+    isGapPaused,
+    gapCountdown,
+    sessionFinished: false,
+  });
+  playbackViewRef.current = {
+    currentIndex,
+    currentTrackId: playlist[currentIndex]?.id ?? null,
+    isPlaying,
+    currentTime,
+    duration: trackDuration,
+    isGapPaused,
+    gapCountdown,
+    sessionFinished: completionLatchRef.current.fired,
+  };
+  const mirrorNativeEvent = (event: NativeSessionEvent) => {
+    const prev = playbackViewRef.current;
+    const next = applyNativeEvent(prev, event);
+    playbackViewRef.current = next;
+    if (next.currentIndex !== prev.currentIndex || event.type === "trackChanged") {
+      setCurrentIndex(next.currentIndex);
+      const t = playlistRef.current[next.currentIndex];
+      if (t) setCurrentTrack(t);
+    }
+    if (next.currentTime !== prev.currentTime) setCurrentTime(next.currentTime);
+    if (next.duration !== prev.duration) setTrackDuration(next.duration);
+    if (next.isPlaying !== prev.isPlaying) setIsPlaying(next.isPlaying);
+    if (next.isGapPaused !== prev.isGapPaused) setIsGapPaused(next.isGapPaused);
+    if (next.gapCountdown !== prev.gapCountdown) setGapCountdown(next.gapCountdown);
+    if (next.sessionFinished && !prev.sessionFinished && completionLatchRef.current.fire()) {
+      setShowSessionFinished(true);
+    }
+  };
+
   const nativeSession = useNativeSession({
     onTrackChanged: ({ index, duration }) => {
-      setCurrentIndex(index);
-      const t = playlistRef.current[index];
-      if (t) setCurrentTrack(t);
-      setTrackDuration(duration || 0);
-      setCurrentTime(0);
-      setIsGapPaused(false);
-      setGapCountdown(0);
-      setIsPlaying(true);
-      // New track started �� arm the completion detector for it.
+      mirrorNativeEvent({
+        type: "trackChanged",
+        index,
+        duration,
+        trackId: playlistRef.current[index]?.id ?? null,
+      });
+      // New track started - arm the completion detector for it.
       nativeTrackCompletedRef.current = false;
     },
     onGapStarted: ({ seconds }) => {
-      setIsGapPaused(true);
-      setGapCountdown(seconds);
+      mirrorNativeEvent({ type: "gapStarted", seconds });
       // The gap begins after a track finishes; re-arm for the upcoming track (also
       // covers back-to-back replays of the same track between gaps).
       nativeTrackCompletedRef.current = false;
     },
-    onGapTick: (remaining) => setGapCountdown(remaining),
-    onGapEnded: () => {
-      setIsGapPaused(false);
-      setGapCountdown(0);
-    },
+    onGapTick: (remaining) => mirrorNativeEvent({ type: "gapTick", remaining }),
+    onGapEnded: () => mirrorNativeEvent({ type: "gapEnded" }),
     onPosition: ({ currentTime, duration }) => {
-      setCurrentTime(currentTime);
-      if (duration) setTrackDuration(duration);
+      mirrorNativeEvent({ type: "position", currentTime, duration });
       // Completion detection for the NATIVE sequencer. Counts one full play when
       // playback reaches the track's natural end. A skip advances (onTrackChanged)
       // before reaching the end, so it never false-counts. Re-arm if position
@@ -4939,13 +4971,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         markTrackCompleted(playlistRef.current[currentIndexRef.current]?.id);
       }
     },
-    onPlayStateChanged: (playing) => setIsPlaying(playing),
-    onSessionFinished: (reason) => {
-      setIsPlaying(false);
-      setIsGapPaused(false);
-      setGapCountdown(0);
-      if (reason === "completed") setShowSessionFinished(true);
-    },
+    onPlayStateChanged: (playing) => mirrorNativeEvent({ type: "playState", playing }),
+    onSessionFinished: (reason) => mirrorNativeEvent({ type: "sessionFinished", reason }),
     onError: (message) => console.log("[v0] native audio error:", message),
   });
   const nativeSessionRef = useRef(nativeSession);
@@ -5148,12 +5175,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     //    keyed by the actually-playing track id, so it can't desync. If this track
     //    hasn't consumed its repeat yet, replay it and mark it consumed; when the
     //    repeat ends we'll fall through to the advance path below.
-    const endedTrack = _playlist[_currentIndex];
-    if (
-      _backToBack &&
-      endedTrack?.url &&
-      b2bRepeatedTrackIdRef.current !== endedTrack.id
-    ) {
+    //    1b) Autoplay OFF holds after the routine. 2) Advance to the next visible
+    //    track, 3) repeat a round, or finish. Rules live in lib/playback/sequencer
+    //    so skip-forward and track-end always agree on the queue.
+    const decision = decideTrackEnd({
+      playlist: _playlist,
+      currentIndex: _currentIndex,
+      hiddenTrackIds: _hiddenTrackIds,
+      playlistRound: _playlistRound,
+      playlistRepeats: _playlistRepeats,
+      backToBack: _backToBack,
+      b2bRepeatedTrackId: b2bRepeatedTrackIdRef.current,
+      autoplayNext: autoplayNextRef.current,
+    });
+
+    if (decision.type === "replay") {
+      const endedTrack = _playlist[decision.index];
       b2bRepeatedTrackIdRef.current = endedTrack.id;
       setBackToBackPlayed(true); // keep UI ("Up Next") state in sync
       playAfterGap(
@@ -5164,25 +5201,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
-    // 1b) Autoplay Next Track is OFF: the current routine (including any back-to-back
-    //     repeat) has finished, so stop here instead of advancing. The coach can
-    //     manually skip forward to continue. Keeps the session "running" (not ended)
-    //     so Resume/Skip still work.
-    if (!autoplayNextRef.current) {
+    if (decision.type === "hold") {
+      // Session stays "running" so Resume/Skip still work.
       setIsPlaying(false);
       setIsGapPaused(false);
       setGapCountdown(0);
       return;
     }
 
-    // 2) Advance to the next visible track. playTrackFresh clears the back-to-back
-    //    flag so the next track gets its own full back-to-back cycle.
-    let nextIdx = _currentIndex + 1;
-    while (nextIdx < _playlist.length && _hiddenTrackIds.has(_playlist[nextIdx].id)) {
-      nextIdx++;
-    }
-    if (nextIdx < _playlist.length) {
-      const nextTrack = _playlist[nextIdx];
+    if (decision.type === "play") {
+      const nextTrack = _playlist[decision.index];
+      const nextIdx = decision.index;
+      if (decision.nextRound !== _playlistRound) setPlaylistRound(decision.nextRound);
       playAfterGap(
         () => playTrackFresh(nextTrack, nextIdx),
         nextTrack?.title || "",
@@ -5191,25 +5221,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
-    // 3) End of playlist - repeat another round or finish the session.
-    if (_playlistRound < _playlistRepeats) {
-      let firstVisibleIdx = 0;
-      while (firstVisibleIdx < _playlist.length && _hiddenTrackIds.has(_playlist[firstVisibleIdx].id)) {
-        firstVisibleIdx++;
-      }
-      if (firstVisibleIdx < _playlist.length) {
-        const firstTrack = _playlist[firstVisibleIdx];
-        setPlaylistRound((r) => r + 1);
-        playAfterGap(
-          () => playTrackFresh(firstTrack, firstVisibleIdx),
-          firstTrack?.title || "",
-          firstTrack?.id || "",
-        );
-        return;
-      }
-    }
-
-    // No more rounds (or everything hidden) - end the session.
     endSession();
   };
 
@@ -6345,7 +6356,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
     setSessionQueue(queue);
     setCurrentQueueIndex(0);
-    setSessionRunning(true);
+    completionLatchRef.current.reset(); setSessionRunning(true);
 
     if (queue.length > 0) {
       playQueueItem(queue[0]);
