@@ -161,6 +161,7 @@ import {
   Mail,
   KeyRound,
 } from "lucide-react";
+import { ADD_MUSIC_BTN } from "@/lib/action-button-styles";
 
 const uploads = [
   ["NDP Group Warm Up.mp3", "02:18", "Just now"],
@@ -8547,7 +8548,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   <button
                     type="button"
                     onClick={() => document.getElementById("file-upload-input")?.click()}
-                    className="inline-flex min-h-8 items-center gap-1 rounded-md bg-cyan-400 px-2.5 text-[11px] font-semibold text-[#051322] transition hover:bg-cyan-300 active:bg-cyan-500 outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a] [@media(pointer:coarse)]:min-h-11"
+                    className={`${ADD_MUSIC_BTN} min-h-8 gap-1 px-2.5 text-[11px] [@media(pointer:coarse)]:min-h-11`}
                   >
                     + Add music folder
                   </button>
