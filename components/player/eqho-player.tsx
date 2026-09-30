@@ -29,6 +29,7 @@ import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadlin
 import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
 import { DeviceLockNotice } from "@/components/player/device-lock-notice";
+import { getQueueColour, getQueuePosition } from "@/lib/queue-position"
 import { HelpGuideSections } from "@/components/player/help-guide-sections";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
@@ -1016,6 +1017,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   
   // Get the visible index for a track (for display numbering)
   const getVisibleIndex = (trackId: string) => visiblePlaylist.findIndex(t => t.id === trackId);
+
+  // During a gap the title already shows the upcoming track, so the badge
+  // follows it; the gap itself never advances the number.
+  const fullscreenQueuePosition = getQueuePosition(
+    playlist,
+    isGapPaused && nextUpTrackId ? nextUpTrackId : currentTrack?.id,
+  );
 
   // Fetch user on mount.
   //
@@ -7293,6 +7301,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 </div>
               )}
 
+              {fullscreenQueuePosition && (
+                <p
+                  className={`text-4xl font-black leading-none text-center tabular-nums mb-3 ${fullscreenQueuePosition.colourClass}`}
+                  aria-label={`Queue position ${fullscreenQueuePosition.number}`}
+                >
+                  {fullscreenQueuePosition.number}
+                </p>
+              )}
+
               {/* Track Title */}
               <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
                 {isGapPaused 
@@ -7479,8 +7496,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       onReorder={reorderPlaylistByIds}
                     >
                       {reordered.map(({ track, originalIndex }) => {
-                    const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                    const colour = colours[originalIndex % colours.length];
+                    const colour = getQueueColour(originalIndex);
                     const isActiveTrack = currentTrack?.id === track.id;
                     const isCompleted = originalIndex < currentIndex;
                     const isHidden = hiddenTrackIds.has(track.id);
@@ -7708,6 +7724,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
             {/* Track Info */}
             <div className="text-center mb-3">
+              {fullscreenQueuePosition && (
+                <p
+                  className={`text-lg font-black leading-none tabular-nums mb-1 ${fullscreenQueuePosition.colourClass}`}
+                  aria-label={`Queue position ${fullscreenQueuePosition.number}`}
+                >
+                  {fullscreenQueuePosition.number}
+                </p>
+              )}
               <h1 className="text-xl font-black text-white truncate px-2">
                 {isGapPaused 
                   ? getNextTrackTitle()
@@ -8668,8 +8692,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     >
                       {playlist.map((track, originalIndex) => {
                         const visibleIndex = getVisibleIndex(track.id);
-                        const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                        const colour = colours[originalIndex % colours.length];
+                        const colour = getQueueColour(originalIndex);
                         const isActiveTrack = currentTrack?.id === track.id;
                         const isFinished = finishedTracks.has(track.id);
                         const isCompleted = !isFinished && originalIndex < currentIndex;
@@ -10476,8 +10499,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                 {reorderedPlaylist.map((track, displayIndex) => {
                               // Get original position for numbering
                               const originalIndex = playlist.findIndex(t => t.id === track.id);
-                              const colours = ["text-[#ff8a00]", "text-blue-500", "text-purple-400", "text-[#ff4fa3]", "text-cyan-400", "text-green-400"];
-                              const colour = colours[originalIndex % colours.length];
+                              const colour = getQueueColour(originalIndex);
                               const isActiveTrack = currentTrack?.id === track.id;
                               const isFinished = finishedTracks.has(track.id);
                               const isHidden = hiddenTrackIds.has(track.id);
