@@ -97,7 +97,8 @@ type TabProps = PlaylistCloudPanelProps & { compact: boolean; errorDetailsFor: (
 
 /*
  * Colour meaning (kept consistent across the panel):
- * cyan = primary action / on this device, violet = EQHO Cloud,
+ * cyan = stored on this device (download, downloaded, offline-ready),
+ * solid EQHO purple = add to the current session, violet tint = EQHO Cloud,
  * emerald = synced only, amber = in progress / needs action, red = failure / destructive.
  */
 type Tone = "success" | "progress" | "error" | "cloud" | "device" | "muted";
@@ -124,6 +125,13 @@ const PRIMARY_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md bg-cyan-400 font-semibold text-[#051322] transition hover:bg-cyan-300 active:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
 const SECONDARY_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md border border-white/15 bg-white/[0.04] font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/10 active:bg-white/15 disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-white/[0.04]";
+/*
+ * "Add to session" is always EQHO purple: it sends music to the current session,
+ * as distinct from cyan, which means "stored on this device". The shades are
+ * darker than --eqho-purple so white text keeps at least 5.7:1 contrast.
+ */
+const SESSION_BTN =
+  "inline-flex items-center justify-center gap-1.5 rounded-md bg-[#7c3aed] font-semibold text-white transition hover:bg-[#6d28d9] active:bg-[#5b21b6] outline-none focus-visible:ring-2 focus-visible:ring-[#b86cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
 const CLOUD_GHOST_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold text-violet-300 transition hover:bg-violet-400/10 hover:text-violet-200 active:bg-violet-400/20 disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-transparent";
 
@@ -468,7 +476,7 @@ function LocalCard({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
       type="button"
       onClick={() => props.onAddToQueue(row.id)}
       disabled={!usable}
-      className={`${SECONDARY_BTN} ${size} ${FOCUS_RING}`}
+      className={`${SESSION_BTN} ${size}`}
     >
       <Plus size={13} aria-hidden="true" />
       Add to session
@@ -667,7 +675,7 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
     <button
       type="button"
       onClick={() => props.onAddCloudToSession(row.id)}
-      className={`${primary ? PRIMARY_BTN : SECONDARY_BTN} ${size} ${FOCUS_RING} ${primary ? primaryWide : ""}`}
+      className={`${SESSION_BTN} ${size} ${primary ? primaryWide : ""}`}
     >
       <Plus size={13} aria-hidden="true" />
       Add to session

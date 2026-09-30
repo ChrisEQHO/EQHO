@@ -28,6 +28,7 @@ import {
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
 import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
+import { DeviceLockNotice } from "@/components/player/device-lock-notice";
 import { HelpGuideSections } from "@/components/player/help-guide-sections";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
@@ -859,6 +860,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     };
   }, []);
   const [sessionRunning, setSessionRunning] = useState(false);
+  // "Got it" hides the device-lock notice for the rest of this session only;
+  // it's cleared when the session ends so the next session shows it again.
+  const [lockNoticeDismissed, setLockNoticeDismissed] = useState(false);
+  const [lockNoticeSession, setLockNoticeSession] = useState(sessionRunning);
+  if (lockNoticeSession !== sessionRunning) {
+    setLockNoticeSession(sessionRunning);
+    if (!sessionRunning) setLockNoticeDismissed(false);
+  }
   const [currentTime, setCurrentTime] = useState(0);
   const [trackDuration, setTrackDuration] = useState(0);
   const [savedPlaylists, setSavedPlaylists] = useState<{
@@ -7321,6 +7330,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   }
   </p>
 
+              {(sessionRunning || isPlaying) && !lockNoticeDismissed && (
+                <DeviceLockNotice onDismiss={() => setLockNoticeDismissed(true)} />
+              )}
+
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-8">
                 <button 
@@ -7724,6 +7737,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 }
               </p>
             </div>
+
+            {(sessionRunning || isPlaying) && !lockNoticeDismissed && (
+              <DeviceLockNotice className="mb-3" onDismiss={() => setLockNoticeDismissed(true)} />
+            )}
 
             {/* Playback Controls */}
             <div className="flex items-center justify-center gap-6 mb-3">
@@ -8911,6 +8928,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 </div>
               </div>
             </div>
+
+            {(sessionRunning || isPlaying) && !lockNoticeDismissed && (
+              <DeviceLockNotice className="mt-4" onDismiss={() => setLockNoticeDismissed(true)} />
+            )}
 
             {/* Playback Controls - Centered underneath track info */}
             <div className="mt-5 flex items-center justify-center gap-6">
