@@ -29,7 +29,7 @@ import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadlin
 import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
 import { DeviceLockNotice } from "@/components/player/device-lock-notice";
-import { getQueueColour, getQueuePosition } from "@/lib/queue-position"
+import { getQueueColour } from "@/lib/queue-position"
 import { HelpGuideSections } from "@/components/player/help-guide-sections";
   import { createClient } from "@/lib/supabase/client";
   import { apiFetch, getApiBase } from "@/lib/api-client";
@@ -1017,13 +1017,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   
   // Get the visible index for a track (for display numbering)
   const getVisibleIndex = (trackId: string) => visiblePlaylist.findIndex(t => t.id === trackId);
-
-  // During a gap the title already shows the upcoming track, so the badge
-  // follows it; the gap itself never advances the number.
-  const fullscreenQueuePosition = getQueuePosition(
-    playlist,
-    isGapPaused && nextUpTrackId ? nextUpTrackId : currentTrack?.id,
-  );
 
   // Fetch user on mount.
   //
@@ -7301,15 +7294,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 </div>
               )}
 
-              {fullscreenQueuePosition && (
-                <p
-                  className={`text-4xl font-black leading-none text-center tabular-nums mb-3 ${fullscreenQueuePosition.colourClass}`}
-                  aria-label={`Queue position ${fullscreenQueuePosition.number}`}
-                >
-                  {fullscreenQueuePosition.number}
-                </p>
-              )}
-
               {/* Track Title */}
               <h3 className="text-5xl font-bold text-white text-center mb-3 max-w-[700px] truncate">
                 {isGapPaused 
@@ -7723,14 +7707,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
             {/* Track Info */}
             <div className="text-center mb-3">
-              {fullscreenQueuePosition && (
-                <p
-                  className={`text-lg font-black leading-none tabular-nums mb-1 ${fullscreenQueuePosition.colourClass}`}
-                  aria-label={`Queue position ${fullscreenQueuePosition.number}`}
-                >
-                  {fullscreenQueuePosition.number}
-                </p>
-              )}
               <h1 className="text-xl font-black text-white truncate px-2">
                 {isGapPaused 
                   ? getNextTrackTitle()
