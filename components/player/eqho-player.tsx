@@ -7523,7 +7523,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           <TrackDragHandle className="flex items-center justify-center -ml-1 text-white/30 hover:text-white/70 active:text-white shrink-0 bg-transparent border-0 p-0.5">
                             <GripVertical size={16} />
                           </TrackDragHandle>
-                          <span className={`text-sm font-black w-6 ${isHidden ? "text-white/20" : colour}`}>{originalIndex + 1}</span>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
                               {track.title}
