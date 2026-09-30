@@ -97,8 +97,8 @@ type TabProps = PlaylistCloudPanelProps & { compact: boolean; errorDetailsFor: (
 
 /*
  * Colour meaning (kept consistent across the panel):
- * cyan = stored on this device (download, downloaded, offline-ready),
- * solid EQHO purple = add to the current session, violet tint = EQHO Cloud,
+ * EQHO orange = stored on this device (download, downloaded, offline-ready),
+ * solid EQHO pink = add to the current session, violet tint = EQHO Cloud,
  * emerald = synced only, amber = in progress / needs action, red = failure / destructive.
  */
 type Tone = "success" | "progress" | "error" | "cloud" | "device" | "muted";
@@ -108,12 +108,12 @@ const TONE_CLASS: Record<Tone, string> = {
   progress: "border-amber-400/30 bg-amber-400/10 text-amber-300",
   error: "border-red-400/40 bg-red-500/10 text-red-300",
   cloud: "border-violet-400/30 bg-violet-400/10 text-violet-300",
-  device: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+  device: "border-[#ff8a00]/35 bg-[#ff8a00]/10 text-[#ffb35c]",
   muted: "border-white/10 bg-white/5 text-white/60",
 };
 
 const FOCUS_RING =
-  "outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a]";
+  "outline-none focus-visible:ring-2 focus-visible:ring-[#ffb35c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a]";
 
 function buttonSize(compact: boolean) {
   return compact
@@ -122,16 +122,16 @@ function buttonSize(compact: boolean) {
 }
 
 const PRIMARY_BTN =
-  "inline-flex items-center justify-center gap-1.5 rounded-md bg-cyan-400 font-semibold text-[#051322] transition hover:bg-cyan-300 active:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
+  "inline-flex items-center justify-center gap-1.5 rounded-md bg-[#ff8a00] font-semibold text-[#1a0b00] transition hover:bg-[#ff9d2e] active:bg-[#e67a00] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
 const SECONDARY_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md border border-white/15 bg-white/[0.04] font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/10 active:bg-white/15 disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-white/[0.04]";
 /*
- * "Add to session" is always EQHO purple: it sends music to the current session,
- * as distinct from cyan, which means "stored on this device". The shades are
- * darker than --eqho-purple so white text keeps at least 5.7:1 contrast.
+ * "Add to session" is always EQHO pink: it sends music to the current session,
+ * as distinct from orange, which means "stored on this device". The shades are
+ * deeper than --eqho-pink so white text keeps at least 5:1 contrast.
  */
 const SESSION_BTN =
-  "inline-flex items-center justify-center gap-1.5 rounded-md bg-[#7c3aed] font-semibold text-white transition hover:bg-[#6d28d9] active:bg-[#5b21b6] outline-none focus-visible:ring-2 focus-visible:ring-[#b86cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
+  "inline-flex items-center justify-center gap-1.5 rounded-md bg-[#d01a73] font-semibold text-white transition hover:bg-[#b8155f] active:bg-[#9d1150] outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070d1a] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
 const CLOUD_GHOST_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold text-violet-300 transition hover:bg-violet-400/10 hover:text-violet-200 active:bg-violet-400/20 disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-transparent";
 
@@ -205,7 +205,7 @@ export function PlaylistCloudPanel(props: PlaylistCloudPanelProps) {
           const active = tab === value;
           const activeClass =
             value === "device"
-              ? "bg-cyan-400/15 text-cyan-200 ring-1 ring-inset ring-cyan-400/50"
+              ? "bg-[#ff8a00]/15 text-[#ffc98a] ring-1 ring-inset ring-[#ff8a00]/50"
               : "bg-violet-400/15 text-violet-200 ring-1 ring-inset ring-violet-400/50";
           return (
             <button
@@ -351,7 +351,7 @@ function PlaylistCardShell({
       <div className="flex items-start gap-2">
         <span
           className={`flex shrink-0 items-center justify-center rounded-md ${compact ? "size-7" : "size-9"} ${
-            iconTone === "device" ? "bg-cyan-400/10 text-cyan-300" : "bg-violet-400/10 text-violet-300"
+            iconTone === "device" ? "bg-[#ff8a00]/10 text-[#ffb35c]" : "bg-violet-400/10 text-violet-300"
           }`}
         >
           <Icon size={compact ? 14 : 16} aria-hidden="true" />
@@ -857,7 +857,7 @@ export function PlaylistConflictDialog({
                     : "Uploading is available on the EQHO website.",
                 )}
               </button>
-              <button type="button" onClick={() => onResolve("replace-with-cloud")} className={`${btn} border-cyan-500/50 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20`}>
+              <button type="button" onClick={() => onResolve("replace-with-cloud")} className={`${btn} border-[#ff8a00]/50 bg-[#ff8a00]/10 text-[#ffb35c] hover:bg-[#ff8a00]/20`}>
                 Replace device version with cloud version
                 {explain("Downloads the EQHO Cloud copy and replaces the one on this device. Changes made on this device are lost.")}
               </button>
@@ -868,7 +868,7 @@ export function PlaylistConflictDialog({
             </>
           ) : (
             <>
-              <button type="button" onClick={() => onResolve("download-update")} className={`${btn} border-cyan-500/50 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20`}>
+              <button type="button" onClick={() => onResolve("download-update")} className={`${btn} border-[#ff8a00]/50 bg-[#ff8a00]/10 text-[#ffb35c] hover:bg-[#ff8a00]/20`}>
                 Update download
                 {explain("Replaces the copy on this device with the newer EQHO Cloud version.")}
               </button>
