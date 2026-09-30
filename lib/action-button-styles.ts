@@ -14,11 +14,15 @@ const GRADIENT_ACTION_BASE =
 /** Add playlist / music folder. Dark text gives the strongest contrast on cyan. */
 export const ADD_MUSIC_BTN = `${GRADIENT_ACTION_BASE} from-[#22d3ee] to-[#2dd4bf] text-[#051322] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_0_12px_rgba(34,211,238,0.4)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_18px_rgba(34,211,238,0.55)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_8px_rgba(34,211,238,0.35)] focus-visible:ring-cyan-200`;
 
-/** Open. Dark text stays above 7:1 across the whole orange range. */
-export const OPEN_BTN = `${GRADIENT_ACTION_BASE} from-[#ffb347] to-[#ff7a00] text-[#1a0b00] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_0_12px_rgba(255,138,0,0.4)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_18px_rgba(255,138,0,0.55)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_8px_rgba(255,138,0,0.35)] focus-visible:ring-[#ffc27a]`;
+/**
+ * Open. EQHO teal easing into a rich emerald, with a restrained glow so it
+ * reads as "ready to use" rather than a success badge. Dark navy text stays
+ * above 7:1 across the fill.
+ */
+export const OPEN_BTN = `${GRADIENT_ACTION_BASE} from-[#1cc7c1] to-[#12a37a] text-[#04142a] shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_1px_2px_rgba(0,0,0,0.35),0_0_10px_rgba(24,178,160,0.22)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_1px_2px_rgba(0,0,0,0.35),0_0_14px_rgba(24,178,160,0.32)] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2),0_0_6px_rgba(24,178,160,0.2)] focus-visible:ring-[#7fe3d2]`;
 
 /**
- * Add to session. Kept on white text/icon (the session colour convention);
- * the coral end is deep enough that white text stays legible across the fill.
+ * Add to session. EQHO violet into a controlled warm magenta. Both ends are
+ * deep enough that white text/icon stay above 4.5:1 across the fill.
  */
-export const SESSION_BTN = `${GRADIENT_ACTION_BASE} from-[#e8456b] to-[#c2127a] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_12px_rgba(214,40,120,0.45)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_18px_rgba(214,40,120,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_8px_rgba(214,40,120,0.4)] focus-visible:ring-[#ff7eb6]`;
+export const SESSION_BTN = `${GRADIENT_ACTION_BASE} from-[#7440e0] to-[#b8327e] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.35),0_0_10px_rgba(124,64,224,0.25)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.24),0_1px_2px_rgba(0,0,0,0.35),0_0_14px_rgba(124,64,224,0.35)] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_6px_rgba(124,64,224,0.22)] focus-visible:ring-[#b9a2f5]`;
