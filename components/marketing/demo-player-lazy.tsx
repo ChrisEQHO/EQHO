@@ -19,8 +19,8 @@ import { Loader2, ArrowRight } from 'lucide-react'
  * production (which has the published R2 snapshot) always gets the real,
  * interactive player. The bundle is code-split (next/dynamic, ssr:false).
  *
- * Sizing: ~96% of the browser width (capped) and a comfortable desktop height on
- * large screens; the player's own responsive layout takes over on tablet/mobile.
+ * Sizing: real size — the full browser width and the full viewport height below
+ * the site header, so the player lays out exactly as it does in /app.
  * No scaling transform is used, so the interface stays crisp and fully usable.
  */
 
@@ -40,21 +40,11 @@ const EqhoPlayer = dynamic(
 
 export function DemoPlayerLazy() {
   return (
-    <div
-      id="eqho-embedded-player"
-      // Scroll target for the "Try the demo below" indicator. The block is sized
-      // to FILL the viewport below the sticky site header (h-16 = 4rem), and
-      // scroll-mt-16 makes the anchor jump land its top exactly beneath that
-      // header — so clicking "Try the demo below" snaps the whole demo to fit the
-      // screen. Flex column: the fixed toolbar sits on top, the player box takes
-      // all remaining height. ~96% width, capped and centred; the player supplies
-      // its own responsive layout on tablet/mobile viewports.
-      className="mx-auto flex h-[calc(100svh-4rem)] w-[96%] max-w-[1600px] scroll-mt-16 flex-col"
-    >
+    <div className="flex w-full flex-col">
       {/* Branded toolbar above the player. The orange→pink "Start free trial"
           button (linking to /signup) is the primary conversion action right where
           the visitor is engaging with the live player. */}
-      <div className="mb-3 flex flex-shrink-0 items-center justify-between gap-4">
+      <div className="mx-auto mb-3 flex w-[96%] max-w-[1600px] flex-shrink-0 items-center justify-between gap-4">
         <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider">
           <span className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-[#ff4fa3] shadow-[0_0_10px_rgba(255,79,163,0.8)]" aria-hidden="true" />
           <span className="bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
@@ -75,8 +65,10 @@ export function DemoPlayerLazy() {
         </a>
       </div>
 
-      {/* The real player box — fills all remaining height so the demo fits the
-          screen. min-h-0 lets the flex child shrink correctly.
+      {/* The real player box at real size: the full browser width and the full
+          viewport height below the sticky site header (h-16 = 4rem), matching
+          what /app shows. It is the "Try the demo below" scroll target;
+          scroll-mt-16 lands its top exactly beneath the header.
           It is ALSO the named size container (`eqhoembed`): the embedded-mobile
           layout rules in globals.css (`@container eqhoembed (max-width:1023px)`)
           target the player root/shell/controls INSIDE this box. The container
@@ -84,7 +76,10 @@ export function DemoPlayerLazy() {
           container-query cannot style the container element itself — only its
           descendants — so the player root needs an ancestor container to receive
           `display:flex`. */}
-      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#050814] shadow-[0_0_60px_rgba(255,79,163,0.12)] [container-type:size] [container-name:eqhoembed]">
+      <div
+        id="eqho-embedded-player"
+        className="h-[calc(100svh-4rem)] w-full scroll-mt-16 overflow-hidden border-y border-white/10 bg-[#050814] [container-type:size] [container-name:eqhoembed]"
+      >
         <EqhoPlayer demoMode presentation="embedded" />
       </div>
     </div>
