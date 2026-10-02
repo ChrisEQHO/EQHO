@@ -163,6 +163,10 @@ body {
   --eqho-card-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
   --eqho-btn-shadow: 0 0 24px rgba(255, 79, 163, 0.25);
 
+  /* Literal sRGB gradient — no `in oklab` interpolation and no @property-registered
+     stop variables, so it renders on every iPadOS Safari version. */
+  --eqho-primary-gradient: linear-gradient(90deg, #ff4fa3 0%, #ff8a00 100%);
+
   /* Marketing header height (sticky h-16 = 64px). Used by the hero to fill
      exactly the remaining viewport under the nav: calc(100svh - var(--header-height)). */
   --header-height: 4rem;
@@ -478,5 +482,51 @@ button,
   .notch-aware {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* iPad web player: Safari-safe visuals.
+   Tailwind 4 compiles `bg-gradient-to-r` to `linear-gradient(to right in oklab, …)`
+   whose stops depend on @property-registered variables. iPadOS Safari before 16.4
+   rejects that, so the gradient vanishes: primary buttons render black (only the
+   box-shadow glow survives) and bg-clip-text labels go invisible. These rules are
+   unlayered, so they win over Tailwind utilities, and are scoped to the player root
+   ([data-ipad-web]), so iPhone, desktop and the marketing site are untouched. */
+[data-ipad-web] .eqho-primary-fill {
+  background-color: var(--eqho-pink);
+  background-image: var(--eqho-primary-gradient);
+}
+
+[data-ipad-web] .eqho-brand-label {
+  background-image: var(--eqho-primary-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-ipad-web] .eqho-queue-active {
+  background-color: rgba(255, 79, 163, 0.14);
+  border-color: rgba(255, 79, 163, 0.38);
+}
+
+/* Any other gradient-text label: fall back to solid EQHO pink only where the
+   browser cannot render Tailwind's oklab gradients, so it never disappears. */
+@supports not (background-image: linear-gradient(in oklab, red, blue)) {
+  [data-ipad-web] .bg-clip-text.text-transparent:not(.eqho-brand-label) {
+    -webkit-text-fill-color: var(--eqho-pink);
+    color: var(--eqho-pink);
+  }
+}
+
+/* Portrait iPad: give the full-screen coach view tablet breathing room instead of
+   stretching phone-width padding across ~800px. */
+@media (min-width: 700px) {
+  [data-ipad-web] .eqho-coach-body {
+    width: 100%;
+    max-width: 48rem;
+    margin-inline: auto;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }

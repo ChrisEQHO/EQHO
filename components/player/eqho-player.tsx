@@ -6454,6 +6454,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // bar). Those rules only match inside this named size container, so the
       // standalone /app player and the embedded DESKTOP layout are unaffected.
       data-eqho-embed-root={embedded ? "" : undefined}
+      // Scopes the iPad-web visual fallbacks in globals.css ([data-ipad-web]) to the
+      // player only, so the marketing site, iPhone and desktop are untouched.
+      data-ipad-web={isIPadWeb ? "true" : undefined}
       className={
         embedded
           ? // Fill the parent embed box and become a size container so inner
@@ -7166,7 +7169,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 md:p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+              <h2 className="eqho-brand-label text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
               <div className="flex items-center gap-2">
@@ -7341,7 +7344,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 <button
                   onClick={handlePauseClick}
                   disabled={!currentTrack && playlist.length === 0}
-                  className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
+                  className="eqho-primary-fill w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
                 >
                   {isGapPaused && !isGapHeld ? (
                     <span className="text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
@@ -7368,7 +7371,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   className={`mt-6 rounded-xl text-white font-bold transition-all transform hover:scale-105 ${
                     (showSessionFinished || finishedTracks.size === playlist.length)
                       ? "px-14 py-5 text-xl bg-gradient-to-r from-[#FF5733] to-[#ff4fa3] hover:shadow-[0_0_50px_rgba(255,107,53,0.6)]" 
-                      : "px-10 py-4 text-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
+                      : "eqho-primary-fill px-10 py-4 text-lg bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
                   }`}
                 >
                   {(showSessionFinished || finishedTracks.size === playlist.length) ? "Session Completed" : "Start Session"}
@@ -7633,7 +7636,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             <button type="button" onClick={() => setShowFullscreenMobilePlayer(false)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center relative z-10">
               <X size={18} className="text-white" />
             </button>
-            <h2 className="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
+            <h2 className="eqho-brand-label text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
               {currentTrack ? "NOW PLAYING" : "COACH VIEW"}
             </h2>
             <button onClick={() => setIsMuted(!isMuted)} className={`w-9 h-9 rounded-full flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
@@ -7669,7 +7672,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               row 3 = volume/bottom controls — controls are a real grid row, never
               layered over the queue. */}
           {(currentTrack || playlist.length > 0) && (
-          <div className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden px-4">
+          <div className="eqho-coach-body flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden px-4">
             {/* ROW 1: Now Playing block (timer, track info, controls, waveform) */}
             <div className="min-h-0">
             {/* Session Remaining Timer - Large */}
@@ -7740,7 +7743,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <button onClick={handleSkipBackClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                 <StepBack size={22} className="text-white" />
               </button>
-              <button onClick={handlePauseClick} disabled={!currentTrack && playlist.length === 0} className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
+              <button onClick={handlePauseClick} disabled={!currentTrack && playlist.length === 0} className="eqho-primary-fill w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
                 {isGapPaused && !isGapHeld ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
               </button>
               <button onClick={handleSkipForwardClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
@@ -8681,7 +8684,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               isHidden
                                 ? "border-white/5 opacity-40 border-dashed"
                                 : isActiveTrack 
-                                ? "border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
+                                ? "eqho-queue-active border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
                                 : isFinished
                                   ? "border-white/5 opacity-30"
                                   : "border-white/8"
@@ -8946,7 +8949,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <button
                 onClick={toggleSession}
                 disabled={!currentTrack && playlist.length === 0}
-                className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
+                className="eqho-primary-fill w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
               >
                 {isGapPaused && !isGapHeld && isIPadWeb ? (
                   <Pause size={28} />
@@ -10316,7 +10319,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             <button onClick={handleSkipBackClick} className="p-2 rounded-full hover:bg-white/10 transition">
                               <StepBack size={18} className="text-white" />
                             </button>
-                            <button onClick={handlePauseClick} className="p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
+                            <button onClick={handlePauseClick} className="eqho-primary-fill p-3 rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00]">
                               {isPlaying || (isGapPaused && !isGapHeld) ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
                             </button>
                             <button onClick={handleSkipForwardClick} className="p-2 rounded-full hover:bg-white/10 transition">
@@ -10495,7 +10498,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     isHidden
                                       ? "opacity-40 border border-dashed border-white/10"
                                       : isActiveTrack 
-                                      ? "bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
+                                      ? "eqho-queue-active bg-[#ff4fa3]/15 border border-[#ff4fa3]/30" 
                                       : isFinished
                                         ? "opacity-40"
                                         : "hover:bg-white/5"
@@ -11419,7 +11422,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                 : isPlaying
                   ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
-                  : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/40 active:scale-[0.99]"
+                  : "eqho-primary-fill bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white shadow-lg shadow-[#ff4fa3]/40 active:scale-[0.99]"
             }`}
           >
             {isGapPaused && !isGapHeld ? `GAP ${gapCountdown}s` : isPlaying ? "Pause Session" : sessionRunning ? "Resume Session" : "Start Session"}
@@ -11531,7 +11534,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   ? "bg-[#ff8a00]/15 border border-[#ff8a00]/50 text-[#ff4fa3] hover:bg-[#ff8a00]/25"
                   : sessionRunning && !isPlaying
                     ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-500/25"
-                    : "bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white hover:scale-105 hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
+                    : "eqho-primary-fill bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white hover:scale-105 hover:shadow-[0_0_40px_rgba(255,79,179,0.5)]"
             }`}
           >
             {isGapPaused ? (

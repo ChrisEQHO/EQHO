@@ -99,10 +99,10 @@ export default function RootLayout({
             desktop grid shrunk down. Now the responsive system does the work:
 
               • The `desktop:` CSS variant = (width >= 1024px) AND [data-desktop-layout].
-              • We still set [data-desktop-layout] on iPad, so a LANDSCAPE iPad (>=1024px
-                CSS width) gets the full multi-column desktop grid, while a PORTRAIT iPad
-                (~768-834px, < 1024px) falls through the width gate to the proven mobile
-                stacked layout. No separate tablet layout needed.
+              • On iPad we set [data-desktop-layout] only in LANDSCAPE, so a landscape iPad
+                (>=1024px CSS width) gets the multi-column grid and EVERY portrait iPad —
+                including the 12.9" Pro, whose portrait width is exactly 1024px — gets the
+                proven stacked layout that matches iPhone.
 
             True desktops (mouse, >=1024px) get [data-desktop-layout] + the grid; iPhones
             and Android phones never get the attribute and keep the phone stack. We do NOT
@@ -113,7 +113,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var apply=function(){if(isIpad){d.setAttribute('data-desktop-layout','');return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
+              "try{var d=document.documentElement,n=navigator,ua=n.userAgent||'',mt=n.maxTouchPoints||0;var isIpad=/iPad/.test(ua)||((/Macintosh/.test(ua)||n.platform==='MacIntel')&&mt>1);var isPhoneOrTablet=/iPhone|iPod|Android|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);var apply=function(){if(isIpad){if(window.innerWidth>window.innerHeight){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}return}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;if(!coarse&&!isPhoneOrTablet){d.setAttribute('data-desktop-layout','')}else{d.removeAttribute('data-desktop-layout')}};apply();document.addEventListener('DOMContentLoaded',apply);window.addEventListener('resize',apply,{passive:true});window.addEventListener('orientationchange',apply,{passive:true})}catch(e){}",
           }}
         />
         {/* Service-worker KILL-SWITCH (runs before first paint).
