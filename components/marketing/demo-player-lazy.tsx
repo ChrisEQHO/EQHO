@@ -78,7 +78,8 @@ export function DemoPlayerLazy() {
           `display:flex`. */}
       <div
         id="eqho-embedded-player"
-        className="h-[calc(100svh-4rem)] w-full scroll-mt-16 overflow-hidden border-y border-white/10 bg-[#050814] [container-type:size] [container-name:eqhoembed]"
+        style={{ height: "clamp(40rem, calc(100svh - 4rem), 75rem)" }}
+        className="relative isolate w-full scroll-mt-16 overflow-hidden border-y border-white/10 bg-[#050814] [container-type:size] [container-name:eqhoembed]"
       >
         <EqhoPlayer demoMode presentation="embedded" />
       </div>
