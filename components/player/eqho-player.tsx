@@ -766,7 +766,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [isDesktopDevice, setIsDesktopDevice] = useState(false);
   // Collapsed by default so the temporary diagnostics can NEVER block player taps.
   const [diagCollapsed, setDiagCollapsed] = useState(true);
-  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────────���────────────
+  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────���───���────────────
   // One authoritative device-class result + the actually-visible responsive branch,
   // so the physical iPad shows consistent, non-contradictory values. Recomputed on
   // resize / orientation / visualViewport changes.
@@ -6466,7 +6466,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             // NOTE: the embedded-mobile flex-column rules key off the NAMED
             // `eqhoembed` container on the PARENT box (see demo-player-lazy),
             // because a container query can't style its own container element.
-            "relative h-full w-full overflow-hidden bg-[#050814] text-white [container-type:size]"
+            "relative isolate h-full w-full overflow-hidden bg-[#050814] text-white [container-type:size]"
           : "relative h-[100dvh] w-screen max-w-[100vw] overflow-hidden bg-[#050814] text-white"
       }
       // --promo-banner-height: publish the banner's height so the layout height
@@ -10165,8 +10165,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           // Reserve the measured fixed-controls-bar height plus the top inset so
           // the content region always ends at the bar's top edge. Falls back to
           // 112px before the first measurement.
-          height:
-              "calc(var(--eqho-vh, 100dvh) - var(--mobile-controls-height, 112px) - var(--promo-banner-height, 0px) - env(safe-area-inset-top))",
+          // Embedded demo: size against the demo frame (the player root is
+          // h-full), not the viewport, reserving the measured controls height so
+          // collapsed/expanded controls never cover the final content.
+          height: embedded
+            ? "calc(100% - var(--mobile-controls-height, 112px) - env(safe-area-inset-top))"
+            : "calc(var(--eqho-vh, 100dvh) - var(--mobile-controls-height, 112px) - var(--promo-banner-height, 0px) - env(safe-area-inset-top))",
           // When a Coach overlay is open, fully hide this normal layout so it can
           // never show through beneath the overlay on iPad Safari. Inline display
           // wins over the base `flex`/`desktop:hidden` classes.
@@ -11329,12 +11333,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       <div
         ref={mobileControlsRef}
         style={coachViewActive ? { display: "none" } : undefined}
-        // data-eqho-controls-bar: in embedded MOBILE mode a scoped container-query
-        // rule (globals.css) flips this from `position: fixed` to an in-flow
-        // `position: sticky` row inside the embed column, so it can never overlap
-        // the queue/content. Standalone + embedded-desktop keep `fixed`.
+        // Embedded demo: anchor to the bottom of the demo frame (the player root
+        // is `relative isolate overflow-hidden`) instead of the browser viewport,
+        // so the bar matches the frame width and its z-index stays inside the
+        // demo. The standalone /app player keeps viewport-fixed positioning.
         data-eqho-controls-bar
-        className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10"
+        className={
+          embedded
+            ? "absolute inset-x-0 bottom-0 w-full z-40 bg-[#050816] border-t border-white/10"
+            : "fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 bg-[#050816] border-t border-white/10"
+        }
       >
         {/* Desktop divider (mobile + iPad use the collapse handle below instead) */}
         <div className="hidden desktop:block session-bottom-divider" />
