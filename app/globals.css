@@ -33,6 +33,30 @@
   }
 }
 
+/* ── Embedded demo frame height ───────────────────────────────────────────
+   The frame is a size container, so it MUST have a definite height or it
+   collapses. The plain `vh` line is the fallback for older iOS Safari that drops
+   the svh/lvh declaration. Portrait (iPad/iPhone) uses the LARGE viewport —
+   Safari hides its toolbars while scrolling down to the demo — with a taller
+   floor so the whole player (now playing, queue and session controls) shows,
+   like /app does on the device. */
+.eqho-demo-frame {
+  height: calc(100vh - 4rem);
+  height: clamp(40rem, calc(100svh - 4rem), 75rem);
+}
+@media (orientation: portrait) {
+  .eqho-demo-frame {
+    height: max(calc(100vh - 4rem), 44rem);
+    height: max(calc(100lvh - 4rem), 44rem);
+  }
+}
+@media (orientation: portrait) and (min-width: 600px) {
+  .eqho-demo-frame {
+    height: max(calc(100vh - 4rem), 62rem);
+    height: max(calc(100lvh - 4rem), 62rem);
+  }
+}
+
 /* ── Embedded demo player: MOBILE layout ────────────────────────────────────
    Containment of the embedded demo (frame-relative controls bar, frame-height
    shell) is driven by the `embedded` prop in eqho-player.tsx, NOT by CSS, so it
