@@ -766,7 +766,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [isDesktopDevice, setIsDesktopDevice] = useState(false);
   // Collapsed by default so the temporary diagnostics can NEVER block player taps.
   const [diagCollapsed, setDiagCollapsed] = useState(true);
-  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────���───���────────────
+  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────�����───���────────────
   // One authoritative device-class result + the actually-visible responsive branch,
   // so the physical iPad shows consistent, non-contradictory values. Recomputed on
   // resize / orientation / visualViewport changes.
@@ -2134,6 +2134,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           })),
         }));
         setSavedPlaylists(seeded);
+        // Seeding only the library left the demo on "No track playing" /
+        // "UP NEXT (0)". Load the first non-empty playlist into the session —
+        // the same state the Playlists tab sets when a visitor opens one — so
+        // the demo opens with a current track and a populated queue.
+        const firstPlaylist = seeded.find((p) => p.tracks.length > 0);
+        if (firstPlaylist) {
+          setPlaylist(firstPlaylist.tracks);
+          setOriginalPlaylistOrder([...firstPlaylist.tracks]);
+          setCurrentPlaylistName(firstPlaylist.name);
+          setCurrentIndex(0);
+          setCurrentTrack(firstPlaylist.tracks[0]);
+        }
         setDemoLoadState("ready");
       } catch {
         if (!cancelled) setDemoLoadState("error");
