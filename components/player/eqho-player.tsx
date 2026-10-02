@@ -61,7 +61,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
   import { ProBadge } from "@/components/pro-badge";
   import { PlayCountBadge } from "@/components/play-count-badge";
-  import { CountdownOverlay } from "@/components/countdown-overlay";
+  import { SharedGapCountdown } from "@/components/player/shared-gap-countdown";
 import { useSubscription } from "@/lib/subscription-context";
 import { formatTrialEndDate, getDaysUntil, getCountdownTarget, TRIAL_LENGTH_DAYS, hasActiveSubscription, SUBSCRIPTION_LAUNCH_LABEL } from "@/lib/subscription-types";
 
@@ -766,7 +766,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [isDesktopDevice, setIsDesktopDevice] = useState(false);
   // Collapsed by default so the temporary diagnostics can NEVER block player taps.
   const [diagCollapsed, setDiagCollapsed] = useState(true);
-  // ── TEMPORARY iPad diagnostics (diagnose-only) ─────────────────────────────────
+  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────────���────────────
   // One authoritative device-class result + the actually-visible responsive branch,
   // so the physical iPad shows consistent, non-contradictory values. Recomputed on
   // resize / orientation / visualViewport changes.
@@ -6555,16 +6555,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         </div>
       )}
 
-  {/* Full-screen gap countdown for the MOBILE/iPad fullscreen player only.
-  That view (`showFullscreenMobilePlayer`, z-[300]) is a plain fixed overlay, so
-  this z-[400] sibling paints over it correctly. The DESKTOP coach view uses the
-  native Fullscreen API (`requestFullscreen` on `fullscreenRef`), which paints
-  ONLY that element's subtree — a sibling like this can never show there, so the
-  desktop countdown is rendered as a descendant INSIDE `fullscreenRef` below.
-  The normal (non-fullscreen) player dashboard keeps its inline queue/Now Playing
-  view instead of being taken over by the big countdown. */}
+  {/* Gap countdown for the phone AND iPad Coach View (`showFullscreenMobilePlayer`,
+  a plain fixed overlay at z-[300]); this z-[400] sibling paints over it. iPad web
+  deliberately avoids Safari's native requestFullscreen(), where React countdown
+  updates were not repainted. Only true desktops use the native Fullscreen API,
+  whose countdown is rendered inside `fullscreenRef` below. */}
   {showFullscreenMobilePlayer && isGapPaused && gapCountdown > 0 && (
-    <CountdownOverlay
+    <SharedGapCountdown
+      mode="fullscreen"
       count={gapCountdown}
       nextTitle={getNextTrackTitle()}
       paused={isGapHeld}
@@ -6682,18 +6680,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         data-coach-overlay="desktop"
         className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
-        {/* Full-screen gap countdown for the DESKTOP coach view. Rendered as a
-            descendant of `fullscreenRef` (NOT a root sibling) because the native
-            Fullscreen API paints only this element's subtree — the root-level
-            CountdownOverlay can't appear over a natively-fullscreened element.
-            `fill` makes it `absolute inset-0` (not `fixed`): a fixed child does
-            not paint reliably inside a natively-fullscreened element, but an
-            absolute child against the full-viewport container blacks the whole
-            screen out correctly. The parent is `hidden` (display:none) when not
-            fullscreen, so this only shows in fullscreen; z-[400] sits above the
-            coach layout, matching the black takeover on mobile/normal. */}
-        {isGapPaused && gapCountdown > 0 && (
-          <CountdownOverlay
+        {/* Gap countdown for the DESKTOP-only native-fullscreen coach view. It must
+            be a descendant of `fullscreenRef` because native fullscreen paints only
+            this subtree, and `fill` (absolute, not fixed) because fixed children
+            don't paint reliably inside a natively-fullscreened element. */}
+        {isFullscreen && isGapPaused && gapCountdown > 0 && (
+          <SharedGapCountdown
+            mode="fullscreen"
             fill
             count={gapCountdown}
             nextTitle={getNextTrackTitle()}
@@ -7633,7 +7626,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           )}
 
           {/* The full-screen gap countdown is now rendered once at the app root
-              (CountdownOverlay), so this view no longer needs its own overlay. */}
+              (SharedGapCountdown), so this view no longer needs its own overlay. */}
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2 pt-[env(safe-area-inset-top)] shrink-0">
@@ -8873,8 +8866,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
                 <button
                   onClick={() => {
-                    // On mobile, use custom fullscreen player
-                    if (isMobileBuild || window.innerWidth < 768) {
+                    // Phone and iPad web use the custom Coach View overlay; only
+                    // real desktops use the native Fullscreen API.
+                    if (isMobileBuild || isIPadWeb || window.innerWidth < 768) {
                       setShowFullscreenMobilePlayer(true);
                     } else {
                       toggleFullscreen();
@@ -8906,7 +8900,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
                 {/* Track Elapsed Timer */}
                 <div className="mt-2">
-                  {isGapPaused ? (
+                  {isGapPaused && isIPadWeb ? (
+                    <SharedGapCountdown
+                      mode="inline"
+                      count={gapCountdown}
+                      nextTitle={getNextTrackTitle()}
+                      paused={isGapHeld}
+                      onTogglePause={handlePauseClick}
+                    />
+                  ) : isGapPaused ? (
                     // Branded countdown — matches the mobile app: solid brand pink
                     // (#ff4fa3) with a pink→orange glow, so the "get ready" number
                     // reads as EQHO across every web surface.
@@ -8946,7 +8948,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 disabled={!currentTrack && playlist.length === 0}
                 className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
               >
-                {isGapPaused && !isGapHeld ? (
+                {isGapPaused && !isGapHeld && isIPadWeb ? (
+                  <Pause size={28} />
+                ) : isGapPaused && !isGapHeld ? (
                   <span className="text-xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                 ) : isPlaying ? (
                   <Pause size={28} />
@@ -10320,19 +10324,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             </button>
                           </div>
                         </div>
-                        {/* Timer — during the gap, show a prominent countdown number.
-                            At 48px the pink→orange gradient text renders reliably on
-                            iPad Safari (only the giant 30-50vh Coach number needs a
-                            solid fill), so this matches the brand gradient used
-                            elsewhere in the player. */}
                         {isGapPaused ? (
-                          <div className="text-center">
-                            <p className="text-[10px] uppercase tracking-widest text-white/50 mb-0.5">Next in</p>
-                            <span className="text-5xl font-black bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent tabular-nums leading-none">
-                              {gapCountdown}
-                            </span>
-                            <span className="text-white/40 text-sm ml-1">s</span>
-                          </div>
+                          <SharedGapCountdown
+                            mode="inline"
+                            count={gapCountdown}
+                            nextTitle={getNextTrackTitle()}
+                            paused={isGapHeld}
+                            onTogglePause={handlePauseClick}
+                          />
                         ) : (
                           <div className="text-center">
                             <span className="text-2xl font-black text-white tabular-nums">
