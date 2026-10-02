@@ -119,7 +119,7 @@ export function SiteHeader() {
             logo and the CTAs. `flex-1` claims the middle, `justify-center` spreads
             the links, and `whitespace-nowrap` keeps each label on one line. */}
         <nav
-          className="hidden flex-1 items-center justify-center gap-5 md:flex lg:gap-8"
+          className="hidden flex-1 items-center justify-center gap-5 lg:flex xl:gap-8"
           aria-label="Primary"
         >
           {NAV_LINKS.map((link) => (
@@ -135,7 +135,9 @@ export function SiteHeader() {
         </nav>
 
         {/* Desktop CTAs */}
-        <div className="hidden shrink-0 items-center gap-3 md:flex">
+        {/* Shown from md (iPad portrait) up. Below lg the centre links move into
+            the menu drawer, so ml-auto pins these CTAs to the right edge. */}
+        <div className="hidden shrink-0 items-center gap-3 md:ml-auto md:flex lg:ml-0">
           {signedIn ? (
             <Link
               href={CTA.openApp.href}
@@ -169,7 +171,7 @@ export function SiteHeader() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white md:hidden"
+          className="ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white md:ml-0 lg:hidden"
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
         >
@@ -184,7 +186,7 @@ export function SiteHeader() {
           elements, so without this the links render behind the opaque navy panel
           and the menu looks empty. Lifting it to z-[1] (like the top row) fixes it. */}
       {open && (
-        <div className="relative z-[1] border-t border-white/10 bg-[#020617] md:hidden">
+        <div className="relative z-[1] border-t border-white/10 bg-[#020617] lg:hidden">
           <nav className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-4" aria-label="Mobile">
             {NAV_LINKS.map((link) => (
               <Link

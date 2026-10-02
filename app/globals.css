@@ -88,8 +88,14 @@
     left: auto !important;
     right: auto !important;
     width: 100% !important;
-    max-width: 100% !important;
     flex: 0 0 auto;
+    /* Match the mobile shell column (w-full md:max-w-3xl md:mx-auto) so the
+       controls share the player's edges instead of spanning the whole embed
+       box as a separate full-bleed strip. The inner grid's px-3 then lines up
+       with the shell's px-3 content inset. */
+    max-width: 48rem !important;
+    margin-inline: auto;
+    background-color: transparent !important;
   }
 
   /* NOTE: The mobile Coach / fullscreen takeover is bounded to the embed box in
