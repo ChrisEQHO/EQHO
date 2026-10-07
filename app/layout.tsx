@@ -146,7 +146,8 @@ export default function RootLayout({
         <CapacitorInit />
         <SubscriptionProvider>
           {children}
-          {process.env.NODE_ENV === 'production' && !isMobileBuild && <PostHogProvider />}
+          {/* Web + Capacitor builds; the provider gates itself (production, env vars, not tests/preview). */}
+          <PostHogProvider />
         </SubscriptionProvider>
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <ConsentBanner />}
         {process.env.NODE_ENV === 'production' && !isMobileBuild && <Analytics />}

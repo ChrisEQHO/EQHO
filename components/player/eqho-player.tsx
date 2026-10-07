@@ -35,6 +35,8 @@ import { HelpGuideSections } from "@/components/player/help-guide-sections";
   import { apiFetch, getApiBase } from "@/lib/api-client";
 import { isV0Preview, mockUser } from "@/lib/utils/preview";
 import { trackEvent } from "@/lib/analytics/track-event";
+import { resetUser as resetAnalyticsUser } from "@/lib/analytics/posthog-client";
+import { categorizeError } from "@/lib/analytics/error-category";
 import { clearEntitlementVerified, recordEntitlementVerified, isWithinOfflineGrace, isOnline } from "@/lib/access";
 import { 
   fetchCloudPlaylists, 
@@ -766,7 +768,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [isDesktopDevice, setIsDesktopDevice] = useState(false);
   // Collapsed by default so the temporary diagnostics can NEVER block player taps.
   const [diagCollapsed, setDiagCollapsed] = useState(true);
-  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────�����───���────────────
+  // ── TEMPORARY iPad diagnostics (diagnose-only) ────────────────�������───���────────────
   // One authoritative device-class result + the actually-visible responsive branch,
   // so the physical iPad shows consistent, non-contradictory values. Recomputed on
   // resize / orientation / visualViewport changes.
@@ -905,6 +907,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Keep the ref in lockstep so stable listeners / diagnostics see the latest track.
   currentTrackRef.current = currentTrack;
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // One event per real open/close transition, whatever triggered it (button,
+  // Escape, OS exit). Main and fullscreen views share the same session handlers,
+  // so session/track events use identical names in both.
+  const fullscreenTrackedRef = useRef(false);
+  useEffect(() => {
+    if (isFullscreen === fullscreenTrackedRef.current) return;
+    fullscreenTrackedRef.current = isFullscreen;
+    trackEvent(isFullscreen ? "fullscreen_player_opened" : "fullscreen_player_closed");
+  }, [isFullscreen]);
+  const trackTrackPlayStarted = () => {
+    trackEvent("track_play_started");
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      trackEvent("offline_playback_started");
+    }
+  };
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
   const [showMuteConfirm, setShowMuteConfirm] = useState(false);
@@ -1290,6 +1307,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
       // 2. Clear app auth state.
       setUser(null);
+      trackEvent("logout_completed");
+      resetAnalyticsUser();
 
       // 3. Clear cached local/session auth data + the offline grace window so a
       //    signed-out device can't keep playing or auto-restore the session.
@@ -2346,6 +2365,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         return next;
       });
 
+    trackEvent("cloud_upload_started");
     try {
       const result = await syncPlaylistToCloud({
         id: localPlaylist.id,
@@ -2383,6 +2403,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             },
           }));
         }
+        trackEvent("cloud_upload_completed");
         setPanelNotice({ tone: 'success', text: `${localPlaylist.name} is synced to EQHO Cloud.` });
         setSyncStatus('success');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'success' }));
@@ -2407,6 +2428,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           });
         }, 2500);
       } else {
+        const uploadErrorCategory = partialFailure ? "network" : categorizeError(result.error);
+        if (uploadErrorCategory) trackEvent("cloud_upload_failed", { error_category: uploadErrorCategory });
         setSyncStatus('error');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
@@ -2436,6 +2459,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       }
     } catch (error) {
       console.error("Sync failed:", error);
+      const uploadErrorCategory = categorizeError(error);
+      if (uploadErrorCategory) trackEvent("cloud_upload_failed", { error_category: uploadErrorCategory });
       clearUploadProgress();
       setPanelNotice({ tone: 'error', text: `Upload failed for ${localPlaylist.name}. Your local playlist is unchanged.` });
       setSyncStatus('error');
@@ -2679,6 +2704,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return next;
     });
 
+    trackEvent("cloud_playlist_download_started");
     try {
       const { playlist: localPlaylist, failedTracks, reason } = await fetchPlaylistWithFilesDetailed(playlistId);
       if (localPlaylist) {
@@ -2712,6 +2738,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
         console.log(`[v0][cloud-restore] Final restored playlist count: 1 ("${newPlaylist.name}")`);
         if (failedTracks.length > 0) {
+          trackEvent("cloud_playlist_download_failed", { error_category: "network" });
+        } else {
+          trackEvent("cloud_playlist_download_completed");
+        }
+        if (failedTracks.length > 0) {
           console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
           const msg = `Restored ${newPlaylist.name} (${failedTracks.length} track${failedTracks.length === 1 ? '' : 's'} failed)`;
           setCloudSaveMessage(msg);
@@ -2729,6 +2760,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // No audio could be downloaded — do not create an empty playlist folder.
         // Show WHY, using the reason classified during the download attempt.
         console.log('[v0][cloud-restore] Failed tracks:', failedTracks, 'reason:', reason);
+        trackEvent("cloud_playlist_download_failed", {
+          error_category:
+            reason === 'access-denied' ? 'permission'
+              : reason === 'offline' ? 'network'
+              : reason === 'missing' ? 'storage'
+              : 'unknown',
+        });
         const reasonMessage: Record<string, string> = {
           'access-denied': "Can't download — this playlist was uploaded by a different account.",
           'not-configured': 'Cloud storage is not configured. Please contact support.',
@@ -2749,6 +2787,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     } catch (error) {
       const detail = (error as Error)?.message || String(error);
       console.error("[v0] DOWNLOAD handler error:", detail);
+      const restoreErrorCategory = categorizeError(error);
+      if (restoreErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: restoreErrorCategory });
       const failMsg = `Download failed: ${detail}`;
       setCloudSaveMessage(failMsg);
       setCloudSaveSuccess(false);
@@ -2784,6 +2824,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // Remove from cloud + local library state so it vanishes from every view.
       setCloudPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
       setSavedPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
+      trackEvent("playlist_deleted");
       // If this playlist is loaded in the current session, stop and clear it.
       if (currentPlaylistName === playlistName) {
         const audio = audioRef.current;
@@ -3006,6 +3047,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
     setPanelNotice(null);
     setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
+    trackEvent("cloud_playlist_download_started");
 
     try {
       const { playlist: restored, failedTracks, totalTracks } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
@@ -3092,9 +3134,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         delete next[cloudId];
         return next;
       });
+      trackEvent("cloud_playlist_download_completed");
       setPanelNotice({ tone: 'success', text: 'Playlist downloaded and ready to use offline.' });
     } catch (error) {
       console.error('[v0] Cloud playlist download failed:', error);
+      const downloadErrorCategory = categorizeError(error);
+      if (downloadErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: downloadErrorCategory });
       setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'failed', progress: 0 } }));
       setPanelNotice({
         tone: 'error',
@@ -3816,6 +3861,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               tracks,
             };
             setSavedPlaylists((prev) => [...prev, newPlaylist]);
+            trackEvent("playlist_created");
             resolve();
           }
         };
@@ -3831,6 +3877,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 tracks,
               };
               setSavedPlaylists((prev) => [...prev, newPlaylist]);
+              trackEvent("playlist_created");
             }
             resolve();
           }
@@ -4200,6 +4247,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (completionLatchRef.current.fire()) {
       setShowSessionFinished(true);
       trackEvent("Session Ended");
+      trackEvent("session_completed");
     }
   };
 
@@ -4382,6 +4430,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           else confirmPauseSession();
         } else {
           await nativeSessionRef.current.play();
+          trackEvent("session_resumed");
         }
         return;
       }
@@ -4398,7 +4447,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setShowSessionFinished(false);
         completionLatchRef.current.reset(); setSessionRunning(true);
         const started = await startNativeSessionIfPossible(firstVisibleIdx);
-        if (started) return;
+        if (started) {
+          trackEvent("session_started");
+          return;
+        }
         // Couldn't materialize any files - fall through to the JS <audio> path.
       }
     }
@@ -4435,6 +4487,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           await safePlay("toggleSession resume");
           console.log("[v0] audio play promise: success (resume)");
           setIsPlaying(true);
+          trackEvent("session_resumed");
           refreshAudioDiag("resume ok", "none");
         } catch (error) {
           const detail = `${(error as Error)?.name || "Error"}: ${(error as Error)?.message || String(error)}`;
@@ -4470,6 +4523,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       completionLatchRef.current.reset(); setSessionRunning(true);
       // playTrackFresh clears the back-to-back flag and starts the track.
       playTrackFresh(firstTrack, firstVisibleIdx);
+      trackEvent("session_started");
     }
   };
 
@@ -4478,11 +4532,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       void nativeSessionRef.current.pause();
       setIsPlaying(false);
       setShowStopConfirm(false);
+      trackEvent("session_paused");
       return;
     }
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
+      trackEvent("session_paused");
     }
     setShowStopConfirm(false);
   };
@@ -4856,6 +4912,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     if (next.gapCountdown !== prev.gapCountdown) setGapCountdown(next.gapCountdown);
     if (next.sessionFinished && !prev.sessionFinished && completionLatchRef.current.fire()) {
       setShowSessionFinished(true);
+      trackEvent("session_completed");
     }
   };
 
@@ -4869,6 +4926,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       });
       // New track started - arm the completion detector for it.
       nativeTrackCompletedRef.current = false;
+      trackTrackPlayStarted();
     },
     onGapStarted: ({ seconds }) => {
       mirrorNativeEvent({ type: "gapStarted", seconds });
@@ -4890,6 +4948,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       if (duration > 0 && currentTime >= duration - 1 && !nativeTrackCompletedRef.current) {
         nativeTrackCompletedRef.current = true;
         markTrackCompleted(playlistRef.current[currentIndexRef.current]?.id);
+        trackEvent("track_play_completed");
       }
     },
     onPlayStateChanged: (playing) => mirrorNativeEvent({ type: "playState", playing }),
@@ -5008,6 +5067,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const handleAudioPlay = () => {
     setIsPlaying(true);
     trackEvent("Track Played");
+    // A play event near position 0 is a fresh track start; later ones are resumes.
+    const audio = audioRef.current;
+    if (audio && audio.currentTime < 0.5) trackTrackPlayStarted();
   };
   const handleAudioPause = () => {
     const audio = audioRef.current;
@@ -5030,6 +5092,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const audio = audioRef.current;
     if (!audio) return;
 
+    trackEvent("track_play_completed");
     console.log("[v0] TRACK ENDED index=", currentIndexRef.current, "gapSeconds=", gapSecondsRef.current);
 
     const _backToBack = backToBackRef.current;
@@ -5896,6 +5959,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         tracks: [],
       },
     ]);
+    trackEvent("playlist_created");
 
     setNewPlaylistName("");
     setShowPlaylistModal(false);
@@ -8460,6 +8524,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <button
                 onClick={() => {
                   setSavedPlaylists((prev) => prev.filter((p) => p.id !== playlistToRemove.id));
+                  trackEvent("playlist_deleted");
                   setPlaylistToRemove(null);
                 }}
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"

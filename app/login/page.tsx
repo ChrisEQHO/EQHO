@@ -147,6 +147,7 @@ export default function LoginPage() {
       // never on button click, so failed/timed-out logins never count. No email,
       // user id or any personal data is sent.
       trackEvent('Login Success')
+      trackEvent('login_succeeded')
 
       // Session confirmed — go to the intended destination (defaults to the
       // player) and refresh server state so any cookie-reading middleware/RSC

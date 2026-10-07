@@ -44,9 +44,75 @@ export const ANALYTICS_EVENTS = {
   feedback_submitted: "feedback_submitted",
   playback_delayed: "playback_delayed",
   track_hidden: "track_hidden",
+
+  // --- Product events (client, web + native app; see PRODUCT_EVENTS) ---
+  app_opened: "app_opened",
+  login_succeeded: "login_succeeded",
+  logout_completed: "logout_completed",
+  playlist_created: "playlist_created",
+  playlist_deleted: "playlist_deleted",
+  cloud_upload_started: "cloud_upload_started",
+  cloud_upload_completed: "cloud_upload_completed",
+  cloud_upload_failed: "cloud_upload_failed",
+  cloud_playlist_download_started: "cloud_playlist_download_started",
+  cloud_playlist_download_completed: "cloud_playlist_download_completed",
+  cloud_playlist_download_failed: "cloud_playlist_download_failed",
+  session_paused: "session_paused",
+  session_resumed: "session_resumed",
+  session_completed: "session_completed",
+  track_play_started: "track_play_started",
+  track_play_completed: "track_play_completed",
+  fullscreen_player_opened: "fullscreen_player_opened",
+  fullscreen_player_closed: "fullscreen_player_closed",
+  offline_playback_started: "offline_playback_started",
 } as const
 
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS]
+
+/**
+ * The ONLY events the client sends to PostHog (website + Capacitor apps).
+ * Anything else passed to trackEvent() goes to Vercel Analytics only, and
+ * captureEvent() drops it, so PostHog never receives an unlisted event.
+ */
+export const PRODUCT_EVENTS = [
+  "app_opened",
+  "login_succeeded",
+  "logout_completed",
+  "playlist_created",
+  "playlist_deleted",
+  "cloud_upload_started",
+  "cloud_upload_completed",
+  "cloud_upload_failed",
+  "cloud_playlist_download_started",
+  "cloud_playlist_download_completed",
+  "cloud_playlist_download_failed",
+  "session_started",
+  "session_paused",
+  "session_resumed",
+  "session_completed",
+  "track_play_started",
+  "track_play_completed",
+  "fullscreen_player_opened",
+  "fullscreen_player_closed",
+  "offline_playback_started",
+] as const satisfies readonly AnalyticsEvent[]
+
+export type ProductEvent = (typeof PRODUCT_EVENTS)[number]
+
+const PRODUCT_EVENT_SET: ReadonlySet<string> = new Set(PRODUCT_EVENTS)
+
+export function isProductEvent(name: string): name is ProductEvent {
+  return PRODUCT_EVENT_SET.has(name)
+}
+
+/** Safe, content-free failure buckets. Raw error text is never sent. */
+export type ErrorCategory =
+  | "network"
+  | "authentication"
+  | "permission"
+  | "storage"
+  | "validation"
+  | "unknown"
 
 /** Events that have a real trigger in the product today. */
 export const ACTIVE_EVENTS: ReadonlySet<AnalyticsEvent> = new Set([
@@ -76,8 +142,12 @@ export const ALLOWED_PROP_KEYS: ReadonlySet<string> = new Set([
   "location",
   "source",
   "platform",
+  "native_app",
+  "build_target",
   "app_version",
   "surface",
+  "error_category",
+  "subscription_tier",
   // subscription (non-PII, low cardinality)
   "plan",
   "tier",
