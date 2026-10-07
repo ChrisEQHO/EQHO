@@ -1,74 +1,59 @@
 'use client'
 
 /**
- * Mounts PostHog under the SAME production/web gate as <Analytics /> and wires:
- * - lazy init on mount (no-op when not allowed / no key),
- * - manual App-Router pageviews,
- * - identify on auth (Supabase user id + coarse subscription status only),
- * - reset on logout,
- * - consent-driven replay toggling.
+ * Mounts PostHog for the website and the Capacitor apps and wires:
+ * - one-time init (no-op when not allowed / unconfigured / blocked),
+ * - app_opened once per launch,
+ * - identify on auth (Supabase user UUID + coarse subscription tier only),
+ * - reset when an identified user disappears without the explicit logout path,
+ * - consent-driven replay toggling (existing behaviour).
  *
- * It renders nothing. It never blocks or wraps the tree, so a failure here can
- * never take down the app or the Player.
+ * It renders nothing and never wraps the tree, so a failure here can never take
+ * down the app or the Player.
  */
 
-import { Suspense, useEffect } from "react"
-import { usePathname, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { useSubscription } from "@/lib/subscription-context"
 import {
   initPostHog,
-  capturePageview,
   identifyUser,
+  isUserIdentified,
   resetUser,
   applyConsent,
+  trackAppOpened,
 } from "@/lib/analytics/posthog-client"
 import { onConsentChange } from "@/lib/analytics/consent"
 
-/**
- * Isolated pageview tracker. This is the ONLY piece that reads
- * useSearchParams(), so it is wrapped in <Suspense> by PostHogProvider to keep
- * every route statically prerenderable. It renders nothing.
- */
-function PostHogPageview() {
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
-  // Manual pageviews. Query string is included only as the raw path PostHog
-  // reads; we never attach custom PII props here.
-  useEffect(() => {
-    if (!pathname) return
-    const qs = searchParams?.toString()
-    capturePageview(qs ? `${pathname}?${qs}` : pathname)
-  }, [pathname, searchParams])
-
-  return null
-}
-
 export function PostHogProvider() {
   const { profile } = useSubscription()
+  const [ready, setReady] = useState(false)
 
-  // Init once, then react to consent changes.
   useEffect(() => {
+    let cancelled = false
     let unsub = () => {}
     void initPostHog().then((ph) => {
-      if (!ph) return
+      if (!ph || cancelled) return
+      trackAppOpened()
       unsub = onConsentChange(() => applyConsent())
+      setReady(true)
     })
-    return () => unsub()
+    return () => {
+      cancelled = true
+      unsub()
+    }
   }, [])
 
-  // Identify strictly by internal user id; reset when signed out.
+  const userId = profile?.id ?? null
+  const tier = profile?.subscription_status ?? null
+
   useEffect(() => {
-    if (profile?.id) {
-      identifyUser(profile.id, profile.subscription_status ?? undefined)
-    } else {
+    if (!ready) return
+    if (userId) {
+      identifyUser(userId, tier)
+    } else if (isUserIdentified()) {
       resetUser()
     }
-  }, [profile?.id, profile?.subscription_status])
+  }, [ready, userId, tier])
 
-  return (
-    <Suspense fallback={null}>
-      <PostHogPageview />
-    </Suspense>
-  )
+  return null
 }
