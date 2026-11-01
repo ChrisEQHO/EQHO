@@ -95,14 +95,26 @@ describe("per-track play counts", () => {
     expect(setTargetPlays({}, "bal", 25)).toEqual({ bal: 20 });
   });
 
-  it("2/3. plays a three-play track exactly three times, then advances", () => {
+  it("2/3. multi-play tracks play in playlist passes, not back-to-back", () => {
     const order = plays(simulate({ targets: { bal: 3, dyn: 3, com: 2 } }));
-    expect(order).toEqual(["bal", "bal", "bal", "dyn", "dyn", "dyn", "com", "com"]);
+    expect(order).toEqual(["bal", "dyn", "com", "bal", "dyn", "com", "bal", "dyn"]);
   });
 
   it("4. skips excluded tracks", () => {
     const order = plays(simulate({ targets: { bal: 2 }, hidden: new Set(["dyn"]) }));
-    expect(order).toEqual(["bal", "bal", "com"]);
+    expect(order).toEqual(["bal", "com", "bal"]);
+  });
+
+  it("4b. hidden tracks between multi-play tracks: 1, 3, 1, 3, 1, 3", () => {
+    const four = { id: "four", title: "Four", url: "blob:four" };
+    const order = plays(
+      simulate({
+        playlist: [balance, dynamic, combined, four],
+        targets: { bal: 3, dyn: 3, com: 3, four: 3 },
+        hidden: new Set(["dyn", "four"]),
+      }),
+    );
+    expect(order).toEqual(["bal", "com", "bal", "com", "bal", "com"]);
   });
 
   it("5. returns a re-included incomplete track to the queue in playlist order", () => {
@@ -116,18 +128,18 @@ describe("per-track play counts", () => {
         },
       }),
     );
-    expect(order).toEqual(["bal", "bal", "dyn", "com"]);
+    expect(order).toEqual(["bal", "dyn", "com", "bal"]);
   });
 
   it("6. never replays a completed track in the same cycle", () => {
     const order = plays(simulate({ targets: { bal: 2, dyn: 1, com: 1 } }));
     expect(order.filter((id) => id === "bal")).toHaveLength(2);
-    expect(order).toEqual(["bal", "bal", "dyn", "com"]);
+    expect(order).toEqual(["bal", "dyn", "com", "bal"]);
   });
 
   it("7/8. whole-playlist repeat resets progress but keeps targets (3 plays x 2 rounds = 6)", () => {
     const order = plays(simulate({ targets: { bal: 3 }, repeats: 2 }));
-    expect(order).toEqual(["bal", "bal", "bal", "dyn", "com", "bal", "bal", "bal", "dyn", "com"]);
+    expect(order).toEqual(["bal", "dyn", "com", "bal", "bal", "bal", "dyn", "com", "bal", "bal"]);
     expect(order.filter((id) => id === "bal")).toHaveLength(6);
   });
 
@@ -137,7 +149,7 @@ describe("per-track play counts", () => {
 
   it("back-to-back doubles each track's plays", () => {
     expect(plays(simulate({ targets: { bal: 2 }, backToBack: true }))).toEqual([
-      "bal", "bal", "bal", "bal", "dyn", "dyn", "com", "com",
+      "bal", "bal", "dyn", "dyn", "com", "com", "bal", "bal",
     ]);
   });
 
@@ -186,7 +198,7 @@ describe("per-track play counts", () => {
   it("13. settings follow track ids through reorder and removal", () => {
     const targets = { bal: 3, dyn: 2 };
     const reordered = [combined, dynamic, balance];
-    expect(plays(simulate({ playlist: reordered, targets }))).toEqual(["com", "dyn", "dyn", "bal", "bal", "bal"]);
+    expect(plays(simulate({ playlist: reordered, targets }))).toEqual(["com", "dyn", "bal", "dyn", "bal", "bal"]);
     const pruned = pruneToTrackIds(targets, ["dyn", "com"]);
     expect(pruned).toEqual({ dyn: 2 });
     expect(getTargetPlays(pruned, "com")).toBe(1);
@@ -202,7 +214,7 @@ describe("per-track play counts", () => {
 
   it("15. plays through offline (local blob URLs, no network)", () => {
     expect(routines.every((t) => t.url?.startsWith("blob:"))).toBe(true);
-    expect(plays(simulate({ targets: { dyn: 2 } }))).toEqual(["bal", "dyn", "dyn", "com"]);
+    expect(plays(simulate({ targets: { dyn: 2 } }))).toEqual(["bal", "dyn", "com", "dyn"]);
   });
 
   it("lowering the target below completed plays finishes after the current play", () => {
@@ -256,8 +268,8 @@ describe("per-track play counts", () => {
 
   it("expands the native queue per play without duplicating files", () => {
     const { entries, playlistIndexes } = expandForNativeQueue(routines, new Set(["dyn"]), { bal: 2 });
-    expect(entries.map((t) => t.id)).toEqual(["bal", "bal", "com"]);
-    expect(playlistIndexes).toEqual([0, 0, 2]);
-    expect(entries[0]).toBe(entries[1]);
+    expect(entries.map((t) => t.id)).toEqual(["bal", "com", "bal"]);
+    expect(playlistIndexes).toEqual([0, 2, 0]);
+    expect(entries[0]).toBe(entries[2]);
   });
 });
