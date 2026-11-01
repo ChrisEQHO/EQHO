@@ -20,11 +20,26 @@ import {
   applyNativeEvent,
   createCompletionLatch,
   decideSkipBack,
-  decideSkipForward,
-  decideTrackEnd,
   type NativeSessionEvent,
   type PlaybackViewState,
 } from "@/lib/playback/sequencer";
+import {
+  clearCompletedPlays,
+  createPlayEndGuard,
+  expandForNativeQueue,
+  findFirstPlayableIndex,
+  getCompletedPlays,
+  getEffectiveTargetPlays,
+  getPlayProgressLabel,
+  getTargetPlays,
+  isTrackCycleComplete,
+  pruneToTrackIds,
+  recordCompletedPlay,
+  resolveSkipForward,
+  resolveTrackEnd,
+  setTargetPlays,
+} from "@/lib/playback/track-plays";
+import { TrackPlaysControl } from "@/components/player/track-plays-control";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
 import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
@@ -1029,6 +1044,32 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
   // Session-only hidden tracks (does not affect saved playlists or cloud)
   const [hiddenTrackIds, setHiddenTrackIds] = useState<Set<string>>(new Set());
+
+  // Session-only per-track "Plays" (see lib/playback/track-plays). Targets are
+  // how many consecutive plays each track gets per cycle; cyclePlays counts the
+  // natural completions so far this cycle. Both keyed by track id. The ref is
+  // written synchronously so a second `ended` in the same tick sees the update.
+  const [trackPlayTargets, setTrackPlayTargets] = useState<Record<string, number>>({});
+  const trackPlayTargetsRef = useRef(trackPlayTargets);
+  trackPlayTargetsRef.current = trackPlayTargets;
+  const [cyclePlays, setCyclePlaysState] = useState<Record<string, number>>({});
+  const cyclePlaysRef = useRef<Record<string, number>>({});
+  const setCyclePlays = useCallback((next: Record<string, number>) => {
+    cyclePlaysRef.current = next;
+    setCyclePlaysState(next);
+  }, []);
+  const playEndGuardRef = useRef(createPlayEndGuard());
+  const playlistIdsKey = playlist.map((t) => t.id).join("|");
+  useEffect(() => {
+    // Removing a track drops its settings so they can't leak onto another track.
+    const ids = playlistIdsKey ? playlistIdsKey.split("|") : [];
+    setTrackPlayTargets((prev) => pruneToTrackIds(prev, ids));
+    const pruned = pruneToTrackIds(cyclePlaysRef.current, ids);
+    if (pruned !== cyclePlaysRef.current) setCyclePlays(pruned);
+  }, [playlistIdsKey, setCyclePlays]);
+  // Maps each native-queue entry (one per play) back to its playlist index.
+  const nativeQueueIndexesRef = useRef<number[]>([]);
+  const lastNativeQueueIndexRef = useRef(0);
   
   // Computed: visible tracks in current session (filters out hidden)
   const visiblePlaylist = playlist.filter(track => !hiddenTrackIds.has(track.id));
@@ -1921,7 +1962,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Session-only computed values (visible tracks only - excludes hidden)
   const visibleTrackCount = visiblePlaylist.length;
   const visibleRoutineSeconds = visiblePlaylist.reduce(
-    (total, track) => total + track.durationSeconds,
+    (total, track) => total + track.durationSeconds * getTargetPlays(trackPlayTargets, track.id),
+    0
+  );
+  const visiblePlaysPerRound = visiblePlaylist.reduce(
+    (total, track) => total + getTargetPlays(trackPlayTargets, track.id),
     0
   );
   const visibleGapSeconds = visibleTrackCount > 1 ? (visibleTrackCount - 1) * gapSeconds : 0;
@@ -1932,7 +1977,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const estimatedSessionSeconds = totalRoutineSeconds + totalGapSeconds;
 
   // Calculate full session time including repeats and back-to-back (using visible tracks only)
-  const totalVisibleTracksWithRepeats = visibleTrackCount * playlistRepeats * (backToBack ? 2 : 1);
+  const totalVisibleTracksWithRepeats = visiblePlaysPerRound * playlistRepeats * (backToBack ? 2 : 1);
   const fullSessionSeconds = 
     visibleRoutineSeconds * playlistRepeats * (backToBack ? 2 : 1) +
     Math.max(0, totalVisibleTracksWithRepeats - 1) * gapSeconds;
@@ -3962,6 +4007,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const audio = audioRef.current;
     const url = track?.url;
     if (!audio || !url) return;
+    playEndGuardRef.current.arm();
 
     // Inner routine: assign a KNOWN-playable src (never a data: URL) and play.
     // We always key loadedUrlRef on the ORIGINAL track.url so resume/same-track
@@ -4435,11 +4481,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         return;
       }
       if (playlist.length > 0) {
-        let firstVisibleIdx = 0;
-        while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
-          firstVisibleIdx++;
+        const firstVisibleIdx = findFirstPlayableIndex(playlist, hiddenTrackIds, trackPlayTargets, {}, backToBack);
+        if (firstVisibleIdx < 0) {
+          showToast("Include at least one track to start the session.");
+          return;
         }
-        if (firstVisibleIdx >= playlist.length) return; // all hidden
+        setCyclePlays({});
         setPlaylistRound(1);
         setFinishedTracks(new Set());
         setIsGapPaused(false);
@@ -4507,14 +4554,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // No track loaded yet OR all tracks finished - start from first visible track
     if (playlist.length > 0) {
       // Skip hidden tracks so a hidden track never becomes the starting "Now Playing"
-      let firstVisibleIdx = 0;
-      while (firstVisibleIdx < playlist.length && hiddenTrackIds.has(playlist[firstVisibleIdx].id)) {
-        firstVisibleIdx++;
+      const firstVisibleIdx = findFirstPlayableIndex(playlist, hiddenTrackIds, trackPlayTargets, {}, backToBack);
+      if (firstVisibleIdx < 0) {
+        showToast("Include at least one track to start the session.");
+        return;
       }
-      if (firstVisibleIdx >= playlist.length) return; // all hidden
       const firstTrack = playlist[firstVisibleIdx];
       if (!firstTrack.url) return;
-      // Reset session tracking
+      // Reset session tracking (per-track plays restart; targets are kept)
+      setCyclePlays({});
       setPlaylistRound(1);
       setFinishedTracks(new Set());
       setIsGapPaused(false);
@@ -4577,14 +4625,89 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setIsGapPaused(false);
     setGapCountdown(0);
     setHiddenTrackIds(new Set());
+    setTrackPlayTargets({});
+    setCyclePlays({});
     setCurrentPlaylistName("Untitled Playlist");
 
     // Clear IndexedDB cache (playlists only)
     await clearCachedPlaylist();
   };
 
+  // Stops the session and clears this cycle's per-track progress, keeping each
+  // track's Plays target and Included state. Points at the first included track.
+  const resetPlayCounts = () => {
+    invalidateGap("reset-play-counts");
+    if (nativeSessionRef.current.activeRef.current) void nativeSessionRef.current.stop();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
+    }
+    setCyclePlays({});
+    setIsPlaying(false);
+    setSessionRunning(false);
+    setFinishedTracks(new Set());
+    setPlaylistRound(1);
+    setIsGapPaused(false);
+    setGapCountdown(0);
+    setShowSessionFinished(false);
+    completionLatchRef.current.reset();
+    b2bRepeatedTrackIdRef.current = null;
+    setBackToBackPlayed(false);
+    const first = findFirstPlayableIndex(playlist, hiddenTrackIds, trackPlayTargets, {}, backToBack);
+    if (first >= 0) {
+      const track = playlist[first];
+      setCurrentIndex(first);
+      setCurrentTrack(track);
+      if (audioRef.current && track.url) {
+        isTransitioningRef.current = true;
+        preloadPausedSrc(track.url, track.file);
+        isTransitioningRef.current = false;
+      }
+    }
+  };
+
+  const updateTrackPlayTarget = (trackId: string, value: number) => {
+    setTrackPlayTargets((prev) => setTargetPlays(prev, trackId, value));
+  };
+
+  const toggleTrackIncluded = (trackId: string) => {
+    if (hiddenTrackIds.has(trackId)) {
+      setHiddenTrackIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trackId);
+        return next;
+      });
+    } else {
+      hideTrackFromSession(trackId);
+    }
+  };
+
+  const hasPlayProgress = Object.keys(cyclePlays).length > 0;
+
+  // Status line for a row: "Play 2 of 3" while a multi-play track is current,
+  // "Complete" once it has played all of its plays this cycle.
+  const getTrackPlaysStatus = (trackId: string, isActive: boolean): string | null => {
+    const target = getEffectiveTargetPlays(trackPlayTargets, trackId, backToBack);
+    if (isTrackCycleComplete(trackPlayTargets, cyclePlays, trackId, backToBack)) return "Complete";
+    if (isActive) return getPlayProgressLabel(getCompletedPlays(cyclePlays, trackId), target);
+    return null;
+  };
+
+  const renderTrackPlaysControl = (track: Track, isActive: boolean, layout: "inline" | "stacked") => (
+    <TrackPlaysControl
+      trackTitle={track.title}
+      target={getTargetPlays(trackPlayTargets, track.id)}
+      included={!hiddenTrackIds.has(track.id)}
+      status={getTrackPlaysStatus(track.id, isActive)}
+      layout={layout}
+      onChangeTarget={(value) => updateTrackPlayTarget(track.id, value)}
+      onToggleIncluded={() => toggleTrackIncluded(track.id)}
+    />
+  );
+
   const resetPlaylist = () => {
     if (playlist.length === 0) return;
+    setCyclePlays({});
     
     // Use original order if available, otherwise reset current playlist state
     const orderToRestore = originalPlaylistOrder.length > 0 ? originalPlaylistOrder : playlist;
@@ -4764,14 +4887,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
     // Skipping forward always starts the next track fresh (playTrackFresh clears
     // the back-to-back flag), using the same queue rules as track end.
-    const decision = decideSkipForward({
+    // Next abandons the current track's remaining plays (no play is counted)
+    // and skips tracks already complete this cycle.
+    const { decision, cyclePlays: nextCyclePlays } = resolveSkipForward({
       playlist,
       currentIndex,
       hiddenTrackIds,
       playlistRound,
       playlistRepeats,
+      backToBack,
+      targets: trackPlayTargetsRef.current,
+      cyclePlays: cyclePlaysRef.current,
     });
     if (decision.type === "noop") return;
+    setCyclePlays(nextCyclePlays);
     if (decision.type === "play") {
       if (decision.nextRound !== playlistRound) setPlaylistRound(decision.nextRound);
       playTrackFresh(playlist[decision.index], decision.index);
@@ -4807,6 +4936,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       if (prevTrack) {
         b2bRepeatedTrackIdRef.current = null;
         setBackToBackPlayed(false);
+        // Returning to a track gives it a fresh set of plays this cycle.
+        setCyclePlays(clearCompletedPlays(cyclePlaysRef.current, prevTrack.id));
         setCurrentIndex(prevVisibleIdx);
         setCurrentTrack(prevTrack);
         if (wasPlaying) {
@@ -4917,7 +5048,17 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   };
 
   const nativeSession = useNativeSession({
-    onTrackChanged: ({ index, duration }) => {
+    onTrackChanged: ({ index: nativeIndex, duration }) => {
+      const index = nativeQueueIndexesRef.current[nativeIndex] ?? nativeIndex;
+      const lastNative = lastNativeQueueIndexRef.current;
+      if (nativeIndex < lastNative) {
+        // Wrapping from the end to the start is a new round (progress resets);
+        // any other step back is Previous (the destination starts fresh).
+        const isNewRound = nativeIndex === 0 && lastNative === nativeQueueIndexesRef.current.length - 1;
+        const id = playlistRef.current[index]?.id;
+        setCyclePlays(isNewRound || !id ? {} : clearCompletedPlays(cyclePlaysRef.current, id));
+      }
+      lastNativeQueueIndexRef.current = nativeIndex;
       mirrorNativeEvent({
         type: "trackChanged",
         index,
@@ -4947,7 +5088,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       }
       if (duration > 0 && currentTime >= duration - 1 && !nativeTrackCompletedRef.current) {
         nativeTrackCompletedRef.current = true;
-        markTrackCompleted(playlistRef.current[currentIndexRef.current]?.id);
+        const completedId = playlistRef.current[currentIndexRef.current]?.id;
+        markTrackCompleted(completedId);
+        if (completedId) setCyclePlays(recordCompletedPlay(cyclePlaysRef.current, completedId));
         trackEvent("track_play_completed");
       }
     },
@@ -4964,11 +5107,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // values (settings/volume) at call time, so it is intentionally not memoized.
   const startNativeSessionIfPossible = async (startIndex: number): Promise<boolean> => {
     if (!nativeSessionRef.current.available) return false;
-    const tracks = playlistRef.current
-      .filter((t) => !hiddenTrackIdsRef.current.has(t.id))
+    // One native entry per play (entries share the same file — nothing is
+    // duplicated). Plays settings apply from the start of the native session.
+    const { entries, playlistIndexes } = expandForNativeQueue(
+      playlistRef.current,
+      hiddenTrackIdsRef.current,
+      trackPlayTargetsRef.current,
+    );
+    const keep = entries.map((t) => !!t.file);
+    const tracks = entries
+      .filter((_, i) => keep[i])
       .map((t) => ({ id: t.id, title: t.title, fileName: t.fileName, file: t.file }));
+    nativeQueueIndexesRef.current = playlistIndexes.filter((_, i) => keep[i]);
     if (tracks.length === 0) return false;
-    return nativeSessionRef.current.start(tracks, startIndex, {
+    const nativeStart = Math.max(0, nativeQueueIndexesRef.current.findIndex((p) => p >= startIndex));
+    lastNativeQueueIndexRef.current = nativeStart;
+    return nativeSessionRef.current.start(tracks, nativeStart, {
       gapSeconds,
       repeats: playlistRepeats,
       backToBack,
@@ -5069,7 +5223,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     trackEvent("Track Played");
     // A play event near position 0 is a fresh track start; later ones are resumes.
     const audio = audioRef.current;
-    if (audio && audio.currentTime < 0.5) trackTrackPlayStarted();
+    if (audio && audio.currentTime < 0.5) {
+      playEndGuardRef.current.arm();
+      trackTrackPlayStarted();
+    }
   };
   const handleAudioPause = () => {
     const audio = audioRef.current;
@@ -5091,6 +5248,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
     const audio = audioRef.current;
     if (!audio) return;
+    // One natural end per started play: a re-render, view switch or WebView
+    // double-fire must never count a play twice or start a second gap.
+    if (!playEndGuardRef.current.consume()) return;
 
     trackEvent("track_play_completed");
     console.log("[v0] TRACK ENDED index=", currentIndexRef.current, "gapSeconds=", gapSecondsRef.current);
@@ -5162,16 +5322,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     //    1b) Autoplay OFF holds after the routine. 2) Advance to the next visible
     //    track, 3) repeat a round, or finish. Rules live in lib/playback/sequencer
     //    so skip-forward and track-end always agree on the queue.
-    const decision = decideTrackEnd({
+    //    Per-track "Plays" (x Back-to-Back) decide the replay: the track repeats
+    //    until it has played its target, then is complete for this cycle.
+    const { decision, cyclePlays: nextCyclePlays } = resolveTrackEnd({
       playlist: _playlist,
       currentIndex: _currentIndex,
       hiddenTrackIds: _hiddenTrackIds,
       playlistRound: _playlistRound,
       playlistRepeats: _playlistRepeats,
       backToBack: _backToBack,
-      b2bRepeatedTrackId: b2bRepeatedTrackIdRef.current,
       autoplayNext: autoplayNextRef.current,
+      targets: trackPlayTargetsRef.current,
+      cyclePlays: cyclePlaysRef.current,
     });
+    setCyclePlays(nextCyclePlays);
 
     if (decision.type === "replay") {
       const endedTrack = _playlist[decision.index];
@@ -6166,13 +6330,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   }, 0);
   
   // Calculate total session time based on VISIBLE tracks only (excludes hidden)
-  const visibleTrackTotalSeconds = visiblePlaylist.reduce((total, track) => {
-    return total + track.durationSeconds;
-  }, 0);
+  const visibleTrackTotalSeconds = visibleRoutineSeconds;
   
   const totalSessionSeconds =
   visibleTrackTotalSeconds * playlistRepeats * (backToBack ? 2 : 1) +
-  Math.max(0, visiblePlaylist.length * playlistRepeats * (backToBack ? 2 : 1) - 1) *
+  Math.max(0, visiblePlaysPerRound * playlistRepeats * (backToBack ? 2 : 1) - 1) *
   gapSeconds;
 
   // Determine the title of the track that will actually play next.
@@ -6490,6 +6652,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setPlaylist(tracks);
     setOriginalPlaylistOrder([...tracks]);
     setHiddenTrackIds(new Set());
+    // A different playlist starts at the defaults; the same tracks keep their Plays.
+    setTrackPlayTargets((prev) => pruneToTrackIds(prev, tracks.map((t) => t.id)));
+    setCyclePlays({});
     setCurrentPlaylistName(name);
     setCurrentIndex(0);
     setCurrentTrack(tracks[0] ?? null);
@@ -7595,33 +7760,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             </div>
                           )}
                           {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          {isHidden ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setHiddenTrackIds(prev => {
-                                  const next = new Set(prev);
-                                  next.delete(track.id);
-                                  return next;
-                                });
-                              }}
-                              className="ml-1 px-2 py-1 rounded-lg text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
-                            >
-                              Unhide
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                hideTrackFromSession(track.id);
-                              }}
-                              aria-label={`Hide ${track.title} from this session`}
-                              title="Hide from this session"
-                              className="ml-1 flex items-center justify-center w-6 h-6 rounded-md text-red-500 hover:text-red-400 hover:bg-red-500/15 transition shrink-0"
-                            >
-                              <X size={16} strokeWidth={2.75} />
-                            </button>
-                          )}
+                          {renderTrackPlaysControl(track, isActiveTrack, "stacked")}
                         </SortableTrackItem>
                     );
                   })}
@@ -7907,20 +8046,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             {isHidden && <span className="text-[8px] text-white/30">Hidden</span>}
                             {!isHidden && isCurrent && isPlaying && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />}
                             {!isHidden && isFinished && !isCurrent && <Check size={12} className="text-green-400" />}
-                            {isHidden ? (
-                              <button onClick={(e) => { e.stopPropagation(); setHiddenTrackIds(prev => { const next = new Set(prev); next.delete(track.id); return next; }); }} className="px-1.5 py-0.5 rounded text-[8px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30">
-                                Unhide
-                              </button>
-                            ) : (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); hideTrackFromSession(track.id); }}
-                                aria-label={`Hide ${track.title} from this session`}
-                                title="Hide from this session"
-                                className="flex items-center justify-center w-7 h-7 rounded-md text-red-500 hover:text-red-400 hover:bg-red-500/15 active:bg-red-500/25 transition shrink-0"
-                              >
-                                <X size={18} strokeWidth={2.75} />
-                              </button>
-                            )}
+                            {renderTrackPlaysControl(track, isCurrent, "inline")}
                           </div>
                         </SortableTrackItem>
                       );
@@ -8699,6 +8825,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         Reset
                       </button>
                     )}
+                    {hasPlayProgress && (
+                      <button
+                        type="button"
+                        onClick={resetPlayCounts}
+                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/60 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition"
+                      >
+                        Reset play counts
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);
@@ -8757,7 +8892,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               setCurrentIndex(originalIndex);
                               togglePlayPause(track);
                             }}
-                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_auto_64px_44px] items-center gap-x-2 border-b cursor-pointer transition hover:bg-white/[0.03] ${
+                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_auto_64px_auto] items-center gap-x-2 border-b cursor-pointer transition hover:bg-white/[0.03] ${
                               isHidden
                                 ? "border-white/5 opacity-40 border-dashed"
                                 : isActiveTrack 
@@ -8784,33 +8919,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                 <div className="text-[10px]">Duration</div>
                                 <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
                               </div>
-                              {isHidden ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setHiddenTrackIds(prev => {
-                                      const next = new Set(prev);
-                                      next.delete(track.id);
-                                      return next;
-                                    });
-                                  }}
-                                  className="ml-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
-                                >
-                                  Unhide
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    hideTrackFromSession(track.id);
-                                  }}
-                                  aria-label={`Hide ${track.title} from this session`}
-                                  title="Hide from this session"
-                                  className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition"
-                                >
-                                  <X size={16} />
-                                </button>
-                              )}
+                              {renderTrackPlaysControl(track, isActiveTrack, "inline")}
                           </SortableTrackItem>
                         );
                       })}
@@ -10648,34 +10757,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     </div>
                                   )}
 
-                                  {/* Unhide Button (shown only for already-hidden tracks) */}
-                                  {isHidden ? (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setHiddenTrackIds(prev => {
-                                          const next = new Set(prev);
-                                          next.delete(track.id);
-                                          return next;
-                                        });
-                                      }}
-                                      className="px-2 py-1 rounded-md text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition"
-                                    >
-                                      Unhide
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        hideTrackFromSession(track.id);
-                                      }}
-                                      aria-label={`Hide ${track.title} from this session`}
-                                      title="Hide from this session"
-                                      className="flex items-center justify-center w-8 h-8 rounded-md text-white/40 hover:text-white hover:bg-white/10 active:bg-white/15 transition shrink-0"
-                                    >
-                                      <X size={18} />
-                                    </button>
-                                  )}
+                                  {/* Plays stepper + Included/Excluded switch */}
+                                  {renderTrackPlaysControl(track, isActiveTrack, "stacked")}
                                 </SortableTrackItem>
                               );
                                 })}
