@@ -16,6 +16,16 @@ export interface QueueContext {
   hiddenTrackIds: ReadonlySet<string>;
   playlistRound: number;
   playlistRepeats: number;
+  /**
+   * Tracks that have already played all of their per-track "Plays" in the
+   * current cycle. Skipped when advancing; cleared when a new round begins.
+   */
+  completedTrackIds?: ReadonlySet<string>;
+}
+
+function unionSets(a: ReadonlySet<string>, b?: ReadonlySet<string>): ReadonlySet<string> {
+  if (!b || b.size === 0) return a;
+  return new Set([...a, ...b]);
 }
 
 export function findNextVisibleIndex(
@@ -53,9 +63,11 @@ export type AdvanceDecision =
 
 /** Where the queue goes after the current track: next visible, next round, or done. */
 export function decideAdvance(ctx: QueueContext): AdvanceDecision {
-  const next = findNextVisibleIndex(ctx.playlist, ctx.currentIndex, ctx.hiddenTrackIds);
+  const skip = unionSets(ctx.hiddenTrackIds, ctx.completedTrackIds);
+  const next = findNextVisibleIndex(ctx.playlist, ctx.currentIndex, skip);
   if (next >= 0) return { type: "play", index: next, nextRound: ctx.playlistRound };
   if (ctx.playlistRound < ctx.playlistRepeats) {
+    // A new round resets per-track progress, so only exclusion matters here.
     const first = findFirstVisibleIndex(ctx.playlist, ctx.hiddenTrackIds);
     if (first >= 0) return { type: "play", index: first, nextRound: ctx.playlistRound + 1 };
   }
@@ -67,6 +79,12 @@ export interface TrackEndContext extends QueueContext {
   /** Id of the track that already consumed its back-to-back repeat, if any. */
   b2bRepeatedTrackId: string | null;
   autoplayNext: boolean;
+  /**
+   * Per-track "Plays" progress for the track that just ended. When present it
+   * replaces the legacy back-to-back flag: `target` already includes the
+   * back-to-back multiplier and `completedAfterThisPlay` includes this play.
+   */
+  trackPlays?: { target: number; completedAfterThisPlay: number };
 }
 
 export type TrackEndDecision =
@@ -74,9 +92,19 @@ export type TrackEndDecision =
   | { type: "hold" }
   | AdvanceDecision;
 
-/** Natural end of a track: back-to-back replay, autoplay-off hold, or advance. */
+/** Natural end of a track: per-track/back-to-back replay, autoplay-off hold, or advance. */
 export function decideTrackEnd(ctx: TrackEndContext): TrackEndDecision {
   const ended = ctx.playlist[ctx.currentIndex];
+  if (ctx.trackPlays) {
+    const { target, completedAfterThisPlay } = ctx.trackPlays;
+    if (ended?.url && completedAfterThisPlay < target) {
+      return { type: "replay", index: ctx.currentIndex };
+    }
+    if (!ctx.autoplayNext) return { type: "hold" };
+    const completed = new Set(ctx.completedTrackIds ?? []);
+    if (ended) completed.add(ended.id);
+    return decideAdvance({ ...ctx, completedTrackIds: completed });
+  }
   if (ctx.backToBack && ended?.url && ctx.b2bRepeatedTrackId !== ended.id) {
     return { type: "replay", index: ctx.currentIndex };
   }
