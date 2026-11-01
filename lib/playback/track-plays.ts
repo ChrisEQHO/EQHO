@@ -9,7 +9,7 @@
 // IndexedDB or the cloud — it is session state only.
 
 import {
-  decideSkipForward,
+  decideInterleavedAdvance,
   decideTrackEnd,
   type AdvanceDecision,
   type SequencerTrack,
@@ -185,14 +185,20 @@ export function resolveSkipForward(
   ctx: TrackPlaysSessionContext,
 ): { decision: AdvanceDecision | { type: "noop" }; cyclePlays: Record<string, number> } {
   const ids = ctx.playlist.map((t) => t.id);
-  const decision = decideSkipForward({
-    playlist: ctx.playlist,
-    currentIndex: ctx.currentIndex,
-    hiddenTrackIds: ctx.hiddenTrackIds,
-    playlistRound: ctx.playlistRound,
-    playlistRepeats: ctx.playlistRepeats,
-    completedTrackIds: getCompletedTrackIds(ids, ctx.targets, ctx.cyclePlays, ctx.backToBack),
-  });
+  const decision =
+    ctx.playlist.length === 0
+      ? ({ type: "noop" } as const)
+      : decideInterleavedAdvance(
+          {
+            playlist: ctx.playlist,
+            currentIndex: ctx.currentIndex,
+            hiddenTrackIds: ctx.hiddenTrackIds,
+            playlistRound: ctx.playlistRound,
+            playlistRepeats: ctx.playlistRepeats,
+            completedTrackIds: getCompletedTrackIds(ids, ctx.targets, ctx.cyclePlays, ctx.backToBack),
+          },
+          { allowCurrent: false },
+        );
   const newRound = decision.type === "play" && decision.nextRound !== ctx.playlistRound;
   return { decision, cyclePlays: newRound ? {} : { ...ctx.cyclePlays } };
 }
@@ -241,13 +247,16 @@ export function expandForNativeQueue<T extends { id: string }>(
 ): { entries: T[]; playlistIndexes: number[] } {
   const entries: T[] = [];
   const playlistIndexes: number[] = [];
-  playlist.forEach((track, index) => {
-    if (hiddenTrackIds.has(track.id)) return;
-    const plays = getTargetPlays(targets, track.id);
-    for (let i = 0; i < plays; i++) {
+  const included = playlist
+    .map((track, index) => ({ track, index, plays: getTargetPlays(targets, track.id) }))
+    .filter(({ track }) => !hiddenTrackIds.has(track.id));
+  const passes = included.reduce((max, t) => Math.max(max, t.plays), 0);
+  for (let pass = 0; pass < passes; pass++) {
+    for (const { track, index, plays } of included) {
+      if (pass >= plays) continue;
       entries.push(track);
       playlistIndexes.push(index);
     }
-  });
+  }
   return { entries, playlistIndexes };
 }

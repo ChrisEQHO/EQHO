@@ -74,6 +74,35 @@ export function decideAdvance(ctx: QueueContext): AdvanceDecision {
   return { type: "finish" };
 }
 
+/**
+ * Per-track "Plays" advance: each pass through the playlist plays every
+ * included track that still has plays left once, in order, then wraps back to
+ * the top (1, 3, 1, 3, …) instead of repeating a track consecutively. When no
+ * track has plays left the next playlist round starts, or the session finishes.
+ */
+export function decideInterleavedAdvance(
+  ctx: QueueContext,
+  options: { allowCurrent: boolean },
+): AdvanceDecision {
+  const n = ctx.playlist.length;
+  if (n > 0) {
+    const skip = unionSets(ctx.hiddenTrackIds, ctx.completedTrackIds);
+    const start = ctx.currentIndex >= 0 && ctx.currentIndex < n ? ctx.currentIndex : -1;
+    for (let step = 1; step <= n; step++) {
+      const i = (((start + step) % n) + n) % n;
+      if (i === start && !options.allowCurrent) continue;
+      if (!skip.has(ctx.playlist[i].id)) {
+        return { type: "play", index: i, nextRound: ctx.playlistRound };
+      }
+    }
+  }
+  if (ctx.playlistRound < ctx.playlistRepeats) {
+    const first = findFirstVisibleIndex(ctx.playlist, ctx.hiddenTrackIds);
+    if (first >= 0) return { type: "play", index: first, nextRound: ctx.playlistRound + 1 };
+  }
+  return { type: "finish" };
+}
+
 export interface TrackEndContext extends QueueContext {
   backToBack: boolean;
   /** Id of the track that already consumed its back-to-back repeat, if any. */
@@ -97,13 +126,21 @@ export function decideTrackEnd(ctx: TrackEndContext): TrackEndDecision {
   const ended = ctx.playlist[ctx.currentIndex];
   if (ctx.trackPlays) {
     const { target, completedAfterThisPlay } = ctx.trackPlays;
-    if (ended?.url && completedAfterThisPlay < target) {
+    // Back-to-Back still pairs each play with an immediate repeat.
+    if (ctx.backToBack && ended?.url && completedAfterThisPlay < target && completedAfterThisPlay % 2 === 1) {
       return { type: "replay", index: ctx.currentIndex };
     }
     if (!ctx.autoplayNext) return { type: "hold" };
     const completed = new Set(ctx.completedTrackIds ?? []);
-    if (ended) completed.add(ended.id);
-    return decideAdvance({ ...ctx, completedTrackIds: completed });
+    if (ended && completedAfterThisPlay >= target) completed.add(ended.id);
+    const decision = decideInterleavedAdvance(
+      { ...ctx, completedTrackIds: completed },
+      { allowCurrent: Boolean(ended?.url) },
+    );
+    if (decision.type === "play" && decision.index === ctx.currentIndex && decision.nextRound === ctx.playlistRound) {
+      return { type: "replay", index: ctx.currentIndex };
+    }
+    return decision;
   }
   if (ctx.backToBack && ended?.url && ctx.b2bRepeatedTrackId !== ended.id) {
     return { type: "replay", index: ctx.currentIndex };
