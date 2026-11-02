@@ -4643,6 +4643,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       try { audioRef.current.currentTime = 0; } catch { /* ignore */ }
     }
     setCyclePlays({});
+    setCompletionCounts({});
     setIsPlaying(false);
     setSessionRunning(false);
     setFinishedTracks(new Set());
@@ -4706,8 +4707,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   );
 
   const resetPlaylist = () => {
-    if (playlist.length === 0) return;
-    setCyclePlays({});
+  if (playlist.length === 0) return;
+  setCyclePlays({});
+  setCompletionCounts({});
     
     // Use original order if available, otherwise reset current playlist state
     const orderToRestore = originalPlaylistOrder.length > 0 ? originalPlaylistOrder : playlist;
