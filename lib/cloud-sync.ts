@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/client'
 import {
   describeManifestError,
+  findOrphanTracks,
+  matchR2ObjectForTrack,
   sanitizeTrackOrder,
+  selectManifestTracks,
   type ManifestSaveResult,
 } from '@/lib/playlist-manifest'
 import {
@@ -14,6 +17,7 @@ import {
   getPlaylistMetadataFromR2,
   listUserPlaylistsFromR2,
   listPlaylistTracksFromR2,
+  listPlaylistTracksFromR2Strict,
   getSignedDownloadUrl,
   probeTrackAccess,
   getApiBase,
@@ -158,22 +162,10 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
     tracksByPlaylist.set(t.playlist_id, arr)
   }
 
-  return playlists.map((p) => {
-    const unordered = tracksByPlaylist.get(p.id) || []
-    // Respect the saved track_order, then append any leftovers.
-    const order = Array.isArray(p.track_order) ? p.track_order : []
-    const byId = new Map(unordered.map((t) => [t.id, t]))
-    const ordered: CloudPlaylistTrack[] = []
-    for (const id of order) {
-      const t = byId.get(id)
-      if (t) {
-        ordered.push(t)
-        byId.delete(id)
-      }
-    }
-    for (const t of byId.values()) ordered.push(t)
-    return { ...p, tracks: ordered }
-  })
+  return playlists.map((p) => ({
+    ...p,
+    tracks: selectManifestTracks(p.track_order, tracksByPlaylist.get(p.id) || []),
+  }))
 }
 
 export async function fetchCloudPlaylistWithTracks(playlistId: string): Promise<{
@@ -237,26 +229,10 @@ export async function fetchCloudPlaylistSignatures(): Promise<Record<string, str
 
   const signatures: Record<string, string[]> = {}
   for (const p of playlists) {
-    const order: string[] = Array.isArray(p.track_order) ? p.track_order : []
-    const seen = new Set<string>()
-    const keys: string[] = []
-    // Follow the saved track order first.
-    for (const id of order) {
-      const key = idToKey.get(id)
-      if (key) {
-        keys.push(key)
-        seen.add(id)
-      }
-    }
-    // Append any tracks belonging to the playlist that weren't in track_order
-    // (e.g. legacy rows), so the signature reflects the full cloud contents.
-    for (const id of tracksByPlaylist.get(p.id) || []) {
-      if (!seen.has(id)) {
-        const key = idToKey.get(id)
-        if (key) keys.push(key)
-      }
-    }
-    signatures[p.id] = keys
+    const rows = (tracksByPlaylist.get(p.id) || []).map((id) => ({ id }))
+    signatures[p.id] = selectManifestTracks(p.track_order, rows)
+      .map((r) => idToKey.get(r.id))
+      .filter((k): k is string => !!k)
   }
 
   return signatures
@@ -452,9 +428,6 @@ export async function uploadTrackToCloud(
   }
   console.log('[v0] uploadTrackToCloud: audio source FOUND for track', track.title, `(${track.file.size} bytes)`)
 
-  // Upload file to R2 storage
-  const r2Key = getTrackStorageKey(user.id, playlistId, track.id, track.fileName)
-  
   const r2Result = await uploadTrackToR2(
     user.id,
     playlistId,
@@ -467,6 +440,10 @@ export async function uploadTrackToCloud(
     console.error('[v0] uploadTrackToCloud: R2 upload FAILED for track', track.title, '-', r2Result.error)
     return null
   }
+  // Record the key the object was ACTUALLY stored under (derived server-side from
+  // the File's real name). Rebuilding it from track.fileName drifted whenever the
+  // display name differed, so other devices requested an object that didn't exist.
+  const r2Key = r2Result.key || getTrackStorageKey(user.id, playlistId, track.id, track.file.name)
   console.log('[v0] uploadTrackToCloud: R2 upload SUCCESS for track', track.title, '->', r2Key)
 
   // Store metadata in Supabase (not the file itself).
@@ -737,7 +714,8 @@ export async function fetchPlaylistWithFilesDetailed(
   const supabase = createClient()
   if (!supabase) return { playlist: null, failedTracks: [], totalTracks: 0 }
 
-  const { playlist, tracks } = await fetchCloudPlaylistWithTracks(playlistId)
+  const { playlist, tracks: allRows } = await fetchCloudPlaylistWithTracks(playlistId)
+  const tracks = playlist ? selectManifestTracks(playlist.track_order, allRows) : []
   if (!playlist) {
     console.log('[v0][cloud-restore] Playlist not found for id', playlistId)
     return { playlist: null, failedTracks: [], totalTracks: 0 }
@@ -774,21 +752,20 @@ export async function fetchPlaylistWithFilesDetailed(
   }
 
   let completed = 0
+  const claimedKeys = new Set<string>()
   for (const track of tracks) {
     console.log(`[v0][cloud-restore]   track "${track.title}" storage_path: ${track.storage_path || '(none)'}`)
     let file = track.storage_path ? await downloadTrackFile(track.storage_path) : null
+    if (file && track.storage_path) claimedKeys.add(track.storage_path)
 
     // Fallback: the recorded storage_path didn't resolve. Find the track's real
-    // object in R2 (same user's bucket prefix) by its trackId path segment, then
-    // by fileName, and download that actual key instead.
+    // object in this playlist's R2 folder and download that actual key instead.
     if (!file) {
       const listing = await getR2Listing()
       if (listing.length > 0) {
-        const dbFileName = (track.storage_path || '').split('/').pop() || ''
-        const match =
-          listing.find(o => o.key.includes(`/tracks/${track.id}/`)) ||
-          (dbFileName ? listing.find(o => o.fileName === dbFileName) : undefined)
+        const match = matchR2ObjectForTrack(track, listing, claimedKeys)
         if (match) {
+          claimedKeys.add(match.key)
           console.log(`[v0][cloud-restore]   ↺ retry "${track.title}" via listed key: ${match.key}`)
           file = await downloadTrackFile(match.key)
         }
@@ -1245,9 +1222,22 @@ export async function uploadPlaylistToCloud(
       }
     }
 
+    // Self-repair: a cloud row only counts as "already uploaded" when its audio
+    // really exists in R2. Rows pointing at a missing object were previously
+    // skipped forever, so other devices could never download that playlist.
+    // When the listing can't be read we trust the rows (never re-upload blindly).
+    const r2Listing = await listPlaylistTracksFromR2Strict(existingPlaylist.id)
+    const brokenRows: Array<{ id: string; storage_path: string | null }> = []
     const existingTrackKeys = new Map<string, string>() // identity key -> cloud track id
     for (const ct of existingCloudTracks || []) {
+      if (r2Listing && !matchR2ObjectForTrack(ct, r2Listing)) {
+        brokenRows.push(ct)
+        continue
+      }
       existingTrackKeys.set(cloudTrackKey(ct.title, ct.storage_path || ''), ct.id)
+    }
+    if (brokenRows.length > 0) {
+      console.log(`[v0] uploadPlaylistToCloud: ${brokenRows.length} cloud row(s) have no audio in R2 — re-uploading`)
     }
 
     const totalTracks = localPlaylist.tracks.length
@@ -1260,7 +1250,9 @@ export async function uploadPlaylistToCloud(
 
     for (const track of localPlaylist.tracks) {
       // Skip if an equivalent track already exists in the cloud for this playlist.
-      const existingId = existingTrackKeys.get(cloudTrackKey(track.title, track.fileName))
+      const existingId =
+      existingTrackKeys.get(cloudTrackKey(track.title, track.fileName)) ||
+      (track.file?.name ? existingTrackKeys.get(cloudTrackKey(track.title, track.file.name)) : undefined)
       if (existingId) {
         console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: already in cloud`)
         trackOrder.push(existingId)
@@ -1338,6 +1330,20 @@ export async function uploadPlaylistToCloud(
         failedTracks: failedCount,
         cloudPlaylistId: existingPlaylist.id,
         error: describeManifestError(manifest),
+      }
+    }
+
+    // Best-effort cleanup: remove cloud rows (and their audio) that are no longer
+    // part of this playlist — tracks removed on this device, broken rows that were
+    // just re-uploaded, and duplicates from earlier retries. Skipped when any
+    // upload failed so nothing the user still needs is touched.
+    if (failedCount === 0) {
+      const orphans = findOrphanTracks(sanitizeTrackOrder(trackOrder), existingCloudTracks || [])
+      for (const orphan of orphans) {
+        await deleteTrackFromCloudDirect(orphan.id, orphan.storage_path || null).catch(() => undefined)
+      }
+      if (orphans.length > 0) {
+        console.log(`[v0] uploadPlaylistToCloud: cleaned up ${orphans.length} stale cloud track(s)`)
       }
     }
 

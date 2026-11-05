@@ -3072,6 +3072,23 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
+  // Pick up playlists uploaded from another device when the user returns to this
+  // tab/window, instead of relying on a manual tab switch to refresh.
+  const refreshCloudPlaylistsRef = useRef(refreshCloudPlaylists);
+  refreshCloudPlaylistsRef.current = refreshCloudPlaylists;
+  useEffect(() => {
+    if (playlistPanelTab !== 'cloud') return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshCloudPlaylistsRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [playlistPanelTab]);
+
   const handlePlaylistPanelTabChange = (tab: PlaylistPanelTab) => {
     setPlaylistPanelTab(tab);
     setPanelNotice(null);
@@ -3100,15 +3117,17 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: pct } }));
       });
 
-      const complete =
-        !!restored && totalTracks > 0 && failedTracks.length === 0 && restored.tracks.length === totalTracks;
-      if (!restored || !complete) {
+      // Keep whatever downloaded: one unreachable track used to block the entire
+      // playlist from ever reaching this device. Missing tracks are named in the
+      // notice so the user can re-save from the original device.
+      if (!restored || restored.tracks.length === 0) {
         throw new Error(
           failedTracks.length > 0
             ? `${failedTracks.length} of ${totalTracks} tracks could not be downloaded`
             : 'The playlist could not be downloaded',
         );
       }
+      const missingTitles = failedTracks.filter(Boolean);
 
       const existingLocal = resolveLocalForCloud(cloud, savedPlaylistsRef.current, cloudLinks);
       const takenIds = new Set(savedPlaylistsRef.current.map((p) => p.id));
@@ -3180,7 +3199,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         return next;
       });
       trackEvent("cloud_playlist_download_completed");
-      setPanelNotice({ tone: 'success', text: 'Playlist downloaded and ready to use offline.' });
+      setPanelNotice(
+        failedTracks.length > 0
+          ? {
+              tone: 'error',
+              text: `Downloaded ${restored.tracks.length} of ${totalTracks} tracks. Missing: ${missingTitles.join(', ') || 'unknown'}. Open this playlist on the device it was uploaded from and press Save changes to repair it, then download again.`,
+            }
+          : { tone: 'success', text: 'Playlist downloaded and ready to use offline.' },
+      );
     } catch (error) {
       console.error('[v0] Cloud playlist download failed:', error);
       const downloadErrorCategory = categorizeError(error);
