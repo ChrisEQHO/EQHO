@@ -384,6 +384,24 @@ export async function listPlaylistTracksFromR2(
   }
 }
 
+// Same as listPlaylistTracksFromR2 but returns null when the listing could not be
+// read, so callers can tell "no objects" apart from "couldn't check".
+export async function listPlaylistTracksFromR2Strict(
+  playlistId: string
+): Promise<Array<{ key: string; fileName: string }> | null> {
+  try {
+    const response = await fetch(
+      `${getApiBase()}/api/r2?action=list-tracks&playlistId=${encodeURIComponent(playlistId)}`,
+      { headers: await getAuthHeaders() },
+    )
+    if (!response.ok) return null
+    const result = await response.json()
+    return Array.isArray(result?.tracks) ? result.tracks : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Probe whether the current user can access a given R2 object key.
  * Used to classify a failed cloud download: 403 = the object belongs to another

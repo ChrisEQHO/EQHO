@@ -21,6 +21,57 @@ export function sanitizeTrackOrder(order: unknown): string[] {
   return out
 }
 
+// The saved track_order is the authoritative manifest of a cloud playlist. Rows
+// for tracks removed in a later upload used to linger in the `tracks` table and
+// were appended on download — inflating the track count and, when their audio
+// was gone, failing the whole download on another device. Only legacy playlists
+// with no saved order fall back to every row.
+export function selectManifestTracks<T extends { id: string }>(order: unknown, rows: T[]): T[] {
+  const ids = Array.isArray(order) ? order.filter((v): v is string => typeof v === 'string') : []
+  if (ids.length === 0) return rows
+  const byId = new Map(rows.map((r) => [r.id.toLowerCase(), r]))
+  const out: T[] = []
+  const seen = new Set<string>()
+  for (const id of ids) {
+    const key = id.toLowerCase()
+    const row = byId.get(key)
+    if (row && !seen.has(key)) {
+      seen.add(key)
+      out.push(row)
+    }
+  }
+  return out
+}
+
+// Rows belonging to a playlist that are not part of its manifest (safe to clean up).
+export function findOrphanTracks<T extends { id: string }>(order: string[], rows: T[]): T[] {
+  const keep = new Set(order.map((id) => id.toLowerCase()))
+  return rows.filter((r) => !keep.has(r.id.toLowerCase()))
+}
+
+// Recover the real R2 object for a track whose recorded storage_path doesn't
+// resolve. Older uploads recorded the path from the track's display fileName while
+// the object was stored under the File's actual name, so match progressively looser.
+export function matchR2ObjectForTrack(
+  track: { id: string; title: string; storage_path?: string | null },
+  listing: Array<{ key: string; fileName: string }>,
+  claimedKeys: Set<string> = new Set(),
+): { key: string; fileName: string } | undefined {
+  const available = listing.filter((o) => !claimedKeys.has(o.key))
+  const norm = (s: string) => s.toLowerCase().replace(/\.[a-z0-9]{2,5}$/, '').replace(/[^a-z0-9]+/g, '')
+  const path = track.storage_path || ''
+  const dbFileName = path.split('/').pop() || ''
+  const trackFolder = path.split('/').slice(0, -1).join('/')
+  return (
+    (path ? available.find((o) => o.key === path) : undefined) ||
+    available.find((o) => o.key.includes(`/tracks/${track.id}/`)) ||
+    (trackFolder ? available.find((o) => o.key.startsWith(`${trackFolder}/`)) : undefined) ||
+    (dbFileName ? available.find((o) => o.fileName.toLowerCase() === dbFileName.toLowerCase()) : undefined) ||
+    (dbFileName ? available.find((o) => norm(o.fileName) === norm(dbFileName)) : undefined) ||
+    (track.title ? available.find((o) => norm(o.fileName) === norm(track.title)) : undefined)
+  )
+}
+
 export type ManifestStage = 'auth' | 'entitlement' | 'request' | 'lookup' | 'ownership' | 'update' | 'network'
 
 export interface ManifestSaveResult {
