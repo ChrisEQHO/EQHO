@@ -106,6 +106,18 @@ import {
   type CloudConflictKind,
   type CloudLinks,
 } from "@/lib/playlist-cloud-links";
+import {
+  PENDING_TRACKS_STORAGE_KEY,
+  checkStorageForDownload,
+  describeFailureReason,
+  estimateDeviceStorage,
+  isQuotaError,
+  mergeRetriedTracks,
+  parsePendingTracks,
+  type PendingTracks,
+  type TrackFailure,
+} from "@/lib/cloud-library";
+import { formatBytes } from "@/lib/playlist-cloud-links";
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
@@ -1042,6 +1054,30 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const cloudLinksLoadedRef = useRef(false);
   const [uploadProgressById, setUploadProgressById] = useState<Record<string, number>>({});
   const [cloudDeviceDownloads, setCloudDeviceDownloads] = useState<Record<string, { state: 'downloading' | 'failed'; progress: number }>>({});
+  // Failed-track metadata per local playlist (or per cloud id when nothing was
+  // saved locally yet). Device-local by nature, so it lives beside cloudLinks.
+  const [pendingTracks, setPendingTracks] = useState<PendingTracks>({});
+  const pendingTracksLoadedRef = useRef(false);
+  const [cloudDownloadFailures, setCloudDownloadFailures] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!pendingTracksLoadedRef.current) {
+      pendingTracksLoadedRef.current = true;
+      try {
+        setPendingTracks(parsePendingTracks(localStorage.getItem(PENDING_TRACKS_STORAGE_KEY)));
+      } catch { /* storage unavailable */ }
+      return;
+    }
+    try {
+      localStorage.setItem(PENDING_TRACKS_STORAGE_KEY, JSON.stringify(pendingTracks));
+    } catch { /* storage unavailable */ }
+  }, [pendingTracks]);
+  const setPendingFor = (key: string, record: PendingTracks[string] | null) =>
+    setPendingTracks((prev) => {
+      const next = { ...prev };
+      if (record && record.failures.length > 0) next[key] = record;
+      else delete next[key];
+      return next;
+    });
   const [cloudConflict, setCloudConflict] = useState<{ cloudId: string; localId: string; name: string; kind: CloudConflictKind } | null>(null);
   const [panelNotice, setPanelNotice] = useState<PanelNotice | null>(null);
   const [cloudRefreshing, setCloudRefreshing] = useState(false);
@@ -2481,6 +2517,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           }));
         }
         trackEvent("cloud_upload_completed");
+        if (pendingTracks[playlistId]?.direction === 'upload') setPendingFor(playlistId, null);
         setPanelNotice({ tone: 'success', text: `${localPlaylist.name} is synced to EQHO Cloud.` });
         setSyncStatus('success');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'success' }));
@@ -2510,10 +2547,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setSyncStatus('error');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
+        if (result.failures && result.failures.length > 0) {
+          setPendingFor(playlistId, {
+            direction: 'upload',
+            cloudId: result.cloudPlaylist?.id ?? linkedCloudId ?? '',
+            failures: result.failures,
+            updatedAt: new Date().toISOString(),
+          });
+        }
         setPanelNotice({
           tone: 'error',
           text: partialFailure
-            ? `Some tracks in ${localPlaylist.name} failed to upload. Your local playlist is unchanged.`
+            ? `${result.failures?.length ?? result.failedTracks} tracks in ${localPlaylist.name} failed to upload. The rest are saved; your local playlist is unchanged.`
             : `Upload failed for ${localPlaylist.name}${result.error ? `: ${result.error}` : ''}. Your local playlist is unchanged.`,
         });
         // Show the ACTUAL reason returned by the server/uploader (now propagated
@@ -3139,27 +3184,48 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
+    const markFailed = (message: string) => {
+      setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'failed', progress: 0 } }));
+      setCloudDownloadFailures((prev) => ({ ...prev, [cloudId]: message }));
+    };
+
+    const requiredBytes = cloud.tracks.reduce((sum, t) => sum + (t.fileSize || 0), 0);
+    const storage = checkStorageForDownload(requiredBytes, await estimateDeviceStorage());
+    if (!storage.ok) {
+      const message = `Not enough space on this device. ${cloud.name} needs about ${formatBytes(storage.requiredBytes)}, ${formatBytes(storage.availableBytes) ?? '0 B'} is free. Free up space, then try again.`;
+      markFailed(message);
+      setPanelNotice({ tone: 'error', text: message });
+      return;
+    }
+
     setPanelNotice(null);
+    setCloudDownloadFailures((prev) => {
+      const next = { ...prev };
+      delete next[cloudId];
+      return next;
+    });
     setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
     trackEvent("cloud_playlist_download_started");
 
     try {
-      const { playlist: restored, failedTracks, totalTracks } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
+      const { playlist: restored, failedTracks, failures, totalTracks, reason } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
         setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: pct } }));
       });
 
       // Keep whatever downloaded: one unreachable track used to block the entire
-      // playlist from ever reaching this device. Missing tracks are named in the
-      // notice so the user can re-save from the original device.
+      // playlist from ever reaching this device. Failed tracks are kept as
+      // pending metadata so they can be retried individually.
       if (!restored || restored.tracks.length === 0) {
+        const firstReason = reason ?? failures[0]?.reason;
         throw new Error(
-          failedTracks.length > 0
-            ? `${failedTracks.length} of ${totalTracks} tracks could not be downloaded`
-            : 'The playlist could not be downloaded',
+          firstReason
+            ? describeFailureReason(firstReason)
+            : failedTracks.length > 0
+              ? `${failedTracks.length} of ${totalTracks} tracks could not be downloaded.`
+              : 'The playlist could not be downloaded.',
         );
       }
-      const missingTitles = failedTracks.filter(Boolean);
 
       const existingLocal = resolveLocalForCloud(cloud, savedPlaylistsRef.current, cloudLinks);
       const takenIds = new Set(savedPlaylistsRef.current.map((p) => p.id));
@@ -3199,20 +3265,24 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
       // Persist to IndexedDB first so "Downloaded" is only shown once the audio is
       // genuinely stored and available offline.
-      await saveSavedPlaylistsWithTracks(
-        apply(savedPlaylistsRef.current).map((p) => ({
-          id: p.id,
-          name: p.name,
-          tracks: p.tracks.map((t) => ({
-            id: t.id,
-            title: t.title,
-            fileName: t.fileName,
-            durationSeconds: t.durationSeconds,
-            uploadedAt: t.uploadedAt,
-            file: t.file,
-          })),
-        })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
-      );
+      try {
+        await saveSavedPlaylistsWithTracks(
+          apply(savedPlaylistsRef.current).map((p) => ({
+            id: p.id,
+            name: p.name,
+            tracks: p.tracks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              fileName: t.fileName,
+              durationSeconds: t.durationSeconds,
+              uploadedAt: t.uploadedAt,
+              file: t.file,
+            })),
+          })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
+        );
+      } catch (saveError) {
+        throw isQuotaError(saveError) ? new Error(describeFailureReason('storage-full')) : saveError;
+      }
 
       setSavedPlaylists((prev) => apply(prev));
       setCloudLinks((prev) => {
@@ -3230,25 +3300,135 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         delete next[cloudId];
         return next;
       });
+      if (existingLocal && mode !== 'save-both') setPendingFor(existingLocal.id, null);
+      setPendingFor(
+        targetId,
+        failures.length > 0
+          ? { direction: 'download', cloudId, failures, updatedAt: new Date().toISOString() }
+          : null,
+      );
       trackEvent("cloud_playlist_download_completed");
       setPanelNotice(
-        failedTracks.length > 0
+        failures.length > 0
           ? {
               tone: 'error',
-              text: `Downloaded ${restored.tracks.length} of ${totalTracks} tracks. Missing: ${missingTitles.join(', ') || 'unknown'}. Open this playlist on the device it was uploaded from and press Save changes to repair it, then download again.`,
+              text: `Downloaded ${restored.tracks.length} of ${totalTracks} tracks of ${restored.name}. ${failures.length === 1 ? '1 track needs' : `${failures.length} tracks need`} attention — see the playlist card to retry.`,
             }
-          : { tone: 'success', text: 'Playlist downloaded and ready to use offline.' },
+          : { tone: 'success', text: `${restored.name} is downloaded and offline ready.` },
       );
     } catch (error) {
       console.error('[v0] Cloud playlist download failed:', error);
       const downloadErrorCategory = categorizeError(error);
       if (downloadErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: downloadErrorCategory });
-      setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'failed', progress: 0 } }));
+      const reasonText = error instanceof Error ? error.message : 'The playlist could not be downloaded.';
+      markFailed(reasonText);
       setPanelNotice({
         tone: 'error',
-        text: `Download failed for ${cloud.name}${error instanceof Error ? `: ${error.message}` : ''}. Nothing was saved — try again.`,
+        text: `Download failed for ${cloud.name}: ${reasonText} Nothing was changed on this device.`,
       });
     }
+  };
+
+  // Re-downloads only the tracks that failed last time and slots them back
+  // into their original positions; tracks already on the device are untouched.
+  const retryFailedDownloadTracks = async (localId: string) => {
+    const record = pendingTracks[localId];
+    const local = savedPlaylistsRef.current.find((p) => p.id === localId);
+    if (!record || record.direction !== 'download' || !local) return;
+    const cloudId = record.cloudId;
+    if (cloudDeviceDownloads[cloudId]?.state === 'downloading') return;
+    if (!navigator.onLine) {
+      setPanelNotice({ tone: 'error', text: "You're offline. Reconnect to retry the failed tracks." });
+      return;
+    }
+
+    setPanelNotice(null);
+    setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
+    try {
+      const { playlist: restored, failures, trackOrder, cloudUpdatedAt } = await fetchPlaylistWithFilesDetailed(
+        cloudId,
+        (completed, total) => {
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+          setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: pct } }));
+        },
+        { onlyTrackIds: record.failures.map((f) => f.trackId) },
+      );
+      const recovered = (restored?.tracks ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        sub: "Downloaded Track",
+        duration: formatDuration(t.durationSeconds),
+        fileName: t.fileName,
+        url: URL.createObjectURL(t.file),
+        durationSeconds: t.durationSeconds,
+        uploadedAt: t.uploadedAt,
+        file: t.file,
+      }));
+
+      if (recovered.length > 0) {
+        const updated = { ...local, tracks: mergeRetriedTracks(local.tracks, recovered, trackOrder) };
+        const nextList = savedPlaylistsRef.current.map((p) => (p.id === localId ? updated : p));
+        try {
+          await saveSavedPlaylistsWithTracks(
+            nextList.map((p) => ({
+              id: p.id,
+              name: p.name,
+              tracks: p.tracks.map((t) => ({
+                id: t.id,
+                title: t.title,
+                fileName: t.fileName,
+                durationSeconds: t.durationSeconds,
+                uploadedAt: t.uploadedAt,
+                file: t.file,
+              })),
+            })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
+          );
+        } catch (saveError) {
+          throw isQuotaError(saveError) ? new Error(describeFailureReason('storage-full')) : saveError;
+        }
+        setSavedPlaylists((prev) => prev.map((p) => (p.id === localId ? updated : p)));
+        setCloudLinks((prev) => ({
+          ...prev,
+          [localId]: {
+            cloudId,
+            cloudUpdatedAt: cloudUpdatedAt ?? prev[localId]?.cloudUpdatedAt ?? new Date().toISOString(),
+            localSignature: playlistSignature(updated),
+          },
+        }));
+      }
+
+      setPendingFor(
+        localId,
+        failures.length > 0 ? { ...record, failures, updatedAt: new Date().toISOString() } : null,
+      );
+      setPanelNotice(
+        failures.length === 0
+          ? { tone: 'success', text: `All tracks of ${local.name} are now offline ready.` }
+          : {
+              tone: 'error',
+              text: `${recovered.length} recovered, ${failures.length} still failing in ${local.name}.`,
+            },
+      );
+    } catch (error) {
+      console.error('[v0] Retry of failed tracks failed:', error);
+      setPanelNotice({
+        tone: 'error',
+        text: `Retry failed for ${local.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      });
+    } finally {
+      setCloudDeviceDownloads((prev) => {
+        const next = { ...prev };
+        delete next[cloudId];
+        return next;
+      });
+    }
+  };
+
+  const retryFailedTracks = (localId: string) => {
+    const record = pendingTracks[localId];
+    if (record?.direction === 'download') void retryFailedDownloadTracks(localId);
+    // Uploads skip tracks already in the cloud, so re-running only sends the failed ones.
+    else void handleSyncPlaylistToCloud(localId);
   };
 
   const resolveCloudConflict = (resolution: ConflictResolution) => {
@@ -3323,6 +3503,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       trackCount: pl.tracks.length,
       status,
       uploadProgress: uploadProgressById[pl.id] ?? null,
+      failures: pendingTracks[pl.id]?.failures ?? [],
+      failureDirection: pendingTracks[pl.id]?.direction,
+      retrying: !!pendingTracks[pl.id] && cloudDeviceDownloads[pendingTracks[pl.id].cloudId]?.state === 'downloading',
+      audioComplete: pl.tracks.length > 0 && pl.tracks.every((t) => !!t.file || !!t.url),
     };
   });
 
@@ -3346,6 +3530,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       downloadProgress: dl?.state === 'downloading' ? dl.progress : null,
       conflict,
       localPlayable: !!local && local.tracks.length > 0,
+      localId: local?.id,
+      failures: local ? pendingTracks[local.id]?.failures ?? [] : [],
+      failureMessage: cloudDownloadFailures[cp.id],
     };
   });
 
@@ -3383,6 +3570,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     onAddToQueue: addSavedPlaylistToQueue,
     onDownload: (cloudId: string) => { void downloadCloudPlaylistToDevice(cloudId, 'new'); },
     onReviewUpdate: reviewCloudUpdate,
+    onRetryFailedTracks: retryFailedTracks,
     onAddCloudToSession: addCloudPlaylistToSession,
     onDeleteCloud: (cloudId: string) => {
       const cloud = cloudPlaylists.find((c) => c.id === cloudId);

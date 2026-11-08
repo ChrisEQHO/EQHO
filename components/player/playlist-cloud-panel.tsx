@@ -41,6 +41,7 @@ import {
   type LocalCloudStatus,
 } from "@/lib/playlist-cloud-links";
 import { OPEN_BTN, SESSION_BTN } from "@/lib/action-button-styles";
+import { describeFailureReason, type TrackFailure } from "@/lib/cloud-library";
 
 export type PlaylistPanelTab = "device" | "cloud";
 
@@ -50,6 +51,10 @@ export interface LocalPlaylistRow {
   trackCount: number;
   status: LocalCloudStatus;
   uploadProgress: number | null;
+  failures?: TrackFailure[];
+  failureDirection?: "upload" | "download";
+  retrying?: boolean;
+  audioComplete?: boolean;
 }
 
 export interface CloudPlaylistRow {
@@ -62,6 +67,9 @@ export interface CloudPlaylistRow {
   downloadProgress: number | null;
   conflict: CloudConflictKind | null;
   localPlayable: boolean;
+  localId?: string;
+  failures?: TrackFailure[];
+  failureMessage?: string;
 }
 
 export interface PanelNotice {
@@ -87,6 +95,7 @@ interface PlaylistCloudPanelProps {
   onClear: (id: string) => void;
   onDownload: (cloudId: string) => void;
   onReviewUpdate: (cloudId: string) => void;
+  onRetryFailedTracks?: (localId: string) => void;
   onAddCloudToSession: (cloudId: string) => void;
   onDeleteCloud: (cloudId: string) => void;
   onRefreshCloud: () => void;
@@ -420,10 +429,75 @@ function DeviceTab(props: TabProps) {
   );
 }
 
+function FailedTracksList({
+  failures,
+  direction,
+  retrying,
+  disabled,
+  disabledHint,
+  compact,
+  onRetry,
+}: {
+  failures: TrackFailure[];
+  direction: "upload" | "download";
+  retrying: boolean;
+  disabled: boolean;
+  disabledHint?: string;
+  compact: boolean;
+  onRetry?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? failures : failures.slice(0, 3);
+  const verb = direction === "upload" ? "upload" : "download";
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-amber-400/25 bg-amber-400/5 px-2 py-1.5 text-[11px] leading-relaxed">
+      <p className="flex items-start gap-1.5 text-amber-200">
+        <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+        {`${failures.length === 1 ? "1 track" : `${failures.length} tracks`} didn't ${verb}. The rest of the playlist is ${direction === "upload" ? "saved to EQHO Cloud" : "ready on this device"}.`}
+      </p>
+      <ul className="flex flex-col gap-1 pl-5">
+        {shown.map((f) => (
+          <li key={f.trackId} className="flex flex-col">
+            <span className="truncate text-white/80">{f.title || "Untitled track"}</span>
+            <span className="text-white/50">{describeFailureReason(f.reason)}</span>
+          </li>
+        ))}
+      </ul>
+      {failures.length > 3 && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className={`self-start pl-5 text-white/60 underline underline-offset-2 hover:text-white ${FOCUS_RING}`}
+        >
+          {open ? "Show fewer" : `Show all ${failures.length}`}
+        </button>
+      )}
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={disabled || retrying}
+          aria-busy={retrying}
+          title={disabledHint}
+          className={`${SECONDARY_BTN} ${buttonSize(compact)} ${FOCUS_RING} self-start`}
+        >
+          {retrying ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={13} aria-hidden="true" />}
+          {retrying ? "Retrying…" : `Retry ${failures.length === 1 ? "failed track" : "failed tracks"}`}
+          {disabledHint && <span className="sr-only">{` (${disabledHint})`}</span>}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function localBadge(row: LocalPlaylistRow) {
+  if ((row.failures?.length ?? 0) > 0 && row.status !== "uploading") {
+    return <StatusBadge tone="progress" icon={AlertTriangle}>{`${row.failures!.length} need attention`}</StatusBadge>;
+  }
   switch (row.status) {
     case "synced":
-      return <StatusBadge tone="success" icon={Check}>Synced · Saved to cloud</StatusBadge>;
+      return <StatusBadge tone="success" icon={Check}>{row.audioComplete ? "Synced · Offline ready" : "Synced · Saved to cloud"}</StatusBadge>;
     case "uploading":
       return (
         <StatusBadge tone="progress" icon={Loader2} spin>
@@ -491,8 +565,20 @@ function LocalCard({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
       onDrop={props.onRowDrop ? (e) => props.onRowDrop!(row.id, e) : undefined}
       menu={<RowMenu row={row} {...props} />}
     >
-      {failed && (
+      {failed && !(row.failures?.length) && (
         <InlineFailure message="Couldn't save this playlist to EQHO Cloud." details={props.errorDetailsFor(row.name)} />
+      )}
+
+      {(row.failures?.length ?? 0) > 0 && !uploading && (
+        <FailedTracksList
+          failures={row.failures!}
+          direction={row.failureDirection ?? "download"}
+          retrying={!!row.retrying}
+          disabled={!props.isOnline || (row.failureDirection === "upload" && !props.uploadSupported)}
+          disabledHint={!props.isOnline ? "Reconnect to retry" : row.failureDirection === "upload" && !props.uploadSupported ? uploadHint : undefined}
+          compact={compact}
+          onRetry={props.onRetryFailedTracks ? () => props.onRetryFailedTracks!(row.id) : undefined}
+        />
       )}
 
       {uploading && row.uploadProgress !== null && (
@@ -744,8 +830,19 @@ function CloudCard({ row, ...props }: TabProps & { row: CloudPlaylistRow }) {
       )}
       {row.status === "download-failed" && (
         <InlineFailure
-          message="Couldn't download this playlist. Nothing was saved to this device."
-          details={props.errorDetailsFor(row.name)}
+          message={row.failureMessage ?? "Couldn't download this playlist. Nothing was saved to this device."}
+          details={row.failureMessage ? null : props.errorDetailsFor(row.name)}
+        />
+      )}
+      {row.localId && (row.failures?.length ?? 0) > 0 && row.status !== "downloading" && (
+        <FailedTracksList
+          failures={row.failures!}
+          direction="download"
+          retrying={false}
+          disabled={offline}
+          disabledHint={offline ? "Reconnect to retry" : undefined}
+          compact={compact}
+          onRetry={props.onRetryFailedTracks ? () => props.onRetryFailedTracks!(row.localId!) : undefined}
         />
       )}
       {row.status === "downloading" && row.downloadProgress !== null && (

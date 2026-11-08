@@ -23,6 +23,13 @@ import {
   getApiBase,
   getAuthHeaders,
 } from '@/lib/r2-storage'
+import {
+  isBlockingReason,
+  reasonFromStatus,
+  validateAudioFile,
+  type TrackFailure,
+  type TransferFailureReason as TrackFailureReason,
+} from '@/lib/cloud-library'
 
 // Types matching the Supabase schema
 // Lightweight track shape attached to a cloud playlist for display + loading.
@@ -623,6 +630,7 @@ export async function syncPlaylistToCloud(
   cloudPlaylist?: CloudPlaylist
   uploadedTracks: number
   failedTracks?: number
+  failures?: TrackFailure[]
   // The real, specific reason a push failed. Previously this was dropped here, so
   // the UI could only ever show a generic "Push Unsuccessful" and neither the user
   // nor support could tell whether it was auth, R2, RLS, or a missing audio file.
@@ -670,7 +678,7 @@ export async function syncPlaylistToCloud(
   if (!result.success) {
     console.error('[v0] syncPlaylistToCloud: upload failed:', result.error)
     // Propagate the ACTUAL error so the UI can show a useful message + Retry.
-    return { success: false, uploadedTracks: 0, error: result.error || 'Unable to push routine.' }
+    return { success: false, uploadedTracks: 0, failures: result.failures, error: result.error || 'Unable to push routine.' }
   }
 
   // Resolve the exact cloud row that was written (by its persistent id).
@@ -688,6 +696,7 @@ export async function syncPlaylistToCloud(
     cloudPlaylist: cloudPlaylist || undefined,
     uploadedTracks: result.uploadedTracks,
     failedTracks: result.failedTracks,
+    failures: result.failures,
   }
 }
 
@@ -700,26 +709,60 @@ export type CloudRestoreReason =
   | 'not-configured'
   | 'missing'
   | 'offline'
+  | 'auth-expired'
   | 'unknown'
+
+export interface CloudRestoreOptions {
+  // Retry: download only these track ids; the rest are assumed already local.
+  onlyTrackIds?: string[]
+}
+
+export interface CloudRestoreTrackMeta {
+  id: string
+  title: string
+  durationSeconds: number
+  fileSize?: number
+}
 
 export async function fetchPlaylistWithFilesDetailed(
   playlistId: string,
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
+  options?: CloudRestoreOptions,
 ): Promise<{
   playlist: LocalPlaylist | null
   failedTracks: string[]
+  failures: TrackFailure[]
   totalTracks: number
+  trackOrder: string[]
+  // Metadata for every manifest track, including ones whose audio failed, so
+  // the playlist structure is preserved even when files are missing.
+  trackMeta: CloudRestoreTrackMeta[]
+  cloudUpdatedAt?: string
   reason?: CloudRestoreReason
 }> {
+  const empty = { playlist: null, failedTracks: [], failures: [], totalTracks: 0, trackOrder: [], trackMeta: [] }
   const supabase = createClient()
-  if (!supabase) return { playlist: null, failedTracks: [], totalTracks: 0 }
+  if (!supabase) return empty
+
+  // Check the session first so an expired sign-in is reported as such rather
+  // than as "playlist not found".
+  const { data: { user: sessionUser } } = await supabase.auth.getUser()
+  if (!sessionUser) return { ...empty, reason: 'auth-expired' }
 
   const { playlist, tracks: allRows } = await fetchCloudPlaylistWithTracks(playlistId)
-  const tracks = playlist ? selectManifestTracks(playlist.track_order, allRows) : []
+  const manifestTracks = playlist ? selectManifestTracks(playlist.track_order, allRows) : []
   if (!playlist) {
     console.log('[v0][cloud-restore] Playlist not found for id', playlistId)
-    return { playlist: null, failedTracks: [], totalTracks: 0 }
+    return { ...empty, reason: 'missing' }
   }
+  const only = options?.onlyTrackIds ? new Set(options.onlyTrackIds) : null
+  const tracks = only ? manifestTracks.filter((t) => only.has(t.id)) : manifestTracks
+  const trackMeta: CloudRestoreTrackMeta[] = manifestTracks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    durationSeconds: t.duration,
+    fileSize: t.file_size,
+  }))
 
   console.log(`[v0][cloud-restore] Playlist "${playlist.name}" — ${tracks.length} track(s) found`)
 
@@ -753,7 +796,18 @@ export async function fetchPlaylistWithFilesDetailed(
 
   let completed = 0
   const claimedKeys = new Set<string>()
+  const failures: TrackFailure[] = []
+  let blocking: TrackFailureReason | null = null
   for (const track of tracks) {
+    // A blocking failure (expired sign-in, lost connection) would fail every
+    // remaining track too: record them as pending so Retry resumes from here.
+    if (blocking) {
+      failures.push({ trackId: track.id, title: track.title, reason: blocking })
+      failedTracks.push(track.title)
+      completed++
+      onProgress?.(completed, tracks.length)
+      continue
+    }
     console.log(`[v0][cloud-restore]   track "${track.title}" storage_path: ${track.storage_path || '(none)'}`)
     let file = track.storage_path ? await downloadTrackFile(track.storage_path) : null
     if (file && track.storage_path) claimedKeys.add(track.storage_path)
@@ -772,6 +826,16 @@ export async function fetchPlaylistWithFilesDetailed(
       }
     }
 
+    let invalid = false
+    if (file) {
+      const check = await validateAudioFile(file, track.file_size)
+      if (!check.ok) {
+        console.error(`[v0][cloud-restore] "${track.title}" failed validation: ${check.problem}`)
+        file = null
+        invalid = true
+      }
+    }
+
     if (file) {
       console.log(`[v0][cloud-restore]   ✓ downloaded "${track.title}"`)
       localTracks.push({
@@ -785,13 +849,44 @@ export async function fetchPlaylistWithFilesDetailed(
     } else {
       console.error(`[v0][cloud-restore] Could not download ${track.title} from cloud (storage_path: ${track.storage_path || 'none'})`)
       failedTracks.push(track.title)
+      let reason: TrackFailureReason = 'missing'
+      if (invalid) {
+        reason = 'invalid-audio'
+      } else if (track.storage_path) {
+        const online = typeof navigator === 'undefined' || navigator.onLine
+        const probe = online ? await probeTrackAccess(track.storage_path) : { status: 0 }
+        reason = probe.status === 200 ? 'unknown' : reasonFromStatus(probe.status, online)
+      }
+      failures.push({ trackId: track.id, title: track.title, reason })
+      if (isBlockingReason(reason)) blocking = reason
     }
     completed++
     onProgress?.(completed, tracks.length)
   }
 
+  const restoreMeta = {
+    failures,
+    trackOrder: playlist.track_order,
+    trackMeta,
+    cloudUpdatedAt: playlist.updated_at,
+  }
+
+  // A retry that recovered nothing still reports which tracks remain pending.
+  if (only && localTracks.length === 0) {
+    return {
+      playlist: null,
+      failedTracks,
+      totalTracks: tracks.length,
+      ...restoreMeta,
+      reason: blocking === 'auth-expired' ? 'auth-expired' : blocking === 'offline' ? 'offline' : undefined,
+    }
+  }
+
   // Never create an empty playlist/folder if no audio could be downloaded.
   if (localTracks.length === 0) {
+    if (blocking === 'auth-expired' || blocking === 'offline') {
+      return { playlist: null, failedTracks, totalTracks: tracks.length, ...restoreMeta, reason: blocking }
+    }
     console.log(`[v0][cloud-restore] Skipping "${playlist.name}" — no audio downloaded`)
     // Classify WHY every track failed so the UI can show an actionable message,
     // by probing access to the first track's storage path.
@@ -805,7 +900,7 @@ export async function fetchPlaylistWithFilesDetailed(
       else if (probe.status === 404) reason = 'missing'
       else if (probe.status === 0) reason = 'offline'
     }
-    return { playlist: null, failedTracks, totalTracks: tracks.length, reason }
+    return { playlist: null, failedTracks, totalTracks: tracks.length, ...restoreMeta, reason }
   }
 
   // Sort by track_order, then append any tracks not present in the saved order.
@@ -825,6 +920,7 @@ export async function fetchPlaylistWithFilesDetailed(
     },
     failedTracks,
     totalTracks: tracks.length,
+    ...restoreMeta,
   }
 }
 
@@ -1103,6 +1199,7 @@ export async function uploadPlaylistToCloud(
   uploadedTracks: number
   skippedTracks: number
   failedTracks?: number
+  failures?: TrackFailure[]
   cloudPlaylistId?: string
   error?: string
 }> {
@@ -1195,6 +1292,7 @@ export async function uploadPlaylistToCloud(
     let skippedCount = 0
     let attemptedCount = 0
     let failedCount = 0
+    const failedUploads: TrackFailure[] = []
     const trackOrder: string[] = []
 
     console.log(
@@ -1291,6 +1389,8 @@ export async function uploadPlaylistToCloud(
         existingTrackKeys.set(cloudTrackKey(track.title, track.fileName), uploaded.id)
       } else {
         failedCount++
+        const online = typeof navigator === 'undefined' || navigator.onLine
+        failedUploads.push({ trackId: track.id, title: track.title, reason: online ? 'unknown' : 'offline' })
       }
       reportProgress()
     }
@@ -1306,6 +1406,8 @@ export async function uploadPlaylistToCloud(
         success: false,
         uploadedTracks: 0,
         skippedTracks: skippedCount,
+        failedTracks: failedCount,
+        failures: failedUploads,
         error: 'Track audio upload failed. Please try again — if it keeps failing, contact support.',
       }
     }
@@ -1328,6 +1430,7 @@ export async function uploadPlaylistToCloud(
         uploadedTracks: uploadedCount,
         skippedTracks: skippedCount,
         failedTracks: failedCount,
+        failures: failedUploads,
         cloudPlaylistId: existingPlaylist.id,
         error: describeManifestError(manifest),
       }
@@ -1354,6 +1457,7 @@ export async function uploadPlaylistToCloud(
       uploadedTracks: uploadedCount,
       skippedTracks: skippedCount,
       failedTracks: failedCount,
+      failures: failedUploads,
       cloudPlaylistId: existingPlaylist.id,
     }
   } catch (error) {
