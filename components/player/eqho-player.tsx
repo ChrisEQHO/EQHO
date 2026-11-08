@@ -41,6 +41,8 @@ import {
 } from "@/lib/playback/track-plays";
 import { TrackPlaysControl } from "@/components/player/track-plays-control";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
+import { derivePlaybackPhase } from "@/lib/playback/session-machine";
+import { demoTrackUrl, parseDemoSnapshot } from "@/lib/playback/demo-session";
 import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
 import { DeviceLockNotice } from "@/components/player/device-lock-notice";
@@ -764,6 +766,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [originalPlaylistOrder, setOriginalPlaylistOrder] = useState<Track[]>([]); // Store original order when first loaded
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackErrorTrackId, setPlaybackErrorTrackId] = useState<string | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   // True on iPadOS/iOS, where JS cannot control playback loudness (iOS routes it
@@ -2206,8 +2209,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         if (!res.ok) throw new Error(`demo fetch ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
-        const playlistsIn: Array<{ id: string; name: string; tracks: Array<{ id: string; name: string; durationSeconds: number }> }> =
-          data?.enabled && Array.isArray(data.playlists) ? data.playlists : [];
+        const playlistsIn = parseDemoSnapshot(data);
         if (playlistsIn.length === 0) {
           setDemoLoadState("empty");
           return;
@@ -2223,7 +2225,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             fileName: `${t.name}.mp3`,
             // Streams from the public demo endpoint; resolved to an R2 demo/ key
             // server-side. Same-origin URL plays directly in the <audio> element.
-            url: `/api/demo?action=audio&track=${encodeURIComponent(t.id)}`,
+            url: demoTrackUrl(t.id),
             durationSeconds: t.durationSeconds,
             uploadedAt: new Date().toISOString(),
           })),
@@ -5285,6 +5287,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // every view shows the correct play/pause status (and manual pauses stick).
   const handleAudioPlay = () => {
     setIsPlaying(true);
+    setPlaybackErrorTrackId(null);
     trackEvent("Track Played");
     // A play event near position 0 is a fresh track start; later ones are resumes.
     const audio = audioRef.current;
@@ -6691,6 +6694,19 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // block; forcing the background layouts to `display:none` makes the replace
   // behaviour bulletproof regardless of Safari's fixed-positioning quirks.
   const coachViewActive = isFullscreen || showFullscreenMobilePlayer;
+  // One phase for every view: standard, fullscreen/coach and demo all read it.
+  const playbackPhase = derivePlaybackPhase({
+    hasTrack: !!currentTrack,
+    isPlaying,
+    isTransitioning: isTransitioningRef.current,
+    isGapPaused,
+    isGapHeld,
+    gapCountdown,
+    countdownSeconds: settings.countdownSeconds,
+    sessionRunning,
+    sessionFinished: showSessionFinished,
+    hasError: !!currentTrack && playbackErrorTrackId === currentTrack.id,
+  });
 
   // Promo-banner wording, driven by the SERVER phase (never the device clock):
   //  • free phase        → "free until 1 October 2026, no card required"
@@ -6779,6 +6795,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // bar). Those rules only match inside this named size container, so the
       // standalone /app player and the embedded DESKTOP layout are unaffected.
       data-eqho-embed-root={embedded ? "" : undefined}
+      data-playback-state={playbackPhase}
+      data-player-view={coachViewActive ? "fullscreen" : "standard"}
       // Scopes the iPad-web visual fallbacks in globals.css ([data-ipad-web]) to the
       // player only, so the marketing site, iPhone and desktop are untouched.
       data-ipad-web={isIPadWeb ? "true" : undefined}
@@ -6989,6 +7007,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           // A real element error means we are not playing — reflect that so the
           // Play icon is correct (isPlaying is only ever cleared by pause/ended/error).
           setIsPlaying(false);
+          setPlaybackErrorTrackId(currentTrackRef.current?.id ?? null);
           // If playback fails while offline and there is no local downloaded copy,
           // tell the user the track is not available on this device.
           const src = audioRef.current?.currentSrc || audioRef.current?.src || "";
@@ -7006,6 +7025,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       <div
         ref={fullscreenRef}
         data-coach-overlay="desktop"
+        data-playback-state={playbackPhase}
         className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
         {/* Gap countdown for the DESKTOP-only native-fullscreen coach view. It must
