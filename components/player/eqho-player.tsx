@@ -4948,9 +4948,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
     if (!audioRef.current) return;
 
+    // Switching track during the inter-track countdown cancels it so the queued
+    // next track can't start afterwards. A running countdown counts as playing;
+    // a paused (held) countdown stays paused on the newly selected track.
+    const wasCountingDown = isGapPausedRef.current && gapHeldRemainingMsRef.current == null;
+    invalidateGap("skip-back");
+
     // Preserve the current playback state before changing track.
     // Only auto-play after skip-back if the player was already playing.
-    const wasPlaying = isPlaying;
+    const wasPlaying = isPlaying || wasCountingDown;
 
     // Early in a track: go to the previous visible track (fresh back-to-back
     // cycle). Otherwise restart the current one.
@@ -7616,7 +7622,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   className="eqho-primary-fill w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_40px_rgba(255,79,179,0.4)] hover:shadow-[0_0_60px_rgba(255,79,179,0.6)] transition"
                 >
                   {isGapPaused && !isGapHeld ? (
-                    <span className="text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                    <span className="flex flex-col items-center leading-none" aria-label="Pause countdown">
+                      <span className="text-2xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
+                      <Pause size={12} aria-hidden="true" />
+                    </span>
                   ) : isPlaying ? <Pause size={28} /> : <Play size={28} />}
                 </button>
 
@@ -7987,7 +7996,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 <StepBack size={22} className="text-white" />
               </button>
               <button onClick={handlePauseClick} disabled={!currentTrack && playlist.length === 0} className="eqho-primary-fill w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.4)]">
-                {isGapPaused && !isGapHeld ? <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span> : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
+                {isGapPaused && !isGapHeld ? (
+                  <span className="flex flex-col items-center leading-none" aria-label="Pause countdown">
+                    <span className="text-xl font-black tabular-nums countdown-flash">{gapCountdown}</span>
+                    <Pause size={12} aria-hidden="true" />
+                  </span>
+                ) : isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
               </button>
               <button onClick={handleSkipForwardClick} className="w-12 h-12 rounded-full border border-white/20 bg-white/[0.06] flex items-center justify-center">
                 <StepForward size={22} className="text-white" />
@@ -9163,12 +9177,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <button
                 onClick={toggleSession}
                 disabled={!currentTrack && playlist.length === 0}
+                aria-label={isGapPaused ? (isGapHeld ? "Resume countdown" : "Pause countdown") : isPlaying ? "Pause" : "Play"}
                 className="eqho-primary-fill w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow-[0_0_30px_rgba(255,79,179,0.35)] hover:shadow-[0_0_40px_rgba(255,79,179,0.5)] transition"
               >
-                {isGapPaused && !isGapHeld && isIPadWeb ? (
+                {isGapPaused && !isGapHeld ? (
                   <Pause size={28} />
-                ) : isGapPaused && !isGapHeld ? (
-                  <span className="text-xl font-black tabular-nums countdown-flash" key={gapCountdown}>{gapCountdown}</span>
                 ) : isPlaying ? (
                   <Pause size={28} />
                 ) : (
