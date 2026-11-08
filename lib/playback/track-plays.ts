@@ -105,6 +105,22 @@ export function recordCompletedPlay(cyclePlays: TrackCyclePlays, trackId: string
   return { ...cyclePlays, [trackId]: getCompletedPlays(cyclePlays, trackId) + 1 };
 }
 
+/**
+ * True only for the single completed play that takes a track from below its
+ * Plays target to exactly the target. Extra plays beyond it never re-fire.
+ */
+export function playReachesTarget(
+  targets: TrackPlayTargets,
+  cyclePlaysBefore: TrackCyclePlays,
+  trackId: string,
+  backToBack: boolean,
+): boolean {
+  return (
+    getCompletedPlays(cyclePlaysBefore, trackId) + 1 ===
+    getEffectiveTargetPlays(targets, trackId, backToBack)
+  );
+}
+
 export function clearCompletedPlays(cyclePlays: TrackCyclePlays, trackId: string): Record<string, number> {
   if (!(trackId in cyclePlays)) return cyclePlays as Record<string, number>;
   const next = { ...cyclePlays };

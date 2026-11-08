@@ -21,6 +21,7 @@ import type { PostHog } from "posthog-js"
 import { isProductEvent, sanitizeProps } from "./events"
 import { hasConsent } from "./consent"
 import { getPlatformContext } from "./device"
+import { anonymousUserId } from "./anonymous-id"
 
 const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY
 const HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST
@@ -159,17 +160,22 @@ export function identifyUser(userId: string, subscriptionTier?: string | null): 
   if (!instance || !userId) return
   const key = `${userId}|${subscriptionTier ?? ""}`
   if (identifiedKey === key) return
-  try {
-    const { platform, native_app } = getPlatformContext()
-    instance.identify(userId, {
-      platform,
-      native_app,
-      subscription_tier: subscriptionTier ?? "unknown",
-    })
-    identifiedKey = key
-  } catch {
-    /* no-op */
-  }
+  identifiedKey = key
+  void anonymousUserId(userId).then((anonId) => {
+    // Without Web Crypto we stay on PostHog's random anonymous id rather than
+    // ever falling back to the raw user id.
+    if (!anonId || !instance || identifiedKey !== key) return
+    try {
+      const { platform, native_app } = getPlatformContext()
+      instance.identify(anonId, {
+        platform,
+        native_app,
+        subscription_tier: subscriptionTier ?? "unknown",
+      })
+    } catch {
+      /* no-op */
+    }
+  })
 }
 
 export function isUserIdentified(): boolean {

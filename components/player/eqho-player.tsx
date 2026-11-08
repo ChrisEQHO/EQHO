@@ -32,6 +32,7 @@ import {
   getEffectiveTargetPlays,
   getTargetPlays,
   getTrackRowStatus,
+  playReachesTarget,
   pruneToTrackIds,
   recordCompletedPlay,
   resolveSkipForward,
@@ -952,7 +953,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   useEffect(() => {
     if (isFullscreen === fullscreenTrackedRef.current) return;
     fullscreenTrackedRef.current = isFullscreen;
-    trackEvent(isFullscreen ? "fullscreen_player_opened" : "fullscreen_player_closed");
+    trackEvent(isFullscreen ? "fullscreen_opened" : "fullscreen_closed");
   }, [isFullscreen]);
   const trackTrackPlayStarted = () => {
     trackEvent("track_play_started");
@@ -2481,7 +2482,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         return next;
       });
 
-    trackEvent("cloud_upload_started");
+    trackEvent("playlist_upload_started");
     try {
       const result = await syncPlaylistToCloud({
         id: localPlaylist.id,
@@ -2519,7 +2520,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             },
           }));
         }
-        trackEvent("cloud_upload_completed");
+        trackEvent("playlist_upload_completed");
         if (pendingTracks[playlistId]?.direction === 'upload') setPendingFor(playlistId, null);
         setPanelNotice({ tone: 'success', text: `${localPlaylist.name} is synced to EQHO Cloud.` });
         setSyncStatus('success');
@@ -2546,7 +2547,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         }, 2500);
       } else {
         const uploadErrorCategory = partialFailure ? "network" : categorizeError(result.error);
-        if (uploadErrorCategory) trackEvent("cloud_upload_failed", { error_category: uploadErrorCategory });
+        if (uploadErrorCategory) trackEvent("cloud_sync_failed", { direction: "upload", error_category: uploadErrorCategory });
         setSyncStatus('error');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
@@ -2585,7 +2586,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     } catch (error) {
       console.error("Sync failed:", error);
       const uploadErrorCategory = categorizeError(error);
-      if (uploadErrorCategory) trackEvent("cloud_upload_failed", { error_category: uploadErrorCategory });
+      if (uploadErrorCategory) trackEvent("cloud_sync_failed", { direction: "upload", error_category: uploadErrorCategory });
       clearUploadProgress();
       setPanelNotice({ tone: 'error', text: `Upload failed for ${localPlaylist.name}. Your local playlist is unchanged.` });
       setSyncStatus('error');
@@ -2829,7 +2830,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return next;
     });
 
-    trackEvent("cloud_playlist_download_started");
+    trackEvent("playlist_download_started");
     try {
       const { playlist: localPlaylist, failedTracks, reason } = await fetchPlaylistWithFilesDetailed(playlistId);
       if (localPlaylist) {
@@ -2863,9 +2864,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
         console.log(`[v0][cloud-restore] Final restored playlist count: 1 ("${newPlaylist.name}")`);
         if (failedTracks.length > 0) {
-          trackEvent("cloud_playlist_download_failed", { error_category: "network" });
+          trackEvent("cloud_sync_failed", { direction: "download", error_category: "network" });
         } else {
-          trackEvent("cloud_playlist_download_completed");
+          trackEvent("playlist_download_completed");
         }
         if (failedTracks.length > 0) {
           console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
@@ -2885,7 +2886,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // No audio could be downloaded — do not create an empty playlist folder.
         // Show WHY, using the reason classified during the download attempt.
         console.log('[v0][cloud-restore] Failed tracks:', failedTracks, 'reason:', reason);
-        trackEvent("cloud_playlist_download_failed", {
+        trackEvent("cloud_sync_failed", { direction: "download",
           error_category:
             reason === 'access-denied' ? 'permission'
               : reason === 'offline' ? 'network'
@@ -2913,7 +2914,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const detail = (error as Error)?.message || String(error);
       console.error("[v0] DOWNLOAD handler error:", detail);
       const restoreErrorCategory = categorizeError(error);
-      if (restoreErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: restoreErrorCategory });
+      if (restoreErrorCategory) trackEvent("cloud_sync_failed", { direction: "download", error_category: restoreErrorCategory });
       const failMsg = `Download failed: ${detail}`;
       setCloudSaveMessage(failMsg);
       setCloudSaveSuccess(false);
@@ -3208,7 +3209,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return next;
     });
     setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
-    trackEvent("cloud_playlist_download_started");
+    trackEvent("playlist_download_started");
 
     try {
       const { playlist: restored, failedTracks, failures, totalTracks, reason } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
@@ -3310,7 +3311,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           ? { direction: 'download', cloudId, failures, updatedAt: new Date().toISOString() }
           : null,
       );
-      trackEvent("cloud_playlist_download_completed");
+      trackEvent("playlist_download_completed");
       setPanelNotice(
         failures.length > 0
           ? {
@@ -3322,7 +3323,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     } catch (error) {
       console.error('[v0] Cloud playlist download failed:', error);
       const downloadErrorCategory = categorizeError(error);
-      if (downloadErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: downloadErrorCategory });
+      if (downloadErrorCategory) trackEvent("cloud_sync_failed", { direction: "download", error_category: downloadErrorCategory });
       const reasonText = error instanceof Error ? error.message : 'The playlist could not be downloaded.';
       markFailed(reasonText);
       setPanelNotice({
@@ -3485,6 +3486,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const completeGuide = () => {
     setShowGuide(false);
     markOnboarding("guideCompleted");
+    trackEvent("onboarding_completed");
   };
   const diagnosticsAuth = demoMode ? "demo" : user ? "signed-in" : "signed-out";
 
@@ -5314,6 +5316,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const markTrackCompleted = useCallback((trackId?: string | null) => {
     if (!trackId) return;
     setCompletionCounts((prev) => ({ ...prev, [trackId]: (prev[trackId] || 0) + 1 }));
+    // Both engines call this before recording the play into cyclePlays, so the
+    // ref still holds the pre-play count here.
+    if (playReachesTarget(trackPlayTargetsRef.current, cyclePlaysRef.current, trackId, backToBackRef.current)) {
+      trackEvent("track_target_completed", {
+        target_plays: getEffectiveTargetPlays(trackPlayTargetsRef.current, trackId, backToBackRef.current),
+      });
+    }
   }, []);
   // Guards the native completion detector so each full play is counted once.
   const nativeTrackCompletedRef = useRef(false);
