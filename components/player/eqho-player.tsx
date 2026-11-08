@@ -30,9 +30,8 @@ import {
   findFirstPlayableIndex,
   getCompletedPlays,
   getEffectiveTargetPlays,
-  getPlayProgressLabel,
   getTargetPlays,
-  isTrackCycleComplete,
+  getTrackRowStatus,
   pruneToTrackIds,
   recordCompletedPlay,
   resolveSkipForward,
@@ -4742,33 +4741,47 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
-  const hasPlayProgress = Object.keys(cyclePlays).length > 0;
 
-  // Status line for a row: "Play 2 of 3" while a multi-play track is current,
-  // "Complete" once it has played all of its plays this cycle.
-  const getTrackPlaysStatus = (trackId: string, isActive: boolean): string | null => {
-    const target = getEffectiveTargetPlays(trackPlayTargets, trackId, backToBack);
-    if (isTrackCycleComplete(trackPlayTargets, cyclePlays, trackId, backToBack)) return "Complete";
-    if (isActive) return getPlayProgressLabel(getCompletedPlays(cyclePlays, trackId), target);
-    return null;
-  };
+  const getTrackPlaysStatus = (track: Track, isActive: boolean) =>
+    getTrackRowStatus({
+      included: !hiddenTrackIds.has(track.id),
+      isCurrent: isActive,
+      hasAudio: Boolean(track.url),
+      hasError: playbackErrorTrackId === track.id,
+      completedPlays: getCompletedPlays(cyclePlays, track.id),
+      effectiveTarget: getEffectiveTargetPlays(trackPlayTargets, track.id, backToBack),
+    });
 
   const renderTrackPlaysControl = (track: Track, isActive: boolean, layout: "inline" | "stacked") => (
     <TrackPlaysControl
       trackTitle={track.title}
       target={getTargetPlays(trackPlayTargets, track.id)}
       included={!hiddenTrackIds.has(track.id)}
-      status={getTrackPlaysStatus(track.id, isActive)}
+      status={getTrackPlaysStatus(track, isActive)}
       layout={layout}
       onChangeTarget={(value) => updateTrackPlayTarget(track.id, value)}
       onToggleIncluded={() => toggleTrackIncluded(track.id)}
     />
   );
 
+  // Reset Session: clears progress only. Order, Plays targets and Included
+  // choices stay exactly as the user set them.
   const resetPlaylist = () => {
+    if (playlist.length === 0) return;
+    resetPlayCounts();
+  };
+
+  // Restore defaults: original order, every track included, 1 play each.
+  const restoreSessionDefaults = () => {
   if (playlist.length === 0) return;
+  invalidateGap("restore-defaults");
+  if (nativeSessionRef.current.activeRef.current) void nativeSessionRef.current.stop();
   setCyclePlays({});
   setCompletionCounts({});
+  setTrackPlayTargets({});
+  setShowSessionFinished(false);
+  completionLatchRef.current.reset();
+  b2bRepeatedTrackIdRef.current = null;
     
     // Use original order if available, otherwise reset current playlist state
     const orderToRestore = originalPlaylistOrder.length > 0 ? originalPlaylistOrder : playlist;
@@ -8937,15 +8950,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         Reset
                       </button>
                     )}
-                    {hasPlayProgress && (
-                      <button
-                        type="button"
-                        onClick={resetPlayCounts}
-                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/60 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition"
-                      >
-                        Reset play counts
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={restoreSessionDefaults}
+                      title="Original order, all tracks included, 1 play each"
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/60 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition"
+                    >
+                      Restore defaults
+                    </button>
                     <button
                       onClick={() => {
                         console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);

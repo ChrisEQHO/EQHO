@@ -1,17 +1,19 @@
 "use client";
 
 import type { KeyboardEvent, PointerEvent, MouseEvent } from "react";
-import { Check, Eye, EyeOff, Minus, Plus } from "lucide-react";
+import { AlertTriangle, Check, Circle, FileX, Minus, Play, Plus, Ban } from "lucide-react";
 import {
   MAX_TRACK_PLAYS as MAX_TARGET_PLAYS,
   MIN_TRACK_PLAYS as MIN_TARGET_PLAYS,
+  type TrackRowStatus,
+  type TrackRowStatusKind,
 } from "@/lib/playback/track-plays";
 
 type TrackPlaysControlProps = {
   trackTitle: string;
   target: number;
   included: boolean;
-  status: string | null;
+  status: TrackRowStatus;
   layout: "inline" | "stacked";
   onChangeTarget: (value: number) => void;
   onToggleIncluded: () => void;
@@ -21,8 +23,19 @@ type TrackPlaysControlProps = {
 // dragging the row it sits in (dnd-kit listens for pointer and key events).
 const stop = (e: PointerEvent | MouseEvent | KeyboardEvent) => e.stopPropagation();
 
+// 44x44 minimum on every pointer type.
 const touchTarget =
-  "flex items-center justify-center shrink-0 rounded-md transition [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70";
+  "flex items-center justify-center shrink-0 min-w-11 min-h-11 rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70";
+
+// Each status has its own icon and wording, so colour is never the only cue.
+const STATUS_STYLE: Record<TrackRowStatusKind, { icon: typeof Check; className: string }> = {
+  current: { icon: Play, className: "text-pink-300" },
+  upcoming: { icon: Circle, className: "text-white/60" },
+  complete: { icon: Check, className: "text-green-400" },
+  excluded: { icon: Ban, className: "text-white/50" },
+  "missing-audio": { icon: FileX, className: "text-amber-300" },
+  error: { icon: AlertTriangle, className: "text-red-400" },
+};
 
 export function TrackPlaysControl({
   trackTitle,
@@ -35,7 +48,7 @@ export function TrackPlaysControl({
 }: TrackPlaysControlProps) {
   const canDecrease = target > MIN_TARGET_PLAYS;
   const canIncrease = target < MAX_TARGET_PLAYS;
-  const isComplete = status === "Complete";
+  const { icon: StatusIcon, className: statusClass } = STATUS_STYLE[status.kind];
 
   const handleStepperKey = (e: KeyboardEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -50,21 +63,20 @@ export function TrackPlaysControl({
 
   return (
     <div
-      className={`flex items-center gap-1 ${layout === "stacked" ? "flex-wrap justify-end" : ""}`}
+      className={`flex items-center gap-1.5 ${layout === "stacked" ? "flex-wrap justify-end" : ""}`}
       onPointerDown={stop}
       onClick={stop}
       onKeyDown={stop}
       data-track-plays-control
     >
-      {status && included && (
-        <span
-          className={`flex items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold ${isComplete ? "text-green-400" : "text-pink-300"}`}
-          aria-live="polite"
-        >
-          {isComplete && <Check size={11} aria-hidden="true" />}
-          {status}
-        </span>
-      )}
+      <span
+        className={`flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold ${statusClass}`}
+        aria-live={status.kind === "current" ? "polite" : undefined}
+        data-status={status.kind}
+      >
+        <StatusIcon size={12} aria-hidden="true" />
+        {status.label}
+      </span>
 
       <div
         role="group"
@@ -72,19 +84,19 @@ export function TrackPlaysControl({
         onKeyDown={handleStepperKey}
         className={`flex items-center rounded-lg border border-white/10 bg-white/[0.04] ${included ? "" : "opacity-40"}`}
       >
-        <span className="pl-1.5 pr-0.5 text-[9px] font-bold uppercase tracking-wide text-white/50">Plays</span>
+        <span className="pl-2 pr-0.5 text-[10px] font-bold uppercase tracking-wide text-white/60">Plays</span>
         <button
           type="button"
           onClick={() => canDecrease && onChangeTarget(target - 1)}
           disabled={!canDecrease || !included}
           aria-label={`Decrease plays for ${trackTitle}`}
-          className={`${touchTarget} h-6 w-6 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent`}
+          className={`${touchTarget} text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent`}
         >
-          <Minus size={12} strokeWidth={2.75} aria-hidden="true" />
+          <Minus size={14} strokeWidth={2.75} aria-hidden="true" />
         </button>
         <output
           aria-label={`${target} ${target === 1 ? "play" : "plays"}`}
-          className="min-w-4 text-center text-xs font-bold tabular-nums text-white"
+          className="min-w-5 text-center text-sm font-bold tabular-nums text-white"
         >
           {target}
         </output>
@@ -93,9 +105,9 @@ export function TrackPlaysControl({
           onClick={() => canIncrease && onChangeTarget(target + 1)}
           disabled={!canIncrease || !included}
           aria-label={`Increase plays for ${trackTitle}`}
-          className={`${touchTarget} h-6 w-6 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent`}
+          className={`${touchTarget} text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent`}
         >
-          <Plus size={12} strokeWidth={2.75} aria-hidden="true" />
+          <Plus size={14} strokeWidth={2.75} aria-hidden="true" />
         </button>
       </div>
 
@@ -104,12 +116,15 @@ export function TrackPlaysControl({
         role="switch"
         aria-checked={included}
         onClick={onToggleIncluded}
-        aria-label={included ? `Exclude ${trackTitle} from this session` : `Include ${trackTitle} in this session`}
-        title={included ? "Included — tap to exclude" : "Excluded — tap to include"}
-        className={`${touchTarget} h-7 w-7 ${included ? "text-cyan-400 hover:bg-cyan-500/15" : "text-white/40 hover:bg-white/10 hover:text-white/70"}`}
+        aria-label={`${trackTitle}: ${included ? "included in" : "excluded from"} this session`}
+        className={`${touchTarget} gap-1 border px-2.5 text-[11px] font-bold ${
+          included
+            ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20"
+            : "border-white/15 text-white/60 hover:bg-white/10 hover:text-white"
+        }`}
       >
-        {included ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
-        <span className="sr-only">{included ? "Included" : "Excluded"}</span>
+        {included ? <Check size={13} aria-hidden="true" /> : <Ban size={13} aria-hidden="true" />}
+        {included ? "Included" : "Excluded"}
       </button>
     </div>
   );

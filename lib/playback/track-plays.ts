@@ -17,7 +17,7 @@ import {
 } from "./sequencer";
 
 export const MIN_TRACK_PLAYS = 1;
-export const MAX_TRACK_PLAYS = 20;
+export const MAX_TRACK_PLAYS = 10;
 export const DEFAULT_TRACK_PLAYS = 1;
 
 export type TrackPlayTargets = Readonly<Record<string, number>>;
@@ -130,6 +130,38 @@ export function getPlayProgressLabel(completedPlays: number, effectiveTarget: nu
   if (effectiveTarget <= 1) return null;
   const playNumber = Math.min(completedPlays + 1, effectiveTarget);
   return `Play ${playNumber} of ${effectiveTarget}`;
+}
+
+export type TrackRowStatusKind = "current" | "upcoming" | "complete" | "excluded" | "missing-audio" | "error";
+
+export type TrackRowStatus = { kind: TrackRowStatusKind; label: string };
+
+/**
+ * One status per Up Next row. An explicit exclusion always wins, so a track the
+ * user turned off is never shown as Upcoming. Audio problems come next, then
+ * cycle progress.
+ */
+export function getTrackRowStatus(input: {
+  included: boolean;
+  isCurrent: boolean;
+  hasAudio: boolean;
+  hasError: boolean;
+  completedPlays: number;
+  effectiveTarget: number;
+}): TrackRowStatus {
+  const { included, isCurrent, hasAudio, hasError, completedPlays, effectiveTarget } = input;
+  if (!included) return { kind: "excluded", label: "Excluded" };
+  if (hasError) return { kind: "error", label: "Error" };
+  if (!hasAudio) return { kind: "missing-audio", label: "Missing audio" };
+  if (completedPlays >= effectiveTarget) return { kind: "complete", label: "Complete" };
+  if (isCurrent) {
+    const playNumber = Math.min(completedPlays + 1, effectiveTarget);
+    return { kind: "current", label: effectiveTarget > 1 ? `${playNumber} of ${effectiveTarget}` : "Current" };
+  }
+  return {
+    kind: "upcoming",
+    label: completedPlays > 0 ? `Upcoming · ${completedPlays} of ${effectiveTarget} done` : "Upcoming",
+  };
 }
 
 export interface TrackPlaysSessionContext {

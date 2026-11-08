@@ -10,6 +10,7 @@ import {
   findFirstPlayableIndex,
   getPlayProgressLabel,
   getTargetPlays,
+  getTrackRowStatus,
   getTrackSessionConfig,
   pruneToTrackIds,
   resolveSkipForward,
@@ -87,12 +88,23 @@ describe("per-track play counts", () => {
     expect(plays(simulate({}))).toEqual(["bal", "dyn", "com"]);
   });
 
-  it("clamps targets to 1..20", () => {
+  it("clamps targets to 1..10", () => {
+    expect(MAX_TRACK_PLAYS).toBe(10);
     expect(clampTargetPlays(0)).toBe(1);
     expect(clampTargetPlays(-4)).toBe(1);
     expect(clampTargetPlays(99)).toBe(MAX_TRACK_PLAYS);
     expect(clampTargetPlays(Number.NaN)).toBe(1);
-    expect(setTargetPlays({}, "bal", 25)).toEqual({ bal: 20 });
+    expect(setTargetPlays({}, "bal", 25)).toEqual({ bal: 10 });
+  });
+
+  it("track plays are the inner loop and Repeat Playlist the outer loop (interleaved)", () => {
+    const order = plays(simulate({ playlist: [balance, dynamic], targets: { bal: 3, dyn: 2 }, repeats: 2 }));
+    expect(order).toEqual(["bal", "dyn", "bal", "dyn", "bal", "bal", "dyn", "bal", "dyn", "bal"]);
+  });
+
+  it("never plays an excluded track, even with plays left", () => {
+    const order = plays(simulate({ targets: { bal: 2, dyn: 3, com: 2 }, hidden: new Set(["dyn"]) }));
+    expect(order).toEqual(["bal", "com", "bal", "com"]);
   });
 
   it("2/3. multi-play tracks play in playlist passes, not back-to-back", () => {
@@ -271,5 +283,30 @@ describe("per-track play counts", () => {
     expect(entries.map((t) => t.id)).toEqual(["bal", "com", "bal"]);
     expect(playlistIndexes).toEqual([0, 2, 0]);
     expect(entries[0]).toBe(entries[2]);
+  });
+});
+
+describe("Up Next row status", () => {
+  const base = { included: true, isCurrent: false, hasAudio: true, hasError: false, completedPlays: 0, effectiveTarget: 3 };
+
+  it("shows progress for the current track", () => {
+    expect(getTrackRowStatus({ ...base, isCurrent: true })).toEqual({ kind: "current", label: "1 of 3" });
+    expect(getTrackRowStatus({ ...base, isCurrent: true, completedPlays: 1 })).toEqual({ kind: "current", label: "2 of 3" });
+    expect(getTrackRowStatus({ ...base, isCurrent: true, effectiveTarget: 1 })).toEqual({ kind: "current", label: "Current" });
+  });
+
+  it("marks complete, upcoming and partially played tracks", () => {
+    expect(getTrackRowStatus({ ...base, completedPlays: 3 }).kind).toBe("complete");
+    expect(getTrackRowStatus(base)).toEqual({ kind: "upcoming", label: "Upcoming" });
+    expect(getTrackRowStatus({ ...base, completedPlays: 1 }).label).toBe("Upcoming · 1 of 3 done");
+  });
+
+  it("an explicit exclusion wins over every other state", () => {
+    expect(getTrackRowStatus({ ...base, included: false, isCurrent: true, hasError: true }).kind).toBe("excluded");
+  });
+
+  it("reports missing audio and errors", () => {
+    expect(getTrackRowStatus({ ...base, hasAudio: false }).kind).toBe("missing-audio");
+    expect(getTrackRowStatus({ ...base, hasError: true, isCurrent: true }).kind).toBe("error");
   });
 });
