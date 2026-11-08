@@ -12,7 +12,7 @@
     "build": "node scripts/build.js",
     "build:mobile": "NEXT_PUBLIC_BUILD_TARGET=mobile node scripts/build.js",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run",
     "test:e2e:webkit": "playwright test --config=playwright.config.ts",
     "cap:sync": "npm run build:mobile && npx cap sync",

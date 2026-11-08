@@ -53,6 +53,8 @@ import { trackEvent } from "@/lib/analytics/track-event";
 import { resetUser as resetAnalyticsUser } from "@/lib/analytics/posthog-client";
 import { categorizeError } from "@/lib/analytics/error-category";
 import { clearEntitlementVerified, recordEntitlementVerified, isWithinOfflineGrace, isOnline } from "@/lib/access";
+import { makeReferenceCode, navigateOnce, routeFor, STARTUP_TIMEOUT_SENTINEL, withTimeout } from "@/lib/startup";
+import { getSavedPlaylists } from "@/lib/eqho-db";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -916,6 +918,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
   // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
   const [accessRetryToken, setAccessRetryToken] = useState(0);
+  // Non-sensitive support code shown on the startup error screen, plus whether
+  // this device holds downloaded playlists (enables "Continue offline").
+  const [gateReference, setGateReference] = useState<string | null>(null);
+  const [hasOfflineData, setHasOfflineData] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -1113,15 +1119,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     let cancelled = false;
     const STARTUP_TIMEOUT_MS = 8000;
 
-    // Reject after `ms` so a hung Supabase/network call can never block startup.
-    const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T> =>
-      Promise.race([
-        Promise.resolve(p),
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error("ACCESS_CHECK_TIMEOUT")), ms)
-        ),
-      ]);
-
     // Stored session is unusable (expired / revoked / not found). We must clear it
     // locally and treat the user as logged out rather than retrying forever.
     const isInvalidSessionError = (msg: string | undefined | null): boolean => {
@@ -1172,14 +1169,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
-        if (message === "ACCESS_CHECK_TIMEOUT") {
-          console.log("[v0] ACCESS CHECK TIMEOUT");
-        } else {
-          console.log("[v0] ACCESS CHECK ERROR", message);
-        }
+        const isTimeout = message === STARTUP_TIMEOUT_SENTINEL;
+        console.warn(isTimeout ? "[startup] session check timed out" : "[startup] session check failed", isTimeout ? "" : message);
         // If we can't confirm anything, show a recoverable error (not a white
         // screen / infinite spinner). authChecked is still set in `finally`;
         // the gate effect below leaves "error" untouched.
+        setGateReference(makeReferenceCode(isTimeout ? "session-timeout" : "session-error"));
         setGate("error");
       } finally {
         if (!cancelled) setAuthChecked(true);
@@ -1233,14 +1228,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // to "checking", which re-runs this verification.
     if (gate !== "checking") return;
 
-    // Hard navigation helper ��� the Next.js client router has been observed to
-    // silently no-op in this app's environment, and window.location.replace also
-    // works in the Capacitor static export. router.replace is a fast-path first.
+    // Single hard navigation per page lifetime. Previously this fired BOTH
+    // router.replace and window.location.replace, and on the Capacitor static
+    // export a bare "/login" (no trailing slash) could resolve to the root
+    // index.html, which bounced back to /app/ — a WebView reload loop on iPad.
+    // navigateOnce adds the trailing slash on mobile and refuses repeat calls.
     const hardRedirect = (path: string) => {
-      router.replace(path);
-      if (typeof window !== "undefined" && window.location.pathname !== path) {
-        window.location.replace(path);
-      }
+      navigateOnce(path, isMobileBuild);
     };
 
     if (!user) {
@@ -1263,7 +1257,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // session), deployed HTTPS origin + Supabase Bearer token on the mobile
         // static export. Without this, a relative /api/entitlement on Capacitor
         // resolves to the WebView origin and returns the SPA index.html.
-        const res = await apiFetch("/api/entitlement", { cache: "no-store" });
+        // Bounded: a stalled request on a captive / flaky network previously
+        // left "Checking your access…" spinning forever.
+        const res = await withTimeout(apiFetch("/api/entitlement", { cache: "no-store" }), 10000);
         if (cancelled) return;
 
         const contentType = (res.headers.get("content-type") || "").toLowerCase();
@@ -1315,11 +1311,23 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // Other server error / non-JSON body: fail OPEN if we verified online
         // recently (never lock out a paying user over a blip), else show the
         // recoverable error.
-        setGate(isWithinOfflineGrace() ? "granted" : "error");
-      } catch {
+        if (isWithinOfflineGrace()) {
+          setGate("granted");
+        } else {
+          setGateReference(makeReferenceCode(`entitlement-${res.status}`));
+          setGate("error");
+        }
+      } catch (err) {
         if (cancelled) return;
         // Network/unexpected error: fall back to the offline grace window.
-        setGate(isWithinOfflineGrace() ? "granted" : "blocked-offline");
+        if (isWithinOfflineGrace()) {
+          setGate("granted");
+        } else if (err instanceof Error && err.message === STARTUP_TIMEOUT_SENTINEL) {
+          setGateReference(makeReferenceCode("entitlement-timeout"));
+          setGate("error");
+        } else {
+          setGate("blocked-offline");
+        }
       }
     };
 
@@ -1328,7 +1336,30 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     return () => {
       cancelled = true;
     };
-  }, [authChecked, user, router, gate, supabase]);
+  }, [authChecked, user, gate, supabase]);
+
+  // On the startup error screen, look for downloaded playlists so we can offer
+  // "Continue offline". Only offered inside the existing offline grace window,
+  // which requires a prior online verification on this device and is cleared on
+  // sign-out — so this never widens who can access the player.
+  useEffect(() => {
+    if (gate !== "error") return;
+    if (!isWithinOfflineGrace()) {
+      setHasOfflineData(false);
+      return;
+    }
+    let cancelled = false;
+    withTimeout(getSavedPlaylists(), 3000)
+      .then((lists) => {
+        if (!cancelled) setHasOfflineData(lists.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setHasOfflineData(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gate]);
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
@@ -1370,7 +1401,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       //    tears down cached player state. Works in the browser, Capacitor
       //    (iPhone/iPad) and the desktop wrapper, which all run a web view.
       if (typeof window !== 'undefined') {
-        window.location.replace('/login');
+        window.location.replace(routeFor('/login', isMobileBuild));
       } else {
         router.replace('/login');
       }
@@ -1521,7 +1552,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         }
         // Hard navigation (not router.push) so no in-memory React/subscription
         // state survives. The login page shows the confirmation via ?deleted=1.
-        window.location.href = '/login?deleted=1';
+        window.location.href = routeFor('/login?deleted=1', isMobileBuild);
         return;
       }
       alert(result.error || 'Failed to delete account');
@@ -6577,7 +6608,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             once your subscription is confirmed.
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              // Retry in place: a full reload can re-hang the iPad WebView.
+              setGate("checking");
+              setAuthChecked(false);
+              setAccessRetryToken((n) => n + 1);
+            }}
             className="w-full min-h-[48px] py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
           >
             Try Again
@@ -6619,6 +6655,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <RefreshCw size={18} />
               Try Again
             </button>
+            {hasOfflineData && (
+              <button
+                onClick={() => setGate("granted")}
+                className="w-full min-h-[48px] py-3 rounded-xl border border-[#ff8a00]/40 bg-white/5 text-white font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2"
+              >
+                <WifiOff size={18} />
+                Continue offline
+              </button>
+            )}
             <button
               onClick={handleLogout}
               disabled={isSigningOut}
@@ -6628,6 +6673,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               Sign Out
             </button>
           </div>
+          {gateReference && (
+            <p className="mt-5 text-xs text-white/40">
+              Reference: <span className="font-mono text-white/60 select-all">{gateReference}</span>
+            </p>
+          )}
         </div>
       </div>
     );
@@ -9140,7 +9190,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       onTogglePause={handlePauseClick}
                     />
                   ) : isGapPaused ? (
-                    // Branded countdown — matches the mobile app: solid brand pink
+                    // Branded countdown ��� matches the mobile app: solid brand pink
                     // (#ff4fa3) with a pink→orange glow, so the "get ready" number
                     // reads as EQHO across every web surface.
                     <div
