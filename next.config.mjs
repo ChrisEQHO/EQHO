@@ -1,5 +1,16 @@
+import { readFileSync } from 'node:fs'
+
+const packageVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version ?? ''
+const commitSha = (process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '').slice(0, 7)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Non-secret build identifiers shown in Settings > Help > Diagnostics.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: packageVersion,
+    NEXT_PUBLIC_BUILD_NUMBER: process.env.BUILD_NUMBER || process.env.GITHUB_RUN_NUMBER || '',
+    NEXT_PUBLIC_WEB_BUNDLE_VERSION: commitSha || `local-${new Date().toISOString().slice(0, 10)}`,
+  },
   // TEMP (diagnose-only): route the local prod probe build to a separate dist
   // dir so it never clobbers the running dev server's .next. Removed after diagnosis.
   ...(process.env.BUILD_PROBE === '1' && { distDir: '.next-probe' }),

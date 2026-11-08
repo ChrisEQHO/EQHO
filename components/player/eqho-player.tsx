@@ -42,8 +42,11 @@ import { TrackPlaysControl } from "@/components/player/track-plays-control";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
 import { derivePlaybackPhase } from "@/lib/playback/session-machine";
 import { demoTrackUrl, parseDemoSnapshot } from "@/lib/playback/demo-session";
-import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
+import { markOnboarding, readOnboarding, shouldShowGuide, shouldShowSessionTip, type GuideAction } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
+import { OnboardingGuide } from "@/components/player/onboarding-guide";
+import { DiagnosticsCard } from "@/components/player/diagnostics-card";
+import { CurrentSessionCard, HelpSettingsCard, OfflineStatusCard, SettingsGroup } from "@/components/player/settings-sections";
 import { DeviceLockNotice } from "@/components/player/device-lock-notice";
 import { getQueueColour } from "@/lib/queue-position"
 import { HelpGuideSections } from "@/components/player/help-guide-sections";
@@ -3470,6 +3473,54 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const dismissSessionTip = () => {
     setShowSessionTip(false);
     markOnboarding("sessionTipDismissed");
+  };
+
+  // First-run guide: auto-opens once for signed-in coaches; replayable from Settings > Help.
+  const [showGuide, setShowGuide] = useState(() => !demoMode && shouldShowGuide(readOnboarding()));
+  const replayGuide = () => setShowGuide(true);
+  const skipGuide = useCallback(() => {
+    setShowGuide(false);
+    markOnboarding("guideSkipped");
+  }, []);
+  const completeGuide = () => {
+    setShowGuide(false);
+    markOnboarding("guideCompleted");
+  };
+  const diagnosticsAuth = demoMode ? "demo" : user ? "signed-in" : "signed-out";
+
+  const handleGuideAction = (action: GuideAction) => {
+    const desktopLayout =
+      typeof window !== "undefined" &&
+      window.innerWidth >= 1024 &&
+      !!document.querySelector("[data-desktop-layout]");
+    switch (action) {
+      case "openPlaylists":
+        if (desktopLayout) setActivePage("playlists");
+        else setMobileTab("playlists");
+        break;
+      case "openCloud":
+        openEqhoCloud();
+        break;
+      case "openQueue":
+      case "openSessionControls":
+        if (desktopLayout) setActivePage("player");
+        else setMobileTab("nowplaying");
+        setBottomBarExpanded(true);
+        break;
+      case "openCountdownSettings":
+        if (desktopLayout) setActivePage("settings");
+        else setMobileTab("settings");
+        break;
+      case "openFullscreen":
+        if (desktopLayout) {
+          setActivePage("player");
+          void toggleFullscreen();
+        } else {
+          setMobileTab("nowplaying");
+          setShowFullscreenMobilePlayer(true);
+        }
+        break;
+    }
   };
 
   const addSavedPlaylistToQueue = (id: string) => {
@@ -7175,7 +7226,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
-      {showSessionTip && <SessionTip onDismiss={dismissSessionTip} />}
+      {showSessionTip && !showGuide && <SessionTip onDismiss={dismissSessionTip} />}
+      {showGuide && (
+        <OnboardingGuide
+          cloudAvailable={cloudPanelAvailable}
+          onAction={handleGuideAction}
+          onSkip={skipGuide}
+          onComplete={completeGuide}
+        />
+      )}
 
       {/* Silent keepalive loop — see silentKeepAliveRef. Kept inaudible; only
           played during the inter-track gap to stop iPad Safari from throttling
@@ -10170,15 +10229,224 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             </div>
 
             {/* Settings Grid */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="p-6 flex flex-col gap-10">
+              <SettingsGroup id="settings-playback" title="Playback" description="How sessions run: gap, repeats, countdown and safety prompts." scope="saved">
+                <CurrentSessionCard gapSeconds={gapSeconds} playlistRepeats={playlistRepeats} backToBack={backToBack} sessionRunning={sessionRunning} onEditOnPlayer={() => { setActivePage("player"); setBottomBarExpanded(true); }} />
+
+                {/* Session Controls */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Timer size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Session defaults</h3>
+                  </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Used when a new session starts. To change the session that&apos;s playing now, use the session controls on the player.
+                  </p>
+                  {sessionRunning && (
+                    <p role="status" className="mb-4 rounded-lg border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-3 py-2 text-xs text-[#ffb35c] leading-relaxed">
+                      A session is playing. Changes here apply to your next session and won&apos;t interrupt this one.
+                    </p>
+                  )}
+                  <div className="space-y-4">
+                    <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
+                    <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
+                    <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
+                  </div>
+                </div>
+
+                {/* Coach Display */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <SlidersHorizontal size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Coach Display</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
+                    <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
+                  </div>
+
+                </div>
+
+                {/* Warning Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+                      <AlertTriangle size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Safety warnings</h3>
+                  </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Ask before pausing or skipping while a routine is playing, so the music isn&apos;t stopped by accident.
+                  </p>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
+                    <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
+                  </div>
+                </div>
+
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-audio" title="Audio" description="Volume, autoplay and the countdown sound." scope="saved">
+                {/* Playback Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Headphones size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Volume and autoplay</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {iosVolumeControl ? (
+                      <p className="text-sm text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
+                    ) : (
+                      <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
+                    )}
+                    <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
+                  </div>
+                </div>
+
+                {/* Countdown sound */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  {/* Countdown sound: the toggle controls SOUND ONLY (the visual
+                      countdown above still runs when off). Each row previews with
+                      the same generator as the live countdown. */}
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                      <Volume2 size={14} aria-hidden="true" />
+                      Countdown sound
+                    </h3>
+                    <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
+
+                    <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
+                      <span className="text-sm text-white/80">Countdown Sound</span>
+                      <div role="radiogroup" aria-label="Countdown sound" className="grid gap-2">
+                        {BEEP_SOUNDS.map((opt) => {
+                          const active = settings.beepSound === opt.id;
+                          return (
+                            <div
+                              key={opt.id}
+                              className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
+                            >
+                              <button
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => updateSetting("beepSound", opt.id)}
+                                className="flex-1 flex items-center gap-3 text-left min-h-[44px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]"
+                              >
+                                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
+                                  {active && <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]" />}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-semibold text-white">{opt.label}</span>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => previewBeepSound(opt.id)}
+                                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 px-3 min-h-[44px] text-[#ff8a00] hover:bg-[#ff8a00]/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00]"
+                                title={`Preview ${opt.label}`}
+                                aria-label={`Preview ${opt.label}`}
+                              >
+                                <Play size={14} />
+                                <span className="text-xs font-semibold">Preview</span>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-cloud" title="Cloud and offline" description="Connection status, backups and EQHO Cloud.">
+                <OfflineStatusCard online={deviceOnline} />
+
+                {!demoMode && (
+                <>
+                {/* EQHO Cloud - Sync & Backup */}
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Cloud size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">EQHO Cloud</h3>
+                  </div>
+                  
+                  {/* Cloud Status Message */}
+                  {cloudSaveMessage && (
+                    <div className={`mb-4 px-3 py-2 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
+                      <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
+                        {(isExporting || isPushingToApps) && <Loader2 size={14} className="animate-spin" />}
+                        {cloudSaveMessage}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                    {/* Download Playlists */}
+                    <div>
+                      <button
+                        onClick={handleDownloadAllPlaylists}
+                        disabled={isExporting}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-semibold hover:shadow-[0_0_20px_rgba(255,79,163,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isExporting ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <FileDown size={16} />
+                        )}
+                        Download Playlists
+                      </button>
+                      <p className="text-xs text-white/50 mt-2">
+                        Save a local backup of your EQHO playlists and routine setup.
+                      </p>
+                    </div>
+                    
+                    {/* Push to Apps - Desktop Only */}
+                    {!isMobileBuild && (
+                      <div>
+                        <button
+                          onClick={handlePushToApps}
+                          disabled={isPushingToApps}
+                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/20 text-white text-sm font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isPushingToApps ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Send size={16} />
+                          )}
+                          Save all to EQHO Cloud
+                        </button>
+                        <p className="text-xs text-white/50 mt-2">
+                          Saves every playlist on this device to your EQHO account. Other devices download them from EQHO Cloud.{" "}
+                          <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
+                            Open EQHO Cloud
+                          </button>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                </>
+                )}
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-account" title="Account" description="Your subscription, password and sign in.">
                 {/* Subscription Card */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
                       <Crown size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Subscription</h2>
+                    <h3 className="text-lg font-bold">Subscription</h3>
                   </div>
                   {(() => {
                     // Only a genuine, active Stripe subscription counts as "active".
@@ -10301,206 +10569,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   })()}
                 </div>
 
-                {/* Playback Settings */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Headphones size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Playback</h2>
-                  </div>
-                  <div className="space-y-4">
-                    {iosVolumeControl ? (
-                      <p className="text-sm text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
-                    ) : (
-                      <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
-                    )}
-                    <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
-                  </div>
-                </div>
-
-                {/* Session Controls */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Timer size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Session defaults</h2>
-                  </div>
-                  <p className="text-sm text-white/60 leading-relaxed mb-4">
-                    Used when a new session starts. To change the session that&apos;s playing now, use the session controls on the player.
-                  </p>
-                  {sessionRunning && (
-                    <p role="status" className="mb-4 rounded-lg border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-3 py-2 text-xs text-[#ffb35c] leading-relaxed">
-                      A session is playing. Changes here apply to your next session and won&apos;t interrupt this one.
-                    </p>
-                  )}
-                  <div className="space-y-4">
-                    <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
-                    <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
-                    <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
-                  </div>
-                </div>
-
-                {/* Coach Display */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <SlidersHorizontal size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Coach Display</h2>
-                  </div>
-                  <div className="space-y-4">
-                    <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
-                    <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
-                  </div>
-
-                  {/* Countdown sound: the toggle controls SOUND ONLY (the visual
-                      countdown above still runs when off). Each row previews with
-                      the same generator as the live countdown. */}
-                  <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
-                      <Volume2 size={14} aria-hidden="true" />
-                      Countdown sound
-                    </h3>
-                    <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
-
-                    <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
-                      <span className="text-sm text-white/80">Countdown Sound</span>
-                      <div role="radiogroup" aria-label="Countdown sound" className="grid gap-2">
-                        {BEEP_SOUNDS.map((opt) => {
-                          const active = settings.beepSound === opt.id;
-                          return (
-                            <div
-                              key={opt.id}
-                              className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
-                            >
-                              <button
-                                type="button"
-                                role="radio"
-                                aria-checked={active}
-                                onClick={() => updateSetting("beepSound", opt.id)}
-                                className="flex-1 flex items-center gap-3 text-left min-h-[44px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]"
-                              >
-                                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
-                                  {active && <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]" />}
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block text-sm font-semibold text-white">{opt.label}</span>
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => previewBeepSound(opt.id)}
-                                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 px-3 min-h-[44px] text-[#ff8a00] hover:bg-[#ff8a00]/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00]"
-                                title={`Preview ${opt.label}`}
-                                aria-label={`Preview ${opt.label}`}
-                              >
-                                <Play size={14} />
-                                <span className="text-xs font-semibold">Preview</span>
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Warning Settings */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
-                      <AlertTriangle size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Safety warnings</h2>
-                  </div>
-                  <p className="text-sm text-white/60 leading-relaxed mb-4">
-                    Ask before pausing or skipping while a routine is playing, so the music isn&apos;t stopped by accident.
-                  </p>
-                  <div className="space-y-4">
-                    <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
-                    <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
-                  </div>
-                </div>
-
-                {/* Account-only settings (cloud sync, account, danger zone) are
-                    hidden in the public demo — they require login and touch
-                    customer data. */}
+                {/* Account-only settings are hidden in the public demo. */}
                 {!demoMode && (
                 <>
-                {/* EQHO Cloud - Sync & Backup */}
-                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Cloud size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">EQHO Cloud</h2>
-                  </div>
-                  
-                  {/* Cloud Status Message */}
-                  {cloudSaveMessage && (
-                    <div className={`mb-4 px-3 py-2 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
-                      <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
-                        {(isExporting || isPushingToApps) && <Loader2 size={14} className="animate-spin" />}
-                        {cloudSaveMessage}
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-4">
-                    {/* Download Playlists */}
-                    <div>
-                      <button
-                        onClick={handleDownloadAllPlaylists}
-                        disabled={isExporting}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-semibold hover:shadow-[0_0_20px_rgba(255,79,163,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {isExporting ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <FileDown size={16} />
-                        )}
-                        Download Playlists
-                      </button>
-                      <p className="text-xs text-white/50 mt-2">
-                        Save a local backup of your EQHO playlists and routine setup.
-                      </p>
-                    </div>
-                    
-                    {/* Push to Apps - Desktop Only */}
-                    {!isMobileBuild && (
-                      <div>
-                        <button
-                          onClick={handlePushToApps}
-                          disabled={isPushingToApps}
-                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/20 text-white text-sm font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          {isPushingToApps ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Send size={16} />
-                          )}
-                          Save all to EQHO Cloud
-                        </button>
-                        <p className="text-xs text-white/50 mt-2">
-                          Saves every playlist on this device to your EQHO account. Other devices download them from EQHO Cloud.{" "}
-                          <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
-                            Open EQHO Cloud
-                          </button>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Account - Sign Out */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
                       <LogOut size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Account</h2>
+                    <h3 className="text-lg font-bold">Account</h3>
                   </div>
                   <p className="text-white/60 text-sm mb-4">
                     Sign out of EQHO Player on this device and return to the login screen.
@@ -10540,7 +10618,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-500 flex items-center justify-center">
                       <Trash2 size={18} />
                     </div>
-                    <h2 className="text-lg font-bold text-red-400">Danger Zone</h2>
+                    <h3 className="text-lg font-bold text-red-400">Danger Zone</h3>
                   </div>
                   <p className="text-white/60 text-sm mb-4">
                     Permanently delete your account and all associated data. This action cannot be undone.
@@ -10555,7 +10633,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 </div>
                 </>
                 )}
-              </div>
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-help" title="Help" description="The getting started guide, user guide and support details.">
+                <HelpSettingsCard onReplayGuide={replayGuide} onOpenUserGuide={() => setActivePage("help")} />
+                <DiagnosticsCard online={deviceOnline} auth={diagnosticsAuth} />
+              </SettingsGroup>
             </div>
           </div>
         )}
@@ -10693,44 +10776,44 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             {/* Mobile Tab Switcher */}
             <div className="flex gap-0.5 shrink-0 bg-white/[0.04] rounded-xl p-1 border border-white/10">
               <button
-                onClick={() => setMobileTab("nowplaying")}
-                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                type="button" aria-label="Now playing" aria-pressed={mobileTab === "nowplaying"} onClick={() => setMobileTab("nowplaying")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold transition-all ${
                   mobileTab === "nowplaying"
                     ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Home size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Playing</span>
+                <Home size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Playing</span>
               </button>
               <button
-                onClick={() => setMobileTab("playlists")}
-                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                type="button" aria-label="Playlists" aria-pressed={mobileTab === "playlists"} onClick={() => setMobileTab("playlists")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold transition-all ${
                   mobileTab === "playlists"
                     ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <ListMusic size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Playlists</span>
+                <ListMusic size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Playlists</span>
               </button>
               <button
-                onClick={() => setMobileTab("settings")}
-                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                type="button" aria-label="Settings" aria-pressed={mobileTab === "settings"} onClick={() => setMobileTab("settings")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold transition-all ${
                   mobileTab === "settings"
                     ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Settings size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Settings</span>
+                <Settings size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Settings</span>
               </button>
               <button
-                onClick={() => setShowFullscreenMobilePlayer(true)}
-                className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
+                type="button" aria-label="Open Coach view" onClick={() => setShowFullscreenMobilePlayer(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
               >
-                <ExternalLink size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Coach</span>
+                <ExternalLink size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Coach</span>
               </button>
             </div>
 
@@ -11321,70 +11404,43 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     {/* Scrollable Content */}
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-16">
 
-                    {/* Playback Settings */}
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Headphones size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Playback</span>
-                      </div>
-                      <div className="space-y-2">
-                        {iosVolumeControl ? (
-                          <p className="text-[10px] text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
-                        ) : (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Default Volume</span>
-                          <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("defaultVolume", Math.max(0, settings.defaultVolume - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.defaultVolume}%</span>
-                            <button onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
-                          </div>
-                        </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Autoplay Next Track</span>
-                          <button onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.autoplayNext ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.autoplayNext ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <SettingsGroup compact id="m-settings-playback" title="Playback" description="Gap, repeats, countdown and safety prompts." scope="saved">
+                    <CurrentSessionCard compact gapSeconds={gapSeconds} playlistRepeats={playlistRepeats} backToBack={backToBack} sessionRunning={sessionRunning} onEditOnPlayer={() => { setMobileTab("nowplaying"); setBottomBarExpanded(true); }} />
 
                     {/* Session defaults */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Timer size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Session defaults</span>
+                        <span className="text-xs font-bold text-white">Session defaults</span>
                       </div>
-                      <p className="text-[10px] text-white/50 leading-relaxed mb-2">
+                      <p className="text-xs text-white/50 leading-relaxed mb-2">
                         Used when a new session starts. The player&apos;s session controls change the current session only.
                       </p>
                       {sessionRunning && (
-                        <p role="status" className="text-[10px] text-[#ffb35c] leading-relaxed mb-2">
+                        <p role="status" className="text-xs text-[#ffb35c] leading-relaxed mb-2">
                           A session is playing. Changes here apply to your next session.
                         </p>
                       )}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Default Gap</span>
+                          <span className="text-xs text-white/70">Default Gap</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("gapSeconds", Math.max(0, settings.gapSeconds - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.gapSeconds}s</span>
-                            <button onClick={() => updateSetting("gapSeconds", Math.min(120, settings.gapSeconds + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                            <button type="button" aria-label="Decrease default gap" onClick={() => updateSetting("gapSeconds", Math.max(0, settings.gapSeconds - 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.gapSeconds}s</span>
+                            <button type="button" aria-label="Increase default gap" onClick={() => updateSetting("gapSeconds", Math.min(120, settings.gapSeconds + 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Default Repeats</span>
+                          <span className="text-xs text-white/70">Default Repeats</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("playlistRepeats", Math.max(1, settings.playlistRepeats - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.playlistRepeats}x</span>
-                            <button onClick={() => updateSetting("playlistRepeats", Math.min(20, settings.playlistRepeats + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                            <button type="button" aria-label="Decrease default repeats" onClick={() => updateSetting("playlistRepeats", Math.max(1, settings.playlistRepeats - 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.playlistRepeats}x</span>
+                            <button type="button" aria-label="Increase default repeats" onClick={() => updateSetting("playlistRepeats", Math.min(20, settings.playlistRepeats + 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Back-to-Back Default</span>
-                          <button onClick={() => updateSetting("backToBack", !settings.backToBack)} className="flex items-center">
+                          <span className="text-xs text-white/70">Back-to-Back Default</span>
+                          <button type="button" role="switch" aria-checked={settings.backToBack} aria-label="Back-to-Back Default" onClick={() => updateSetting("backToBack", !settings.backToBack)} className="flex min-h-11 min-w-11 items-center justify-end">
                             <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
                               <div className={`h-3 w-3 rounded-full transition-transform ${settings.backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
                             </div>
@@ -11397,32 +11453,96 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <SlidersHorizontal size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Coach Display</span>
+                        <span className="text-xs font-bold text-white">Coach Display</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Show Countdown</span>
-                          <button onClick={() => updateSetting("showCountdown", !settings.showCountdown)} className="flex items-center">
+                          <span className="text-xs text-white/70">Show Countdown</span>
+                          <button type="button" role="switch" aria-checked={settings.showCountdown} aria-label="Show Countdown" onClick={() => updateSetting("showCountdown", !settings.showCountdown)} className="flex min-h-11 min-w-11 items-center justify-end">
                             <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showCountdown ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
                               <div className={`h-3 w-3 rounded-full transition-transform ${settings.showCountdown ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
                             </div>
                           </button>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Countdown Time</span>
+                          <span className="text-xs text-white/70">Countdown Time</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.countdownSeconds}s</span>
-                            <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                            <button type="button" aria-label="Decrease countdown time" onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.countdownSeconds}s</span>
+                            <button type="button" aria-label="Increase countdown time" onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
 
+                      </div>
+                    </div>
+
+                    {/* Safety warnings */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle size={14} className="text-yellow-400" />
+                        <span className="text-xs font-bold text-white">Safety warnings</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Show Pause Warning</span>
+                          <button type="button" role="switch" aria-checked={settings.showPauseWarning} aria-label="Show Pause Warning" onClick={() => updateSetting("showPauseWarning", !settings.showPauseWarning)} className="flex min-h-11 min-w-11 items-center justify-end">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showPauseWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showPauseWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Show Skip Warning</span>
+                          <button type="button" role="switch" aria-checked={settings.showSkipWarning} aria-label="Show Skip Warning" onClick={() => updateSetting("showSkipWarning", !settings.showSkipWarning)} className="flex min-h-11 min-w-11 items-center justify-end">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showSkipWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showSkipWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    </SettingsGroup>
+
+                    <SettingsGroup compact id="m-settings-audio" title="Audio" description="Volume, autoplay and the countdown sound." scope="saved">
+                    {/* Playback Settings */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Headphones size={14} className="text-[#ff8a00]" />
+                        <span className="text-xs font-bold text-white">Volume and autoplay</span>
+                      </div>
+                      <div className="space-y-2">
+                        {iosVolumeControl ? (
+                          <p className="text-xs text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
+                        ) : (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Default Volume</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button type="button" aria-label="Decrease default volume" onClick={() => updateSetting("defaultVolume", Math.max(0, settings.defaultVolume - 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.defaultVolume}%</span>
+                            <button type="button" aria-label="Increase default volume" onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Autoplay Next Track</span>
+                          <button type="button" role="switch" aria-checked={settings.autoplayNext} aria-label="Autoplay Next Track" onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex min-h-11 min-w-11 items-center justify-end">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.autoplayNext ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.autoplayNext ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Countdown sound */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                         {/* Countdown Timer Sound (compact). ON/OFF controls SOUND
                             only — the visual countdown still runs when off. Tap a row
                             to select; tap Preview to hear the 3-2-1 for that style. */}
-                        <div className="pt-2 mt-1 border-t border-white/10">
+                        <div>
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-white">Countdown Sound</span>
+                            <span className="text-xs font-bold text-white">Countdown Sound</span>
                             <button
                               type="button"
                               role="switch"
@@ -11454,7 +11574,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     <span className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
                                       {active && <span className="h-1.5 w-1.5 rounded-full bg-[#ff4fa3]" />}
                                     </span>
-                                    <span className="text-[10px] font-semibold text-white">{opt.label}</span>
+                                    <span className="text-xs font-semibold text-white">{opt.label}</span>
                                   </button>
                                   <button
                                     type="button"
@@ -11463,57 +11583,32 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     aria-label={`Preview ${opt.label}`}
                                   >
                                     <Play size={10} />
-                                    <span className="text-[9px] font-semibold">Preview</span>
+                                    <span className="text-[11px] font-semibold">Preview</span>
                                   </button>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
-                      </div>
                     </div>
 
-                    {/* Safety warnings */}
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle size={14} className="text-yellow-400" />
-                        <span className="text-[10px] font-bold text-white">Safety warnings</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Show Pause Warning</span>
-                          <button onClick={() => updateSetting("showPauseWarning", !settings.showPauseWarning)} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showPauseWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showPauseWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Show Skip Warning</span>
-                          <button onClick={() => updateSetting("showSkipWarning", !settings.showSkipWarning)} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showSkipWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showSkipWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    </SettingsGroup>
 
-                    {/* Account-only settings (cloud sync + subscription) are
-                        hidden in the public demo. */}
+                    <SettingsGroup compact id="m-settings-cloud" title="Cloud and offline" description="Connection status, backups and EQHO Cloud.">
+                    <OfflineStatusCard compact online={deviceOnline} />
                     {!demoMode && (
                     <>
                     {/* EQHO Cloud - Sync & Backup */}
                     <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Cloud size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">EQHO Cloud</span>
+                        <span className="text-xs font-bold text-white">EQHO Cloud</span>
                       </div>
                       
                       {/* Cloud Status Message */}
                       {cloudSaveMessage && (
                         <div className={`mb-2 px-2 py-1.5 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
-                          <p className={`text-[10px] font-medium flex items-center gap-1.5 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
+                          <p className={`text-xs font-medium flex items-center gap-1.5 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
                             {(isExporting || isPushingToApps) && <Loader2 size={10} className="animate-spin" />}
                             {cloudSaveMessage}
                           </p>
@@ -11534,7 +11629,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           )}
                           Download Playlists
                         </button>
-                        <p className="text-[9px] text-white/50">
+                        <p className="text-[11px] text-white/50">
                           Save a local backup of your EQHO playlists and routine setup.
                         </p>
                         
@@ -11553,7 +11648,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               )}
                               Save all to EQHO Cloud
                             </button>
-                            <p className="text-[9px] text-white/50">
+                            <p className="text-[11px] text-white/50">
                               Saves every playlist on this device to your EQHO account.{" "}
                               <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
                                 Open EQHO Cloud
@@ -11564,20 +11659,27 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       </div>
                     </div>
 
+                    </>
+                    )}
+                    </SettingsGroup>
+
+                    {/* Account settings are hidden in the public demo. */}
+                    {!demoMode && (
+                    <SettingsGroup compact id="m-settings-account" title="Account" description="Your subscription, password and sign in.">
                     {/* Subscription (Stripe + Supabase) */}
                     <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-green-600/5 p-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Crown size={14} className="text-emerald-400" />
-                          <span className="text-[10px] font-bold text-white">INTRODUCTION MODE</span>
+                          <span className="text-xs font-bold text-white">INTRODUCTION MODE</span>
                         </div>
                         {hasActiveSubscription(profile) ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
                             <Crown className="h-2.5 w-2.5" />
                             EQHO Player
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-white/10 text-white/70 border border-white/15">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white/10 text-white/70 border border-white/15">
                             INTRODUCTION MODE
                           </span>
                         )}
@@ -11594,7 +11696,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              <span className="text-emerald-300 text-[9px] font-semibold">
+                              <span className="text-emerald-300 text-[11px] font-semibold">
                                 {subCancelPending
                                   ? "Access until period ends"
                                   : "Your subscription is active"}
@@ -11607,7 +11709,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                 <span className="text-emerald-400 text-3xl font-black leading-none tabular-nums drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]">
                                   {daysLeft}
                                 </span>
-                                <span className="text-emerald-300/80 text-[10px] font-semibold pb-0.5">
+                                <span className="text-emerald-300/80 text-xs font-semibold pb-0.5">
                                   {daysLeft === 1 ? "day left" : "days left"}
                                 </span>
                               </div>
@@ -11625,14 +11727,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
                             {/* Renewal date */}
                             {countdownTarget && (
-                              <p className="text-emerald-100/70 text-[9px]">
+                              <p className="text-emerald-100/70 text-[11px]">
                                 {subCancelPending ? "Ends on " : "Renews on "}
                                 <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                               </p>
                             )}
 
                             {!subCancelPending && (
-                              <p className="text-emerald-100/50 text-[9px] leading-relaxed">
+                              <p className="text-emerald-100/50 text-[11px] leading-relaxed">
                                 Your subscription renews automatically. Cancel anytime.
                               </p>
                             )}
@@ -11651,14 +11753,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               <div className="text-center pt-0.5">
                                 <button
                                   onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
-                                  className="text-white/40 hover:text-white/70 active:text-white/80 text-[10px] underline underline-offset-2 transition-colors py-1"
+                                  className="text-white/40 hover:text-white/70 active:text-white/80 text-xs underline underline-offset-2 transition-colors py-1"
                                 >
                                   Cancel subscription
                                 </button>
                               </div>
                             )}
                             {subActionError && (
-                              <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
+                              <p className="text-red-400 text-xs text-center">{subActionError}</p>
                             )}
                           </div>
                         );
@@ -11666,45 +11768,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         // No active subscription — pre-launch informational state (no sign-up).
                         return (
                           <div className="space-y-1.5">
-                            <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
+                            <p className="text-emerald-300 text-xs font-semibold leading-relaxed">
                               Paid subscription starts after your 30-day free trial.
                             </p>
-                            <p className="text-emerald-100/70 text-[9px] leading-relaxed">
+                            <p className="text-emerald-100/70 text-[11px] leading-relaxed">
                               Introduction Mode is included in your free trial.
                             </p>
                           </div>
                         );
                       })()}
                     </div>
-                    </>
-                    )}
-
-                    {/* Contact & Feedback */}
-                    <button
-                      onClick={() => setShowContactMobile(true)}
-                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
-                    >
-                      <Mail size={14} className="text-[#ff8a00]" />
-                      <span className="text-[11px] font-semibold text-white flex-1 text-left">Contact & Feedback</span>
-                      <ChevronRight size={14} className="text-white/40" />
-                    </button>
-
-                    {/* Legal / Privacy Policy */}
-                    <Link
-                      href="/privacy-policy"
-                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
-                    >
-                      <Shield size={14} className="text-white/60" />
-                      <span className="text-[11px] font-semibold text-white flex-1">Privacy Policy</span>
-                      <ChevronRight size={14} className="text-white/40" />
-                    </Link>
-
-                    {/* Account / Logout — hidden in the public demo (login only). */}
-                    {!demoMode && (
+                    {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 mt-1 mb-2">
                       <div className="flex items-center gap-2 mb-2">
                         <LogOut size={14} className="text-red-400" />
-                        <span className="text-[10px] font-bold text-white">Account</span>
+                        <span className="text-xs font-bold text-white">Account</span>
                       </div>
                       <div className="flex flex-col gap-2">
                         <button
@@ -11732,7 +11810,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           )}
                         </button>
                         {signOutError && (
-                          <p className="text-red-400 text-[10px] text-center">{signOutError}</p>
+                          <p className="text-red-400 text-xs text-center">{signOutError}</p>
                         )}
                         <button
                           onClick={() => setShowDeleteAccountConfirm(true)}
@@ -11743,8 +11821,34 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         </button>
                       </div>
                     </div>
-                    )}
                     
+                    </SettingsGroup>
+                    )}
+
+                    <SettingsGroup compact id="m-settings-help" title="Help" description="The getting started guide, support and diagnostics.">
+                    <HelpSettingsCard compact onReplayGuide={replayGuide} />
+                    {/* Contact & Feedback */}
+                    <button
+                      onClick={() => setShowContactMobile(true)}
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Mail size={14} className="text-[#ff8a00]" />
+                      <span className="text-[11px] font-semibold text-white flex-1 text-left">Contact & Feedback</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </button>
+
+                    {/* Legal / Privacy Policy */}
+                    <Link
+                      href="/privacy-policy"
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Shield size={14} className="text-white/60" />
+                      <span className="text-[11px] font-semibold text-white flex-1">Privacy Policy</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </Link>
+
+                    <DiagnosticsCard compact online={deviceOnline} auth={diagnosticsAuth} />
+                    </SettingsGroup>
                     </div>
                   </Card>
                 </div>
