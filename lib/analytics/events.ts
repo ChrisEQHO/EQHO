@@ -51,20 +51,22 @@ export const ANALYTICS_EVENTS = {
   logout_completed: "logout_completed",
   playlist_created: "playlist_created",
   playlist_deleted: "playlist_deleted",
-  cloud_upload_started: "cloud_upload_started",
-  cloud_upload_completed: "cloud_upload_completed",
-  cloud_upload_failed: "cloud_upload_failed",
-  cloud_playlist_download_started: "cloud_playlist_download_started",
-  cloud_playlist_download_completed: "cloud_playlist_download_completed",
-  cloud_playlist_download_failed: "cloud_playlist_download_failed",
+  playlist_upload_started: "playlist_upload_started",
+  playlist_upload_completed: "playlist_upload_completed",
+  playlist_download_started: "playlist_download_started",
+  playlist_download_completed: "playlist_download_completed",
+  cloud_sync_failed: "cloud_sync_failed",
+  auth_failed: "auth_failed",
   session_paused: "session_paused",
   session_resumed: "session_resumed",
   session_completed: "session_completed",
   track_play_started: "track_play_started",
   track_play_completed: "track_play_completed",
-  fullscreen_player_opened: "fullscreen_player_opened",
-  fullscreen_player_closed: "fullscreen_player_closed",
+  track_target_completed: "track_target_completed",
+  fullscreen_opened: "fullscreen_opened",
+  fullscreen_closed: "fullscreen_closed",
   offline_playback_started: "offline_playback_started",
+  onboarding_completed: "onboarding_completed",
 } as const
 
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS]
@@ -80,21 +82,23 @@ export const PRODUCT_EVENTS = [
   "logout_completed",
   "playlist_created",
   "playlist_deleted",
-  "cloud_upload_started",
-  "cloud_upload_completed",
-  "cloud_upload_failed",
-  "cloud_playlist_download_started",
-  "cloud_playlist_download_completed",
-  "cloud_playlist_download_failed",
+  "playlist_upload_started",
+  "playlist_upload_completed",
+  "playlist_download_started",
+  "playlist_download_completed",
+  "cloud_sync_failed",
+  "auth_failed",
   "session_started",
   "session_paused",
   "session_resumed",
   "session_completed",
   "track_play_started",
   "track_play_completed",
-  "fullscreen_player_opened",
-  "fullscreen_player_closed",
+  "track_target_completed",
+  "fullscreen_opened",
+  "fullscreen_closed",
   "offline_playback_started",
+  "onboarding_completed",
 ] as const satisfies readonly AnalyticsEvent[]
 
 export type ProductEvent = (typeof PRODUCT_EVENTS)[number]
@@ -145,6 +149,12 @@ export const ALLOWED_PROP_KEYS: ReadonlySet<string> = new Set([
   "native_app",
   "build_target",
   "app_version",
+  "build_number",
+  "offline",
+  "direction",
+  "target_plays",
+  "failed_count",
+  "step_count",
   "surface",
   "error_category",
   "subscription_tier",
@@ -179,6 +189,25 @@ type Primitive = string | number | boolean | null
  */
 const MAX_STRING_LEN = 64
 
+const EMAIL_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]+/
+const JWT_PATTERN = /eyJ[\w-]+\.[\w-]+\.[\w-]+/
+const AUDIO_FILE_PATTERN = /\.(mp3|m4a|aac|wav|flac|ogg|opus|aiff?|caf|webm)\b/i
+const SECRET_PATTERN = /(sk_(live|test)_|service_role|Bearer\s)/i
+
+/**
+ * Second line of defence behind the key allowlist: even on an allowed key,
+ * drop values that look like an email, an auth token, a secret or an audio
+ * filename.
+ */
+export function looksSensitive(value: string): boolean {
+  return (
+    EMAIL_PATTERN.test(value) ||
+    JWT_PATTERN.test(value) ||
+    AUDIO_FILE_PATTERN.test(value) ||
+    SECRET_PATTERN.test(value)
+  )
+}
+
 /**
  * Strip an event's properties down to the allowlist and to safe primitive
  * values. Returns a new object; never mutates the input. This runs on both the
@@ -200,7 +229,7 @@ export function sanitizeProps(
       clean[key] = raw as number
     } else if (t === "boolean") {
       clean[key] = raw as boolean
-    } else if (t === "string") {
+    } else if (t === "string" && !looksSensitive(raw as string)) {
       clean[key] = (raw as string).slice(0, MAX_STRING_LEN)
     }
     // anything else (object, array, undefined, function, NaN) is intentionally dropped

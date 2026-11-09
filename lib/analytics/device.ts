@@ -20,17 +20,43 @@ export type BrowserName =
   | "other"
   | "unknown"
 
-export type AnalyticsPlatform = "web" | "ios" | "android"
+export type AnalyticsPlatform = "web" | "ios" | "ipados" | "android"
 
 export interface PlatformContext {
   platform: AnalyticsPlatform
   native_app: boolean
   app_version: string
+  build_number: string
   build_target: string
+  offline: boolean
 }
 
 export function getAppVersion(): string {
-  return (packageJson as { version?: string }).version ?? "0.0.0"
+  return (
+    process.env.NEXT_PUBLIC_APP_VERSION ||
+    (packageJson as { version?: string }).version ||
+    "0.0.0"
+  )
+}
+
+export function getBuildNumber(): string {
+  return process.env.NEXT_PUBLIC_BUILD_NUMBER || "dev"
+}
+
+/**
+ * iPadOS 13+ reports a desktop Safari user agent ("Macintosh"), so touch
+ * support is the reliable signal inside both Safari and the Capacitor WebView.
+ */
+export function isIPadDevice(
+  ua: string = typeof navigator === "undefined" ? "" : navigator.userAgent,
+  maxTouchPoints: number = typeof navigator === "undefined" ? 0 : navigator.maxTouchPoints ?? 0,
+): boolean {
+  if (/iPad/i.test(ua)) return true
+  return /Macintosh/i.test(ua) && maxTouchPoints > 1
+}
+
+export function isOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false
 }
 
 export function getDeviceType(): DeviceType {
@@ -62,8 +88,10 @@ export function getPlatformContext(): PlatformContext {
   try {
     const detected = Capacitor.getPlatform()
     nativeApp = Capacitor.isNativePlatform()
-    if (nativeApp && (detected === "ios" || detected === "android")) {
-      platform = detected
+    if (nativeApp && detected === "ios") {
+      platform = isIPadDevice() ? "ipados" : "ios"
+    } else if (nativeApp && detected === "android") {
+      platform = "android"
     } else {
       nativeApp = false
     }
@@ -75,7 +103,9 @@ export function getPlatformContext(): PlatformContext {
     platform,
     native_app: nativeApp,
     app_version: getAppVersion(),
+    build_number: getBuildNumber(),
     build_target: process.env.NEXT_PUBLIC_BUILD_TARGET || "web",
+    offline: isOffline(),
   }
 }
 

@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { routeFor } from '@/lib/startup'
 
 export default function AppError({
   error,
@@ -41,7 +42,7 @@ export default function AppError({
     } finally {
       // Hard navigation clears any in-memory player/audio state so the user
       // lands on a clean login page regardless of what threw.
-      window.location.href = '/login'
+      window.location.href = routeFor('/login', process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile')
     }
   }
 

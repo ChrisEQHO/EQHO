@@ -112,11 +112,13 @@ export default function LoginPage() {
       )
 
       if (authError) {
+        trackEvent('auth_failed', { source: 'login', error_category: 'auth' })
         setError(classifyAuthMessage(authError.message).message)
         return
       }
 
       if (!data.user) {
+        trackEvent('auth_failed', { source: 'login', error_category: 'auth' })
         setError(loginError('invalid-credentials').message)
         return
       }
@@ -157,6 +159,7 @@ export default function LoginPage() {
       router.refresh()
     } catch (err) {
       // Covers the 15s timeout and any network / Supabase connection failure.
+      trackEvent('auth_failed', { source: 'login', error_category: 'network' })
       setError(classifyThrown(err).message)
     } finally {
       // ALWAYS restore the button — success, failure, timeout or exception.

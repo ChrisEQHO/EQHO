@@ -1,17 +1,26 @@
 import type { ReactNode } from "react";
 import {
+  Activity,
   AlertCircle,
+  CheckCircle2,
   Cloud,
+  CloudOff,
   CloudUpload,
+  Database,
   Download,
+  FileAudio,
   FolderUp,
   GitMerge,
   HardDrive,
+  KeyRound,
   ListMusic,
+  Lock,
   Maximize2,
   Plane,
   RefreshCw,
+  Repeat,
   SlidersHorizontal,
+  Smartphone,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
@@ -28,7 +37,7 @@ type Section = {
 const SECTIONS: Section[] = [
   {
     id: "upload",
-    title: "Uploading a playlist folder",
+    title: "Creating playlists",
     Icon: FolderUp,
     body: (
       <>
@@ -39,6 +48,9 @@ const SECTIONS: Section[] = [
         <p>
           Drag the folder onto the upload area, or click it and choose the folder. The folder name becomes the playlist
           name, and the files become its tracks. The new playlist appears under <B>On this device</B>.
+        </p>
+        <p>
+          To save the current session queue as a playlist instead, choose <B>Create New Playlist</B> and give it a name.
         </p>
       </>
     ),
@@ -81,8 +93,10 @@ const SECTIONS: Section[] = [
           device.
         </p>
         <p>
-          If an upload fails, the playlist shows <B>Upload failed</B>. Tracks that did not upload are not counted as
-          saved, so try again before you rely on the cloud copy. If a device shows &quot;Uploading is available on the
+          If an upload fails, the playlist shows <B>Upload failed</B> and lists each track that did not upload, with the
+          reason. Tracks that did not upload are not counted as saved. Choose <B>Retry failed track</B> (or{" "}
+          <B>Retry failed tracks</B>) to send only those tracks again, and check the playlist shows{" "}
+          <B>Saved to cloud</B> before you rely on the cloud copy. If a device shows &quot;Uploading is available on the
           EQHO website&quot;, upload from the website instead. That device can still download playlists.
         </p>
       </>
@@ -100,10 +114,43 @@ const SECTIONS: Section[] = [
           installed apps. Each device has to download each playlist it needs.
         </p>
         <p>
-          <B>Confirming a playlist is ready offline:</B> once the download finishes, the playlist appears under{" "}
-          <B>On this device</B>, which is where playlists that are ready to play offline are kept. If a download fails,
-          the playlist shows <B>Download failed</B>. Choose <B>Try download again</B>.
+          Before downloading, the player checks there is enough free space on this device. If there isn&apos;t, nothing
+          is downloaded and you see how much space the playlist needs.
         </p>
+        <p>
+          If a download fails, the playlist shows <B>Download failed</B> and lists the tracks that did not download.
+          Choose <B>Retry failed tracks</B> to fetch only those tracks, or <B>Try download again</B> to start over.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "offline-ready",
+    title: "Checking a playlist is offline ready",
+    Icon: CheckCircle2,
+    body: (
+      <>
+        <p>
+          A playlist only shows <B>Offline ready</B> once every track has downloaded and been checked as playable audio
+          on this device. Until then it shows another status:
+        </p>
+        <ul>
+          <li>
+            <B>Cloud only</B>: saved to your account but not on this device yet.
+          </li>
+          <li>
+            <B>On this device</B> or <B>Cloud and device</B>: stored here, but not yet confirmed offline ready.
+          </li>
+          <li>
+            <B>Downloading</B> or <B>Uploading</B>: a transfer is in progress.
+          </li>
+          <li>
+            <B>Update available</B>: a newer version is in EQHO Cloud.
+          </li>
+          <li>
+            <B>Needs attention</B>: one or more tracks failed. Open the playlist to see which ones and why.
+          </li>
+        </ul>
       </>
     ),
   },
@@ -138,17 +185,56 @@ const SECTIONS: Section[] = [
         </p>
         <ul>
           <li>
-            Click a track&apos;s <B>X</B> to hide it. Hidden tracks are skipped but stay in the queue. Choose{" "}
-            <B>Unhide</B> to bring one back, or <B>Restore</B> in the queue header to bring them all back.
-          </li>
-          <li>
-            <B>Reset</B> restores the original order and marks every track as unplayed.
+            Each track has an <B>Included</B> / <B>Excluded</B> switch. <B>Excluded</B> tracks stay in the queue but
+            are skipped and don&apos;t count towards the session time.
           </li>
           <li>
             <B>Clear Playlist</B> empties the session queue. It does not delete any saved playlist.
           </li>
         </ul>
       </>
+    ),
+  },
+  {
+    id: "plays",
+    title: "Per-track play counts",
+    Icon: Repeat,
+    body: (
+      <>
+        <p>
+          Use the <B>Plays</B> control on a track to set how many times it plays in a row before the session moves on.
+          The row shows its progress: <B>Upcoming</B>, then <B>1 of 3</B>, <B>2 of 3</B> and so on while it plays, then{" "}
+          <B>Complete</B>.
+        </p>
+        <p>
+          A play only counts when the track reaches its natural end. Skipping or restarting a track doesn&apos;t count
+          as a play. With <B>Back to Back (B2B)</B> on, each play is doubled.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "reset",
+    title: "Reset and Restore defaults",
+    Icon: RefreshCw,
+    body: (
+      <ul>
+        <li>
+          <B>Reset</B> restarts the session&apos;s progress. Completed plays go back to zero, but your play counts,
+          included tracks and order are kept.
+        </li>
+        <li>
+          <B>Restore (n)</B> appears when you have hidden tracks with a track&apos;s <B>X</B>, and brings them all back
+          into the queue.
+        </li>
+        <li>
+          <B>Restore defaults</B> returns the queue to its original order, includes every track and sets each track to
+          1 play.
+        </li>
+        <li>
+          <B>Start New Session</B> (shown when a session finishes) starts the same queue again from the first track.
+        </li>
+      </ul>
     ),
   },
   {
@@ -164,7 +250,8 @@ const SECTIONS: Section[] = [
           <B>Countdown Before Routine</B> (Settings): how many of the final gap seconds beep as a get-ready cue.
         </li>
         <li>
-          <B>Repeat Playlist</B>: how many times the whole queue plays.
+          <B>Repeat Playlist</B>: how many times the whole queue plays. Each round plays every included track its full
+          number of plays, and completed plays start again from zero at the start of each round.
         </li>
         <li>
           <B>Back to Back (B2B)</B>: each routine plays twice in a row before moving on.
@@ -178,18 +265,55 @@ const SECTIONS: Section[] = [
   },
   {
     id: "coach",
-    title: "Main player and Coach Mode",
+    title: "Standard and fullscreen players",
     Icon: Maximize2,
     body: (
       <>
         <p>
-          The main player and Coach Mode control the same session, so play, pause, skip and the timer stay in step
-          when you switch between them.
+          The standard player and the fullscreen player control the same session, so play, pause, skip, play counts and
+          the timer stay in step when you switch between them. Switching never restarts the track.
         </p>
         <p>
-          Choose <B>Coach</B> in the header to open Coach Mode, a large display for gyms and projectors. Press Escape to
-          exit. Coach Display options are in Settings.
+          Choose <B>Coach</B> in the header to open the fullscreen Coach view, a large display for gyms and projectors.
+          Choose <B>Exit Fullscreen</B> or press Escape to return. Coach Display options are in Settings.
         </p>
+      </>
+    ),
+  },
+  {
+    id: "devices",
+    title: "Using EQHO Player on a phone or iPad",
+    Icon: Smartphone,
+    body: (
+      <>
+        <p>
+          On a phone, the player is split into icon tabs along the top: <B>Playing</B>, <B>Playlists</B> and{" "}
+          <B>Settings</B>, plus a button that opens the fullscreen Coach view. On an iPad, the same tabs show their
+          labels, and the layout is centred so controls stay within easy reach in portrait or landscape.
+        </p>
+        <p>
+          Sign in with the same EQHO account email on every device. Each device keeps its own downloaded playlists, so
+          download the ones you need on each phone or iPad.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "keep-open",
+    title: "Keeping the device open during playback",
+    Icon: Lock,
+    body: (
+      <>
+        <p>
+          While a session is playing, keep the player open and the device unlocked. When the player shows{" "}
+          <B>Keep this device unlocked during playback</B>, that is a reminder that locking your phone or tablet, or
+          switching to another app, may interrupt the music.
+        </p>
+        <ul>
+          <li>Set auto-lock to Never (or the longest option) before a competition.</li>
+          <li>Plug the device in for long sessions.</li>
+          <li>Turn on Do Not Disturb so calls and notifications don&apos;t interrupt the audio.</li>
+        </ul>
       </>
     ),
   },
@@ -291,13 +415,109 @@ const SECTIONS: Section[] = [
           If it shows <B>Download failed</B> or <B>Update available</B>, choose <B>Try download again</B> or{" "}
           <B>Update download</B>.
         </li>
-        <li>Check the queue isn&apos;t empty and the tracks aren&apos;t all hidden. Choose <B>Restore</B> to unhide them.</li>
+        <li>
+          Check the queue isn&apos;t empty and the tracks aren&apos;t all <B>Excluded</B> or hidden. Choose{" "}
+          <B>Restore defaults</B> to include them all, or <B>Restore (n)</B> to bring hidden tracks back.
+        </li>
         <li>Check the device volume and the player volume.</li>
         <li>Make sure every device is signed in with the same EQHO account email.</li>
         <li>
           If the source files are damaged or in an unsupported format, re-upload the folder from your computer.
         </li>
       </ul>
+    ),
+  },
+  {
+    id: "missing-audio",
+    title: "Missing audio",
+    Icon: FileAudio,
+    body: (
+      <>
+        <p>
+          A track marked <B>Missing audio</B> has a name in the playlist but no audio file on this device, so it is
+          skipped. This usually happens after a download was interrupted or storage was cleared.
+        </p>
+        <ul>
+          <li>For a cloud playlist, choose <B>Retry failed tracks</B> or <B>Try download again</B>.</li>
+          <li>
+            If the message says &quot;The audio file is missing from EQHO Cloud&quot;, upload the folder again from the
+            device or computer that still has it.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: "failed-transfers",
+    title: "Failed cloud transfers",
+    Icon: CloudOff,
+    body: (
+      <>
+        <p>Each failed track shows the reason. What to do:</p>
+        <ul>
+          <li>
+            &quot;The connection was interrupted&quot;: reconnect to Wi-Fi or mobile data, then choose{" "}
+            <B>Retry failed tracks</B>. Tracks that already transferred are kept.
+          </li>
+          <li>&quot;Your sign-in expired&quot;: sign in again, then retry.</li>
+          <li>&quot;EQHO Cloud is temporarily unavailable&quot;: wait a few minutes and retry.</li>
+          <li>
+            &quot;This audio belongs to a different account&quot;: sign in with the account that uploaded the playlist.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: "storage",
+    title: "Storage problems",
+    Icon: Database,
+    body: (
+      <>
+        <p>
+          If you see &quot;Not enough space on this device&quot; or &quot;This device is out of storage&quot;, the
+          download stops before anything is half-saved.
+        </p>
+        <ul>
+          <li>
+            Use <B>Remove from this device</B> on playlists you no longer need. Their EQHO Cloud copies are kept.
+          </li>
+          <li>Free up space in the device&apos;s own storage settings, then choose <B>Retry failed tracks</B>.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: "auth",
+    title: "Signing in again",
+    Icon: KeyRound,
+    body: (
+      <>
+        <p>
+          If your sign-in expires, playlists already on this device keep playing, but cloud uploads and downloads stop
+          with &quot;Your sign-in expired. Sign in again, then retry.&quot; Sign in with the same email, then retry the
+          transfer.
+        </p>
+        <p>
+          If the player shows <B>Unable to verify your account</B>, check your connection and choose <B>Try Again</B>. If
+          you have forgotten your password, choose <B>Forgot your password?</B> on the sign-in page.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "diagnostics",
+    title: "Diagnostics",
+    Icon: Activity,
+    body: (
+      <>
+        <p>
+          <B>Settings</B> &gt; <B>Help</B> &gt; <B>Diagnostics</B> shows the app version, platform, connection,
+          sign-in state and storage on this device. Choose <B>Copy</B> and paste it into your message when you contact
+          support.
+        </p>
+        <p>Diagnostics never include your email, athlete names, track names or sign-in tokens.</p>
+      </>
     ),
   },
 ];

@@ -2,81 +2,87 @@
 
 import { useEffect } from 'react'
 
+// Module-level guards: a full WebView reload re-creates the module, but React
+// Strict Mode / remounts within one page must not hide the splash or register
+// native listeners twice.
+let splashHidden = false
+let listenersRegistered = false
+
 /**
  * CapacitorInit - Initializes Capacitor plugins and native features
  * This component handles:
+ * - Splash screen hiding (exactly once, before anything that can fail)
  * - Status bar configuration
- * - Splash screen hiding
  * - App lifecycle events
- * - Safe area detection
  */
 export function CapacitorInit() {
   useEffect(() => {
     const initCapacitor = async () => {
-      // Only run in Capacitor environment
       if (typeof window === 'undefined') return
-      
-      // Check if we're running in Capacitor
-      const isCapacitor = 
+
+      const isCapacitor =
         (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ?? false
-      
+
       if (!isCapacitor) {
-        // Running in web browser - add standalone mode class if PWA
         if (window.matchMedia('(display-mode: standalone)').matches) {
           document.documentElement.classList.add('standalone')
         }
         return
       }
-      
-      // Add capacitor class for native-specific styles
+
       document.documentElement.classList.add('capacitor')
-      
+
+      // Hide the splash FIRST and in isolation. Previously it ran after
+      // StatusBar.setBackgroundColor, which is Android-only and rejects on iOS,
+      // so on iPad the hide was skipped and only the native auto-hide saved us.
+      if (!splashHidden) {
+        splashHidden = true
+        try {
+          const { SplashScreen } = await import('@capacitor/splash-screen')
+          await SplashScreen.hide()
+        } catch (error) {
+          console.warn('[capacitor] splash hide failed:', error)
+        }
+      }
+
       try {
-        // Dynamically import Capacitor plugins
-        const [{ SplashScreen }, { StatusBar, Style }] = await Promise.all([
-          import('@capacitor/splash-screen'),
-          import('@capacitor/status-bar'),
-        ])
-        
-        // Configure status bar for dark theme
+        const { StatusBar, Style } = await import('@capacitor/status-bar')
         await StatusBar.setStyle({ style: Style.Dark })
+      } catch (error) {
+        console.warn('[capacitor] status bar style failed:', error)
+      }
+      try {
+        const { StatusBar } = await import('@capacitor/status-bar')
         await StatusBar.setBackgroundColor({ color: '#020617' })
-        
-        // Hide splash screen after initialization
-        await SplashScreen.hide()
-        
-        // Listen for app state changes
+      } catch {
+        // Android-only API; expected to reject on iOS.
+      }
+
+      if (listenersRegistered) return
+      listenersRegistered = true
+      try {
         const { App } = await import('@capacitor/app')
-        
+
         App.addListener('appStateChange', ({ isActive }) => {
-          if (isActive) {
-            // App came to foreground
-            document.documentElement.classList.remove('app-background')
-          } else {
-            // App went to background
-            document.documentElement.classList.add('app-background')
-          }
+          document.documentElement.classList.toggle('app-background', !isActive)
         })
-        
-        // Handle back button on Android
+
         App.addListener('backButton', ({ canGoBack }) => {
           if (canGoBack) {
             window.history.back()
           } else {
-            // At root, minimize app instead of closing
             App.minimizeApp()
           }
         })
-        
       } catch (error) {
-        console.warn('Capacitor plugins not available:', error)
+        listenersRegistered = false
+        console.warn('[capacitor] app listeners unavailable:', error)
       }
     }
-    
+
     initCapacitor()
   }, [])
-  
-  // This component doesn't render anything
+
   return null
 }
 

@@ -30,9 +30,9 @@ import {
   findFirstPlayableIndex,
   getCompletedPlays,
   getEffectiveTargetPlays,
-  getPlayProgressLabel,
   getTargetPlays,
-  isTrackCycleComplete,
+  getTrackRowStatus,
+  playReachesTarget,
   pruneToTrackIds,
   recordCompletedPlay,
   resolveSkipForward,
@@ -41,8 +41,13 @@ import {
 } from "@/lib/playback/track-plays";
 import { TrackPlaysControl } from "@/components/player/track-plays-control";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
-import { markOnboarding, readOnboarding, shouldShowSessionTip } from "@/lib/onboarding";
+import { derivePlaybackPhase } from "@/lib/playback/session-machine";
+import { demoTrackUrl, parseDemoSnapshot } from "@/lib/playback/demo-session";
+import { markOnboarding, readOnboarding, shouldShowGuide, shouldShowSessionTip, type GuideAction } from "@/lib/onboarding";
 import { FirstUseSteps, SessionTip } from "@/components/player/first-use-guide";
+import { OnboardingGuide } from "@/components/player/onboarding-guide";
+import { DiagnosticsCard } from "@/components/player/diagnostics-card";
+import { CurrentSessionCard, HelpSettingsCard, OfflineStatusCard, SettingsGroup } from "@/components/player/settings-sections";
 import { DeviceLockNotice } from "@/components/player/device-lock-notice";
 import { getQueueColour } from "@/lib/queue-position"
 import { HelpGuideSections } from "@/components/player/help-guide-sections";
@@ -53,6 +58,8 @@ import { trackEvent } from "@/lib/analytics/track-event";
 import { resetUser as resetAnalyticsUser } from "@/lib/analytics/posthog-client";
 import { categorizeError } from "@/lib/analytics/error-category";
 import { clearEntitlementVerified, recordEntitlementVerified, isWithinOfflineGrace, isOnline } from "@/lib/access";
+import { makeReferenceCode, navigateOnce, routeFor, STARTUP_TIMEOUT_SENTINEL, withTimeout } from "@/lib/startup";
+import { getSavedPlaylists } from "@/lib/eqho-db";
 import { 
   fetchCloudPlaylists, 
   fetchPlaylistWithFiles, 
@@ -103,6 +110,18 @@ import {
   type CloudConflictKind,
   type CloudLinks,
 } from "@/lib/playlist-cloud-links";
+import {
+  PENDING_TRACKS_STORAGE_KEY,
+  checkStorageForDownload,
+  describeFailureReason,
+  estimateDeviceStorage,
+  isQuotaError,
+  mergeRetriedTracks,
+  parsePendingTracks,
+  type PendingTracks,
+  type TrackFailure,
+} from "@/lib/cloud-library";
+import { formatBytes } from "@/lib/playlist-cloud-links";
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
@@ -762,6 +781,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [originalPlaylistOrder, setOriginalPlaylistOrder] = useState<Track[]>([]); // Store original order when first loaded
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackErrorTrackId, setPlaybackErrorTrackId] = useState<string | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   // True on iPadOS/iOS, where JS cannot control playback loudness (iOS routes it
@@ -916,6 +936,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Bumped by "Try Again" on the recoverable-error screen to re-run the auth
   // bootstrap without a full page reload (a reload can re-hang on iPad Capacitor).
   const [accessRetryToken, setAccessRetryToken] = useState(0);
+  // Non-sensitive support code shown on the startup error screen, plus whether
+  // this device holds downloaded playlists (enables "Continue offline").
+  const [gateReference, setGateReference] = useState<string | null>(null);
+  const [hasOfflineData, setHasOfflineData] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -929,7 +953,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   useEffect(() => {
     if (isFullscreen === fullscreenTrackedRef.current) return;
     fullscreenTrackedRef.current = isFullscreen;
-    trackEvent(isFullscreen ? "fullscreen_player_opened" : "fullscreen_player_closed");
+    trackEvent(isFullscreen ? "fullscreen_opened" : "fullscreen_closed");
   }, [isFullscreen]);
   const trackTrackPlayStarted = () => {
     trackEvent("track_play_started");
@@ -1034,6 +1058,30 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const cloudLinksLoadedRef = useRef(false);
   const [uploadProgressById, setUploadProgressById] = useState<Record<string, number>>({});
   const [cloudDeviceDownloads, setCloudDeviceDownloads] = useState<Record<string, { state: 'downloading' | 'failed'; progress: number }>>({});
+  // Failed-track metadata per local playlist (or per cloud id when nothing was
+  // saved locally yet). Device-local by nature, so it lives beside cloudLinks.
+  const [pendingTracks, setPendingTracks] = useState<PendingTracks>({});
+  const pendingTracksLoadedRef = useRef(false);
+  const [cloudDownloadFailures, setCloudDownloadFailures] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!pendingTracksLoadedRef.current) {
+      pendingTracksLoadedRef.current = true;
+      try {
+        setPendingTracks(parsePendingTracks(localStorage.getItem(PENDING_TRACKS_STORAGE_KEY)));
+      } catch { /* storage unavailable */ }
+      return;
+    }
+    try {
+      localStorage.setItem(PENDING_TRACKS_STORAGE_KEY, JSON.stringify(pendingTracks));
+    } catch { /* storage unavailable */ }
+  }, [pendingTracks]);
+  const setPendingFor = (key: string, record: PendingTracks[string] | null) =>
+    setPendingTracks((prev) => {
+      const next = { ...prev };
+      if (record && record.failures.length > 0) next[key] = record;
+      else delete next[key];
+      return next;
+    });
   const [cloudConflict, setCloudConflict] = useState<{ cloudId: string; localId: string; name: string; kind: CloudConflictKind } | null>(null);
   const [panelNotice, setPanelNotice] = useState<PanelNotice | null>(null);
   const [cloudRefreshing, setCloudRefreshing] = useState(false);
@@ -1113,15 +1161,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     let cancelled = false;
     const STARTUP_TIMEOUT_MS = 8000;
 
-    // Reject after `ms` so a hung Supabase/network call can never block startup.
-    const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T> =>
-      Promise.race([
-        Promise.resolve(p),
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error("ACCESS_CHECK_TIMEOUT")), ms)
-        ),
-      ]);
-
     // Stored session is unusable (expired / revoked / not found). We must clear it
     // locally and treat the user as logged out rather than retrying forever.
     const isInvalidSessionError = (msg: string | undefined | null): boolean => {
@@ -1172,14 +1211,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
-        if (message === "ACCESS_CHECK_TIMEOUT") {
-          console.log("[v0] ACCESS CHECK TIMEOUT");
-        } else {
-          console.log("[v0] ACCESS CHECK ERROR", message);
-        }
+        const isTimeout = message === STARTUP_TIMEOUT_SENTINEL;
+        console.warn(isTimeout ? "[startup] session check timed out" : "[startup] session check failed", isTimeout ? "" : message);
         // If we can't confirm anything, show a recoverable error (not a white
         // screen / infinite spinner). authChecked is still set in `finally`;
         // the gate effect below leaves "error" untouched.
+        setGateReference(makeReferenceCode(isTimeout ? "session-timeout" : "session-error"));
         setGate("error");
       } finally {
         if (!cancelled) setAuthChecked(true);
@@ -1233,14 +1270,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // to "checking", which re-runs this verification.
     if (gate !== "checking") return;
 
-    // Hard navigation helper ��� the Next.js client router has been observed to
-    // silently no-op in this app's environment, and window.location.replace also
-    // works in the Capacitor static export. router.replace is a fast-path first.
+    // Single hard navigation per page lifetime. Previously this fired BOTH
+    // router.replace and window.location.replace, and on the Capacitor static
+    // export a bare "/login" (no trailing slash) could resolve to the root
+    // index.html, which bounced back to /app/ — a WebView reload loop on iPad.
+    // navigateOnce adds the trailing slash on mobile and refuses repeat calls.
     const hardRedirect = (path: string) => {
-      router.replace(path);
-      if (typeof window !== "undefined" && window.location.pathname !== path) {
-        window.location.replace(path);
-      }
+      navigateOnce(path, isMobileBuild);
     };
 
     if (!user) {
@@ -1263,7 +1299,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // session), deployed HTTPS origin + Supabase Bearer token on the mobile
         // static export. Without this, a relative /api/entitlement on Capacitor
         // resolves to the WebView origin and returns the SPA index.html.
-        const res = await apiFetch("/api/entitlement", { cache: "no-store" });
+        // Bounded: a stalled request on a captive / flaky network previously
+        // left "Checking your access…" spinning forever.
+        const res = await withTimeout(apiFetch("/api/entitlement", { cache: "no-store" }), 10000);
         if (cancelled) return;
 
         const contentType = (res.headers.get("content-type") || "").toLowerCase();
@@ -1315,11 +1353,23 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // Other server error / non-JSON body: fail OPEN if we verified online
         // recently (never lock out a paying user over a blip), else show the
         // recoverable error.
-        setGate(isWithinOfflineGrace() ? "granted" : "error");
-      } catch {
+        if (isWithinOfflineGrace()) {
+          setGate("granted");
+        } else {
+          setGateReference(makeReferenceCode(`entitlement-${res.status}`));
+          setGate("error");
+        }
+      } catch (err) {
         if (cancelled) return;
         // Network/unexpected error: fall back to the offline grace window.
-        setGate(isWithinOfflineGrace() ? "granted" : "blocked-offline");
+        if (isWithinOfflineGrace()) {
+          setGate("granted");
+        } else if (err instanceof Error && err.message === STARTUP_TIMEOUT_SENTINEL) {
+          setGateReference(makeReferenceCode("entitlement-timeout"));
+          setGate("error");
+        } else {
+          setGate("blocked-offline");
+        }
       }
     };
 
@@ -1328,7 +1378,30 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     return () => {
       cancelled = true;
     };
-  }, [authChecked, user, router, gate, supabase]);
+  }, [authChecked, user, gate, supabase]);
+
+  // On the startup error screen, look for downloaded playlists so we can offer
+  // "Continue offline". Only offered inside the existing offline grace window,
+  // which requires a prior online verification on this device and is cleared on
+  // sign-out — so this never widens who can access the player.
+  useEffect(() => {
+    if (gate !== "error") return;
+    if (!isWithinOfflineGrace()) {
+      setHasOfflineData(false);
+      return;
+    }
+    let cancelled = false;
+    withTimeout(getSavedPlaylists(), 3000)
+      .then((lists) => {
+        if (!cancelled) setHasOfflineData(lists.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setHasOfflineData(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gate]);
 
   // STRIPE TEMPORARILY DISABLED - Allow direct access to player
   // const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/4gMfZbfZDbPW33Fbop3F603';
@@ -1370,7 +1443,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       //    tears down cached player state. Works in the browser, Capacitor
       //    (iPhone/iPad) and the desktop wrapper, which all run a web view.
       if (typeof window !== 'undefined') {
-        window.location.replace('/login');
+        window.location.replace(routeFor('/login', isMobileBuild));
       } else {
         router.replace('/login');
       }
@@ -1521,7 +1594,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         }
         // Hard navigation (not router.push) so no in-memory React/subscription
         // state survives. The login page shows the confirmation via ?deleted=1.
-        window.location.href = '/login?deleted=1';
+        window.location.href = routeFor('/login?deleted=1', isMobileBuild);
         return;
       }
       alert(result.error || 'Failed to delete account');
@@ -2175,8 +2248,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         if (!res.ok) throw new Error(`demo fetch ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
-        const playlistsIn: Array<{ id: string; name: string; tracks: Array<{ id: string; name: string; durationSeconds: number }> }> =
-          data?.enabled && Array.isArray(data.playlists) ? data.playlists : [];
+        const playlistsIn = parseDemoSnapshot(data);
         if (playlistsIn.length === 0) {
           setDemoLoadState("empty");
           return;
@@ -2192,7 +2264,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             fileName: `${t.name}.mp3`,
             // Streams from the public demo endpoint; resolved to an R2 demo/ key
             // server-side. Same-origin URL plays directly in the <audio> element.
-            url: `/api/demo?action=audio&track=${encodeURIComponent(t.id)}`,
+            url: demoTrackUrl(t.id),
             durationSeconds: t.durationSeconds,
             uploadedAt: new Date().toISOString(),
           })),
@@ -2410,7 +2482,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         return next;
       });
 
-    trackEvent("cloud_upload_started");
+    trackEvent("playlist_upload_started");
     try {
       const result = await syncPlaylistToCloud({
         id: localPlaylist.id,
@@ -2448,7 +2520,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             },
           }));
         }
-        trackEvent("cloud_upload_completed");
+        trackEvent("playlist_upload_completed");
+        if (pendingTracks[playlistId]?.direction === 'upload') setPendingFor(playlistId, null);
         setPanelNotice({ tone: 'success', text: `${localPlaylist.name} is synced to EQHO Cloud.` });
         setSyncStatus('success');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'success' }));
@@ -2474,14 +2547,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         }, 2500);
       } else {
         const uploadErrorCategory = partialFailure ? "network" : categorizeError(result.error);
-        if (uploadErrorCategory) trackEvent("cloud_upload_failed", { error_category: uploadErrorCategory });
+        if (uploadErrorCategory) trackEvent("cloud_sync_failed", { direction: "upload", error_category: uploadErrorCategory });
         setSyncStatus('error');
         setPushStatus((prev) => ({ ...prev, [playlistId]: 'failed' }));
         setCloudSaveSuccess(false);
+        if (result.failures && result.failures.length > 0) {
+          setPendingFor(playlistId, {
+            direction: 'upload',
+            cloudId: result.cloudPlaylist?.id ?? linkedCloudId ?? '',
+            failures: result.failures,
+            updatedAt: new Date().toISOString(),
+          });
+        }
         setPanelNotice({
           tone: 'error',
           text: partialFailure
-            ? `Some tracks in ${localPlaylist.name} failed to upload. Your local playlist is unchanged.`
+            ? `${result.failures?.length ?? result.failedTracks} tracks in ${localPlaylist.name} failed to upload. The rest are saved; your local playlist is unchanged.`
             : `Upload failed for ${localPlaylist.name}${result.error ? `: ${result.error}` : ''}. Your local playlist is unchanged.`,
         });
         // Show the ACTUAL reason returned by the server/uploader (now propagated
@@ -2505,7 +2586,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     } catch (error) {
       console.error("Sync failed:", error);
       const uploadErrorCategory = categorizeError(error);
-      if (uploadErrorCategory) trackEvent("cloud_upload_failed", { error_category: uploadErrorCategory });
+      if (uploadErrorCategory) trackEvent("cloud_sync_failed", { direction: "upload", error_category: uploadErrorCategory });
       clearUploadProgress();
       setPanelNotice({ tone: 'error', text: `Upload failed for ${localPlaylist.name}. Your local playlist is unchanged.` });
       setSyncStatus('error');
@@ -2749,7 +2830,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return next;
     });
 
-    trackEvent("cloud_playlist_download_started");
+    trackEvent("playlist_download_started");
     try {
       const { playlist: localPlaylist, failedTracks, reason } = await fetchPlaylistWithFilesDetailed(playlistId);
       if (localPlaylist) {
@@ -2783,9 +2864,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
         console.log(`[v0][cloud-restore] Final restored playlist count: 1 ("${newPlaylist.name}")`);
         if (failedTracks.length > 0) {
-          trackEvent("cloud_playlist_download_failed", { error_category: "network" });
+          trackEvent("cloud_sync_failed", { direction: "download", error_category: "network" });
         } else {
-          trackEvent("cloud_playlist_download_completed");
+          trackEvent("playlist_download_completed");
         }
         if (failedTracks.length > 0) {
           console.log('[v0][cloud-restore] Failed tracks:', failedTracks);
@@ -2805,7 +2886,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // No audio could be downloaded — do not create an empty playlist folder.
         // Show WHY, using the reason classified during the download attempt.
         console.log('[v0][cloud-restore] Failed tracks:', failedTracks, 'reason:', reason);
-        trackEvent("cloud_playlist_download_failed", {
+        trackEvent("cloud_sync_failed", { direction: "download",
           error_category:
             reason === 'access-denied' ? 'permission'
               : reason === 'offline' ? 'network'
@@ -2833,7 +2914,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const detail = (error as Error)?.message || String(error);
       console.error("[v0] DOWNLOAD handler error:", detail);
       const restoreErrorCategory = categorizeError(error);
-      if (restoreErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: restoreErrorCategory });
+      if (restoreErrorCategory) trackEvent("cloud_sync_failed", { direction: "download", error_category: restoreErrorCategory });
       const failMsg = `Download failed: ${detail}`;
       setCloudSaveMessage(failMsg);
       setCloudSaveSuccess(false);
@@ -3107,27 +3188,48 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       return;
     }
 
+    const markFailed = (message: string) => {
+      setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'failed', progress: 0 } }));
+      setCloudDownloadFailures((prev) => ({ ...prev, [cloudId]: message }));
+    };
+
+    const requiredBytes = cloud.tracks.reduce((sum, t) => sum + (t.fileSize || 0), 0);
+    const storage = checkStorageForDownload(requiredBytes, await estimateDeviceStorage());
+    if (!storage.ok) {
+      const message = `Not enough space on this device. ${cloud.name} needs about ${formatBytes(storage.requiredBytes)}, ${formatBytes(storage.availableBytes) ?? '0 B'} is free. Free up space, then try again.`;
+      markFailed(message);
+      setPanelNotice({ tone: 'error', text: message });
+      return;
+    }
+
     setPanelNotice(null);
+    setCloudDownloadFailures((prev) => {
+      const next = { ...prev };
+      delete next[cloudId];
+      return next;
+    });
     setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
-    trackEvent("cloud_playlist_download_started");
+    trackEvent("playlist_download_started");
 
     try {
-      const { playlist: restored, failedTracks, totalTracks } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
+      const { playlist: restored, failedTracks, failures, totalTracks, reason } = await fetchPlaylistWithFilesDetailed(cloudId, (completed, total) => {
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
         setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: pct } }));
       });
 
       // Keep whatever downloaded: one unreachable track used to block the entire
-      // playlist from ever reaching this device. Missing tracks are named in the
-      // notice so the user can re-save from the original device.
+      // playlist from ever reaching this device. Failed tracks are kept as
+      // pending metadata so they can be retried individually.
       if (!restored || restored.tracks.length === 0) {
+        const firstReason = reason ?? failures[0]?.reason;
         throw new Error(
-          failedTracks.length > 0
-            ? `${failedTracks.length} of ${totalTracks} tracks could not be downloaded`
-            : 'The playlist could not be downloaded',
+          firstReason
+            ? describeFailureReason(firstReason)
+            : failedTracks.length > 0
+              ? `${failedTracks.length} of ${totalTracks} tracks could not be downloaded.`
+              : 'The playlist could not be downloaded.',
         );
       }
-      const missingTitles = failedTracks.filter(Boolean);
 
       const existingLocal = resolveLocalForCloud(cloud, savedPlaylistsRef.current, cloudLinks);
       const takenIds = new Set(savedPlaylistsRef.current.map((p) => p.id));
@@ -3167,20 +3269,24 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
       // Persist to IndexedDB first so "Downloaded" is only shown once the audio is
       // genuinely stored and available offline.
-      await saveSavedPlaylistsWithTracks(
-        apply(savedPlaylistsRef.current).map((p) => ({
-          id: p.id,
-          name: p.name,
-          tracks: p.tracks.map((t) => ({
-            id: t.id,
-            title: t.title,
-            fileName: t.fileName,
-            durationSeconds: t.durationSeconds,
-            uploadedAt: t.uploadedAt,
-            file: t.file,
-          })),
-        })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
-      );
+      try {
+        await saveSavedPlaylistsWithTracks(
+          apply(savedPlaylistsRef.current).map((p) => ({
+            id: p.id,
+            name: p.name,
+            tracks: p.tracks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              fileName: t.fileName,
+              durationSeconds: t.durationSeconds,
+              uploadedAt: t.uploadedAt,
+              file: t.file,
+            })),
+          })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
+        );
+      } catch (saveError) {
+        throw isQuotaError(saveError) ? new Error(describeFailureReason('storage-full')) : saveError;
+      }
 
       setSavedPlaylists((prev) => apply(prev));
       setCloudLinks((prev) => {
@@ -3198,25 +3304,135 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         delete next[cloudId];
         return next;
       });
-      trackEvent("cloud_playlist_download_completed");
+      if (existingLocal && mode !== 'save-both') setPendingFor(existingLocal.id, null);
+      setPendingFor(
+        targetId,
+        failures.length > 0
+          ? { direction: 'download', cloudId, failures, updatedAt: new Date().toISOString() }
+          : null,
+      );
+      trackEvent("playlist_download_completed");
       setPanelNotice(
-        failedTracks.length > 0
+        failures.length > 0
           ? {
               tone: 'error',
-              text: `Downloaded ${restored.tracks.length} of ${totalTracks} tracks. Missing: ${missingTitles.join(', ') || 'unknown'}. Open this playlist on the device it was uploaded from and press Save changes to repair it, then download again.`,
+              text: `Downloaded ${restored.tracks.length} of ${totalTracks} tracks of ${restored.name}. ${failures.length === 1 ? '1 track needs' : `${failures.length} tracks need`} attention — see the playlist card to retry.`,
             }
-          : { tone: 'success', text: 'Playlist downloaded and ready to use offline.' },
+          : { tone: 'success', text: `${restored.name} is downloaded and offline ready.` },
       );
     } catch (error) {
       console.error('[v0] Cloud playlist download failed:', error);
       const downloadErrorCategory = categorizeError(error);
-      if (downloadErrorCategory) trackEvent("cloud_playlist_download_failed", { error_category: downloadErrorCategory });
-      setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'failed', progress: 0 } }));
+      if (downloadErrorCategory) trackEvent("cloud_sync_failed", { direction: "download", error_category: downloadErrorCategory });
+      const reasonText = error instanceof Error ? error.message : 'The playlist could not be downloaded.';
+      markFailed(reasonText);
       setPanelNotice({
         tone: 'error',
-        text: `Download failed for ${cloud.name}${error instanceof Error ? `: ${error.message}` : ''}. Nothing was saved — try again.`,
+        text: `Download failed for ${cloud.name}: ${reasonText} Nothing was changed on this device.`,
       });
     }
+  };
+
+  // Re-downloads only the tracks that failed last time and slots them back
+  // into their original positions; tracks already on the device are untouched.
+  const retryFailedDownloadTracks = async (localId: string) => {
+    const record = pendingTracks[localId];
+    const local = savedPlaylistsRef.current.find((p) => p.id === localId);
+    if (!record || record.direction !== 'download' || !local) return;
+    const cloudId = record.cloudId;
+    if (cloudDeviceDownloads[cloudId]?.state === 'downloading') return;
+    if (!navigator.onLine) {
+      setPanelNotice({ tone: 'error', text: "You're offline. Reconnect to retry the failed tracks." });
+      return;
+    }
+
+    setPanelNotice(null);
+    setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: 0 } }));
+    try {
+      const { playlist: restored, failures, trackOrder, cloudUpdatedAt } = await fetchPlaylistWithFilesDetailed(
+        cloudId,
+        (completed, total) => {
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+          setCloudDeviceDownloads((prev) => ({ ...prev, [cloudId]: { state: 'downloading', progress: pct } }));
+        },
+        { onlyTrackIds: record.failures.map((f) => f.trackId) },
+      );
+      const recovered = (restored?.tracks ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        sub: "Downloaded Track",
+        duration: formatDuration(t.durationSeconds),
+        fileName: t.fileName,
+        url: URL.createObjectURL(t.file),
+        durationSeconds: t.durationSeconds,
+        uploadedAt: t.uploadedAt,
+        file: t.file,
+      }));
+
+      if (recovered.length > 0) {
+        const updated = { ...local, tracks: mergeRetriedTracks(local.tracks, recovered, trackOrder) };
+        const nextList = savedPlaylistsRef.current.map((p) => (p.id === localId ? updated : p));
+        try {
+          await saveSavedPlaylistsWithTracks(
+            nextList.map((p) => ({
+              id: p.id,
+              name: p.name,
+              tracks: p.tracks.map((t) => ({
+                id: t.id,
+                title: t.title,
+                fileName: t.fileName,
+                durationSeconds: t.durationSeconds,
+                uploadedAt: t.uploadedAt,
+                file: t.file,
+              })),
+            })) as Parameters<typeof saveSavedPlaylistsWithTracks>[0],
+          );
+        } catch (saveError) {
+          throw isQuotaError(saveError) ? new Error(describeFailureReason('storage-full')) : saveError;
+        }
+        setSavedPlaylists((prev) => prev.map((p) => (p.id === localId ? updated : p)));
+        setCloudLinks((prev) => ({
+          ...prev,
+          [localId]: {
+            cloudId,
+            cloudUpdatedAt: cloudUpdatedAt ?? prev[localId]?.cloudUpdatedAt ?? new Date().toISOString(),
+            localSignature: playlistSignature(updated),
+          },
+        }));
+      }
+
+      setPendingFor(
+        localId,
+        failures.length > 0 ? { ...record, failures, updatedAt: new Date().toISOString() } : null,
+      );
+      setPanelNotice(
+        failures.length === 0
+          ? { tone: 'success', text: `All tracks of ${local.name} are now offline ready.` }
+          : {
+              tone: 'error',
+              text: `${recovered.length} recovered, ${failures.length} still failing in ${local.name}.`,
+            },
+      );
+    } catch (error) {
+      console.error('[v0] Retry of failed tracks failed:', error);
+      setPanelNotice({
+        tone: 'error',
+        text: `Retry failed for ${local.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      });
+    } finally {
+      setCloudDeviceDownloads((prev) => {
+        const next = { ...prev };
+        delete next[cloudId];
+        return next;
+      });
+    }
+  };
+
+  const retryFailedTracks = (localId: string) => {
+    const record = pendingTracks[localId];
+    if (record?.direction === 'download') void retryFailedDownloadTracks(localId);
+    // Uploads skip tracks already in the cloud, so re-running only sends the failed ones.
+    else void handleSyncPlaylistToCloud(localId);
   };
 
   const resolveCloudConflict = (resolution: ConflictResolution) => {
@@ -3260,6 +3476,55 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     markOnboarding("sessionTipDismissed");
   };
 
+  // First-run guide: auto-opens once for signed-in coaches; replayable from Settings > Help.
+  const [showGuide, setShowGuide] = useState(() => !demoMode && shouldShowGuide(readOnboarding()));
+  const replayGuide = () => setShowGuide(true);
+  const skipGuide = useCallback(() => {
+    setShowGuide(false);
+    markOnboarding("guideSkipped");
+  }, []);
+  const completeGuide = () => {
+    setShowGuide(false);
+    markOnboarding("guideCompleted");
+    trackEvent("onboarding_completed");
+  };
+  const diagnosticsAuth = demoMode ? "demo" : user ? "signed-in" : "signed-out";
+
+  const handleGuideAction = (action: GuideAction) => {
+    const desktopLayout =
+      typeof window !== "undefined" &&
+      window.innerWidth >= 1024 &&
+      !!document.querySelector("[data-desktop-layout]");
+    switch (action) {
+      case "openPlaylists":
+        if (desktopLayout) setActivePage("playlists");
+        else setMobileTab("playlists");
+        break;
+      case "openCloud":
+        openEqhoCloud();
+        break;
+      case "openQueue":
+      case "openSessionControls":
+        if (desktopLayout) setActivePage("player");
+        else setMobileTab("nowplaying");
+        setBottomBarExpanded(true);
+        break;
+      case "openCountdownSettings":
+        if (desktopLayout) setActivePage("settings");
+        else setMobileTab("settings");
+        break;
+      case "openFullscreen":
+        if (desktopLayout) {
+          setActivePage("player");
+          void toggleFullscreen();
+        } else {
+          setMobileTab("nowplaying");
+          setShowFullscreenMobilePlayer(true);
+        }
+        break;
+    }
+  };
+
   const addSavedPlaylistToQueue = (id: string) => {
     const pl = savedPlaylists.find((p) => p.id === id);
     if (!pl || pl.tracks.length === 0) return;
@@ -3291,6 +3556,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       trackCount: pl.tracks.length,
       status,
       uploadProgress: uploadProgressById[pl.id] ?? null,
+      failures: pendingTracks[pl.id]?.failures ?? [],
+      failureDirection: pendingTracks[pl.id]?.direction,
+      retrying: !!pendingTracks[pl.id] && cloudDeviceDownloads[pendingTracks[pl.id].cloudId]?.state === 'downloading',
+      audioComplete: pl.tracks.length > 0 && pl.tracks.every((t) => !!t.file || !!t.url),
     };
   });
 
@@ -3314,6 +3583,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       downloadProgress: dl?.state === 'downloading' ? dl.progress : null,
       conflict,
       localPlayable: !!local && local.tracks.length > 0,
+      localId: local?.id,
+      failures: local ? pendingTracks[local.id]?.failures ?? [] : [],
+      failureMessage: cloudDownloadFailures[cp.id],
     };
   });
 
@@ -3351,6 +3623,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     onAddToQueue: addSavedPlaylistToQueue,
     onDownload: (cloudId: string) => { void downloadCloudPlaylistToDevice(cloudId, 'new'); },
     onReviewUpdate: reviewCloudUpdate,
+    onRetryFailedTracks: retryFailedTracks,
     onAddCloudToSession: addCloudPlaylistToSession,
     onDeleteCloud: (cloudId: string) => {
       const cloud = cloudPlaylists.find((c) => c.id === cloudId);
@@ -4709,33 +4982,47 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     }
   };
 
-  const hasPlayProgress = Object.keys(cyclePlays).length > 0;
 
-  // Status line for a row: "Play 2 of 3" while a multi-play track is current,
-  // "Complete" once it has played all of its plays this cycle.
-  const getTrackPlaysStatus = (trackId: string, isActive: boolean): string | null => {
-    const target = getEffectiveTargetPlays(trackPlayTargets, trackId, backToBack);
-    if (isTrackCycleComplete(trackPlayTargets, cyclePlays, trackId, backToBack)) return "Complete";
-    if (isActive) return getPlayProgressLabel(getCompletedPlays(cyclePlays, trackId), target);
-    return null;
-  };
+  const getTrackPlaysStatus = (track: Track, isActive: boolean) =>
+    getTrackRowStatus({
+      included: !hiddenTrackIds.has(track.id),
+      isCurrent: isActive,
+      hasAudio: Boolean(track.url),
+      hasError: playbackErrorTrackId === track.id,
+      completedPlays: getCompletedPlays(cyclePlays, track.id),
+      effectiveTarget: getEffectiveTargetPlays(trackPlayTargets, track.id, backToBack),
+    });
 
   const renderTrackPlaysControl = (track: Track, isActive: boolean, layout: "inline" | "stacked") => (
     <TrackPlaysControl
       trackTitle={track.title}
       target={getTargetPlays(trackPlayTargets, track.id)}
       included={!hiddenTrackIds.has(track.id)}
-      status={getTrackPlaysStatus(track.id, isActive)}
+      status={getTrackPlaysStatus(track, isActive)}
       layout={layout}
       onChangeTarget={(value) => updateTrackPlayTarget(track.id, value)}
       onToggleIncluded={() => toggleTrackIncluded(track.id)}
     />
   );
 
+  // Reset Session: clears progress only. Order, Plays targets and Included
+  // choices stay exactly as the user set them.
   const resetPlaylist = () => {
+    if (playlist.length === 0) return;
+    resetPlayCounts();
+  };
+
+  // Restore defaults: original order, every track included, 1 play each.
+  const restoreSessionDefaults = () => {
   if (playlist.length === 0) return;
+  invalidateGap("restore-defaults");
+  if (nativeSessionRef.current.activeRef.current) void nativeSessionRef.current.stop();
   setCyclePlays({});
   setCompletionCounts({});
+  setTrackPlayTargets({});
+  setShowSessionFinished(false);
+  completionLatchRef.current.reset();
+  b2bRepeatedTrackIdRef.current = null;
     
     // Use original order if available, otherwise reset current playlist state
     const orderToRestore = originalPlaylistOrder.length > 0 ? originalPlaylistOrder : playlist;
@@ -5029,6 +5316,13 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const markTrackCompleted = useCallback((trackId?: string | null) => {
     if (!trackId) return;
     setCompletionCounts((prev) => ({ ...prev, [trackId]: (prev[trackId] || 0) + 1 }));
+    // Both engines call this before recording the play into cyclePlays, so the
+    // ref still holds the pre-play count here.
+    if (playReachesTarget(trackPlayTargetsRef.current, cyclePlaysRef.current, trackId, backToBackRef.current)) {
+      trackEvent("track_target_completed", {
+        target_plays: getEffectiveTargetPlays(trackPlayTargetsRef.current, trackId, backToBackRef.current),
+      });
+    }
   }, []);
   // Guards the native completion detector so each full play is counted once.
   const nativeTrackCompletedRef = useRef(false);
@@ -5254,6 +5548,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // every view shows the correct play/pause status (and manual pauses stick).
   const handleAudioPlay = () => {
     setIsPlaying(true);
+    setPlaybackErrorTrackId(null);
     trackEvent("Track Played");
     // A play event near position 0 is a fresh track start; later ones are resumes.
     const audio = audioRef.current;
@@ -6577,7 +6872,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             once your subscription is confirmed.
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              // Retry in place: a full reload can re-hang the iPad WebView.
+              setGate("checking");
+              setAuthChecked(false);
+              setAccessRetryToken((n) => n + 1);
+            }}
             className="w-full min-h-[48px] py-3 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white font-bold hover:shadow-[0_0_20px_rgba(255,122,0,0.4)] transition"
           >
             Try Again
@@ -6619,6 +6919,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <RefreshCw size={18} />
               Try Again
             </button>
+            {hasOfflineData && (
+              <button
+                onClick={() => setGate("granted")}
+                className="w-full min-h-[48px] py-3 rounded-xl border border-[#ff8a00]/40 bg-white/5 text-white font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2"
+              >
+                <WifiOff size={18} />
+                Continue offline
+              </button>
+            )}
             <button
               onClick={handleLogout}
               disabled={isSigningOut}
@@ -6628,6 +6937,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               Sign Out
             </button>
           </div>
+          {gateReference && (
+            <p className="mt-5 text-xs text-white/40">
+              Reference: <span className="font-mono text-white/60 select-all">{gateReference}</span>
+            </p>
+          )}
         </div>
       </div>
     );
@@ -6641,6 +6955,19 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // block; forcing the background layouts to `display:none` makes the replace
   // behaviour bulletproof regardless of Safari's fixed-positioning quirks.
   const coachViewActive = isFullscreen || showFullscreenMobilePlayer;
+  // One phase for every view: standard, fullscreen/coach and demo all read it.
+  const playbackPhase = derivePlaybackPhase({
+    hasTrack: !!currentTrack,
+    isPlaying,
+    isTransitioning: isTransitioningRef.current,
+    isGapPaused,
+    isGapHeld,
+    gapCountdown,
+    countdownSeconds: settings.countdownSeconds,
+    sessionRunning,
+    sessionFinished: showSessionFinished,
+    hasError: !!currentTrack && playbackErrorTrackId === currentTrack.id,
+  });
 
   // Promo-banner wording, driven by the SERVER phase (never the device clock):
   //  • free phase        → "free until 1 October 2026, no card required"
@@ -6729,6 +7056,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // bar). Those rules only match inside this named size container, so the
       // standalone /app player and the embedded DESKTOP layout are unaffected.
       data-eqho-embed-root={embedded ? "" : undefined}
+      data-playback-state={playbackPhase}
+      data-player-view={coachViewActive ? "fullscreen" : "standard"}
       // Scopes the iPad-web visual fallbacks in globals.css ([data-ipad-web]) to the
       // player only, so the marketing site, iPhone and desktop are untouched.
       data-ipad-web={isIPadWeb ? "true" : undefined}
@@ -6906,7 +7235,15 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-gradient-to-tl from-[#ff8a00]/6 to-transparent rounded-full blur-3xl" />
       </div>
       
-      {showSessionTip && <SessionTip onDismiss={dismissSessionTip} />}
+      {showSessionTip && !showGuide && <SessionTip onDismiss={dismissSessionTip} />}
+      {showGuide && (
+        <OnboardingGuide
+          cloudAvailable={cloudPanelAvailable}
+          onAction={handleGuideAction}
+          onSkip={skipGuide}
+          onComplete={completeGuide}
+        />
+      )}
 
       {/* Silent keepalive loop — see silentKeepAliveRef. Kept inaudible; only
           played during the inter-track gap to stop iPad Safari from throttling
@@ -6939,6 +7276,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           // A real element error means we are not playing — reflect that so the
           // Play icon is correct (isPlaying is only ever cleared by pause/ended/error).
           setIsPlaying(false);
+          setPlaybackErrorTrackId(currentTrackRef.current?.id ?? null);
           // If playback fails while offline and there is no local downloaded copy,
           // tell the user the track is not available on this device.
           const src = audioRef.current?.currentSrc || audioRef.current?.src || "";
@@ -6956,6 +7294,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       <div
         ref={fullscreenRef}
         data-coach-overlay="desktop"
+        data-playback-state={playbackPhase}
         className={`${isFullscreen ? 'flex' : 'hidden'} fixed inset-0 z-[100] bg-[#090f1c] text-white`}
       >
         {/* Gap countdown for the DESKTOP-only native-fullscreen coach view. It must
@@ -8867,15 +9206,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         Reset
                       </button>
                     )}
-                    {hasPlayProgress && (
-                      <button
-                        type="button"
-                        onClick={resetPlayCounts}
-                        className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/60 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition"
-                      >
-                        Reset play counts
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={restoreSessionDefaults}
+                      title="Original order, all tracks included, 1 play each"
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/60 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition"
+                    >
+                      Restore defaults
+                    </button>
                     <button
                       onClick={() => {
                         console.log("[v0] Clear Playlist clicked, sessionRunning:", sessionRunning, "isPlaying:", isPlaying, "playlist length:", playlist.length);
@@ -9140,7 +9478,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       onTogglePause={handlePauseClick}
                     />
                   ) : isGapPaused ? (
-                    // Branded countdown — matches the mobile app: solid brand pink
+                    // Branded countdown ��� matches the mobile app: solid brand pink
                     // (#ff4fa3) with a pink→orange glow, so the "get ready" number
                     // reads as EQHO across every web surface.
                     <div
@@ -9900,15 +10238,224 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             </div>
 
             {/* Settings Grid */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="p-6 flex flex-col gap-10">
+              <SettingsGroup id="settings-playback" title="Playback" description="How sessions run: gap, repeats, countdown and safety prompts." scope="saved">
+                <CurrentSessionCard gapSeconds={gapSeconds} playlistRepeats={playlistRepeats} backToBack={backToBack} sessionRunning={sessionRunning} onEditOnPlayer={() => { setActivePage("player"); setBottomBarExpanded(true); }} />
+
+                {/* Session Controls */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Timer size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Session defaults</h3>
+                  </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Used when a new session starts. To change the session that&apos;s playing now, use the session controls on the player.
+                  </p>
+                  {sessionRunning && (
+                    <p role="status" className="mb-4 rounded-lg border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-3 py-2 text-xs text-[#ffb35c] leading-relaxed">
+                      A session is playing. Changes here apply to your next session and won&apos;t interrupt this one.
+                    </p>
+                  )}
+                  <div className="space-y-4">
+                    <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
+                    <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
+                    <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
+                  </div>
+                </div>
+
+                {/* Coach Display */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <SlidersHorizontal size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Coach Display</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
+                    <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
+                  </div>
+
+                </div>
+
+                {/* Warning Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+                      <AlertTriangle size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Safety warnings</h3>
+                  </div>
+                  <p className="text-sm text-white/60 leading-relaxed mb-4">
+                    Ask before pausing or skipping while a routine is playing, so the music isn&apos;t stopped by accident.
+                  </p>
+                  <div className="space-y-4">
+                    <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
+                    <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
+                  </div>
+                </div>
+
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-audio" title="Audio" description="Volume, autoplay and the countdown sound." scope="saved">
+                {/* Playback Settings */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Headphones size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">Volume and autoplay</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {iosVolumeControl ? (
+                      <p className="text-sm text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
+                    ) : (
+                      <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
+                    )}
+                    <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
+                  </div>
+                </div>
+
+                {/* Countdown sound */}
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                  {/* Countdown sound: the toggle controls SOUND ONLY (the visual
+                      countdown above still runs when off). Each row previews with
+                      the same generator as the live countdown. */}
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                      <Volume2 size={14} aria-hidden="true" />
+                      Countdown sound
+                    </h3>
+                    <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
+
+                    <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
+                      <span className="text-sm text-white/80">Countdown Sound</span>
+                      <div role="radiogroup" aria-label="Countdown sound" className="grid gap-2">
+                        {BEEP_SOUNDS.map((opt) => {
+                          const active = settings.beepSound === opt.id;
+                          return (
+                            <div
+                              key={opt.id}
+                              className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
+                            >
+                              <button
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => updateSetting("beepSound", opt.id)}
+                                className="flex-1 flex items-center gap-3 text-left min-h-[44px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]"
+                              >
+                                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
+                                  {active && <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]" />}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-semibold text-white">{opt.label}</span>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => previewBeepSound(opt.id)}
+                                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 px-3 min-h-[44px] text-[#ff8a00] hover:bg-[#ff8a00]/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00]"
+                                title={`Preview ${opt.label}`}
+                                aria-label={`Preview ${opt.label}`}
+                              >
+                                <Play size={14} />
+                                <span className="text-xs font-semibold">Preview</span>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-cloud" title="Cloud and offline" description="Connection status, backups and EQHO Cloud.">
+                <OfflineStatusCard online={deviceOnline} />
+
+                {!demoMode && (
+                <>
+                {/* EQHO Cloud - Sync & Backup */}
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
+                      <Cloud size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold">EQHO Cloud</h3>
+                  </div>
+                  
+                  {/* Cloud Status Message */}
+                  {cloudSaveMessage && (
+                    <div className={`mb-4 px-3 py-2 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
+                      <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
+                        {(isExporting || isPushingToApps) && <Loader2 size={14} className="animate-spin" />}
+                        {cloudSaveMessage}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                    {/* Download Playlists */}
+                    <div>
+                      <button
+                        onClick={handleDownloadAllPlaylists}
+                        disabled={isExporting}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-semibold hover:shadow-[0_0_20px_rgba(255,79,163,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isExporting ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <FileDown size={16} />
+                        )}
+                        Download Playlists
+                      </button>
+                      <p className="text-xs text-white/50 mt-2">
+                        Save a local backup of your EQHO playlists and routine setup.
+                      </p>
+                    </div>
+                    
+                    {/* Push to Apps - Desktop Only */}
+                    {!isMobileBuild && (
+                      <div>
+                        <button
+                          onClick={handlePushToApps}
+                          disabled={isPushingToApps}
+                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/20 text-white text-sm font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isPushingToApps ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Send size={16} />
+                          )}
+                          Save all to EQHO Cloud
+                        </button>
+                        <p className="text-xs text-white/50 mt-2">
+                          Saves every playlist on this device to your EQHO account. Other devices download them from EQHO Cloud.{" "}
+                          <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
+                            Open EQHO Cloud
+                          </button>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                </>
+                )}
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-account" title="Account" description="Your subscription, password and sign in.">
                 {/* Subscription Card */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
                       <Crown size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Subscription</h2>
+                    <h3 className="text-lg font-bold">Subscription</h3>
                   </div>
                   {(() => {
                     // Only a genuine, active Stripe subscription counts as "active".
@@ -10031,206 +10578,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   })()}
                 </div>
 
-                {/* Playback Settings */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Headphones size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Playback</h2>
-                  </div>
-                  <div className="space-y-4">
-                    {iosVolumeControl ? (
-                      <p className="text-sm text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
-                    ) : (
-                      <NumberSetting label="Default Volume" value={settings.defaultVolume} suffix="%" min={0} max={100} step={5} onChange={(v) => updateSetting("defaultVolume", v)} />
-                    )}
-                    <ToggleSetting label="Autoplay Next Track" value={settings.autoplayNext} onChange={(v) => updateSetting("autoplayNext", v)} />
-                  </div>
-                </div>
-
-                {/* Session Controls */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Timer size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Session defaults</h2>
-                  </div>
-                  <p className="text-sm text-white/60 leading-relaxed mb-4">
-                    Used when a new session starts. To change the session that&apos;s playing now, use the session controls on the player.
-                  </p>
-                  {sessionRunning && (
-                    <p role="status" className="mb-4 rounded-lg border border-[#ff8a00]/30 bg-[#ff8a00]/10 px-3 py-2 text-xs text-[#ffb35c] leading-relaxed">
-                      A session is playing. Changes here apply to your next session and won&apos;t interrupt this one.
-                    </p>
-                  )}
-                  <div className="space-y-4">
-                    <NumberSetting label="Default Gap Between Routines" value={settings.gapSeconds} suffix="sec" min={0} max={120} step={5} onChange={(v) => updateSetting("gapSeconds", v)} />
-                    <NumberSetting label="Default Playlist Repeats" value={settings.playlistRepeats} suffix="times" min={1} max={20} step={1} onChange={(v) => updateSetting("playlistRepeats", v)} />
-                    <ToggleSetting label="Back-to-Back Mode Default" value={settings.backToBack} onChange={(v) => updateSetting("backToBack", v)} />
-                  </div>
-                </div>
-
-                {/* Coach Display */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <SlidersHorizontal size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Coach Display</h2>
-                  </div>
-                  <div className="space-y-4">
-                    <ToggleSetting label="Show Countdown Timer" value={settings.showCountdown} onChange={(v) => updateSetting("showCountdown", v)} />
-                    <NumberSetting label="Countdown Before Routine" value={settings.countdownSeconds} suffix="sec" min={0} max={15} step={1} onChange={(v) => updateSetting("countdownSeconds", v)} />
-                  </div>
-
-                  {/* Countdown sound: the toggle controls SOUND ONLY (the visual
-                      countdown above still runs when off). Each row previews with
-                      the same generator as the live countdown. */}
-                  <div className="mt-5 pt-5 border-t border-white/10 space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
-                      <Volume2 size={14} aria-hidden="true" />
-                      Countdown sound
-                    </h3>
-                    <ToggleSetting label="Countdown Sound" value={settings.countdownSound} onChange={(v) => updateSetting("countdownSound", v)} />
-
-                    <div className={`space-y-2 transition-opacity ${settings.countdownSound ? "opacity-100" : "opacity-40"}`}>
-                      <span className="text-sm text-white/80">Countdown Sound</span>
-                      <div role="radiogroup" aria-label="Countdown sound" className="grid gap-2">
-                        {BEEP_SOUNDS.map((opt) => {
-                          const active = settings.beepSound === opt.id;
-                          return (
-                            <div
-                              key={opt.id}
-                              className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-[#ff4fa3] bg-[#ff4fa3]/10" : "border-white/10 bg-white/[0.02]"}`}
-                            >
-                              <button
-                                type="button"
-                                role="radio"
-                                aria-checked={active}
-                                onClick={() => updateSetting("beepSound", opt.id)}
-                                className="flex-1 flex items-center gap-3 text-left min-h-[44px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3]"
-                              >
-                                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
-                                  {active && <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00]" />}
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block text-sm font-semibold text-white">{opt.label}</span>
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => previewBeepSound(opt.id)}
-                                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 px-3 min-h-[44px] text-[#ff8a00] hover:bg-[#ff8a00]/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a00]"
-                                title={`Preview ${opt.label}`}
-                                aria-label={`Preview ${opt.label}`}
-                              >
-                                <Play size={14} />
-                                <span className="text-xs font-semibold">Preview</span>
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Warning Settings */}
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
-                      <AlertTriangle size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">Safety warnings</h2>
-                  </div>
-                  <p className="text-sm text-white/60 leading-relaxed mb-4">
-                    Ask before pausing or skipping while a routine is playing, so the music isn&apos;t stopped by accident.
-                  </p>
-                  <div className="space-y-4">
-                    <ToggleSetting label="Show Pause Safety Warning" value={settings.showPauseWarning} onChange={(v) => updateSetting("showPauseWarning", v)} />
-                    <ToggleSetting label="Show Skip Track Warning" value={settings.showSkipWarning} onChange={(v) => updateSetting("showSkipWarning", v)} />
-                  </div>
-                </div>
-
-                {/* Account-only settings (cloud sync, account, danger zone) are
-                    hidden in the public demo — they require login and touch
-                    customer data. */}
+                {/* Account-only settings are hidden in the public demo. */}
                 {!demoMode && (
                 <>
-                {/* EQHO Cloud - Sync & Backup */}
-                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
-                      <Cloud size={18} />
-                    </div>
-                    <h2 className="text-lg font-bold">EQHO Cloud</h2>
-                  </div>
-                  
-                  {/* Cloud Status Message */}
-                  {cloudSaveMessage && (
-                    <div className={`mb-4 px-3 py-2 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
-                      <p className={`text-sm font-medium flex items-center gap-2 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
-                        {(isExporting || isPushingToApps) && <Loader2 size={14} className="animate-spin" />}
-                        {cloudSaveMessage}
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-4">
-                    {/* Download Playlists */}
-                    <div>
-                      <button
-                        onClick={handleDownloadAllPlaylists}
-                        disabled={isExporting}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] text-white text-sm font-semibold hover:shadow-[0_0_20px_rgba(255,79,163,0.3)] transition flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {isExporting ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <FileDown size={16} />
-                        )}
-                        Download Playlists
-                      </button>
-                      <p className="text-xs text-white/50 mt-2">
-                        Save a local backup of your EQHO playlists and routine setup.
-                      </p>
-                    </div>
-                    
-                    {/* Push to Apps - Desktop Only */}
-                    {!isMobileBuild && (
-                      <div>
-                        <button
-                          onClick={handlePushToApps}
-                          disabled={isPushingToApps}
-                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/20 text-white text-sm font-semibold hover:bg-white/10 transition flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          {isPushingToApps ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Send size={16} />
-                          )}
-                          Save all to EQHO Cloud
-                        </button>
-                        <p className="text-xs text-white/50 mt-2">
-                          Saves every playlist on this device to your EQHO account. Other devices download them from EQHO Cloud.{" "}
-                          <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
-                            Open EQHO Cloud
-                          </button>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Account - Sign Out */}
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff4fa3] to-[#ff8a00] flex items-center justify-center">
                       <LogOut size={18} />
                     </div>
-                    <h2 className="text-lg font-bold">Account</h2>
+                    <h3 className="text-lg font-bold">Account</h3>
                   </div>
                   <p className="text-white/60 text-sm mb-4">
                     Sign out of EQHO Player on this device and return to the login screen.
@@ -10270,7 +10627,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-500 flex items-center justify-center">
                       <Trash2 size={18} />
                     </div>
-                    <h2 className="text-lg font-bold text-red-400">Danger Zone</h2>
+                    <h3 className="text-lg font-bold text-red-400">Danger Zone</h3>
                   </div>
                   <p className="text-white/60 text-sm mb-4">
                     Permanently delete your account and all associated data. This action cannot be undone.
@@ -10285,7 +10642,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 </div>
                 </>
                 )}
-              </div>
+              </SettingsGroup>
+
+              <SettingsGroup id="settings-help" title="Help" description="The getting started guide, user guide and support details.">
+                <HelpSettingsCard onReplayGuide={replayGuide} onOpenUserGuide={() => setActivePage("help")} />
+                <DiagnosticsCard online={deviceOnline} auth={diagnosticsAuth} />
+              </SettingsGroup>
             </div>
           </div>
         )}
@@ -10423,44 +10785,44 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             {/* Mobile Tab Switcher */}
             <div className="flex gap-0.5 shrink-0 bg-white/[0.04] rounded-xl p-1 border border-white/10">
               <button
-                onClick={() => setMobileTab("nowplaying")}
-                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                type="button" aria-label="Now playing" aria-pressed={mobileTab === "nowplaying"} onClick={() => setMobileTab("nowplaying")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold transition-all ${
                   mobileTab === "nowplaying"
                     ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Home size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Playing</span>
+                <Home size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Playing</span>
               </button>
               <button
-                onClick={() => setMobileTab("playlists")}
-                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                type="button" aria-label="Playlists" aria-pressed={mobileTab === "playlists"} onClick={() => setMobileTab("playlists")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold transition-all ${
                   mobileTab === "playlists"
                     ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <ListMusic size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Playlists</span>
+                <ListMusic size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Playlists</span>
               </button>
               <button
-                onClick={() => setMobileTab("settings")}
-                className={`flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                type="button" aria-label="Settings" aria-pressed={mobileTab === "settings"} onClick={() => setMobileTab("settings")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold transition-all ${
                   mobileTab === "settings"
                     ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border border-pink-500/30"
                     : "text-white/50 hover:text-white/80 hover:bg-white/5"
                 }`}
               >
-                <Settings size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Settings</span>
+                <Settings size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Settings</span>
               </button>
               <button
-                onClick={() => setShowFullscreenMobilePlayer(true)}
-                className="flex-1 py-1.5 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
+                type="button" aria-label="Open Coach view" onClick={() => setShowFullscreenMobilePlayer(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 md:min-h-11 landscape:py-1 px-2 rounded-lg text-[10px] sm:text-xs md:text-sm font-semibold text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
               >
-                <ExternalLink size={14} className="mx-auto desktop:hidden" />
-                <span className="hidden desktop:inline">Coach</span>
+                <ExternalLink size={14} className="shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Coach</span>
               </button>
             </div>
 
@@ -11051,70 +11413,43 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     {/* Scrollable Content */}
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-16">
 
-                    {/* Playback Settings */}
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Headphones size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Playback</span>
-                      </div>
-                      <div className="space-y-2">
-                        {iosVolumeControl ? (
-                          <p className="text-[10px] text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
-                        ) : (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Default Volume</span>
-                          <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("defaultVolume", Math.max(0, settings.defaultVolume - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.defaultVolume}%</span>
-                            <button onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
-                          </div>
-                        </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Autoplay Next Track</span>
-                          <button onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.autoplayNext ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.autoplayNext ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <SettingsGroup compact id="m-settings-playback" title="Playback" description="Gap, repeats, countdown and safety prompts." scope="saved">
+                    <CurrentSessionCard compact gapSeconds={gapSeconds} playlistRepeats={playlistRepeats} backToBack={backToBack} sessionRunning={sessionRunning} onEditOnPlayer={() => { setMobileTab("nowplaying"); setBottomBarExpanded(true); }} />
 
                     {/* Session defaults */}
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Timer size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Session defaults</span>
+                        <span className="text-xs font-bold text-white">Session defaults</span>
                       </div>
-                      <p className="text-[10px] text-white/50 leading-relaxed mb-2">
+                      <p className="text-xs text-white/50 leading-relaxed mb-2">
                         Used when a new session starts. The player&apos;s session controls change the current session only.
                       </p>
                       {sessionRunning && (
-                        <p role="status" className="text-[10px] text-[#ffb35c] leading-relaxed mb-2">
+                        <p role="status" className="text-xs text-[#ffb35c] leading-relaxed mb-2">
                           A session is playing. Changes here apply to your next session.
                         </p>
                       )}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Default Gap</span>
+                          <span className="text-xs text-white/70">Default Gap</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("gapSeconds", Math.max(0, settings.gapSeconds - 5))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.gapSeconds}s</span>
-                            <button onClick={() => updateSetting("gapSeconds", Math.min(120, settings.gapSeconds + 5))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                            <button type="button" aria-label="Decrease default gap" onClick={() => updateSetting("gapSeconds", Math.max(0, settings.gapSeconds - 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.gapSeconds}s</span>
+                            <button type="button" aria-label="Increase default gap" onClick={() => updateSetting("gapSeconds", Math.min(120, settings.gapSeconds + 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Default Repeats</span>
+                          <span className="text-xs text-white/70">Default Repeats</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("playlistRepeats", Math.max(1, settings.playlistRepeats - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.playlistRepeats}x</span>
-                            <button onClick={() => updateSetting("playlistRepeats", Math.min(20, settings.playlistRepeats + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                            <button type="button" aria-label="Decrease default repeats" onClick={() => updateSetting("playlistRepeats", Math.max(1, settings.playlistRepeats - 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.playlistRepeats}x</span>
+                            <button type="button" aria-label="Increase default repeats" onClick={() => updateSetting("playlistRepeats", Math.min(20, settings.playlistRepeats + 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Back-to-Back Default</span>
-                          <button onClick={() => updateSetting("backToBack", !settings.backToBack)} className="flex items-center">
+                          <span className="text-xs text-white/70">Back-to-Back Default</span>
+                          <button type="button" role="switch" aria-checked={settings.backToBack} aria-label="Back-to-Back Default" onClick={() => updateSetting("backToBack", !settings.backToBack)} className="flex min-h-11 min-w-11 items-center justify-end">
                             <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.backToBack ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
                               <div className={`h-3 w-3 rounded-full transition-transform ${settings.backToBack ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
                             </div>
@@ -11127,32 +11462,96 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <SlidersHorizontal size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">Coach Display</span>
+                        <span className="text-xs font-bold text-white">Coach Display</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Show Countdown</span>
-                          <button onClick={() => updateSetting("showCountdown", !settings.showCountdown)} className="flex items-center">
+                          <span className="text-xs text-white/70">Show Countdown</span>
+                          <button type="button" role="switch" aria-checked={settings.showCountdown} aria-label="Show Countdown" onClick={() => updateSetting("showCountdown", !settings.showCountdown)} className="flex min-h-11 min-w-11 items-center justify-end">
                             <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showCountdown ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
                               <div className={`h-3 w-3 rounded-full transition-transform ${settings.showCountdown ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
                             </div>
                           </button>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Countdown Time</span>
+                          <span className="text-xs text-white/70">Countdown Time</span>
                           <div className="flex items-center rounded border border-white/20 bg-white/5">
-                            <button onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="px-1.5 py-0.5 text-white/70"><Minus size={10} /></button>
-                            <span className="px-2 text-[10px] text-white border-x border-white/15">{settings.countdownSeconds}s</span>
-                            <button onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="px-1.5 py-0.5 text-white/70"><Plus size={10} /></button>
+                            <button type="button" aria-label="Decrease countdown time" onClick={() => updateSetting("countdownSeconds", Math.max(0, settings.countdownSeconds - 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.countdownSeconds}s</span>
+                            <button type="button" aria-label="Increase countdown time" onClick={() => updateSetting("countdownSeconds", Math.min(15, settings.countdownSeconds + 1))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
                           </div>
                         </div>
 
+                      </div>
+                    </div>
+
+                    {/* Safety warnings */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle size={14} className="text-yellow-400" />
+                        <span className="text-xs font-bold text-white">Safety warnings</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Show Pause Warning</span>
+                          <button type="button" role="switch" aria-checked={settings.showPauseWarning} aria-label="Show Pause Warning" onClick={() => updateSetting("showPauseWarning", !settings.showPauseWarning)} className="flex min-h-11 min-w-11 items-center justify-end">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showPauseWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showPauseWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Show Skip Warning</span>
+                          <button type="button" role="switch" aria-checked={settings.showSkipWarning} aria-label="Show Skip Warning" onClick={() => updateSetting("showSkipWarning", !settings.showSkipWarning)} className="flex min-h-11 min-w-11 items-center justify-end">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showSkipWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showSkipWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    </SettingsGroup>
+
+                    <SettingsGroup compact id="m-settings-audio" title="Audio" description="Volume, autoplay and the countdown sound." scope="saved">
+                    {/* Playback Settings */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Headphones size={14} className="text-[#ff8a00]" />
+                        <span className="text-xs font-bold text-white">Volume and autoplay</span>
+                      </div>
+                      <div className="space-y-2">
+                        {iosVolumeControl ? (
+                          <p className="text-xs text-white/60 leading-relaxed">Use your device volume buttons to adjust playback volume.</p>
+                        ) : (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Default Volume</span>
+                          <div className="flex items-center rounded border border-white/20 bg-white/5">
+                            <button type="button" aria-label="Decrease default volume" onClick={() => updateSetting("defaultVolume", Math.max(0, settings.defaultVolume - 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Minus size={10} /></button>
+                            <span className="px-2 text-xs text-white border-x border-white/15">{settings.defaultVolume}%</span>
+                            <button type="button" aria-label="Increase default volume" onClick={() => updateSetting("defaultVolume", Math.min(100, settings.defaultVolume + 5))} className="grid min-h-11 min-w-11 place-items-center text-white/70"><Plus size={10} /></button>
+                          </div>
+                        </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/70">Autoplay Next Track</span>
+                          <button type="button" role="switch" aria-checked={settings.autoplayNext} aria-label="Autoplay Next Track" onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)} className="flex min-h-11 min-w-11 items-center justify-end">
+                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.autoplayNext ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
+                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.autoplayNext ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Countdown sound */}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                         {/* Countdown Timer Sound (compact). ON/OFF controls SOUND
                             only — the visual countdown still runs when off. Tap a row
                             to select; tap Preview to hear the 3-2-1 for that style. */}
-                        <div className="pt-2 mt-1 border-t border-white/10">
+                        <div>
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-white">Countdown Sound</span>
+                            <span className="text-xs font-bold text-white">Countdown Sound</span>
                             <button
                               type="button"
                               role="switch"
@@ -11184,7 +11583,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     <span className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border ${active ? "border-[#ff4fa3]" : "border-white/30"}`}>
                                       {active && <span className="h-1.5 w-1.5 rounded-full bg-[#ff4fa3]" />}
                                     </span>
-                                    <span className="text-[10px] font-semibold text-white">{opt.label}</span>
+                                    <span className="text-xs font-semibold text-white">{opt.label}</span>
                                   </button>
                                   <button
                                     type="button"
@@ -11193,57 +11592,32 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                     aria-label={`Preview ${opt.label}`}
                                   >
                                     <Play size={10} />
-                                    <span className="text-[9px] font-semibold">Preview</span>
+                                    <span className="text-[11px] font-semibold">Preview</span>
                                   </button>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
-                      </div>
                     </div>
 
-                    {/* Safety warnings */}
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle size={14} className="text-yellow-400" />
-                        <span className="text-[10px] font-bold text-white">Safety warnings</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Show Pause Warning</span>
-                          <button onClick={() => updateSetting("showPauseWarning", !settings.showPauseWarning)} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showPauseWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showPauseWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-white/70">Show Skip Warning</span>
-                          <button onClick={() => updateSetting("showSkipWarning", !settings.showSkipWarning)} className="flex items-center">
-                            <div className={`h-4 w-8 rounded-full border p-0.5 transition-colors ${settings.showSkipWarning ? "border-pink-500 bg-pink-500/30" : "border-white/25 bg-white/15"}`}>
-                              <div className={`h-3 w-3 rounded-full transition-transform ${settings.showSkipWarning ? "translate-x-4 bg-pink-500" : "translate-x-0 bg-white/50"}`} />
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    </SettingsGroup>
 
-                    {/* Account-only settings (cloud sync + subscription) are
-                        hidden in the public demo. */}
+                    <SettingsGroup compact id="m-settings-cloud" title="Cloud and offline" description="Connection status, backups and EQHO Cloud.">
+                    <OfflineStatusCard compact online={deviceOnline} />
                     {!demoMode && (
                     <>
                     {/* EQHO Cloud - Sync & Backup */}
                     <div className="rounded-xl border border-white/10 bg-gradient-to-br from-[#ff4fa3]/5 via-transparent to-[#ff8a00]/5 p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Cloud size={14} className="text-[#ff8a00]" />
-                        <span className="text-[10px] font-bold text-white">EQHO Cloud</span>
+                        <span className="text-xs font-bold text-white">EQHO Cloud</span>
                       </div>
                       
                       {/* Cloud Status Message */}
                       {cloudSaveMessage && (
                         <div className={`mb-2 px-2 py-1.5 rounded-lg ${cloudSaveSuccess ? 'bg-[#22c55e]/10 border border-[#22c55e]/30' : 'bg-[#ff4fa3]/10 border border-[#ff4fa3]/30'}`}>
-                          <p className={`text-[10px] font-medium flex items-center gap-1.5 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
+                          <p className={`text-xs font-medium flex items-center gap-1.5 ${cloudSaveSuccess ? 'text-[#22c55e]' : 'text-[#ff4fa3]'}`}>
                             {(isExporting || isPushingToApps) && <Loader2 size={10} className="animate-spin" />}
                             {cloudSaveMessage}
                           </p>
@@ -11264,7 +11638,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           )}
                           Download Playlists
                         </button>
-                        <p className="text-[9px] text-white/50">
+                        <p className="text-[11px] text-white/50">
                           Save a local backup of your EQHO playlists and routine setup.
                         </p>
                         
@@ -11283,7 +11657,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               )}
                               Save all to EQHO Cloud
                             </button>
-                            <p className="text-[9px] text-white/50">
+                            <p className="text-[11px] text-white/50">
                               Saves every playlist on this device to your EQHO account.{" "}
                               <button type="button" onClick={openEqhoCloud} className="underline underline-offset-2 hover:text-white">
                                 Open EQHO Cloud
@@ -11294,20 +11668,27 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       </div>
                     </div>
 
+                    </>
+                    )}
+                    </SettingsGroup>
+
+                    {/* Account settings are hidden in the public demo. */}
+                    {!demoMode && (
+                    <SettingsGroup compact id="m-settings-account" title="Account" description="Your subscription, password and sign in.">
                     {/* Subscription (Stripe + Supabase) */}
                     <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-green-600/5 p-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Crown size={14} className="text-emerald-400" />
-                          <span className="text-[10px] font-bold text-white">INTRODUCTION MODE</span>
+                          <span className="text-xs font-bold text-white">INTRODUCTION MODE</span>
                         </div>
                         {hasActiveSubscription(profile) ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]">
                             <Crown className="h-2.5 w-2.5" />
                             EQHO Player
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-white/10 text-white/70 border border-white/15">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white/10 text-white/70 border border-white/15">
                             INTRODUCTION MODE
                           </span>
                         )}
@@ -11324,7 +11705,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              <span className="text-emerald-300 text-[9px] font-semibold">
+                              <span className="text-emerald-300 text-[11px] font-semibold">
                                 {subCancelPending
                                   ? "Access until period ends"
                                   : "Your subscription is active"}
@@ -11337,7 +11718,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                 <span className="text-emerald-400 text-3xl font-black leading-none tabular-nums drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]">
                                   {daysLeft}
                                 </span>
-                                <span className="text-emerald-300/80 text-[10px] font-semibold pb-0.5">
+                                <span className="text-emerald-300/80 text-xs font-semibold pb-0.5">
                                   {daysLeft === 1 ? "day left" : "days left"}
                                 </span>
                               </div>
@@ -11355,14 +11736,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
                             {/* Renewal date */}
                             {countdownTarget && (
-                              <p className="text-emerald-100/70 text-[9px]">
+                              <p className="text-emerald-100/70 text-[11px]">
                                 {subCancelPending ? "Ends on " : "Renews on "}
                                 <span className="font-semibold text-emerald-200">{formatTrialEndDate(countdownTarget)}</span>
                               </p>
                             )}
 
                             {!subCancelPending && (
-                              <p className="text-emerald-100/50 text-[9px] leading-relaxed">
+                              <p className="text-emerald-100/50 text-[11px] leading-relaxed">
                                 Your subscription renews automatically. Cancel anytime.
                               </p>
                             )}
@@ -11381,14 +11762,14 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               <div className="text-center pt-0.5">
                                 <button
                                   onClick={() => { setSubActionError(null); setShowCancelSubConfirm(true); }}
-                                  className="text-white/40 hover:text-white/70 active:text-white/80 text-[10px] underline underline-offset-2 transition-colors py-1"
+                                  className="text-white/40 hover:text-white/70 active:text-white/80 text-xs underline underline-offset-2 transition-colors py-1"
                                 >
                                   Cancel subscription
                                 </button>
                               </div>
                             )}
                             {subActionError && (
-                              <p className="text-red-400 text-[10px] text-center">{subActionError}</p>
+                              <p className="text-red-400 text-xs text-center">{subActionError}</p>
                             )}
                           </div>
                         );
@@ -11396,45 +11777,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         // No active subscription — pre-launch informational state (no sign-up).
                         return (
                           <div className="space-y-1.5">
-                            <p className="text-emerald-300 text-[10px] font-semibold leading-relaxed">
+                            <p className="text-emerald-300 text-xs font-semibold leading-relaxed">
                               Paid subscription starts after your 30-day free trial.
                             </p>
-                            <p className="text-emerald-100/70 text-[9px] leading-relaxed">
+                            <p className="text-emerald-100/70 text-[11px] leading-relaxed">
                               Introduction Mode is included in your free trial.
                             </p>
                           </div>
                         );
                       })()}
                     </div>
-                    </>
-                    )}
-
-                    {/* Contact & Feedback */}
-                    <button
-                      onClick={() => setShowContactMobile(true)}
-                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
-                    >
-                      <Mail size={14} className="text-[#ff8a00]" />
-                      <span className="text-[11px] font-semibold text-white flex-1 text-left">Contact & Feedback</span>
-                      <ChevronRight size={14} className="text-white/40" />
-                    </button>
-
-                    {/* Legal / Privacy Policy */}
-                    <Link
-                      href="/privacy-policy"
-                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
-                    >
-                      <Shield size={14} className="text-white/60" />
-                      <span className="text-[11px] font-semibold text-white flex-1">Privacy Policy</span>
-                      <ChevronRight size={14} className="text-white/40" />
-                    </Link>
-
-                    {/* Account / Logout — hidden in the public demo (login only). */}
-                    {!demoMode && (
+                    {/* Account / Logout */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 mt-1 mb-2">
                       <div className="flex items-center gap-2 mb-2">
                         <LogOut size={14} className="text-red-400" />
-                        <span className="text-[10px] font-bold text-white">Account</span>
+                        <span className="text-xs font-bold text-white">Account</span>
                       </div>
                       <div className="flex flex-col gap-2">
                         <button
@@ -11462,7 +11819,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           )}
                         </button>
                         {signOutError && (
-                          <p className="text-red-400 text-[10px] text-center">{signOutError}</p>
+                          <p className="text-red-400 text-xs text-center">{signOutError}</p>
                         )}
                         <button
                           onClick={() => setShowDeleteAccountConfirm(true)}
@@ -11473,8 +11830,34 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         </button>
                       </div>
                     </div>
-                    )}
                     
+                    </SettingsGroup>
+                    )}
+
+                    <SettingsGroup compact id="m-settings-help" title="Help" description="The getting started guide, support and diagnostics.">
+                    <HelpSettingsCard compact onReplayGuide={replayGuide} />
+                    {/* Contact & Feedback */}
+                    <button
+                      onClick={() => setShowContactMobile(true)}
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Mail size={14} className="text-[#ff8a00]" />
+                      <span className="text-[11px] font-semibold text-white flex-1 text-left">Contact & Feedback</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </button>
+
+                    {/* Legal / Privacy Policy */}
+                    <Link
+                      href="/privacy-policy"
+                      className="flex items-center gap-2 w-full rounded-xl border border-white/10 bg-white/[0.02] p-3 mt-1 hover:bg-white/[0.05] active:bg-white/[0.08] transition"
+                    >
+                      <Shield size={14} className="text-white/60" />
+                      <span className="text-[11px] font-semibold text-white flex-1">Privacy Policy</span>
+                      <ChevronRight size={14} className="text-white/40" />
+                    </Link>
+
+                    <DiagnosticsCard compact online={deviceOnline} auth={diagnosticsAuth} />
+                    </SettingsGroup>
                     </div>
                   </Card>
                 </div>
