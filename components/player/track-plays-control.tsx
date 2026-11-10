@@ -76,6 +76,7 @@ export function TrackPlaysControl({
         onKeyDown={stop}
         data-track-plays-control
       >
+        {visibilityControl !== "button" && (
         <div
           role="group"
           aria-label={`Plays for ${trackTitle}`}
@@ -107,6 +108,7 @@ export function TrackPlaysControl({
             <Plus size={14} strokeWidth={2.75} aria-hidden="true" />
           </button>
         </div>
+        )}
 
         {visibilityControl === "button" ? (
           <button
@@ -121,16 +123,16 @@ export function TrackPlaysControl({
                 : `Show ${trackTitle} in this session`
             }
             title={hideLocked ? "Pause or wait for this track to finish to hide it" : undefined}
-            className={`${touchTarget} w-16 gap-1 border px-2 text-xs font-semibold ${
+            className={`flex h-8 shrink-0 items-center justify-center gap-1 rounded-md border px-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70 ${
               included
                 ? "border-white/15 bg-white/[0.06] text-white/90 hover:bg-white/10 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-white/[0.06]"
                 : "border-cyan-400/70 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
             }`}
           >
             {included ? (
-              <EyeOff size={14} className="shrink-0" aria-hidden="true" />
+              <EyeOff size={12} className="shrink-0" aria-hidden="true" />
             ) : (
-              <Eye size={14} className="shrink-0" aria-hidden="true" />
+              <Eye size={12} className="shrink-0" aria-hidden="true" />
             )}
             {included ? "Hide" : "Show"}
           </button>
