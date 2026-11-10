@@ -40,6 +40,7 @@ import {
   setTargetPlays,
 } from "@/lib/playback/track-plays";
 import { TrackPlaysControl } from "@/components/player/track-plays-control";
+import { QueueTrackRow } from "@/components/player/queue-track-row";
 import { heldDisplayValue, holdRemainingMs, remainingVisibleSteps, resumeDeadline } from "@/lib/gap-hold";
 import { derivePlaybackPhase } from "@/lib/playback/session-machine";
 import { demoTrackUrl, parseDemoSnapshot } from "@/lib/playback/demo-session";
@@ -5005,6 +5006,46 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     />
   );
 
+  // Single source for every Up Next row (normal + full-screen queues), so both
+  // read the same state and call the same handlers.
+  const renderQueueRow = (track: Track, originalIndex: number) => {
+    const isActiveTrack = currentTrack?.id === track.id;
+    const isHidden = hiddenTrackIds.has(track.id);
+    const isFinished = finishedTracks.has(track.id);
+    const hasMoreRounds = !isFinished && originalIndex < currentIndex && playlistRound < playlistRepeats;
+    const note = isHidden
+      ? undefined
+      : isActiveTrack && isGapPaused
+        ? `Gap ${gapCountdown}s`
+        : hasMoreRounds
+          ? `Round ${playlistRound} of ${playlistRepeats}`
+          : undefined;
+    return (
+      <QueueTrackRow
+        key={track.id}
+        id={track.id}
+        order={originalIndex + 1}
+        title={track.title}
+        duration={formatDuration(track.durationSeconds)}
+        status={getTrackPlaysStatus(track, isActiveTrack)}
+        target={getTargetPlays(trackPlayTargets, track.id)}
+        included={!isHidden}
+        isCurrent={isActiveTrack}
+        isPlaying={isActiveTrack && isPlaying}
+        isFinished={isFinished}
+        completionCount={completionCounts[track.id] || 0}
+        orderColourClass={getQueueColour(originalIndex)}
+        note={note}
+        onSelect={() => {
+          setCurrentIndex(originalIndex);
+          togglePlayPause(track);
+        }}
+        onChangeTarget={(value) => updateTrackPlayTarget(track.id, value)}
+        onToggleIncluded={() => toggleTrackIncluded(track.id)}
+      />
+    );
+  };
+
   // Reset Session: clears progress only. Order, Plays targets and Included
   // choices stay exactly as the user set them.
   const resetPlaylist = () => {
@@ -7778,7 +7819,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           </div>
         )}
 
-          <div className="flex w-full h-full p-3 md:p-4 gap-3 md:gap-4 max-w-full overflow-hidden">
+          <div className="flex flex-col md:flex-row w-full h-full p-3 md:p-4 gap-3 md:gap-4 max-w-full overflow-hidden">
             {/* Now Playing - Main Section (larger) */}
             <div className="flex-[2] flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 md:p-6 min-w-0 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
             {/* Header */}
@@ -8036,47 +8077,59 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           </div>
 
         {/* Up Next - Side Section (smaller) */}
-        <div className="flex-1 flex flex-col bg-[#090f1c]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-4 min-w-[240px] max-w-[320px] overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)]">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-              <div className="flex items-center gap-1.5">
-                {playlist.length > 0 && (
+        <section
+          aria-label="Up next"
+          className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#090f1c]/80 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-xl max-md:max-h-[50%] max-md:w-full max-md:flex-1 md:shrink-0 md:w-[clamp(320px,36vw,480px)]"
+        >
+            <header className="shrink-0 border-b border-white/10 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <div className="min-w-0">
+                  <h2 className="text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT</h2>
+                  <p className="text-[11px] text-white/60">
+                    {visiblePlaylist.length} of {playlist.length} included · Drag to reorder
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {playlist.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={resetPlaylist}
+                      className="flex min-h-11 items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2.5 text-[11px] font-bold text-cyan-400 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70"
+                    >
+                      <RotateCcw size={12} aria-hidden="true" />
+                      Reset
+                    </button>
+                  )}
                   <button
-                    onClick={resetPlaylist}
-                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold hover:bg-cyan-500/20 transition"
+                    type="button"
+                    onClick={() => {
+                      if (sessionRunning || isPlaying) {
+                        setShowClearPlaylistConfirm(true);
+                      } else {
+                        clearPlaylist();
+                      }
+                    }}
+                    className="flex min-h-11 items-center gap-1 rounded-md border border-orange-500/30 bg-orange-500/10 px-2.5 text-[11px] font-bold text-orange-400 transition hover:bg-orange-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70"
                   >
-                    <RotateCcw size={10} />
-                    Reset
+                    <X size={12} aria-hidden="true" />
+                    Clear
                   </button>
-                )}
-                <button
-                  onClick={() => {
-                    if (sessionRunning || isPlaying) {
-                      setShowClearPlaylistConfirm(true);
-                    } else {
-                      clearPlaylist();
-                    }
-                  }}
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold hover:bg-orange-500/20 transition"
-                >
-                  <X size={10} />
-                  Clear
-                </button>
-                {hiddenTrackIds.size > 0 && (
-                  <button
-                    onClick={() => setHiddenTrackIds(new Set())}
-                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-bold hover:bg-blue-500/20 transition"
-                  >
-                    <RotateCcw size={10} />
-                    Restore ({hiddenTrackIds.size})
-                  </button>
-                )}
-                <span className="text-[9px] text-white/50">{visiblePlaylist.length} tracks</span>
+                  {hiddenTrackIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setHiddenTrackIds(new Set())}
+                      aria-label={`Restore ${hiddenTrackIds.size} excluded ${hiddenTrackIds.size === 1 ? "track" : "tracks"}`}
+                      className="flex min-h-11 items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 text-[11px] font-bold text-blue-400 transition hover:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70"
+                    >
+                      <RotateCcw size={12} aria-hidden="true" />
+                      Restore ({hiddenTrackIds.size})
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-            <p className="border-b border-white/10 pb-2 text-[10px] text-white/60 mb-2">Drag to re-order</p>
+            </header>
 
-            <div className="flex-1 overflow-y-auto pr-1 min-h-0">
+            <div data-queue-scroll className="@container flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2">
               {playlist.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <Music size={36} className="text-white/20 mb-3" />
@@ -8093,53 +8146,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       ids={reordered.map(({ track }) => track.id)}
                       onReorder={reorderPlaylistByIds}
                     >
-                      {reordered.map(({ track, originalIndex }) => {
-                    const colour = getQueueColour(originalIndex);
-                    const isActiveTrack = currentTrack?.id === track.id;
-                    const isCompleted = originalIndex < currentIndex;
-                    const isHidden = hiddenTrackIds.has(track.id);
-
-                    return (
-                        <SortableTrackItem
-                          key={track.id}
-                          id={track.id}
-                          className={`flex flex-wrap items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
-                            isHidden
-                              ? "opacity-40 bg-white/[0.01] border border-dashed border-white/10"
-                              : isActiveTrack
-                              ? "bg-gradient-to-r from-pink-500/20 to-orange-500/10 border border-pink-500/30"
-                              : isCompleted
-                              ? "opacity-50 bg-white/[0.02]"
-                              : "bg-white/[0.03] hover:bg-white/[0.06]"
-                          }`}
-                          onClick={() => {
-                            if (isHidden) return; // Don't allow clicking hidden tracks
-                            setCurrentIndex(originalIndex);
-                            togglePlayPause(track);
-                          }}
-                        >
-                          <TrackDragHandle className="flex items-center justify-center -ml-1 text-white/30 hover:text-white/70 active:text-white shrink-0 bg-transparent border-0 p-0.5">
-                            <GripVertical size={16} />
-                          </TrackDragHandle>
-                          <div className="flex-1 basis-32 min-w-0">
-                            <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
-                              {track.title}
-                            </p>
-                            <p className={`text-[10px] ${isHidden ? "text-white/20" : "text-white/50"}`}>{isHidden ? "Hidden" : formatDuration(track.durationSeconds)}</p>
-                          </div>
-                          {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
-                          {!isHidden && isActiveTrack && isPlaying && (
-                            <div className="flex gap-0.5">
-                              {[1, 2, 3].map((i) => (
-                                <div key={i} className="w-0.5 bg-pink-500 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
-                              ))}
-                            </div>
-                          )}
-                          {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          <div className="ml-auto">{renderTrackPlaysControl(track, isActiveTrack, "stacked")}</div>
-                        </SortableTrackItem>
-                    );
-                  })}
+                      <div className="flex flex-col gap-1.5">
+                        {reordered.map(({ track, originalIndex }) => renderQueueRow(track, originalIndex))}
+                      </div>
                     </SortableTrackList>
                   );
                 })()
@@ -8147,19 +8156,19 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             </div>
 
             {/* Session Info */}
-            <div className="mt-auto pt-3 border-t border-white/10">
+            <footer className="shrink-0 border-t border-white/10 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div>
-                  <p className="text-xl font-bold text-white">{playlist.length}</p>
-                  <p className="text-[9px] text-white/50 uppercase tracking-wide">Tracks</p>
+                  <p className="text-xl font-bold tabular-nums text-white">{visiblePlaylist.length}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-white/60">Included tracks</p>
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-white">{formatSessionTime(totalSessionSeconds)}</p>
-                  <p className="text-[9px] text-white/50 uppercase tracking-wide">Total Time</p>
+                  <p className="text-xl font-bold tabular-nums text-white">{formatSessionTime(totalSessionSeconds)}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-white/60">Total Time</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </footer>
+          </section>
         </div>
       </div>
 
@@ -9243,7 +9252,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   <p className="text-[10px] md:text-xs text-white/80">Drag to re-order your playlist</p>
                 </div>
 
-                <div className="mt-1 pr-3 md:pr-6 bg-transparent max-h-[calc(100vh-200px)] overflow-y-auto">
+                <div data-queue-scroll className="@container mt-2 flex-1 min-h-0 max-h-[calc(100vh-200px)] overflow-y-auto overflow-x-hidden overscroll-contain pr-1">
                   {playlist.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center py-12">
                       <p className="text-2xl font-semibold text-white/50">No tracks queued</p>
@@ -9254,58 +9263,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       ids={playlist.map((t) => t.id)}
                       onReorder={reorderPlaylistByIds}
                     >
-                      {playlist.map((track, originalIndex) => {
-                        const visibleIndex = getVisibleIndex(track.id);
-                        const colour = getQueueColour(originalIndex);
-                        const isActiveTrack = currentTrack?.id === track.id;
-                        const isFinished = finishedTracks.has(track.id);
-                        const isCompleted = !isFinished && originalIndex < currentIndex;
-                        const hasMoreRounds = isCompleted && playlistRound < playlistRepeats;
-                        const isHidden = hiddenTrackIds.has(track.id);
-                      
-                        return (
-                          <SortableTrackItem
-                            key={track.id}
-                            id={track.id}
-                            onClick={() => {
-                              if (isHidden) return; // Don't allow clicking hidden tracks
-                              setCurrentIndex(originalIndex);
-                              togglePlayPause(track);
-                            }}
-                            className={`grid h-[78px] grid-cols-[20px_42px_1fr_auto_64px_auto] items-center gap-x-2 border-b cursor-pointer transition hover:bg-white/[0.03] ${
-                              isHidden
-                                ? "border-white/5 opacity-40 border-dashed"
-                                : isActiveTrack 
-                                ? "eqho-queue-active border-[#ff4fa3]/40 bg-[#ff4fa3]/10" 
-                                : isFinished
-                                  ? "border-white/5 opacity-30"
-                                  : "border-white/8"
-                            }`}
-                          >
-                              <TrackDragHandle className="flex items-center justify-center bg-transparent border-0 p-0">
-                                <GripVertical size={15} className="text-white/75 hover:text-white" />
-                              </TrackDragHandle>
-                              <div className={`text-[34px] font-black ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{originalIndex + 1}</div>
-                              <div className="min-w-0">
-                                <div className={`text-base font-semibold truncate ${isHidden ? "text-white/25 line-through" : isActiveTrack ? "text-[#ff8a00]" : isFinished ? "text-white/40" : "text-white"}`}>{track.title}</div>
-                                <div className={`text-xs ${isHidden ? "text-white/20" : "text-white/85"}`}>
-                                  {isHidden ? "Hidden from session" : isActiveTrack && isPlaying ? "Now Playing" : isActiveTrack && isGapPaused ? `Gap: ${gapCountdown}s` : isFinished ? "Finished" : hasMoreRounds ? `Round ${playlistRound} of ${playlistRepeats}` : isCompleted ? "Finished" : formatDuration(track.durationSeconds)}
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-center">
-                                {!isHidden && <PlayCountBadge count={completionCounts[track.id] || 0} />}
-                              </div>
-                              <div className="flex flex-col items-end pr-2">
-                                <div className="text-[10px]">Duration</div>
-                                <div className={`text-base font-bold ${isHidden ? "text-white/15" : isFinished ? "text-white/20" : colour}`}>{formatDuration(track.durationSeconds)}</div>
-                              </div>
-                              {renderTrackPlaysControl(track, isActiveTrack, "inline")}
-                          </SortableTrackItem>
-                        );
-                      })}
+                      <div className="flex flex-col gap-1.5">
+                        {playlist.map((track, originalIndex) => renderQueueRow(track, originalIndex))}
+                      </div>
                     </SortableTrackList>
                   )}
                 </div>
+                {playlist.length > 0 && (
+                  <div className="mt-2 flex shrink-0 items-center justify-between border-t border-white/10 pt-2 text-xs text-white/70">
+                    <span><span className="font-bold tabular-nums text-white">{visiblePlaylist.length}</span> included tracks</span>
+                    <span>Total time <span className="font-bold tabular-nums text-white">{formatSessionTime(totalSessionSeconds)}</span></span>
+                  </div>
+                )}
               </Card>
             </main>
 

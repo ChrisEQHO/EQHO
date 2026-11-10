@@ -27,6 +27,7 @@ import { createContext, useContext, type CSSProperties, type ReactNode } from "r
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -36,6 +37,7 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   SortableContext,
+  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -61,7 +63,9 @@ export function SortableTrackList({
       // Mobile/tablet: press and hold to start dragging; a move during the delay
       // is treated as a scroll, so normal scrolling still works when not dragging.
       activationConstraint: { delay: 180, tolerance: 8 },
-    })
+    }),
+    // Keyboard: focus a drag handle, Space/Enter to lift, arrows to move, Space/Enter to drop.
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -118,6 +122,8 @@ export function SortableTrackItem({
     transform,
     transition,
     isDragging,
+    isOver,
+    isSorting,
   } = useSortable({ id });
 
   const style: CSSProperties = {
@@ -136,7 +142,14 @@ export function SortableTrackItem({
     <TrackDragHandleContext.Provider
       value={{ attributes: attributes as unknown as Record<string, unknown>, listeners, setActivatorNodeRef }}
     >
-      <div ref={setNodeRef} style={style} className={className} onClick={onClick}>
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={className}
+        onClick={onClick}
+        data-dragging={isDragging || undefined}
+        data-drop-target={(isSorting && isOver && !isDragging) || undefined}
+      >
         {children}
       </div>
     </TrackDragHandleContext.Provider>

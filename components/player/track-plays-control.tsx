@@ -14,7 +14,7 @@ type TrackPlaysControlProps = {
   target: number;
   included: boolean;
   status: TrackRowStatus;
-  layout: "inline" | "stacked";
+  layout: "inline" | "stacked" | "compact";
   onChangeTarget: (value: number) => void;
   onToggleIncluded: () => void;
 };
@@ -28,7 +28,7 @@ const touchTarget =
   "flex items-center justify-center shrink-0 min-w-11 min-h-11 rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70";
 
 // Each status has its own icon and wording, so colour is never the only cue.
-const STATUS_STYLE: Record<TrackRowStatusKind, { icon: typeof Check; className: string }> = {
+export const STATUS_STYLE: Record<TrackRowStatusKind, { icon: typeof Check; className: string }> = {
   current: { icon: Play, className: "text-pink-300" },
   upcoming: { icon: Circle, className: "text-white/60" },
   complete: { icon: Check, className: "text-green-400" },
@@ -60,6 +60,73 @@ export function TrackPlaysControl({
       if (canDecrease) onChangeTarget(target - 1);
     }
   };
+
+  if (layout === "compact") {
+    return (
+      <div
+        className="flex shrink-0 items-center gap-0.5"
+        onPointerDown={stop}
+        onClick={stop}
+        onKeyDown={stop}
+        data-track-plays-control
+      >
+        <div
+          role="group"
+          aria-label={`Plays for ${trackTitle}`}
+          onKeyDown={handleStepperKey}
+          className={`flex items-center rounded-lg border border-white/10 bg-white/[0.04] ${included ? "" : "opacity-40"}`}
+        >
+          <button
+            type="button"
+            onClick={() => canDecrease && onChangeTarget(target - 1)}
+            disabled={!canDecrease || !included}
+            aria-label={`Decrease plays for ${trackTitle}`}
+            className={`${touchTarget} text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent`}
+          >
+            <Minus size={14} strokeWidth={2.75} aria-hidden="true" />
+          </button>
+          <output
+            aria-label={`${target} ${target === 1 ? "play" : "plays"}`}
+            className="min-w-5 text-center text-sm font-bold tabular-nums text-white"
+          >
+            {target}
+          </output>
+          <button
+            type="button"
+            onClick={() => canIncrease && onChangeTarget(target + 1)}
+            disabled={!canIncrease || !included}
+            aria-label={`Increase plays for ${trackTitle}`}
+            className={`${touchTarget} text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent`}
+          >
+            <Plus size={14} strokeWidth={2.75} aria-hidden="true" />
+          </button>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={included}
+          onClick={onToggleIncluded}
+          aria-label={`Include ${trackTitle} in this session`}
+          title={included ? "Included — tap to skip" : "Skipped — tap to include"}
+          className={`${touchTarget} group/switch`}
+        >
+          <span
+            aria-hidden="true"
+            className={`flex h-5 w-9 items-center rounded-full border p-0.5 transition-colors ${
+              included ? "border-cyan-400/70 bg-cyan-500/30" : "border-white/25 bg-white/5"
+            }`}
+          >
+            <span
+              className={`h-3.5 w-3.5 rounded-full transition-transform ${
+                included ? "translate-x-4 bg-cyan-300" : "translate-x-0 bg-white/50"
+              }`}
+            />
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
