@@ -8103,7 +8103,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         <SortableTrackItem
                           key={track.id}
                           id={track.id}
-                          className={`flex items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
+                          className={`flex flex-wrap items-center gap-2 p-2 rounded-lg mb-1.5 transition cursor-grab active:cursor-grabbing ${
                             isHidden
                               ? "opacity-40 bg-white/[0.01] border border-dashed border-white/10"
                               : isActiveTrack
@@ -8121,7 +8121,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                           <TrackDragHandle className="flex items-center justify-center -ml-1 text-white/30 hover:text-white/70 active:text-white shrink-0 bg-transparent border-0 p-0.5">
                             <GripVertical size={16} />
                           </TrackDragHandle>
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 basis-32 min-w-0">
                             <p className={`text-sm font-semibold truncate ${isHidden ? "text-white/30 line-through" : isActiveTrack ? colour : "text-white"}`}>
                               {track.title}
                             </p>
@@ -8136,7 +8136,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             </div>
                           )}
                           {!isHidden && isCompleted && <span className="text-[10px] text-white/40">Played</span>}
-                          {renderTrackPlaysControl(track, isActiveTrack, "stacked")}
+                          <div className="ml-auto">{renderTrackPlaysControl(track, isActiveTrack, "stacked")}</div>
                         </SortableTrackItem>
                     );
                   })}
