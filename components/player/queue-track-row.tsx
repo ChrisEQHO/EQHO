@@ -167,7 +167,7 @@ export function QueueTrackRow({
           </p>
         </div>
 
-        <span className={`${hiddenFade} w-10 shrink-0 text-right text-xs font-semibold tabular-nums text-white/70 @max-[400px]:hidden`}>
+        <span className={`${hiddenFade} w-10 shrink-0 text-right text-xs font-semibold tabular-nums text-white/70 @max-[300px]:hidden`}>
           <span className="sr-only">Duration </span>
           {duration}
         </span>

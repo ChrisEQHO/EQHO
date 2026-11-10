@@ -8084,7 +8084,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         {/* Up Next - Side Section (smaller) */}
         <section
           aria-label="Up next"
-          className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#090f1c]/80 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-xl max-md:max-h-[50%] max-md:w-full max-md:flex-1 md:shrink-0 md:w-[clamp(320px,36vw,480px)]"
+          className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#090f1c]/80 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-xl max-md:max-h-[50%] max-md:w-full max-md:flex-1 md:shrink-0 md:w-[clamp(300px,30vw,420px)]"
         >
             <header className="shrink-0 border-b border-white/10 px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
