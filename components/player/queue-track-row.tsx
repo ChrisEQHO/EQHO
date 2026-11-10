@@ -26,6 +26,8 @@ type QueueTrackRowProps = {
   onSelect: () => void;
   onChangeTarget: (value: number) => void;
   onToggleIncluded: () => void;
+  /** "button" = labelled Hide/Show button (full-screen queue only). */
+  visibilityControl?: "switch" | "button";
 };
 
 /**
@@ -52,7 +54,11 @@ export function QueueTrackRow({
   onSelect,
   onChangeTarget,
   onToggleIncluded,
+  visibilityControl = "switch",
 }: QueueTrackRowProps) {
+  const usesButton = visibilityControl === "button";
+  // Button variant fades row content individually so the Show action stays vivid.
+  const hiddenFade = usesButton && !included ? "opacity-70" : "";
   const rowRef = useRef<HTMLDivElement>(null);
 
   // Keep the current track visible as playback advances, without moving the
@@ -97,17 +103,19 @@ export function QueueTrackRow({
       <div
         ref={rowRef}
         aria-current={isCurrent ? "true" : undefined}
-        className={`flex h-full w-full items-center gap-1 pr-1 ${!included ? "opacity-60" : isFinished ? "opacity-55" : ""}`}
+        className={`flex h-full w-full items-center gap-1 pr-1 ${
+          !included ? (usesButton ? "" : "opacity-60") : isFinished ? "opacity-55" : ""
+        }`}
       >
         <TrackDragHandle
           ariaLabel={`Reorder ${title}. Press space, then use arrow keys`}
-          className="flex min-h-11 min-w-9 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-white/40 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70"
+          className={`${hiddenFade} flex min-h-11 min-w-9 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-white/40 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70`}
         >
           <GripVertical size={16} aria-hidden="true" />
         </TrackDragHandle>
 
         <span
-          className={`w-7 shrink-0 text-center text-lg font-black tabular-nums leading-none ${
+          className={`${hiddenFade} w-7 shrink-0 text-center text-lg font-black tabular-nums leading-none ${
             included ? orderColourClass : "text-white/50"
           }`}
           aria-label={`Position ${order}`}
@@ -115,7 +123,7 @@ export function QueueTrackRow({
           {order}
         </span>
 
-        <div className="min-w-0 flex-1 pl-1">
+        <div className={`${hiddenFade} min-w-0 flex-1 pl-1`}>
           <div className="flex min-w-0 items-center gap-1.5">
             <p
               title={title}
@@ -151,10 +159,15 @@ export function QueueTrackRow({
               {statusLabel}
               {note ? ` · ${note}` : ""}
             </span>
+            {usesButton && !included && (
+              <span className="shrink-0 rounded border border-white/25 px-1 py-px text-[10px] font-bold uppercase tracking-wide text-white/80">
+                Hidden
+              </span>
+            )}
           </p>
         </div>
 
-        <span className="w-10 shrink-0 text-right text-xs font-semibold tabular-nums text-white/70 @max-[400px]:hidden">
+        <span className={`${hiddenFade} w-10 shrink-0 text-right text-xs font-semibold tabular-nums text-white/70 @max-[400px]:hidden`}>
           <span className="sr-only">Duration </span>
           {duration}
         </span>
@@ -167,6 +180,8 @@ export function QueueTrackRow({
           layout="compact"
           onChangeTarget={onChangeTarget}
           onToggleIncluded={onToggleIncluded}
+          visibilityControl={visibilityControl}
+          hideLocked={usesButton && included && isCurrent && isPlaying}
         />
       </div>
     </SortableTrackItem>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, PointerEvent, MouseEvent } from "react";
-import { AlertTriangle, Check, Circle, FileX, Minus, Play, Plus, Ban } from "lucide-react";
+import { AlertTriangle, Check, Circle, Eye, EyeOff, FileX, Minus, Play, Plus, Ban } from "lucide-react";
 import {
   MAX_TRACK_PLAYS as MAX_TARGET_PLAYS,
   MIN_TRACK_PLAYS as MIN_TARGET_PLAYS,
@@ -17,6 +17,10 @@ type TrackPlaysControlProps = {
   layout: "inline" | "stacked" | "compact";
   onChangeTarget: (value: number) => void;
   onToggleIncluded: () => void;
+  /** Compact layout only: "button" renders a labelled Hide/Show button (full-screen queue). */
+  visibilityControl?: "switch" | "button";
+  /** Blocks Hide (not Show) so the playing track can't vanish mid-playback. */
+  hideLocked?: boolean;
 };
 
 // Keeps taps, clicks and key presses on the control from selecting, playing or
@@ -45,6 +49,8 @@ export function TrackPlaysControl({
   layout,
   onChangeTarget,
   onToggleIncluded,
+  visibilityControl = "switch",
+  hideLocked = false,
 }: TrackPlaysControlProps) {
   const canDecrease = target > MIN_TARGET_PLAYS;
   const canIncrease = target < MAX_TARGET_PLAYS;
@@ -102,6 +108,33 @@ export function TrackPlaysControl({
           </button>
         </div>
 
+        {visibilityControl === "button" ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (!hideLocked) onToggleIncluded();
+            }}
+            aria-disabled={hideLocked || undefined}
+            aria-label={
+              included
+                ? `Hide ${trackTitle} from this session${hideLocked ? " (unavailable while it is playing)" : ""}`
+                : `Show ${trackTitle} in this session`
+            }
+            title={hideLocked ? "Pause or wait for this track to finish to hide it" : undefined}
+            className={`${touchTarget} w-16 gap-1 border px-2 text-xs font-semibold ${
+              included
+                ? "border-white/15 bg-white/[0.06] text-white/90 hover:bg-white/10 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-white/[0.06]"
+                : "border-cyan-400/70 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+            }`}
+          >
+            {included ? (
+              <EyeOff size={14} className="shrink-0" aria-hidden="true" />
+            ) : (
+              <Eye size={14} className="shrink-0" aria-hidden="true" />
+            )}
+            {included ? "Hide" : "Show"}
+          </button>
+        ) : (
         <button
           type="button"
           role="switch"
@@ -124,6 +157,7 @@ export function TrackPlaysControl({
             />
           </span>
         </button>
+        )}
       </div>
     );
   }

@@ -5008,7 +5008,11 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
   // Single source for every Up Next row (normal + full-screen queues), so both
   // read the same state and call the same handlers.
-  const renderQueueRow = (track: Track, originalIndex: number) => {
+  const renderQueueRow = (
+    track: Track,
+    originalIndex: number,
+    visibilityControl: "switch" | "button" = "switch",
+  ) => {
     const isActiveTrack = currentTrack?.id === track.id;
     const isHidden = hiddenTrackIds.has(track.id);
     const isFinished = finishedTracks.has(track.id);
@@ -5042,6 +5046,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         }}
         onChangeTarget={(value) => updateTrackPlayTarget(track.id, value)}
         onToggleIncluded={() => toggleTrackIncluded(track.id)}
+        visibilityControl={visibilityControl}
       />
     );
   };
@@ -8147,7 +8152,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       onReorder={reorderPlaylistByIds}
                     >
                       <div className="flex flex-col gap-1.5">
-                        {reordered.map(({ track, originalIndex }) => renderQueueRow(track, originalIndex))}
+                        {reordered.map(({ track, originalIndex }) => renderQueueRow(track, originalIndex, "button"))}
                       </div>
                     </SortableTrackList>
                   );
