@@ -501,3 +501,59 @@ button,
     padding-right: 2rem;
   }
 }
+
+/* Player volume slider: slim track with a brand pink-to-orange fill and a solid
+   pink thumb. The fill width comes from the --eqho-volume custom property. */
+.eqho-volume-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.eqho-volume-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #ff4fa3, #ff8a00) 0 / var(--eqho-volume, 0%) 100% no-repeat,
+    rgba(255, 255, 255, 0.15);
+}
+.eqho-volume-range::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+.eqho-volume-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #ff4fa3, #ff8a00);
+}
+.eqho-volume-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 9999px;
+  background: #ff4fa3;
+  box-shadow: 0 0 8px rgba(255, 79, 163, 0.6);
+  transition: transform 120ms ease;
+}
+.eqho-volume-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 9999px;
+  background: #ff4fa3;
+  box-shadow: 0 0 8px rgba(255, 79, 163, 0.6);
+}
+.eqho-volume-range:hover::-webkit-slider-thumb,
+.eqho-volume-range:active::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+.eqho-volume-range:focus-visible {
+  outline: 2px solid #ff4fa3;
+  outline-offset: 4px;
+  border-radius: 9999px;
+}
