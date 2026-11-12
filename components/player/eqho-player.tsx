@@ -7924,9 +7924,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 <DeviceLockNotice onDismiss={() => setLockNoticeDismissed(true)} />
               )}
 
-              {/* Playback Controls — 3-column grid keeps Play centred with volume beside it */}
-              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-8">
-              <div aria-hidden="true" />
+              {/* Playback Controls — volume sits centred underneath the transport row */}
+              <div className="flex w-full flex-col items-center gap-5">
               <div className="flex items-center justify-center gap-8">
                 <button 
                   onClick={handleSkipBackClick}
@@ -7968,7 +7967,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 }}
                 useDeviceButtons={iosVolumeControl}
                 size="lg"
-                className="justify-self-start"
+                className="justify-center"
               />
               </div>
 
