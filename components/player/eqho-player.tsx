@@ -199,6 +199,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { ADD_MUSIC_BTN } from "@/lib/action-button-styles";
+import { VolumeFirstUseHint, VOLUME_HINT_STORAGE_KEY } from "@/components/player/volume-first-use-hint";
 
 const uploads = [
   ["NDP Group Warm Up.mp3", "02:18", "Just now"],
@@ -785,6 +786,21 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [playbackErrorTrackId, setPlaybackErrorTrackId] = useState<string | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
+  const [showVolumeHint, setShowVolumeHint] = useState(false);
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(VOLUME_HINT_STORAGE_KEY)) setShowVolumeHint(true);
+    } catch {
+      setShowVolumeHint(true);
+    }
+  }, []);
+  const dismissVolumeHint = useCallback(() => {
+    setShowVolumeHint(false);
+    if (demoMode) return;
+    try {
+      localStorage.setItem(VOLUME_HINT_STORAGE_KEY, "1");
+    } catch {}
+  }, [demoMode]);
   // True on iPadOS/iOS, where JS cannot control playback loudness (iOS routes it
   // to the hardware volume buttons) — this now covers BOTH the Capacitor app and
   // iPad Safari, since the web page has the same limitation. Set after mount to
@@ -7832,7 +7848,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <h2 className="eqho-brand-label text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="relative flex items-center gap-2" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
+                {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
                 {/* Volume Control */}
                 <button
                   onClick={() => {
@@ -7842,11 +7859,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       setIsMuted((m) => !m);
                     }
                   }}
+                  aria-label={isMuted ? "Unmute" : "Mute"}
                   className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                  }`}
+                  } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
                 >
                   {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
                 </button>
@@ -8244,9 +8262,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             <h2 className="eqho-brand-label text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
               {currentTrack ? "NOW PLAYING" : "COACH VIEW"}
             </h2>
-            <button onClick={() => setIsMuted(!isMuted)} className={`w-9 h-9 rounded-full flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
+            <div className="relative" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
+              {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
+              <button onClick={() => setIsMuted(!isMuted)} aria-label={isMuted ? "Unmute" : "Mute"} className={`w-9 h-9 rounded-full border border-transparent flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"} ${showVolumeHint ? "eqho-volume-attention" : ""}`}>
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
           </div>
 
           {/* No Session Loaded State */}
@@ -8537,7 +8558,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
             {/* ROW 4: Volume Slider - matches the desktop on-brand drag-track control:
                 orange->pink gradient fill with the % centered inside, no thumb dot. */}
-            <div className="flex items-center gap-3 py-2 justify-center shrink-0">
+            <div className="relative flex items-center gap-3 py-2 justify-center shrink-0" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
+              {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} placement="above-center" />}
               <button
                 type="button"
                 onClick={() => setIsMuted((m) => !m)}
@@ -8546,7 +8568,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   isMuted
                     ? "border-red-500/60 bg-red-500/15 text-red-400"
                     : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                }`}
+                } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
               >
                 {isMuted ? <VolumeX size={16} /> : <Volume2 size={15} />}
               </button>
@@ -9338,14 +9360,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   expand button never drops onto its own row beneath the volume button.
                   When the column is too narrow for label + controls, the whole cluster
                   wraps below the heading together (via the parent's flex-wrap). */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="relative flex items-center gap-1.5 shrink-0" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
+                {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
                 <button
                   onClick={() => setIsMuted((m) => !m)}
+                  aria-label={isMuted ? "Unmute" : "Mute"}
                   className={`grid h-[32px] w-[32px] shrink-0 place-items-center rounded-lg border transition ${
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                  }`}
+                  } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
                 >
                   {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                 </button>
@@ -10811,14 +10835,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         {/* Volume Control & Fullscreen Row */}
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
-                          <div className="flex items-center gap-1">
+                          <div className="relative flex items-center gap-1" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
+                            {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
                             <button
                               onClick={() => setIsMuted((m) => !m)}
+                              aria-label={isMuted ? "Unmute" : "Mute"}
                               className={`grid h-[28px] w-[28px] place-items-center rounded-lg border transition ${
                                 isMuted
                                   ? "border-red-500/60 bg-red-500/15 text-red-400"
                                   : "border-pink-500/40 bg-pink-500/10 text-white"
-                              }`}
+                              } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
                             >
                               {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
                             </button>
