@@ -320,22 +320,8 @@ body {
 .eqho-glow-b { animation: eqho-glow-drift-b 26s ease-in-out infinite; }
 .eqho-glow-c { animation: eqho-glow-drift-c 19s ease-in-out infinite; }
 
-/* First-use volume hint: a soft pink ring that pulses around the speaker button. */
-@keyframes eqho-volume-attention {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 79, 163, 0.65); }
-  50% { box-shadow: 0 0 0 6px rgba(255, 79, 163, 0); }
-}
-.eqho-volume-attention {
-  animation: eqho-volume-attention 1.6s ease-in-out infinite;
-  border-color: rgba(255, 79, 163, 0.9) !important;
-}
-
 /* Reduced motion: freeze the drift and show the gradients as a static field. */
 @media (prefers-reduced-motion: reduce) {
-  .eqho-volume-attention {
-    animation: none;
-    box-shadow: 0 0 0 3px rgba(255, 79, 163, 0.5);
-  }
   .eqho-glow-a,
   .eqho-glow-b,
   .eqho-glow-c {
