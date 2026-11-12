@@ -1,6 +1,7 @@
 "use client";
 
-import { Minus, Plus, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
+import type { CSSProperties } from "react";
+import { Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 
 type VolumeLevelIconProps = {
   volume: number;
@@ -15,40 +16,71 @@ export function VolumeLevelIcon({ volume, muted, size }: VolumeLevelIconProps) {
   return <Volume2 size={size} aria-hidden="true" />;
 }
 
-type VolumeSliderVisualsProps = {
+type PlayerVolumeControlProps = {
   volume: number;
   muted: boolean;
-  compact?: boolean;
+  onVolumeChange: (volume: number) => void;
+  onToggleMute: () => void;
+  useDeviceButtons?: boolean;
+  size?: "sm" | "md" | "lg";
+  className?: string;
 };
 
-export function VolumeSliderVisuals({ volume, muted, compact = false }: VolumeSliderVisualsProps) {
+const SIZES = {
+  sm: { button: "h-8 w-8", icon: 16, slider: "w-24", readout: "text-[11px] w-8" },
+  md: { button: "h-10 w-10", icon: 20, slider: "w-32", readout: "text-xs w-9" },
+  lg: { button: "h-12 w-12", icon: 22, slider: "w-40", readout: "text-sm w-10" },
+} as const;
+
+export function PlayerVolumeControl({
+  volume,
+  muted,
+  onVolumeChange,
+  onToggleMute,
+  useDeviceButtons = false,
+  size = "md",
+  className = "",
+}: PlayerVolumeControlProps) {
+  const s = SIZES[size];
   const level = muted ? 0 : volume;
+
   return (
-    <>
-      <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
-        <div
-          className="h-full bg-gradient-to-r from-[#ff4fa3]/45 to-[#ff8a00]/45 transition-[width] duration-150"
-          style={{ width: `${level}%` }}
-        />
-      </div>
-      <div
-        className="absolute top-1 bottom-1 w-1 -translate-x-1/2 rounded-full bg-white shadow-[0_0_6px_rgba(255,79,163,0.8)] pointer-events-none"
-        style={{ left: `clamp(4px, ${level}%, calc(100% - 4px))` }}
-        aria-hidden="true"
-      />
-      {!compact && (
-        <>
-          <Minus size={10} className="absolute left-1.5 z-10 text-white/60 pointer-events-none" aria-hidden="true" />
-          <Plus size={10} className="absolute right-1.5 z-10 text-white/60 pointer-events-none" aria-hidden="true" />
-        </>
-      )}
-      <span
-        className={`absolute inset-0 grid place-items-center z-10 font-bold text-white tabular-nums pointer-events-none ${
-          compact ? "text-[10px]" : "text-xs"
+    <div className={`flex items-center gap-2 ${className}`}>
+      <button
+        type="button"
+        onClick={onToggleMute}
+        aria-label={muted ? "Unmute" : "Mute"}
+        aria-pressed={muted}
+        title={muted ? "Unmute" : "Mute"}
+        className={`grid ${s.button} shrink-0 place-items-center rounded-full transition ${
+          muted ? "bg-red-500/15 text-red-400 hover:bg-red-500/25" : "text-white/85 hover:bg-white/10 hover:text-white"
         }`}
       >
-        {muted ? "Muted" : `${volume}%`}
-      </span>
-    </>
+        <VolumeLevelIcon volume={volume} muted={muted} size={s.icon} />
+      </button>
+      {useDeviceButtons ? (
+        <span className="max-w-[200px] text-[11px] leading-tight text-white/60">
+          Use your device volume buttons to adjust playback volume.
+        </span>
+      ) : (
+        <>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={level}
+            onChange={(e) => onVolumeChange(Number(e.target.value))}
+            aria-label="Volume"
+            aria-valuetext={muted ? "Muted" : `${volume}%`}
+            className={`eqho-volume-range ${s.slider} shrink-0`}
+            style={{ "--eqho-volume": `${level}%` } as CSSProperties}
+          />
+          <span className={`${s.readout} shrink-0 tabular-nums text-white/60`} aria-hidden="true">
+            {muted ? "Off" : `${volume}%`}
+          </span>
+        </>
+      )}
+    </div>
   );
 }

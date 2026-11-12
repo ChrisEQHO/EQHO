@@ -199,7 +199,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { ADD_MUSIC_BTN } from "@/lib/action-button-styles";
-import { VolumeLevelIcon, VolumeSliderVisuals } from "@/components/player/volume-visuals";
+import { PlayerVolumeControl } from "@/components/player/volume-visuals";
 
 const uploads = [
   ["NDP Group Warm Up.mp3", "02:18", "Just now"],
@@ -786,6 +786,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [playbackErrorTrackId, setPlaybackErrorTrackId] = useState<string | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
+  const applyVolume = (pct: number) => {
+    setVolume(pct);
+    setIsMuted(pct === 0);
+  };
   // True on iPadOS/iOS, where JS cannot control playback loudness (iOS routes it
   // to the hardware volume buttons) — this now covers BOTH the Capacitor app and
   // iPad Safari, since the web page has the same limitation. Set after mount to
@@ -7834,77 +7838,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 NOW PLAYING
               </h2>
               <div className="relative flex items-center gap-2">
-                {/* Volume Control */}
-                <button
-                  onClick={() => {
-                    if (isPlaying && !isMuted) {
-                      setShowMuteConfirm(true);
-                    } else {
-                      setIsMuted((m) => !m);
-                    }
-                  }}
-                  aria-label={isMuted ? "Unmute" : "Mute"}
-                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border transition ${
-                    isMuted
-                      ? "border-red-500/60 bg-red-500/15 text-red-400"
-                      : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                  }`}
-                >
-                  <VolumeLevelIcon volume={volume} muted={isMuted} size={18} />
-                </button>
-                {iosVolumeControl ? (
-                  <span className="text-[11px] leading-tight text-white/60 max-w-[160px]">
-                    Use your device volume buttons to adjust playback volume.
-                  </span>
-                ) : (
-                <div
-                  className="group relative flex items-center w-[120px] h-10 rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
-                  onMouseDown={(e) => {
-                    const bar = e.currentTarget;
-                    const apply = (clientX: number) => {
-                      const rect = bar.getBoundingClientRect();
-                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
-                      setVolume(pct);
-                      if (pct > 0 && isMuted) setIsMuted(false);
-                      if (pct === 0) setIsMuted(true);
-                    };
-                    apply(e.clientX);
-                    const handleMove = (ev: MouseEvent) => apply(ev.clientX);
-                    const handleUp = () => {
-                      document.removeEventListener("mousemove", handleMove);
-                      document.removeEventListener("mouseup", handleUp);
-                    };
-                    document.addEventListener("mousemove", handleMove);
-                    document.addEventListener("mouseup", handleUp);
-                  }}
-                  onTouchStart={(e) => {
-                    const bar = e.currentTarget;
-                    const apply = (clientX: number) => {
-                      const rect = bar.getBoundingClientRect();
-                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
-                      setVolume(pct);
-                      if (pct > 0 && isMuted) setIsMuted(false);
-                      if (pct === 0) setIsMuted(true);
-                    };
-                    apply(e.touches[0].clientX);
-                  }}
-                  onTouchMove={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                    setVolume(pct);
-                    if (pct > 0 && isMuted) setIsMuted(false);
-                    if (pct === 0) setIsMuted(true);
-                  }}
-                  role="slider"
-                  aria-label="Volume"
-title="Drag or tap to set volume"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={isMuted ? 0 : volume}
-                >
-                  <VolumeSliderVisuals volume={volume} muted={isMuted} />
-                </div>
-                )}
                 {/* Exit Fullscreen */}
                 <button
                   onClick={toggleFullscreen}
@@ -7991,7 +7924,9 @@ title="Drag or tap to set volume"
                 <DeviceLockNotice onDismiss={() => setLockNoticeDismissed(true)} />
               )}
 
-              {/* Playback Controls */}
+              {/* Playback Controls — 3-column grid keeps Play centred with volume beside it */}
+              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-8">
+              <div aria-hidden="true" />
               <div className="flex items-center justify-center gap-8">
                 <button 
                   onClick={handleSkipBackClick}
@@ -8019,6 +7954,22 @@ title="Drag or tap to set volume"
                 >
                   <StepForward size={24} />
                 </button>
+              </div>
+              <PlayerVolumeControl
+                volume={volume}
+                muted={isMuted}
+                onVolumeChange={applyVolume}
+                onToggleMute={() => {
+                  if (isPlaying && !isMuted) {
+                    setShowMuteConfirm(true);
+                  } else {
+                    setIsMuted((m) => !m);
+                  }
+                }}
+                useDeviceButtons={iosVolumeControl}
+                size="lg"
+                className="justify-self-start"
+              />
               </div>
 
               {/* Start Session / Session Finished Button - Shows when not playing and has tracks */}
@@ -8243,11 +8194,7 @@ title="Drag or tap to set volume"
             <h2 className="eqho-brand-label text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
               {currentTrack ? "NOW PLAYING" : "COACH VIEW"}
             </h2>
-            <div className="relative">
-              <button onClick={() => setIsMuted(!isMuted)} aria-label={isMuted ? "Unmute" : "Mute"} className={`w-9 h-9 rounded-full border border-transparent flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
-                <VolumeLevelIcon volume={volume} muted={isMuted} size={16} />
-              </button>
-            </div>
+            <div className="w-9 h-9" aria-hidden="true" />
           </div>
 
           {/* No Session Loaded State */}
@@ -8361,6 +8308,15 @@ title="Drag or tap to set volume"
                 <StepForward size={22} className="text-white" />
               </button>
             </div>
+            <PlayerVolumeControl
+              volume={volume}
+              muted={isMuted}
+              onVolumeChange={applyVolume}
+              onToggleMute={() => setIsMuted((m) => !m)}
+              useDeviceButtons={iosVolumeControl}
+              size="md"
+              className="mb-3 justify-center"
+            />
 
             {/* Waveform Progress Bar — tap OR drag to seek (Pointer Events, same as
                 the main mobile player). touch-none prevents mid-scrub page scroll. */}
@@ -8536,71 +8492,6 @@ title="Drag or tap to set volume"
               )}
             </div>
 
-            {/* ROW 4: Volume Slider - matches the desktop on-brand drag-track control:
-                orange->pink gradient fill with the % centered inside, no thumb dot. */}
-            <div className="relative flex items-center gap-3 py-2 justify-center shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsMuted((m) => !m)}
-                aria-label={isMuted ? "Unmute" : "Mute"}
-                className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition ${
-                  isMuted
-                    ? "border-red-500/60 bg-red-500/15 text-red-400"
-                    : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                }`}
-              >
-                <VolumeLevelIcon volume={volume} muted={isMuted} size={16} />
-              </button>
-              {iosVolumeControl ? (
-                <span className="text-xs leading-tight text-white/60 max-w-[220px] text-center">
-                  Use your device volume buttons to adjust playback volume.
-                </span>
-              ) : (
-              <div
-                className="group relative flex items-center w-[160px] h-9 rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
-                onMouseDown={(e) => {
-                  const bar = e.currentTarget;
-                  const apply = (clientX: number) => {
-                    const rect = bar.getBoundingClientRect();
-                    const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
-                    setVolume(pct);
-                    if (pct > 0 && isMuted) setIsMuted(false);
-                    if (pct === 0) setIsMuted(true);
-                  };
-                  apply(e.clientX);
-                  const handleMove = (ev: MouseEvent) => apply(ev.clientX);
-                  const handleUp = () => {
-                    document.removeEventListener("mousemove", handleMove);
-                    document.removeEventListener("mouseup", handleUp);
-                  };
-                  document.addEventListener("mousemove", handleMove);
-                  document.addEventListener("mouseup", handleUp);
-                }}
-                onTouchStart={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                  setVolume(pct);
-                  if (pct > 0 && isMuted) setIsMuted(false);
-                  if (pct === 0) setIsMuted(true);
-                }}
-                onTouchMove={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                  setVolume(pct);
-                  if (pct > 0 && isMuted) setIsMuted(false);
-                  if (pct === 0) setIsMuted(true);
-                }}
-                role="slider"
-                aria-label="Volume"
-title="Drag or tap to set volume"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={isMuted ? 0 : volume}
-              >
-                <VolumeSliderVisuals volume={volume} muted={isMuted} />
-              </div>
-              )}
-            </div>
           </div>
           )}
 
@@ -9330,73 +9221,7 @@ title="Drag or tap to set volume"
                 NOW PLAYING
               </h2>
 
-              {/* Volume Control & Fullscreen — kept as a single non-wrapping unit so the
-                  expand button never drops onto its own row beneath the volume button.
-                  When the column is too narrow for label + controls, the whole cluster
-                  wraps below the heading together (via the parent's flex-wrap). */}
               <div className="relative flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={() => setIsMuted((m) => !m)}
-                  aria-label={isMuted ? "Unmute" : "Mute"}
-                  className={`grid h-[32px] w-[32px] shrink-0 place-items-center rounded-lg border transition ${
-                    isMuted
-                      ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
-                      : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                  }`}
-                >
-                  <VolumeLevelIcon volume={volume} muted={isMuted} size={15} />
-                </button>
-
-                {iosVolumeControl ? (
-                  <span className="text-[11px] leading-tight text-white/60 max-w-[180px]">
-                    Use your device volume buttons to adjust playback volume.
-                  </span>
-                ) : (
-                <div
-                  className="group relative flex items-center shrink-0 w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
-                  onMouseDown={(e) => {
-                    const bar = e.currentTarget;
-                    const apply = (clientX: number) => {
-                      const rect = bar.getBoundingClientRect();
-                      const pct = Math.round(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
-                      setVolume(pct);
-                      if (pct > 0 && isMuted) setIsMuted(false);
-                      if (pct === 0) setIsMuted(true);
-                    };
-                    apply(e.clientX);
-                    const handleMove = (ev: MouseEvent) => apply(ev.clientX);
-                    const handleUp = () => {
-                      document.removeEventListener("mousemove", handleMove);
-                      document.removeEventListener("mouseup", handleUp);
-                    };
-                    document.addEventListener("mousemove", handleMove);
-                    document.addEventListener("mouseup", handleUp);
-                  }}
-                  onTouchStart={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                    setVolume(pct);
-                    if (pct > 0 && isMuted) setIsMuted(false);
-                    if (pct === 0) setIsMuted(true);
-                  }}
-                  onTouchMove={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                    setVolume(pct);
-                    if (pct > 0 && isMuted) setIsMuted(false);
-                    if (pct === 0) setIsMuted(true);
-                  }}
-                  role="slider"
-                  aria-label="Volume"
-title="Drag or tap to set volume"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={isMuted ? 0 : volume}
-                >
-                  <VolumeSliderVisuals volume={volume} muted={isMuted} compact />
-                </div>
-                )}
-
                 <button
                   onClick={() => {
                     // Phone and iPad web use the custom Coach View overlay; only
@@ -9498,6 +9323,15 @@ title="Drag or tap to set volume"
                 <StepForward size={20} />
               </button>
             </div>
+            <PlayerVolumeControl
+              volume={volume}
+              muted={isMuted}
+              onVolumeChange={applyVolume}
+              onToggleMute={() => setIsMuted((m) => !m)}
+              useDeviceButtons={iosVolumeControl}
+              size="md"
+              className="mt-3 justify-center"
+            />
 
             {/* Waveform Progress Bar */}
             <div
@@ -10798,59 +10632,10 @@ title="Drag or tap to set volume"
                   <div className="shrink-0 bg-white/[0.02] rounded-lg p-2 mb-1">
                     {currentTrack ? (
                       <div className="flex flex-col gap-3">
-                        {/* Volume Control & Fullscreen Row */}
+                        {/* Now Playing & Fullscreen Row */}
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
                           <div className="relative flex items-center gap-1">
-                            <button
-                              onClick={() => setIsMuted((m) => !m)}
-                              aria-label={isMuted ? "Unmute" : "Mute"}
-                              className={`grid h-[28px] w-[28px] place-items-center rounded-lg border transition ${
-                                isMuted
-                                  ? "border-red-500/60 bg-red-500/15 text-red-400"
-                                  : "border-pink-500/40 bg-pink-500/10 text-white"
-                              }`}
-                            >
-                              <VolumeLevelIcon volume={volume} muted={isMuted} size={14} />
-                            </button>
-                            {iosVolumeControl ? (
-                              <span className="text-[9px] leading-tight text-white/60 max-w-[150px]">
-                                Use your device volume buttons to adjust playback volume.
-                              </span>
-                            ) : (
-                            <div
-                              className="relative flex items-center w-[64px] h-[28px] rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
-                              onTouchStart={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                                setVolume(pct);
-                                if (pct > 0 && isMuted) setIsMuted(false);
-                                if (pct === 0) setIsMuted(true);
-                              }}
-                              onTouchMove={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
-                                setVolume(pct);
-                                if (pct > 0 && isMuted) setIsMuted(false);
-                                if (pct === 0) setIsMuted(true);
-                              }}
-                              onClick={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const pct = Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-                                setVolume(pct);
-                                if (pct > 0 && isMuted) setIsMuted(false);
-                                if (pct === 0) setIsMuted(true);
-                              }}
-                              role="slider"
-                              aria-label="Volume"
-title="Drag or tap to set volume"
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={isMuted ? 0 : volume}
-                            >
-                              <VolumeSliderVisuals volume={volume} muted={isMuted} compact />
-                            </div>
-                            )}
                             <button
                               onClick={() => setShowFullscreenMobilePlayer(true)}
                               className="grid h-[28px] w-[28px] place-items-center rounded-lg border border-[#ff8a00]/40 bg-[#ff8a00]/10 text-white transition"
@@ -10881,6 +10666,15 @@ title="Drag or tap to set volume"
                             </button>
                           </div>
                         </div>
+                        <PlayerVolumeControl
+                          volume={volume}
+                          muted={isMuted}
+                          onVolumeChange={applyVolume}
+                          onToggleMute={() => setIsMuted((m) => !m)}
+                          useDeviceButtons={iosVolumeControl}
+                          size="sm"
+                          className="justify-end"
+                        />
                         {isGapPaused ? (
                           <SharedGapCountdown
                             mode="inline"
