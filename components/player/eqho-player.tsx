@@ -199,7 +199,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { ADD_MUSIC_BTN } from "@/lib/action-button-styles";
-import { VolumeFirstUseHint, VOLUME_HINT_STORAGE_KEY } from "@/components/player/volume-first-use-hint";
+import { VolumeLevelIcon, VolumeSliderVisuals } from "@/components/player/volume-visuals";
 
 const uploads = [
   ["NDP Group Warm Up.mp3", "02:18", "Just now"],
@@ -786,21 +786,6 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [playbackErrorTrackId, setPlaybackErrorTrackId] = useState<string | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
-  const [showVolumeHint, setShowVolumeHint] = useState(false);
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem(VOLUME_HINT_STORAGE_KEY)) setShowVolumeHint(true);
-    } catch {
-      setShowVolumeHint(true);
-    }
-  }, []);
-  const dismissVolumeHint = useCallback(() => {
-    setShowVolumeHint(false);
-    if (demoMode) return;
-    try {
-      localStorage.setItem(VOLUME_HINT_STORAGE_KEY, "1");
-    } catch {}
-  }, [demoMode]);
   // True on iPadOS/iOS, where JS cannot control playback loudness (iOS routes it
   // to the hardware volume buttons) — this now covers BOTH the Capacitor app and
   // iPad Safari, since the web page has the same limitation. Set after mount to
@@ -7848,8 +7833,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
               <h2 className="eqho-brand-label text-base font-bold tracking-[0.22em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
                 NOW PLAYING
               </h2>
-              <div className="relative flex items-center gap-2" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
-                {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
+              <div className="relative flex items-center gap-2">
                 {/* Volume Control */}
                 <button
                   onClick={() => {
@@ -7864,9 +7848,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                  } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
+                  }`}
                 >
-                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={16} />}
+                  <VolumeLevelIcon volume={volume} muted={isMuted} size={18} />
                 </button>
                 {iosVolumeControl ? (
                   <span className="text-[11px] leading-tight text-white/60 max-w-[160px]">
@@ -7874,7 +7858,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   </span>
                 ) : (
                 <div
-                  className="group relative flex items-center w-[120px] h-10 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                  className="group relative flex items-center w-[120px] h-10 rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
                   onMouseDown={(e) => {
                     const bar = e.currentTarget;
                     const apply = (clientX: number) => {
@@ -7913,15 +7897,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   }}
                   role="slider"
                   aria-label="Volume"
+title="Drag or tap to set volume"
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={isMuted ? 0 : volume}
                 >
-                  <div
-                    className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
-                    style={{ width: `${isMuted ? 0 : volume}%` }}
-                  />
-                  <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">{isMuted ? "Muted" : `${volume}%`}</span>
+                  <VolumeSliderVisuals volume={volume} muted={isMuted} />
                 </div>
                 )}
                 {/* Exit Fullscreen */}
@@ -8262,10 +8243,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             <h2 className="eqho-brand-label text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-[#ff4fa3] to-[#ff8a00] bg-clip-text text-transparent">
               {currentTrack ? "NOW PLAYING" : "COACH VIEW"}
             </h2>
-            <div className="relative" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
-              {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
-              <button onClick={() => setIsMuted(!isMuted)} aria-label={isMuted ? "Unmute" : "Mute"} className={`w-9 h-9 rounded-full border border-transparent flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"} ${showVolumeHint ? "eqho-volume-attention" : ""}`}>
-                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            <div className="relative">
+              <button onClick={() => setIsMuted(!isMuted)} aria-label={isMuted ? "Unmute" : "Mute"} className={`w-9 h-9 rounded-full border border-transparent flex items-center justify-center ${isMuted ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/70"}`}>
+                <VolumeLevelIcon volume={volume} muted={isMuted} size={16} />
               </button>
             </div>
           </div>
@@ -8558,8 +8538,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
             {/* ROW 4: Volume Slider - matches the desktop on-brand drag-track control:
                 orange->pink gradient fill with the % centered inside, no thumb dot. */}
-            <div className="relative flex items-center gap-3 py-2 justify-center shrink-0" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
-              {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} placement="above-center" />}
+            <div className="relative flex items-center gap-3 py-2 justify-center shrink-0">
               <button
                 type="button"
                 onClick={() => setIsMuted((m) => !m)}
@@ -8568,9 +8547,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   isMuted
                     ? "border-red-500/60 bg-red-500/15 text-red-400"
                     : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
+                }`}
               >
-                {isMuted ? <VolumeX size={16} /> : <Volume2 size={15} />}
+                <VolumeLevelIcon volume={volume} muted={isMuted} size={16} />
               </button>
               {iosVolumeControl ? (
                 <span className="text-xs leading-tight text-white/60 max-w-[220px] text-center">
@@ -8578,7 +8557,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 </span>
               ) : (
               <div
-                className="group relative flex items-center w-[160px] h-9 rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                className="group relative flex items-center w-[160px] h-9 rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
                 onMouseDown={(e) => {
                   const bar = e.currentTarget;
                   const apply = (clientX: number) => {
@@ -8613,17 +8592,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                 }}
                 role="slider"
                 aria-label="Volume"
+title="Drag or tap to set volume"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={isMuted ? 0 : volume}
               >
-                <div
-                  className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500/40 to-orange-500/30 pointer-events-none"
-                  style={{ width: `${isMuted ? 0 : volume}%` }}
-                />
-                <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white pointer-events-none">
-                  {isMuted ? "Muted" : `${volume}%`}
-                </span>
+                <VolumeSliderVisuals volume={volume} muted={isMuted} />
               </div>
               )}
             </div>
@@ -9360,8 +9334,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   expand button never drops onto its own row beneath the volume button.
                   When the column is too narrow for label + controls, the whole cluster
                   wraps below the heading together (via the parent's flex-wrap). */}
-              <div className="relative flex items-center gap-1.5 shrink-0" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
-                {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
+              <div className="relative flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={() => setIsMuted((m) => !m)}
                   aria-label={isMuted ? "Unmute" : "Mute"}
@@ -9369,9 +9342,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                     isMuted
                       ? "border-red-500/60 bg-red-500/15 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                       : "border-pink-500/40 bg-pink-500/10 text-white hover:border-pink-500/70"
-                  } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
+                  }`}
                 >
-                  {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  <VolumeLevelIcon volume={volume} muted={isMuted} size={15} />
                 </button>
 
                 {iosVolumeControl ? (
@@ -9380,7 +9353,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   </span>
                 ) : (
                 <div
-                  className="group relative flex items-center shrink-0 w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                  className="group relative flex items-center shrink-0 w-[60px] sm:w-[70px] h-[32px] rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
                   onMouseDown={(e) => {
                     const bar = e.currentTarget;
                     const apply = (clientX: number) => {
@@ -9415,19 +9388,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                   }}
                   role="slider"
                   aria-label="Volume"
+title="Drag or tap to set volume"
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={isMuted ? 0 : volume}
                 >
-                  <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#ff4fa3]/25 to-[#ff8a00]/25 transition-all duration-150"
-                      style={{ width: `${isMuted ? 0 : volume}%` }}
-                    />
-                  </div>
-                  <span className="absolute inset-0 grid place-items-center z-10 text-xs font-bold text-white/80 tabular-nums pointer-events-none">
-                    {isMuted ? "0" : volume}%
-                  </span>
+                  <VolumeSliderVisuals volume={volume} muted={isMuted} compact />
                 </div>
                 )}
 
@@ -10835,8 +10801,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                         {/* Volume Control & Fullscreen Row */}
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[9px] text-pink-400 uppercase tracking-widest font-bold">Now Playing</p>
-                          <div className="relative flex items-center gap-1" onPointerDownCapture={showVolumeHint ? dismissVolumeHint : undefined}>
-                            {showVolumeHint && <VolumeFirstUseHint onDismiss={dismissVolumeHint} deviceVolumeOnly={iosVolumeControl} />}
+                          <div className="relative flex items-center gap-1">
                             <button
                               onClick={() => setIsMuted((m) => !m)}
                               aria-label={isMuted ? "Unmute" : "Mute"}
@@ -10844,9 +10809,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                                 isMuted
                                   ? "border-red-500/60 bg-red-500/15 text-red-400"
                                   : "border-pink-500/40 bg-pink-500/10 text-white"
-                              } ${showVolumeHint ? "eqho-volume-attention" : ""}`}
+                              }`}
                             >
-                              {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                              <VolumeLevelIcon volume={volume} muted={isMuted} size={14} />
                             </button>
                             {iosVolumeControl ? (
                               <span className="text-[9px] leading-tight text-white/60 max-w-[150px]">
@@ -10854,7 +10819,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               </span>
                             ) : (
                             <div
-                              className="relative flex items-center w-[64px] h-[28px] rounded-lg border border-white/10 bg-[#090f1c] cursor-pointer overflow-hidden touch-none select-none"
+                              className="relative flex items-center w-[64px] h-[28px] rounded-lg border border-pink-500/40 bg-[#090f1c] cursor-ew-resize overflow-hidden touch-none select-none hover:border-pink-500/70 transition-colors"
                               onTouchStart={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 const pct = Math.round(Math.max(0, Math.min(100, ((e.touches[0].clientX - rect.left) / rect.width) * 100)));
@@ -10878,16 +10843,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               }}
                               role="slider"
                               aria-label="Volume"
+title="Drag or tap to set volume"
                               aria-valuemin={0}
                               aria-valuemax={100}
                               aria-valuenow={isMuted ? 0 : volume}
                             >
-                              <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
-                                <div className="h-full bg-gradient-to-r from-[#ff4fa3]/25 to-[#ff8a00]/25 transition-all duration-150" style={{ width: `${isMuted ? 0 : volume}%` }} />
-                              </div>
-                              <span className="absolute inset-0 grid place-items-center z-10 text-[10px] font-bold text-white/80 tabular-nums pointer-events-none">
-                                {isMuted ? "0" : volume}%
-                              </span>
+                              <VolumeSliderVisuals volume={volume} muted={isMuted} compact />
                             </div>
                             )}
                             <button
