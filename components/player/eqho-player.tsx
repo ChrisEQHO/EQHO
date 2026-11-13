@@ -5925,6 +5925,28 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     };
   }, [unlockBeepAudio]);
 
+  // Master gain for all countdown beeps, kept at the same level as the track
+  // volume (and silenced when muted) so beeps match the music's loudness. One
+  // node per context; scheduled beeps follow live volume changes mid-gap.
+  const beepMasterRef = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null);
+  const trackVolumeGain = () =>
+    isMutedRef.current ? 0 : Math.max(0, Math.min(1, volumeRef.current / 100));
+  const getBeepOutput = useCallback((ctx: AudioContext): AudioNode => {
+    const existing = beepMasterRef.current;
+    if (existing && existing.ctx === ctx) return existing.gain;
+    const gain = ctx.createGain();
+    gain.gain.value = trackVolumeGain();
+    gain.connect(ctx.destination);
+    beepMasterRef.current = { ctx, gain };
+    return gain;
+  }, []);
+  useEffect(() => {
+    const master = beepMasterRef.current;
+    if (!master) return;
+    const level = isMuted ? 0 : Math.max(0, Math.min(1, volume / 100));
+    master.gain.gain.setTargetAtTime(level, master.ctx.currentTime, 0.015);
+  }, [volume, isMuted]);
+
   // Core Web Audio beep generator, parameterized by style so all three share the
   // same envelope/scheduling code. `frequency` is the base pitch chosen by the
   // countdown (660/880/1100 for 3/2/1); each style reinterprets it with its own
@@ -5954,6 +5976,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // time, so previews and the first countdown beep were silent. Starting ~60ms
         // in the future lands after the resume settles and is imperceptible.
         const now = whenSec != null ? whenSec : ctx.currentTime + 0.06;
+        const output = getBeepOutput(ctx);
 
         // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
         const tone = (
@@ -5966,7 +5989,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.connect(gain);
-          gain.connect(ctx.destination);
+          gain.connect(output);
           osc.type = type;
           osc.frequency.value = freq;
           const start = now + offsetMs / 1000;
@@ -6009,7 +6032,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // Audio context not supported
       }
     },
-    [getBeepCtx],
+    [getBeepCtx, getBeepOutput],
   );
 
   // Live countdown beep — reads the user's selected style from the ref so the
