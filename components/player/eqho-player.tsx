@@ -786,6 +786,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [playbackErrorTrackId, setPlaybackErrorTrackId] = useState<string | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
+  // Live mirrors of volume/mute for async play paths (e.g. gap-timer callbacks),
+  // whose render closures can hold a level the user has since changed.
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+  const isMutedRef = useRef(isMuted);
+  isMutedRef.current = isMuted;
   const applyVolume = (pct: number) => {
     setVolume(pct);
     setIsMuted(pct === 0);
@@ -4456,22 +4462,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       console.log(`[v0] safePlay(${context}) converted src prefix: "${src.slice(0, 32)}"`);
     }
 
-    // Inspect the actual bytes behind the current source so we can see whether
-    // the <audio> element is being handed decodable media on device. Fetching a
-    // blob:/https:/file: URL yields the underlying Blob (with its real MIME type
-    // and byte size); a size of 0 or an empty type points at a bad/expired source.
-    let probeBlob: Blob | null = null;
-    try {
-      const b = await fetch(src).then((res) => res.blob());
-      probeBlob = b;
-      console.log(`[v0] safePlay(${context}) blob.type: "${b.type}"`);
-      console.log(`[v0] safePlay(${context}) blob.size: ${b.size}`);
-      console.log(`[v0] safePlay(${context}) blob URL: "${src.slice(0, 48)}"`);
-      setBlobDiag(b.type || "(empty)", b.size);
-    } catch (probeErr) {
-      console.log(`[v0] safePlay(${context}) blob probe failed:`, probeErr);
-      setBlobDiag("probe failed", -1);
-    }
+    // The source bytes are only inspected when play() fails (see catch below).
+    // Probing before every play downloaded whole cloud tracks first, delaying the
+    // start of playback and pushing play() outside the user's tap on iOS.
     console.log(`[v0] safePlay(${context}) audio.currentSrc: "${(audio.currentSrc || "").slice(0, 48)}"`);
     console.log(`[v0] safePlay(${context}) readyState after load(): ${audio.readyState}`);
     console.log(`[v0] safePlay(${context}) networkState after load(): ${audio.networkState}`);
@@ -4534,9 +4527,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     // slider instead of defaulting to unity gain for a frame.
     const gain = ensureGainGraph();
     if (gain && audioCtxRef.current) {
-      const normalized = Math.max(0, Math.min(1, volume / 100));
+      const normalized = Math.max(0, Math.min(1, volumeRef.current / 100));
       audio.volume = 1;
-      gain.gain.setValueAtTime(isMuted ? 0 : normalized, audioCtxRef.current.currentTime);
+      gain.gain.setValueAtTime(isMutedRef.current ? 0 : normalized, audioCtxRef.current.currentTime);
     }
     // Unlock the shared beep context in the SAME gesture so countdown beeps are
     // audible later (iOS requires the context to start from a user gesture).
@@ -4554,7 +4547,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       // so we can verify the underlying file is a valid, recognizable audio file
       // (e.g. "49 44 33" = "ID3" for MP3, "...66 74 79 70" = "ftyp" for MP4/M4A).
       try {
-        const bytesBlob: Blob = probeBlob !== null ? probeBlob : await fetch(src).then((r) => r.blob());
+        const bytesBlob: Blob = await fetch(src).then((r) => r.blob());
+        setBlobDiag(bytesBlob.type || "(empty)", bytesBlob.size);
         const hex = await firstBytesHex(bytesBlob, 32);
         console.log(`[v0] safePlay(${context}) FAILED blob.type="${bytesBlob.type}" size=${bytesBlob.size}`);
         console.log(`[v0] safePlay(${context}) FAILED first 32 bytes: ${hex}`);
@@ -5931,6 +5925,28 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     };
   }, [unlockBeepAudio]);
 
+  // Master gain for all countdown beeps, kept at the same level as the track
+  // volume (and silenced when muted) so beeps match the music's loudness. One
+  // node per context; scheduled beeps follow live volume changes mid-gap.
+  const beepMasterRef = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null);
+  const trackVolumeGain = () =>
+    isMutedRef.current ? 0 : Math.max(0, Math.min(1, volumeRef.current / 100));
+  const getBeepOutput = useCallback((ctx: AudioContext): AudioNode => {
+    const existing = beepMasterRef.current;
+    if (existing && existing.ctx === ctx) return existing.gain;
+    const gain = ctx.createGain();
+    gain.gain.value = trackVolumeGain();
+    gain.connect(ctx.destination);
+    beepMasterRef.current = { ctx, gain };
+    return gain;
+  }, []);
+  useEffect(() => {
+    const master = beepMasterRef.current;
+    if (!master) return;
+    const level = isMuted ? 0 : Math.max(0, Math.min(1, volume / 100));
+    master.gain.gain.setTargetAtTime(level, master.ctx.currentTime, 0.015);
+  }, [volume, isMuted]);
+
   // Core Web Audio beep generator, parameterized by style so all three share the
   // same envelope/scheduling code. `frequency` is the base pitch chosen by the
   // countdown (660/880/1100 for 3/2/1); each style reinterprets it with its own
@@ -5960,6 +5976,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // time, so previews and the first countdown beep were silent. Starting ~60ms
         // in the future lands after the resume settles and is imperceptible.
         const now = whenSec != null ? whenSec : ctx.currentTime + 0.06;
+        const output = getBeepOutput(ctx);
 
         // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
         const tone = (
@@ -5972,7 +5989,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.connect(gain);
-          gain.connect(ctx.destination);
+          gain.connect(output);
           osc.type = type;
           osc.frequency.value = freq;
           const start = now + offsetMs / 1000;
@@ -6015,7 +6032,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // Audio context not supported
       }
     },
-    [getBeepCtx],
+    [getBeepCtx, getBeepOutput],
   );
 
   // Live countdown beep — reads the user's selected style from the ref so the
