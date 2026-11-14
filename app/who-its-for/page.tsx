@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
+import Link from 'next/link'
 import {
   Medal,
   Megaphone,
@@ -22,15 +23,15 @@ import { SITE, WHO_ITS_FOR, getOfferCopy } from '@/lib/marketing-config'
 const ICONS: Record<string, LucideIcon> = { Medal, Megaphone }
 
 export const metadata: Metadata = {
-  title: `Who it’s for — ${SITE.name}`,
+  title: 'Music App for Gymnastics Coaches & Clubs',
   description:
-    'Why EQHO Player exists and who it’s built for: gymnastics coaches and clubs who need routine music managed on a computer, pushed to every device through the cloud, and played offline through a session-first player.',
+    'A training music app for gymnastics coaches and clubs: manage routine music on a computer, sync it to every device through the cloud and play it offline.',
   alternates: { canonical: '/who-its-for' },
   openGraph: {
     type: 'website',
     url: `${SITE.url}/who-its-for`,
     siteName: SITE.name,
-    title: `Who it’s for — ${SITE.name}`,
+    title: `Music App for Gymnastics Coaches & Clubs | ${SITE.name}`,
     description:
       'Built for gymnastics coaches and clubs — manage music on a computer, sync it everywhere through the cloud, and run the session offline.',
   },
@@ -86,12 +87,20 @@ export default function WhoItsForPage() {
               Who it’s for &amp; why it exists
             </p>
             <h1 className="mt-4 text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-              Set the music once. Let the coaching take priority.
+              A training music app built for gymnastics coaches.
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
               EQHO Player is built to make those difficult training sessions and competition preparation
               that bit easier — routine music organised, synced to every device, and ready to play
-              throughout the session without fighting their phone.
+              throughout the session without fighting their phone.{' '}
+              <Link href="/features" className="text-white underline underline-offset-4 hover:text-[#ff8a00]">
+                Try the free demo
+              </Link>{' '}
+              or see{' '}
+              <Link href="/how-it-works" className="text-white underline underline-offset-4 hover:text-[#ff8a00]">
+                how it works
+              </Link>
+              .
             </p>
           </div>
         </section>

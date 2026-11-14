@@ -7,7 +7,7 @@ import { DemoCta } from '@/components/marketing/demo-cta'
 import { SITE, STEPS, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
-  title: `How it works — ${SITE.name}`,
+  title: 'How It Works',
   description:
     'How EQHO Player works: prepare the running order before training, choose your session controls, push sessions to EQHO Cloud and load them on your devices before you coach.',
   alternates: { canonical: '/how-it-works' },

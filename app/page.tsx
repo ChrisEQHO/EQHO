@@ -7,21 +7,25 @@ import { SITE, getOfferCopy } from '@/lib/marketing-config'
 
 const isMobileBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'mobile'
 
+const HOME_TITLE = `Training Session Music App for Coaches | ${SITE.name}`
+const HOME_DESCRIPTION =
+  'The training session music app for gymnastics coaches and clubs. Set the running order, gaps and repeats once, sync to every device and play offline.'
+
 export const metadata: Metadata = {
-  title: `${SITE.name} — ${SITE.tagline}`,
-  description: SITE.description,
+  title: { absolute: HOME_TITLE },
+  description: HOME_DESCRIPTION,
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     url: SITE.url,
     siteName: SITE.name,
-    title: `${SITE.name} — ${SITE.tagline}`,
-    description: SITE.description,
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${SITE.name} — ${SITE.tagline}`,
-    description: SITE.description,
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
   },
 }
 
