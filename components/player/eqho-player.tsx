@@ -412,7 +412,7 @@ function PlaylistTrackRows({
   tracks,
   expanded,
   onToggleExpand,
-  onRequestDelete,
+  onSaveRemovals,
   deletingTrackId,
   formatDuration,
   compact = false,
@@ -420,61 +420,113 @@ function PlaylistTrackRows({
   tracks: Array<{ id: string; title: string; durationSeconds?: number }>;
   expanded: boolean;
   onToggleExpand: () => void;
-  onRequestDelete: (trackId: string) => void;
+  onSaveRemovals: (trackIds: string[]) => Promise<void>;
   deletingTrackId: string | null;
   formatDuration: (seconds?: number) => string;
   compact?: boolean;
 }) {
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const [saving, setSaving] = useState(false);
   const rowText = compact ? "text-[10px]" : "text-[11px]";
   const moreText = compact ? "text-[9px]" : "text-[10px]";
   const visible = expanded ? tracks : tracks.slice(0, 2);
   const hiddenCount = tracks.length - 2;
+  const pendingCount = tracks.filter((t) => pendingIds.has(t.id)).length;
+
+  const togglePending = (trackId: string) => {
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    const ids = tracks.filter((t) => pendingIds.has(t.id)).map((t) => t.id);
+    if (ids.length === 0) return;
+    setSaving(true);
+    try {
+      await onSaveRemovals(ids);
+    } finally {
+      setSaving(false);
+      setPendingIds(new Set());
+    }
+  };
 
   return (
     <div className="mb-2">
       <div className={expanded ? "space-y-0.5 max-h-52 overflow-y-auto pr-1" : "space-y-0.5"}>
         {visible.map((track, idx) => {
           const isDeleting = deletingTrackId === track.id;
+          const isPending = pendingIds.has(track.id);
           return (
             <div
               key={track.id}
-              className={`group/track flex items-center gap-1.5 ${rowText} text-white/40 rounded px-1 py-0.5 hover:bg-white/5 transition`}
+              className={`group/track flex items-center gap-1.5 ${rowText} rounded px-1 py-0.5 transition ${
+                isPending ? "bg-red-500/10 text-red-300/70" : "text-white/40 hover:bg-white/5"
+              }`}
             >
               <span className="w-3 text-white/25 shrink-0">{idx + 1}.</span>
-              <span className="truncate flex-1">{track.title}</span>
-              <span className="text-white/25 shrink-0">{formatDuration(track.durationSeconds || 0)}</span>
               <button
                 type="button"
-                // Stop the pointer/touch event before it can reach the row (select/
-                // play) or any drag/scroll sensor. Do NOT preventDefault here — that
-                // would cancel the subsequent click on iOS WKWebView.
+                // Stop pointer/touch before it reaches the row or a drag/scroll sensor.
+                // Do NOT preventDefault here: it would cancel the click on iOS WKWebView.
                 onPointerDown={(e) => { e.stopPropagation(); }}
                 onTouchStart={(e) => { e.stopPropagation(); }}
                 onClick={(e) => {
-                  // preventDefault + stopPropagation so the tap never reaches the
-                  // row (select/play) or any drag sensor; safe here because this is
-                  // a click (not touchstart), so it won't cancel the tap on iOS.
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log("[v0] DELETE TAP RECEIVED — selected track ID:", track.id, "title:", track.title);
-                  try {
-                    onRequestDelete(track.id);
-                    console.log("[v0] DELETE confirmation opened for track ID:", track.id);
-                  } catch (err) {
-                    console.error("[v0] DELETE tap handler error:", (err as Error)?.message || String(err));
-                  }
+                  togglePending(track.id);
                 }}
-                disabled={isDeleting}
-                title="Delete track permanently"
-                aria-label={`Delete ${track.title} permanently`}
-                className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/15 transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isDeleting || saving}
+                aria-pressed={isPending}
+                title={isPending ? "Keep this track" : "Mark track for removal"}
+                aria-label={isPending ? `Keep ${track.title}` : `Remove ${track.title}`}
+                className={`w-5 h-5 rounded flex items-center justify-center transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isPending
+                    ? "bg-white/10 text-white/70 hover:bg-white/15"
+                    : "text-red-500 hover:text-red-400 hover:bg-red-500/15"
+                }`}
               >
-                {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                {isDeleting ? (
+                  <Loader2 size={11} className="animate-spin" />
+                ) : isPending ? (
+                  <RotateCcw size={11} />
+                ) : (
+                  <X size={13} strokeWidth={3} />
+                )}
               </button>
+              <span className={`truncate flex-1 ${isPending ? "line-through" : ""}`}>{track.title}</span>
+              <span className="text-white/25 shrink-0">{formatDuration(track.durationSeconds || 0)}</span>
             </div>
           );
         })}
       </div>
+      {pendingCount > 0 && (
+        <div className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-red-500/25 bg-red-500/10 px-2 py-1.5">
+          <span className={`flex-1 ${moreText} text-red-200/80`}>
+            {pendingCount} {pendingCount === 1 ? "track" : "tracks"} will be deleted permanently
+          </span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setPendingIds(new Set()); }}
+            disabled={saving}
+            className={`rounded-md px-2 py-1 ${moreText} font-semibold text-white/70 hover:bg-white/10 transition disabled:opacity-50`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); void handleSave(); }}
+            disabled={saving}
+            className={`flex items-center gap-1 rounded-md bg-gradient-to-r from-pink-500 to-orange-500 px-2.5 py-1 ${moreText} font-semibold text-white hover:brightness-110 transition disabled:opacity-60`}
+          >
+            {saving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      )}
       {tracks.length > 2 && (
         <button
           type="button"
@@ -2762,7 +2814,34 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   //   2. Local-only tracks (never uploaded) skip the cloud step entirely.
   //   3. On success, remove it from local state (the savedPlaylists effect
   //      re-persists IndexedDB) and refresh cloud playlists.
-  const handleDeleteTrackPermanently = async (playlistId: string, track: Track) => {
+  const handleSavePlaylistRemovals = async (playlistId: string, trackIds: string[]) => {
+    const playlistTracks = savedPlaylists.find((p) => p.id === playlistId)?.tracks ?? [];
+    const toDelete = playlistTracks.filter((t) => trackIds.includes(t.id));
+    let deleted = 0;
+    for (const track of toDelete) {
+      if (await handleDeleteTrackPermanently(playlistId, track, { silent: true })) deleted += 1;
+    }
+    try {
+      setCloudPlaylists(await fetchCloudPlaylists());
+    } catch (err) {
+      console.warn('handleSavePlaylistRemovals: failed to refresh cloud playlists', err);
+    }
+    const failed = toDelete.length - deleted;
+    setCloudSaveSuccess(failed === 0);
+    setCloudSaveMessage(
+      failed === 0
+        ? `Playlist saved. Deleted ${deleted} ${deleted === 1 ? "track" : "tracks"}.`
+        : `Deleted ${deleted} of ${toDelete.length} tracks. ${failed} couldn't be removed. Please try again.`
+    );
+    setTimeout(() => setCloudSaveMessage(null), failed === 0 ? 3000 : 6000);
+  };
+
+  const handleDeleteTrackPermanently = async (
+    playlistId: string,
+    track: Track,
+    options: { silent?: boolean } = {}
+  ): Promise<boolean> => {
+    const { silent = false } = options;
     console.log("[v0] DELETE request started", { trackId: track.id, title: track.title, playlistId });
     setDeletingTrackId(track.id);
     // Stable identity key so we can also purge copies in the active session queue
@@ -2791,7 +2870,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           setCloudSaveSuccess(false);
           setTimeout(() => setCloudSaveMessage(null), 6000);
           console.error("[v0] DELETE aborted: cloud metadata delete failed; track kept intact");
-          return;
+          return false;
         }
         if (!r2Ok) {
           console.warn(`[v0] DELETE: track "${track.title}" metadata deleted; R2 object delete was best-effort and did not confirm`);
@@ -2823,23 +2902,27 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         setCurrentTrack(null);
       }
 
-      // Refresh cloud playlists so counts/previews reflect the deletion.
-      try {
-        const playlists = await fetchCloudPlaylists();
-        setCloudPlaylists(playlists);
-      } catch (err) {
-        console.warn('[v0] handleDeleteTrackPermanently: failed to refresh cloud playlists', err);
+      // Batch saves refresh cloud playlists and report once, after every track.
+      if (!silent) {
+        try {
+          const playlists = await fetchCloudPlaylists();
+          setCloudPlaylists(playlists);
+        } catch (err) {
+          console.warn('[v0] handleDeleteTrackPermanently: failed to refresh cloud playlists', err);
+        }
+        setCloudSaveMessage(`Deleted "${track.title}"`);
+        setCloudSaveSuccess(true);
+        setTimeout(() => setCloudSaveMessage(null), 3000);
       }
-
-      console.log("[v0] DELETE completed", { trackId: track.id, title: track.title });
-      setCloudSaveMessage(`Deleted "${track.title}"`);
-      setCloudSaveSuccess(true);
-      setTimeout(() => setCloudSaveMessage(null), 3000);
+      return true;
     } catch (err) {
       console.error('[v0] DELETE failed:', (err as Error)?.message || String(err));
-      setCloudSaveMessage(`Couldn't delete "${track.title}". Please try again.`);
-      setCloudSaveSuccess(false);
-      setTimeout(() => setCloudSaveMessage(null), 6000);
+      if (!silent) {
+        setCloudSaveMessage(`Couldn't delete "${track.title}". Please try again.`);
+        setCloudSaveSuccess(false);
+        setTimeout(() => setCloudSaveMessage(null), 6000);
+      }
+      return false;
     } finally {
       setDeletingTrackId(null);
       setConfirmDeleteTrack(null);
@@ -9931,10 +10014,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                               tracks={localPlaylist.tracks}
                               expanded={expandedPlaylistIds.has(localPlaylist.id)}
                               onToggleExpand={() => togglePlaylistExpanded(localPlaylist.id)}
-                              onRequestDelete={(trackId) => {
-                                const t = localPlaylist.tracks.find((tr) => tr.id === trackId);
-                                if (t) setConfirmDeleteTrack({ playlistId: localPlaylist.id, track: t });
-                              }}
+                              onSaveRemovals={(trackIds) => handleSavePlaylistRemovals(localPlaylist.id, trackIds)}
                               deletingTrackId={deletingTrackId}
                               formatDuration={formatDuration}
                             />
@@ -11275,10 +11355,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                             tracks={pl.tracks}
                             expanded={expandedPlaylistIds.has(pl.id)}
                             onToggleExpand={() => togglePlaylistExpanded(pl.id)}
-                            onRequestDelete={(trackId) => {
-                              const t = pl.tracks.find((tr) => tr.id === trackId);
-                              if (t) setConfirmDeleteTrack({ playlistId: pl.id, track: t });
-                            }}
+                            onSaveRemovals={(trackIds) => handleSavePlaylistRemovals(pl.id, trackIds)}
                             deletingTrackId={deletingTrackId}
                             formatDuration={formatDuration}
                             compact
