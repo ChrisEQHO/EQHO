@@ -529,6 +529,11 @@ const BEEP_SOUNDS: { id: BeepSoundId; label: string }[] = [
   { id: "competition", label: "Beep 3" },
 ];
 const DEFAULT_BEEP_SOUND: BeepSoundId = "classic";
+// Scales every beep tone's peak so that, at the same slider level, the default
+// beep (~-16 dBFS RMS) sits close to a typically mastered track (~-14 dBFS RMS)
+// instead of ~8 dB above it. The track volume itself is applied separately by
+// the beep bus gain, so this constant must not include any volume scaling.
+const BEEP_BASE_GAIN = 0.3;
 
 export interface EqhoPlayerProps {
   /**
@@ -5977,6 +5982,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         // in the future lands after the resume settles and is imperceptible.
         const now = whenSec != null ? whenSec : ctx.currentTime + 0.06;
         const output = getBeepOutput(ctx);
+        // Re-assert the live track level on the bus at emit time, in case a
+        // volume/mute change landed before the sync effect ran.
+        const master = beepMasterRef.current;
+        if (master && master.ctx === ctx) {
+          master.gain.gain.setTargetAtTime(trackVolumeGain(), ctx.currentTime, 0.015);
+        }
 
         // Helper: one oscillator + gain envelope, started at `now + offsetMs`.
         const tone = (
@@ -5995,7 +6006,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           const start = now + offsetMs / 1000;
           const end = start + lenMs / 1000;
           gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(peak, start + 0.008);
+          gain.gain.exponentialRampToValueAtTime(peak * BEEP_BASE_GAIN, start + 0.008);
           gain.gain.exponentialRampToValueAtTime(0.0001, end);
           osc.start(start);
           osc.stop(end + 0.02);
