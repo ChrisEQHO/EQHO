@@ -13,6 +13,15 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import {
+  SUPPORTED_AUDIO_ACCEPT,
+  createLegacyMatcher,
+  dedupeByContent,
+  formatUpdateResult,
+  hashAudioFile,
+  isSupportedAudioFile,
+  type ExistingTrackIdentity,
+} from "@/lib/playlist-update";
 import { clearCachedPlaylist, saveSavedPlaylistsWithTracks, getSavedPlaylistsWithTracks, saveCurrentPlaylistWithFiles, getCurrentPlaylistWithFiles, getAllLocalAudioFiles, clearSavedPlaylists } from "@/lib/eqho-db";
 import { isNativePlatform, isNativeIOS, toPlayableUrl, peekPlayableUrl, firstBytesHex, buildCorrectedPlayableUrl, peekPlayableBuild, NOT_AUDIO_MESSAGE } from "@/lib/native-audio";
 import { useNativeSession } from "@/lib/use-native-session";
@@ -1101,6 +1110,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     });
   const [cloudConflict, setCloudConflict] = useState<{ cloudId: string; localId: string; name: string; kind: CloudConflictKind } | null>(null);
   const [panelNotice, setPanelNotice] = useState<PanelNotice | null>(null);
+  const [updatingPlaylistId, setUpdatingPlaylistId] = useState<string | null>(null);
   const [cloudRefreshing, setCloudRefreshing] = useState(false);
   const [deviceOnline, setDeviceOnline] = useState(true);
   const [cloudSaveMessage, setCloudSaveMessage] = useState<string | null>(null);
@@ -3626,7 +3636,112 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     setCloudConflict({ cloudId, localId: local.id, name: row.name, kind: row.conflict ?? 'cloud-newer' });
   };
 
+  const loadAudioDuration = (url: string) =>
+    new Promise<number>((resolve, reject) => {
+      const audio = new Audio(url);
+      audio.onloadedmetadata = () => resolve(Math.round(audio.duration));
+      audio.onerror = () => reject(new Error("Unreadable audio"));
+    });
+
+  const updatePlaylistFromFiles = async (playlistId: string, files: File[]) => {
+    const target = savedPlaylists.find((p) => p.id === playlistId);
+    if (!target || files.length === 0) return;
+    setUpdatingPlaylistId(playlistId);
+    setPanelNotice({ tone: "success", text: `Checking ${files.length} ${files.length === 1 ? "file" : "files"} against ${target.name}…` });
+
+    try {
+      const idbFiles = await buildIndexedDbFileMap();
+      const existing: ExistingTrackIdentity[] = await Promise.all(
+        target.tracks.map(async (track) => {
+          let hash: string | null = null;
+          try {
+            const file = await resolveTrackFileForSync(track, idbFiles);
+            if (file && file.size > 0) hash = await hashAudioFile(file);
+          } catch {
+            hash = null;
+          }
+          return { hash, fileName: track.fileName, durationSeconds: track.durationSeconds };
+        }),
+      );
+
+      const selected = await Promise.all(files.map(async (file) => ({ hash: await hashAudioFile(file), fileName: file.name })));
+      const { candidates, alreadyInPlaylist } = dedupeByContent(existing, selected);
+      const isLegacyMatch = createLegacyMatcher(existing);
+
+      const newTracks: Track[] = [];
+      const failedNames: string[] = [];
+      let legacyMatches = 0;
+      const ordered = [...candidates].sort((a, b) => files[a].name.localeCompare(files[b].name));
+      for (let i = 0; i < ordered.length; i++) {
+        const file = files[ordered[i]];
+        setPanelNotice({ tone: "success", text: `Adding to ${target.name}: ${i + 1} of ${ordered.length}…` });
+        const url = URL.createObjectURL(file);
+        try {
+          const durationSeconds = await loadAudioDuration(url);
+          if (isLegacyMatch(file.name, durationSeconds)) {
+            URL.revokeObjectURL(url);
+            legacyMatches++;
+            continue;
+          }
+          newTracks.push({
+            id: crypto.randomUUID(),
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            sub: target.name,
+            duration: formatDuration(durationSeconds),
+            fileName: file.name,
+            url,
+            durationSeconds,
+            uploadedAt: new Date().toISOString(),
+            file,
+          });
+        } catch {
+          URL.revokeObjectURL(url);
+          failedNames.push(file.name);
+        }
+      }
+
+      if (newTracks.length > 0) {
+        setSavedPlaylists((prev) =>
+          prev.map((p) => (p.id === playlistId ? { ...p, tracks: [...p.tracks, ...newTracks] } : p)),
+        );
+        trackEvent("playlist_updated");
+      }
+
+      const summary = formatUpdateResult(newTracks.length, alreadyInPlaylist + legacyMatches, failedNames.length);
+      setPanelNotice(
+        failedNames.length > 0
+          ? { tone: "error", text: `${target.name}: ${summary}. Couldn't read ${failedNames.join(", ")}. Choose Update playlist again to retry.` }
+          : { tone: "success", text: `${target.name}: ${summary}.` },
+      );
+    } catch (err) {
+      console.log("[v0] updatePlaylistFromFiles failed", err);
+      setPanelNotice({ tone: "error", text: `Couldn't update ${target.name}. The playlist is unchanged.` });
+    } finally {
+      setUpdatingPlaylistId(null);
+    }
+  };
+
+  const openUpdatePlaylistPicker = (playlistId: string) => {
+    if (updatingPlaylistId) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.accept = SUPPORTED_AUDIO_ACCEPT;
+    input.style.display = "none";
+    const cleanup = () => input.remove();
+    input.addEventListener("change", () => {
+      const files = Array.from(input.files || []).filter(isSupportedAudioFile);
+      cleanup();
+      if (files.length > 0) void updatePlaylistFromFiles(playlistId, files);
+    });
+    input.addEventListener("cancel", cleanup);
+    document.body.appendChild(input);
+    input.click();
+  };
+
   const sharedPanelProps = {
+    onUpdatePlaylist: openUpdatePlaylistPicker,
+    updatingPlaylistId,
     tab: playlistPanelTab,
     onTabChange: handlePlaylistPanelTabChange,
     localRows: localPanelRows,

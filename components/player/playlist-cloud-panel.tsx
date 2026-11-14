@@ -93,6 +93,8 @@ interface PlaylistCloudPanelProps {
   onAddToQueue: (id: string) => void;
   onOpenPlaylist: (id: string) => void;
   onClear: (id: string) => void;
+  onUpdatePlaylist?: (id: string) => void;
+  updatingPlaylistId?: string | null;
   onDownload: (cloudId: string) => void;
   onReviewUpdate: (cloudId: string) => void;
   onRetryFailedTracks?: (localId: string) => void;
@@ -651,6 +653,15 @@ function RowMenu({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
         <DropdownMenuItem disabled={row.trackCount === 0} onSelect={() => props.onOpenPlaylist(row.id)}>
           Open
         </DropdownMenuItem>
+        {props.onUpdatePlaylist && (
+          <DropdownMenuItem
+            disabled={!!props.updatingPlaylistId}
+            onSelect={() => props.onUpdatePlaylist!(row.id)}
+            className="whitespace-nowrap"
+          >
+            {props.updatingPlaylistId === row.id ? "Updating playlist…" : "Update playlist"}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator className="bg-white/10" />
         <DropdownMenuItem onSelect={() => props.onClear(row.id)} className="text-red-300 focus:bg-red-500/15 focus:text-red-200">
           Remove from this device
