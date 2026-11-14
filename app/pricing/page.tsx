@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 // Metadata for the pricing route. Runs on the server only — no hydration concerns.
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: `Pricing — ${SITE.name}`,
+    title: 'Pricing',
     description: `Try ${SITE.name} free for 30 days, then continue with a simple monthly subscription. No charge during your trial — cancel anytime before it ends.`,
     alternates: { canonical: '/pricing' },
   }

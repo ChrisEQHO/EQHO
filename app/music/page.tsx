@@ -7,7 +7,7 @@ import { MusicViewedBeacon } from '@/components/music/music-viewed-beacon'
 import { SITE } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
-  title: `Music — ${SITE.name}`,
+  title: 'Music',
   description:
     'EQHO Music is coming: a curated catalogue of tracks for gymnastics routines, crafted by top composers and choreographers. Free to use in training; licensed for competition. Creators can register their interest now.',
   alternates: { canonical: '/music' },

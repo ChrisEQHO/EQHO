@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: `${SITE.url}/faq`,
     siteName: SITE.name,
-    title: `FAQ's — ${SITE.name}`,
+  title: 'FAQs',
     description: 'Common questions about EQHO Player, answered.',
   },
 }

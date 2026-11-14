@@ -94,12 +94,14 @@ export function MarketingHome() {
               <FreeUntilPill />
             </div>
             <h1 className="text-balance font-extrabold leading-[1.05] tracking-tight text-[clamp(2.25rem,6vw,4rem)]">
-              Manage your music.
+              Manage your training session music.
               <br />
               Make more time for coaching.
             </h1>
             <p className="mx-auto mt-5 max-w-lg text-pretty leading-relaxed text-[#cbd5e1] text-[clamp(1rem,1.4vw,1.25rem)] lg:mx-0">
-              Keep your routine music organised, your sessions moving and your attention on coaching.
+              EQHO Player is a training session music app for gymnastics coaches and clubs. Set the
+              running order, gaps and repeats once, sync your routine music to every device and play it
+              offline while you coach.
             </p>
             <div className="mt-8">
               <DemoCta offerCta={offer.cta} offerCardNote={offer.cardNote} align="left" />

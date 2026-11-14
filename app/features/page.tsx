@@ -35,15 +35,15 @@ import { FreeUntilPill } from '@/components/marketing/free-until-pill'
 import { SITE, CTA, FEATURES, APP, getOfferCopy } from '@/lib/marketing-config'
 
 export const metadata: Metadata = {
-  title: `The player — see everything ${SITE.name} does`,
+  title: 'Training Music Player Features & Free Demo',
   description:
-    'A full tour of EQHO Player: build the running order, control the gap between routines, set repeats and back-to-back playback, back your sessions up to the cloud, and coach from any device.',
+    'Try the training session music player free: set the running order, gaps between routines and repeats, back sessions up to the cloud and coach from any device.',
   alternates: { canonical: '/features' },
   openGraph: {
     type: 'website',
     url: `${SITE.url}/features`,
     siteName: SITE.name,
-    title: `The player — see everything ${SITE.name} does`,
+    title: `Training Music Player Features & Free Demo | ${SITE.name}`,
     description:
       'A full tour of EQHO Player: running order, timing, repeats, cloud backup and coaching from any device.',
   },
@@ -242,10 +242,15 @@ export default function FeaturesPage() {
           <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-14 sm:px-6 sm:pt-20">
             <div className="mx-auto max-w-3xl text-center">
               <h1 className="text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-                Try EQHO Player
+                Try the training session music player
               </h1>
               <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-[#94a3b8]">
-                Explore a ready-made training session and see how the player works. No account needed.
+                Explore a ready-made training session with running order, gaps and repeats already set.
+                No account needed. Built for{' '}
+                <Link href="/who-its-for" className="text-white underline underline-offset-4 hover:text-[#ff8a00]">
+                  gymnastics coaches and clubs
+                </Link>
+                .
               </p>
               <div className="mt-8 flex justify-center">
                 <DemoCta
@@ -631,7 +636,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* ── Final CTA ────────────────────────────────────────────────── */}
+        {/* ── Final CTA ──────────────────────────────────────���─────────── */}
         <section className="border-t border-white/5">
           <div className="mx-auto w-full max-w-4xl px-4 py-24 text-center sm:px-6">
             <h2 className="text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
