@@ -137,6 +137,8 @@ const PRIMARY_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md bg-[#ff8a00] font-semibold text-[#1a0b00] transition hover:bg-[#ff9d2e] active:bg-[#e67a00] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40";
 const SECONDARY_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md border border-white/15 bg-white/[0.04] font-semibold text-white/85 transition hover:border-white/25 hover:bg-white/10 active:bg-white/15 disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-white/[0.04]";
+const UPDATE_BTN =
+  "inline-flex items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-[#ff8a00] to-[#ec4899] font-semibold text-[#1a0b00] shadow-[0_0_14px_rgba(236,72,153,0.25)] transition hover:brightness-110 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100";
 const CLOUD_GHOST_BTN =
   "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold text-violet-300 transition hover:bg-violet-400/10 hover:text-violet-200 active:bg-violet-400/20 disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-transparent";
 
@@ -606,8 +608,33 @@ function LocalCard({ row, ...props }: TabProps & { row: LocalPlaylistRow }) {
           </>
         ) : (
           <>
-            {openBtn(true)}
-            {queueBtn}
+            <div
+              className={`grid w-full gap-1.5 ${
+                props.onUpdatePlaylist
+                  ? compact ? "grid-cols-3" : "grid-cols-1 min-[420px]:grid-cols-3"
+                  : compact ? "grid-cols-2" : "grid-cols-1 min-[420px]:grid-cols-2"
+              } [&>button]:min-w-0 [&>button]:leading-tight`}
+            >
+              {openBtn(true)}
+              {queueBtn}
+              {props.onUpdatePlaylist && (
+                <button
+                  type="button"
+                  onClick={() => props.onUpdatePlaylist!(row.id)}
+                  disabled={!!props.updatingPlaylistId}
+                  title="Add new tracks from a folder to this playlist"
+                  className={`${UPDATE_BTN} ${size} ${FOCUS_RING}`}
+                >
+                  {props.updatingPlaylistId === row.id ? (
+                    <Loader2 size={13} className="shrink-0 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RefreshCw size={13} className="shrink-0" aria-hidden="true" />
+                  )}
+                  {props.updatingPlaylistId === row.id ? "Updating…" : "Update"}
+                  <span className="sr-only"> playlist</span>
+                </button>
+              )}
+            </div>
             {canOfferUpload && (
               <button
                 type="button"
