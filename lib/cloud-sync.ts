@@ -481,16 +481,45 @@ export async function uploadTrackToCloud(
   // Use maybeSingle() (never single()) so a SELECT that returns 0 rows does NOT
   // throw PGRST116. We must capture the server-generated Supabase id here, since
   // playlist.track_order is built from these returned ids (not local IndexedDB ids).
-  const { data: inserted, error } = await supabase
+  let { data: inserted, error } = await supabase
     .from('tracks')
     .insert(trackInsert)
     .select('*')
     .maybeSingle()
 
+  // Local ids are reused after a download and when a broken row is re-uploaded,
+  // so the insert can collide with an existing row. The object was just written
+  // to the same key that row points at, so deleting it here destroyed the audio.
+  if (error?.code === '23505' && trackInsert.id) {
+    const { data: existingRow } = await supabase
+      .from('tracks')
+      .select('id, playlist_id')
+      .eq('id', trackInsert.id as string)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (existingRow && existingRow.playlist_id === playlistId) {
+      const { user_id: _u, playlist_id: _p, id: _i, ...fields } = trackInsert
+      ;({ data: inserted, error } = await supabase
+        .from('tracks')
+        .update(fields)
+        .eq('id', existingRow.id)
+        .eq('user_id', user.id)
+        .select('*')
+        .maybeSingle())
+    } else {
+      const { id: _i, ...withoutId } = trackInsert
+      ;({ data: inserted, error } = await supabase
+        .from('tracks')
+        .insert(withoutId)
+        .select('*')
+        .maybeSingle())
+    }
+  }
+
   if (error) {
     console.error('[v0] uploadTrackToCloud: Supabase track insert FAILED for', track.title, '-', error.message)
-    // Clean up R2 file
-    await deleteTrackFromR2(r2Key)
+    await deleteR2ObjectIfUnreferenced(supabase, user.id, r2Key)
     return null
   }
 
@@ -510,12 +539,28 @@ export async function uploadTrackToCloud(
 
   if (!row) {
     console.error('[v0] uploadTrackToCloud: insert succeeded but could not resolve track id for', track.title)
-    await deleteTrackFromR2(r2Key)
+    await deleteR2ObjectIfUnreferenced(supabase, user.id, r2Key)
     return null
   }
 
   console.log('[v0] uploadTrackToCloud: Supabase track insert SUCCESS for', track.title, '-> id', row.id)
   return row
+}
+
+// Several rows can point at one R2 key (same track id + file name), so an object
+// is only removed when no row still references it.
+async function deleteR2ObjectIfUnreferenced(
+  supabase: NonNullable<ReturnType<typeof createClient>>,
+  userId: string,
+  key: string,
+): Promise<void> {
+  const { count, error } = await supabase
+    .from('tracks')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('storage_path', key)
+  if (error || (count ?? 0) > 0) return
+  await deleteTrackFromR2(key)
 }
 
 // Permanently delete a single track from the cloud from ANY platform (web +
@@ -1354,6 +1399,7 @@ export async function uploadPlaylistToCloud(
       console.log(`[v0] uploadPlaylistToCloud: ${brokenRows.length} cloud row(s) have no audio in R2 — re-uploading`)
     }
 
+    const uploadedPaths = new Set<string>()
     const totalTracks = localPlaylist.tracks.length
     let processed = 0
     options?.onProgress?.(0, totalTracks)
@@ -1405,6 +1451,7 @@ export async function uploadPlaylistToCloud(
       if (uploaded) {
         uploadedCount++
         trackOrder.push(uploaded.id)
+        if (uploaded.storage_path) uploadedPaths.add(uploaded.storage_path)
         // Record so duplicate local entries in the same batch aren't re-uploaded.
         existingTrackKeys.set(cloudTrackKey(track.title, track.fileName), uploaded.id)
       } else {
@@ -1461,9 +1508,20 @@ export async function uploadPlaylistToCloud(
     // just re-uploaded, and duplicates from earlier retries. Skipped when any
     // upload failed so nothing the user still needs is touched.
     if (failedCount === 0) {
-      const orphans = findOrphanTracks(sanitizeTrackOrder(trackOrder), existingCloudTracks || [])
+      const keptOrder = sanitizeTrackOrder(trackOrder)
+      const orphans = findOrphanTracks(keptOrder, existingCloudTracks || [])
+      const keptIds = new Set(keptOrder.map((id) => id.toLowerCase()))
+      const keptPaths = new Set(
+        (existingCloudTracks || [])
+          .filter((ct) => keptIds.has(ct.id.toLowerCase()) && ct.storage_path)
+          .map((ct) => ct.storage_path as string),
+      )
+      for (const path of uploadedPaths) keptPaths.add(path)
       for (const orphan of orphans) {
-        await deleteTrackFromCloudDirect(orphan.id, orphan.storage_path || null).catch(() => undefined)
+        // A re-uploaded track can share its key with the stale row it replaces;
+        // drop only the row then, or the fresh audio would be deleted with it.
+        const path = orphan.storage_path && !keptPaths.has(orphan.storage_path) ? orphan.storage_path : null
+        await deleteTrackFromCloudDirect(orphan.id, path).catch(() => undefined)
       }
       if (orphans.length > 0) {
         console.log(`[v0] uploadPlaylistToCloud: cleaned up ${orphans.length} stale cloud track(s)`)
