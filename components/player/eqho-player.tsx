@@ -214,6 +214,13 @@ import {
 import { ADD_MUSIC_BTN } from "@/lib/action-button-styles";
 import { PlayerVolumeControl } from "@/components/player/volume-visuals";
 
+type SignatureTrack = { title: string; fileName: string; file?: { name: string } | null };
+
+// Cloud track keys come from the R2 storage path, which is named after the real
+// File (file.name). Keying local tracks by the same name keeps a pushed playlist
+// from being reported as "modified" forever when its display fileName differs.
+const syncTrackKey = (t: SignatureTrack) => localTrackKey(t.title, t.file?.name || t.fileName);
+
 const uploads = [
   ["NDP Group Warm Up.mp3", "02:18", "Just now"],
   ["Tumble Pass 2.mp3", "01:47", "1 min ago"],
@@ -2539,10 +2546,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   //  - 'new'      => never uploaded                 => "Upload to Cloud"
   //  - 'modified' => in cloud but tracks differ     => "Push Updates"
   //  - 'synced'   => playlist + tracks match cloud   => blue "Synced", no upload button
-  const getPlaylistCloudStatus = (localPlaylist: { id: string; name: string; tracks: Array<{ title: string; fileName: string }> }): 'new' | 'modified' | 'synced' => {
+  const getPlaylistCloudStatus = (localPlaylist: { id: string; name: string; tracks: Array<SignatureTrack> }): 'new' | 'modified' | 'synced' => {
     const cloud = findCloudPlaylistFor(localPlaylist);
     if (!cloud) return 'new';
-    const localKeys = localPlaylist.tracks.map(t => localTrackKey(t.title, t.fileName));
+    const localKeys = localPlaylist.tracks.map(syncTrackKey);
     const cloudKeys = cloudSignatures[cloud.id] || [];
     const matches =
       localKeys.length === cloudKeys.length &&
@@ -3104,8 +3111,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
 
   // Signature of a local playlist's track identity + order, used to detect whether
   // a device download is still current ("Downloaded") or stale ("Update").
-  const playlistSignature = (pl: { tracks: Array<{ title: string; fileName: string }> }) =>
-    pl.tracks.map(t => localTrackKey(t.title, t.fileName)).join('|');
+  const playlistSignature = (pl: { tracks: Array<SignatureTrack> }) =>
+    pl.tracks.map(syncTrackKey).join('|');
 
   // Returns the Download-to-Device status for a left-list playlist.
   const getDeviceDownloadState = (
@@ -3581,7 +3588,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const local = savedPlaylistsRef.current.find((p) => p.id === localId);
     if (!local) return true;
     const startSignature = playlistSignature(local);
-    const localKeyOf = (t: { title: string; fileName: string }) => localTrackKey(t.title, t.fileName);
+    const localKeyOf = syncTrackKey;
     const cloudKeyOf = (t: CloudPlaylistTrack) => localTrackKey(t.title, t.storage_path || '');
     const localByKey = new Map(local.tracks.map((t) => [localKeyOf(t), t]));
     const cloudByKey = new Map(cloud.tracks.map((t) => [cloudKeyOf(t), t]));
@@ -3653,7 +3660,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           locals: savedPlaylistsRef.current.map((p) => ({
             id: p.id,
             name: p.name,
-            trackKeys: p.tracks.map((t) => localTrackKey(t.title, t.fileName)),
+            trackKeys: p.tracks.map(syncTrackKey),
           })),
           clouds: clouds.map((c) => ({
             id: c.id,
