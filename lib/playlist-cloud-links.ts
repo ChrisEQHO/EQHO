@@ -10,6 +10,9 @@ export interface CloudLink {
   cloudId: string
   cloudUpdatedAt: string
   localSignature: string
+  // Playlist name at the last sync, so a rename on this device is detected.
+  // Absent on links written before automatic sync; treated as "not renamed".
+  name?: string
   // Set when the user chose "Keep current version" for this cloud version, so
   // the same update isn't offered again until the cloud changes once more.
   dismissedCloudUpdatedAt?: string
@@ -32,6 +35,7 @@ export function parseCloudLinks(raw: string | null): CloudLinks {
           cloudId: v.cloudId,
           cloudUpdatedAt: v.cloudUpdatedAt,
           localSignature: v.localSignature,
+          ...(typeof v.name === 'string' ? { name: v.name } : {}),
           ...(typeof v.dismissedCloudUpdatedAt === 'string' ? { dismissedCloudUpdatedAt: v.dismissedCloudUpdatedAt } : {}),
         }
       }
