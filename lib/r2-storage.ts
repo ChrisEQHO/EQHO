@@ -415,8 +415,8 @@ export async function probeTrackAccess(
 ): Promise<{ ok: boolean; status: number; error?: string }> {
   try {
     const response = await fetch(
-      `${getApiBase()}/api/r2?action=download-url&key=${encodeURIComponent(key)}`,
-      { headers: await getAuthHeaders() },
+      `${getApiBase()}/api/r2?action=head&key=${encodeURIComponent(key)}`,
+      { headers: await getAuthHeaders(), cache: 'no-store' },
     )
     if (response.ok) return { ok: true, status: response.status }
     let error: string | undefined

@@ -835,6 +835,13 @@ export async function fetchPlaylistWithFilesDetailed(
       }
     }
 
+    // One retry for a transient transfer error (dropped connection, cold function)
+    // so a single hiccup doesn't fail the whole playlist download.
+    if (!file && track.storage_path) {
+      file = await downloadTrackFile(track.storage_path)
+      if (file) claimedKeys.add(track.storage_path)
+    }
+
     let invalid = false
     if (file) {
       const check = await validateAudioFile(file, track.file_size)
