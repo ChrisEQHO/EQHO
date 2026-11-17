@@ -134,6 +134,7 @@ import {
 } from "@/lib/cloud-library";
 import { formatBytes } from "@/lib/playlist-cloud-links";
 import { mergeName, mergeTrackKeys, planLibrarySync, signatureFromKeys } from "@/lib/library-sync";
+import { canMoveHiddenToBottom, moveHiddenToBottom } from "@/lib/queue-grouping";
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
@@ -192,6 +193,7 @@ import {
   Check,
   Loader2,
   RotateCcw,
+  ArrowDownToLine,
   Bell,
   Crown,
   CreditCard,
@@ -5722,6 +5724,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     });
   };
 
+  const hiddenCanMoveToBottom = canMoveHiddenToBottom(playlist, hiddenTrackIds);
+
+  // Session queue only: the saved library playlist and its cloud order are untouched.
+  // Per-track state (plays, targets, finished) is keyed by id, so only the
+  // current pointer needs re-aiming at the same queue entry.
+  const moveHiddenTracksToBottom = () => {
+    const anchorId = currentTrack?.id ?? playlist[currentIndex]?.id;
+    const next = moveHiddenToBottom(playlist, hiddenTrackIds);
+    if (next === playlist) return;
+    setPlaylist(next);
+    if (anchorId) {
+      const newIndex = next.findIndex((t) => t.id === anchorId);
+      if (newIndex >= 0) setCurrentIndex(newIndex);
+    }
+  };
+
   // Hide track from current session only (does not affect saved playlist or cloud)
   const hideTrackFromSession = (trackId: string) => {
     const track = playlist.find(t => t.id === trackId);
@@ -9667,9 +9685,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             {/* MIDDLE: UP NEXT (IN ORDER) */}
             <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-2">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 flex flex-col">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {playlist.length > 0 && (
                       <button
                         onClick={resetPlaylist}
@@ -9701,6 +9719,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       Clear Playlist
+                    </button>
+                    <button
+                      type="button"
+                      onClick={moveHiddenTracksToBottom}
+                      disabled={!hiddenCanMoveToBottom}
+                      title={hiddenTrackIds.size === 0 ? "No hidden tracks to move" : hiddenCanMoveToBottom ? "Group hidden tracks under the included ones" : "Hidden tracks are already at the bottom"}
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/70 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >
+                      <ArrowDownToLine size={12} aria-hidden="true" />
+                      Move hidden to bottom
                     </button>
                     {hiddenTrackIds.size > 0 && (
                       <button
