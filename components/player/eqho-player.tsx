@@ -2592,14 +2592,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const result = await syncPlaylistToCloud({
         id: localPlaylist.id,
         name: localPlaylist.name,
-        tracks: localPlaylist.tracks.map(t => ({
-          id: t.id,
-          title: t.title,
-          fileName: t.fileName,
-          durationSeconds: t.durationSeconds,
-          uploadedAt: t.uploadedAt,
-          file: t.file!,
-        })),
+        tracks: await resolveTracksForPush(localPlaylist.tracks),
       }, {
         cloudPlaylistId: linkedCloudId,
         onProgress: (completed, total) => {
@@ -2753,14 +2746,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         const result = await syncPlaylistToCloud({
           id: pl.id,
           name: pl.name,
-          tracks: pl.tracks.map((t) => ({
-            id: t.id,
-            title: t.title,
-            fileName: t.fileName,
-            durationSeconds: t.durationSeconds,
-            uploadedAt: t.uploadedAt,
-            file: t.file!,
-          })),
+          tracks: await resolveTracksForPush(pl.tracks),
         });
 
         // Requirement #5: partial failure counts as unsuccessful.
@@ -3526,7 +3512,8 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const local = savedPlaylistsRef.current.find((p) => p.id === localId);
     if (!local) return true;
     // A track with no audio on this device can't be uploaded; pushing would drop it from the cloud copy.
-    if (local.tracks.some((t) => !t.file)) return false;
+    const resolvedTracks = await resolveTracksForPush(local.tracks);
+    if (resolvedTracks.some((t) => !t.file)) return false;
     const signature = playlistSignature(local);
     const linkedCloudId = cloudLinksRef.current[localId]?.cloudId;
     setAutoSyncFor([localId], 'syncing');
@@ -3535,14 +3522,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const result = await syncPlaylistToCloud({
         id: local.id,
         name: local.name,
-        tracks: local.tracks.map((t) => ({
-          id: t.id,
-          title: t.title,
-          fileName: t.fileName,
-          durationSeconds: t.durationSeconds,
-          uploadedAt: t.uploadedAt,
-          file: t.file!,
-        })),
+        tracks: resolvedTracks,
       }, {
         cloudPlaylistId: linkedCloudId,
         onProgress: (completed, total) => {
@@ -4400,6 +4380,27 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       }
     }
     return undefined;
+  };
+
+  // Every push path must resolve audio this way. Passing `t.file` straight from
+  // React state sent no audio whenever the live File reference was lost (after a
+  // reload, or when the track is stored as a Blob), so those pushes failed.
+  const resolveTracksForPush = async (tracks: any[]) => {
+    const needsLookup = tracks.some((t) => !(t.file instanceof File));
+    const idbFiles = needsLookup
+      ? await buildIndexedDbFileMap()
+      : { byId: new Map<string, File>(), byName: new Map<string, File>() };
+    return Promise.all(
+      tracks.map(async (t) => ({
+        id: t.id,
+        title: t.title,
+        fileName: t.fileName,
+        durationSeconds: t.durationSeconds,
+        uploadedAt: t.uploadedAt,
+        // May be undefined at runtime; the uploader reports such tracks as failed.
+        file: (await resolveTrackFileForSync(t, idbFiles)) as File,
+      })),
+    );
   };
 
   // Build sync-ready playlists using EXACTLY the same source that renders the

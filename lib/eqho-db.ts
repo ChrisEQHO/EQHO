@@ -278,9 +278,28 @@ export const saveSavedPlaylistsWithTracks = async (playlists: SavedPlaylistWithT
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SAVED_PLAYLISTS_STORE, "readwrite");
     const store = tx.objectStore(SAVED_PLAYLISTS_STORE);
-    
-    store.clear();
-    playlists.forEach((pl) => store.put(pl));
+
+    // Read before clearing: a track whose in-memory File was lost would otherwise
+    // be rewritten without audio, permanently erasing it so it can never be pushed.
+    const existingRequest = store.getAll();
+    existingRequest.onsuccess = () => {
+      const storedFiles = new Map<string, File>();
+      for (const pl of (existingRequest.result || []) as SavedPlaylistWithTracks[]) {
+        for (const t of pl.tracks || []) {
+          if (t?.id && t.file) storedFiles.set(t.id, t.file);
+        }
+      }
+      store.clear();
+      playlists.forEach((pl) =>
+        store.put({
+          ...pl,
+          tracks: pl.tracks.map((t) => {
+            const stored = !t.file ? storedFiles.get(t.id) : undefined;
+            return stored ? { ...t, file: stored } : t;
+          }),
+        }),
+      );
+    };
 
     tx.oncomplete = () => {
       const totalTracks = playlists.reduce((sum, pl) => sum + pl.tracks.length, 0);
