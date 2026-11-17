@@ -3,11 +3,17 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
   PutBucketCorsCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+
+function isMissingObjectError(err: unknown): boolean {
+  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } }
+  return e?.name === 'NoSuchKey' || e?.name === 'NotFound' || e?.Code === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404
+}
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { requirePlayerEntitlement } from '@/lib/entitlement-server'
@@ -202,6 +208,21 @@ export async function GET(request: NextRequest) {
     // browser fetching the R2 presigned URL directly, which fails when the R2
     // bucket has no CORS rule for the app origin (the common cause of cloud
     // restore returning 0 playable tracks). The server streams the file back.
+    // Presigning never checks that an object exists, so failure classification
+    // needs a real existence check to tell "missing audio" from other errors.
+    if (action === 'head' && key) {
+      if (!key.startsWith(`users/${user.id}/`)) {
+        return json({ error: 'Access denied' }, 403)
+      }
+      try {
+        const head = await client.send(new HeadObjectCommand({ Bucket: getBucketName(), Key: key }))
+        return json({ exists: true, size: head.ContentLength ?? null })
+      } catch (err) {
+        if (isMissingObjectError(err)) return json({ exists: false, error: 'Object not found' }, 404)
+        throw err
+      }
+    }
+
     if (action === 'download' && key) {
       if (!key.startsWith(`users/${user.id}/`)) {
         return json({ error: 'Access denied' }, 403)
@@ -212,7 +233,13 @@ export async function GET(request: NextRequest) {
         Key: key,
       })
 
-      const obj = await client.send(command)
+      let obj
+      try {
+        obj = await client.send(command)
+      } catch (err) {
+        if (isMissingObjectError(err)) return json({ error: 'Object not found' }, 404)
+        throw err
+      }
       if (!obj.Body) {
         return json({ error: 'Object not found' }, 404)
       }
