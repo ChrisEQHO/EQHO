@@ -1370,9 +1370,13 @@ export async function uploadPlaylistToCloud(
 
       // Skip tracks without files (can't upload audio). Note: we never require
       // file_url/storage_path on the local track — only the actual audio File.
+      // A new track with no audio on this device can't reach the cloud. Count it as
+      // failed so the push isn't reported as successful while other devices never
+      // receive the track (and so orphan cleanup doesn't run on an incomplete set).
       if (!track.file) {
-        console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: no audio File resolved locally`)
-        skippedCount++
+        console.log(`[v0] uploadPlaylistToCloud: FAIL "${track.title}" — reason: no audio File resolved locally`)
+        failedCount++
+        failedUploads.push({ trackId: track.id, title: track.title, reason: 'missing' })
         reportProgress()
         continue
       }
