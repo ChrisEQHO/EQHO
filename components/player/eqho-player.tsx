@@ -115,6 +115,7 @@ import {
   CLOUD_LINKS_STORAGE_KEY,
   deriveCloudDeviceStatus,
   deriveLocalCloudStatus,
+  isNewerTimestamp,
   parseCloudLinks,
   resolveCloudForLocal,
   resolveLocalForCloud,
@@ -214,7 +215,7 @@ import {
 import { ADD_MUSIC_BTN } from "@/lib/action-button-styles";
 import { PlayerVolumeControl } from "@/components/player/volume-visuals";
 
-type SignatureTrack = { title: string; fileName: string; file?: { name: string } | null };
+type SignatureTrack = { title: string; fileName: string; file?: { name: string; size?: number } | null };
 
 // Cloud track keys come from the R2 storage path, which is named after the real
 // File (file.name). Keying local tracks by the same name keeps a pushed playlist
@@ -2554,7 +2555,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
     const matches =
       localKeys.length === cloudKeys.length &&
       localKeys.every((k, i) => k === cloudKeys[i]);
-    return matches ? 'synced' : 'modified';
+    if (!matches) return 'modified';
+    // Same title + file name but different bytes means the song was replaced
+    // here. Skip when the cloud is newer than this device's last sync: then the
+    // cloud holds the new edit and the auto-sync pull will bring it down.
+    const cloudChangedElsewhere = isNewerTimestamp(cloud.updated_at, cloudLinks[localPlaylist.id]?.cloudUpdatedAt);
+    if (!cloudChangedElsewhere && cloud.tracks.length === localPlaylist.tracks.length) {
+      const audioReplaced = localPlaylist.tracks.some((t, i) => {
+        const localSize = t.file?.size;
+        const cloudSize = cloud.tracks[i]?.fileSize;
+        return !!localSize && !!cloudSize && localSize !== cloudSize;
+      });
+      if (audioReplaced) return 'modified';
+    }
+    return 'synced';
   };
 
   const handleSyncPlaylistToCloud = async (playlistId: string) => {

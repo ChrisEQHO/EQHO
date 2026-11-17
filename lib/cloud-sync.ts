@@ -1366,7 +1366,7 @@ export async function uploadPlaylistToCloud(
     // errors on non-UUID local ids. Local playlist data is the source of truth.
     const { data: existingCloudTracks, error: existingTracksError } = await supabase
       .from('tracks')
-      .select('id, title, storage_path')
+      .select('id, title, storage_path, file_size')
       .eq('playlist_id', existingPlaylist.id)
       .eq('user_id', user.id)
 
@@ -1388,12 +1388,14 @@ export async function uploadPlaylistToCloud(
     const r2Listing = await listPlaylistTracksFromR2Strict(existingPlaylist.id)
     const brokenRows: Array<{ id: string; storage_path: string | null }> = []
     const existingTrackKeys = new Map<string, string>() // identity key -> cloud track id
+    const existingFileSizes = new Map<string, number>() // cloud track id -> stored file_size
     for (const ct of existingCloudTracks || []) {
       if (r2Listing && !matchR2ObjectForTrack(ct, r2Listing)) {
         brokenRows.push(ct)
         continue
       }
       existingTrackKeys.set(cloudTrackKey(ct.title, ct.storage_path || ''), ct.id)
+      if (typeof ct.file_size === 'number' && ct.file_size > 0) existingFileSizes.set(ct.id, ct.file_size)
     }
     if (brokenRows.length > 0) {
       console.log(`[v0] uploadPlaylistToCloud: ${brokenRows.length} cloud row(s) have no audio in R2 — re-uploading`)
@@ -1413,7 +1415,15 @@ export async function uploadPlaylistToCloud(
       const existingId =
       existingTrackKeys.get(cloudTrackKey(track.title, track.fileName)) ||
       (track.file?.name ? existingTrackKeys.get(cloudTrackKey(track.title, track.file.name)) : undefined)
-      if (existingId) {
+      // Title + file name stay the same when a song is replaced with a new edit,
+      // so a differing byte size means the audio changed and must be re-uploaded.
+      // The stale row then drops out of track_order and is cleaned up below.
+      const cloudSize = existingId ? existingFileSizes.get(existingId) : undefined
+      const audioReplaced = !!existingId && !!track.file && cloudSize !== undefined && track.file.size !== cloudSize
+      if (audioReplaced) {
+        console.log(`[v0] uploadPlaylistToCloud: REPLACE "${track.title}" — audio changed (${cloudSize} -> ${track.file!.size} bytes)`)
+      }
+      if (existingId && !audioReplaced) {
         console.log(`[v0] uploadPlaylistToCloud: SKIP "${track.title}" — reason: already in cloud`)
         trackOrder.push(existingId)
         skippedCount++
