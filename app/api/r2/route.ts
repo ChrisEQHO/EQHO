@@ -102,6 +102,12 @@ function createR2Client(): S3Client | null {
   return new S3Client({
     region: 'auto',
     endpoint,
+    // AWS SDK >= 3.729 signs presigned PUT URLs with a default CRC32 checksum of
+    // an EMPTY body (x-amz-checksum-crc32=AAAAAA==). R2 then rejects every real
+    // browser upload as a checksum mismatch, forcing the ~4.5 MB-capped server
+    // fallback — so only short tracks synced and longer playlists failed to push.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
     credentials: {
       accessKeyId: accessKeyId!,
       secretAccessKey: secretAccessKey!,

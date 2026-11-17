@@ -109,6 +109,9 @@ export async function uploadTrackToR2(
     })
 
     if (!response.ok) {
+      if (response.status === 413) {
+        return { success: false, error: `"${metadata.title}" is too large for the fallback upload (direct upload failed first).` }
+      }
       let message = 'Upload failed'
       try { message = (await response.json())?.error || message } catch {}
       return { success: false, error: message }
