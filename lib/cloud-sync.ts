@@ -119,11 +119,19 @@ export async function checkProStatus(): Promise<boolean> {
 // =====================
 
 export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
+  return (await fetchCloudPlaylistsStrict()) ?? []
+}
+
+// Returns null when the library could not be read completely (signed out,
+// offline, query error). Automatic sync must tell "the cloud is empty" apart
+// from "the request failed", or a failed fetch would look like every playlist
+// was deleted on another device.
+export async function fetchCloudPlaylistsStrict(): Promise<CloudPlaylist[] | null> {
   const supabase = createClient()
-  if (!supabase) return []
+  if (!supabase) return null
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  if (!user) return null
 
   // Explicit owner filter on top of RLS: only this user's playlists are requested.
   const { data, error } = await supabase
@@ -134,7 +142,7 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
 
   if (error) {
     console.error('Error fetching playlists:', error)
-    return []
+    return null
   }
 
   const playlists = (data || []) as Omit<CloudPlaylist, 'tracks'>[]
@@ -150,6 +158,7 @@ export async function fetchCloudPlaylists(): Promise<CloudPlaylist[]> {
 
   if (tracksError) {
     console.error('Error fetching tracks for cloud playlists:', tracksError)
+    return null
   }
 
   const tracksByPlaylist = new Map<string, CloudPlaylistTrack[]>()

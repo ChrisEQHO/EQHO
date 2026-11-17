@@ -87,6 +87,7 @@ import {
   fetchCloudPlaylistSignatures,
   localTrackKey,
   deleteTrackFromCloudDirect,
+  fetchCloudPlaylistsStrict,
   type CloudPlaylist,
   type CloudPlaylistTrack,
   type SyncStatus 
@@ -132,6 +133,8 @@ import {
   type TrackFailure,
 } from "@/lib/cloud-library";
 import { formatBytes } from "@/lib/playlist-cloud-links";
+import { mergeName, mergeTrackKeys, planLibrarySync, signatureFromKeys } from "@/lib/library-sync";
+import { canMoveHiddenToBottom, moveHiddenToBottom } from "@/lib/queue-grouping";
 import { ContactPage } from "@/components/contact-page";
 import Link from "next/link";
 import {
@@ -190,6 +193,7 @@ import {
   Check,
   Loader2,
   RotateCcw,
+  ArrowDownToLine,
   Bell,
   Crown,
   CreditCard,
@@ -1134,6 +1138,18 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const [playlistPanelTab, setPlaylistPanelTab] = useState<PlaylistPanelTab>('device');
   const [cloudLinks, setCloudLinks] = useState<CloudLinks>({});
   const cloudLinksLoadedRef = useRef(false);
+  // Automatic sync reads these refs, which are assigned during render so they
+  // only flip to "ready" in the same render that holds the loaded data. A run
+  // against a half-loaded library would read every playlist as deleted.
+  const cloudLinksRef = useRef<CloudLinks>({});
+  cloudLinksRef.current = cloudLinks;
+  const [cloudLinksReady, setCloudLinksReady] = useState(false);
+  const cloudLinksReadyRef = useRef(false);
+  cloudLinksReadyRef.current = cloudLinksReady;
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const libraryLoadedRef = useRef(false);
+  libraryLoadedRef.current = libraryLoaded;
+  const [autoSyncState, setAutoSyncState] = useState<Record<string, 'syncing' | 'waiting'>>({});
   const [uploadProgressById, setUploadProgressById] = useState<Record<string, number>>({});
   const [cloudDeviceDownloads, setCloudDeviceDownloads] = useState<Record<string, { state: 'downloading' | 'failed'; progress: number }>>({});
   // Failed-track metadata per local playlist (or per cloud id when nothing was
@@ -2409,6 +2425,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           }));
           setSavedPlaylists(restored);
         }
+        // Only after a successful read: if IndexedDB failed, syncing would treat
+        // the empty in-memory library as "everything deleted on this device".
+        setLibraryLoaded(true);
       } catch (error) {
         console.error("Failed to load saved playlists:", error);
       }
@@ -3225,6 +3244,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       setCloudLinks(parseCloudLinks(window.localStorage.getItem(CLOUD_LINKS_STORAGE_KEY)));
     } catch { /* storage unavailable: links stay in memory only */ }
     cloudLinksLoadedRef.current = true;
+    setCloudLinksReady(true);
   }, [demoMode]);
 
   useEffect(() => {
@@ -3289,13 +3309,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   // Download a cloud playlist (metadata + every audio file via the signed R2
   // route) into the existing savedPlaylists/IndexedDB storage. Nothing is
   // written locally unless every track downloaded and the IndexedDB write succeeded.
-  const downloadCloudPlaylistToDevice = async (cloudId: string, mode: 'new' | 'replace' | 'save-both') => {
-    if (cloudDeviceDownloads[cloudId]?.state === 'downloading') return;
-    const cloud = cloudPlaylists.find((c) => c.id === cloudId);
-    if (!cloud) return;
+  // `silent` is used by automatic sync: no success banner, and a replace is
+  // abandoned if the local playlist was edited while the download ran
+  // (`expectedSignature`), so a background pull never discards a fresh edit.
+  const downloadCloudPlaylistToDevice = async (
+    cloudId: string,
+    mode: 'new' | 'replace' | 'save-both',
+    opts: { cloud?: CloudPlaylist; silent?: boolean; expectedSignature?: string } = {},
+  ): Promise<boolean> => {
+    if (cloudDeviceDownloads[cloudId]?.state === 'downloading') return false;
+    const cloud = opts.cloud ?? cloudPlaylists.find((c) => c.id === cloudId);
+    if (!cloud) return false;
     if (!navigator.onLine) {
-      setPanelNotice({ tone: 'error', text: "You're offline. Reconnect to download from EQHO Cloud." });
-      return;
+      if (!opts.silent) setPanelNotice({ tone: 'error', text: "You're offline. Reconnect to download from EQHO Cloud." });
+      return false;
     }
 
     const markFailed = (message: string) => {
@@ -3309,10 +3336,10 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       const message = `Not enough space on this device. ${cloud.name} needs about ${formatBytes(storage.requiredBytes)}, ${formatBytes(storage.availableBytes) ?? '0 B'} is free. Free up space, then try again.`;
       markFailed(message);
       setPanelNotice({ tone: 'error', text: message });
-      return;
+      return false;
     }
 
-    setPanelNotice(null);
+    if (!opts.silent) setPanelNotice(null);
     setCloudDownloadFailures((prev) => {
       const next = { ...prev };
       delete next[cloudId];
@@ -3341,7 +3368,20 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
         );
       }
 
-      const existingLocal = resolveLocalForCloud(cloud, savedPlaylistsRef.current, cloudLinks);
+      const existingLocal = resolveLocalForCloud(cloud, savedPlaylistsRef.current, cloudLinksRef.current);
+      if (
+        mode === 'replace' &&
+        existingLocal &&
+        opts.expectedSignature !== undefined &&
+        playlistSignature(existingLocal) !== opts.expectedSignature
+      ) {
+        setCloudDeviceDownloads((prev) => {
+          const next = { ...prev };
+          delete next[cloudId];
+          return next;
+        });
+        return false;
+      }
       const takenIds = new Set(savedPlaylistsRef.current.map((p) => p.id));
       const targetId =
         mode === 'replace' && existingLocal
@@ -3406,6 +3446,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           cloudId,
           cloudUpdatedAt: cloud.updated_at,
           localSignature: playlistSignature(downloaded),
+          name: downloaded.name,
         };
         return next;
       });
@@ -3422,6 +3463,7 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
           : null,
       );
       trackEvent("playlist_download_completed");
+      if (opts.silent && failures.length === 0) return true;
       setPanelNotice(
         failures.length > 0
           ? {
@@ -3430,18 +3472,321 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             }
           : { tone: 'success', text: `${restored.name} is downloaded and offline ready.` },
       );
+      return failures.length === 0;
     } catch (error) {
       console.error('[v0] Cloud playlist download failed:', error);
       const downloadErrorCategory = categorizeError(error);
       if (downloadErrorCategory) trackEvent("cloud_sync_failed", { direction: "download", error_category: downloadErrorCategory });
       const reasonText = error instanceof Error ? error.message : 'The playlist could not be downloaded.';
       markFailed(reasonText);
-      setPanelNotice({
-        tone: 'error',
-        text: `Download failed for ${cloud.name}: ${reasonText} Nothing was changed on this device.`,
+      if (!opts.silent) {
+        setPanelNotice({
+          tone: 'error',
+          text: `Download failed for ${cloud.name}: ${reasonText} Nothing was changed on this device.`,
+        });
+      }
+      return false;
+    }
+  };
+
+  // ---- Automatic library sync ----
+  // Keeps every signed-in device's library in step with EQHO Cloud with no sync
+  // button: edits here are pushed, edits elsewhere are pulled, deletions
+  // propagate. What to do is decided by planLibrarySync (lib/library-sync).
+  const autoSyncEnabled = cloudPanelAvailable;
+  const autoSyncRunningRef = useRef(false);
+  const autoSyncAgainRef = useRef(false);
+  // A cloud version that failed to download is not retried on every pass.
+  const autoPullBackoffRef = useRef<Record<string, { version: string; at: number }>>({});
+
+  const setAutoSyncFor = (ids: string[], state: 'syncing' | 'waiting' | null) =>
+    setAutoSyncState((prev) => {
+      const next = { ...prev };
+      for (const id of ids) {
+        if (state) next[id] = state;
+        else delete next[id];
+      }
+      return next;
+    });
+
+  // Updates both the ref (read by the rest of this pass) and React state.
+  const updateLinks = (fn: (prev: CloudLinks) => CloudLinks) => {
+    cloudLinksRef.current = fn(cloudLinksRef.current);
+    setCloudLinks((prev) => fn(prev));
+  };
+
+  const autoPushPlaylist = async (localId: string): Promise<boolean> => {
+    const local = savedPlaylistsRef.current.find((p) => p.id === localId);
+    if (!local) return true;
+    // A track with no audio on this device can't be uploaded; pushing would drop it from the cloud copy.
+    if (local.tracks.some((t) => !t.file)) return false;
+    const signature = playlistSignature(local);
+    const linkedCloudId = cloudLinksRef.current[localId]?.cloudId;
+    setAutoSyncFor([localId], 'syncing');
+    setUploadProgressById((prev) => ({ ...prev, [localId]: 0 }));
+    try {
+      const result = await syncPlaylistToCloud({
+        id: local.id,
+        name: local.name,
+        tracks: local.tracks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          fileName: t.fileName,
+          durationSeconds: t.durationSeconds,
+          uploadedAt: t.uploadedAt,
+          file: t.file!,
+        })),
+      }, {
+        cloudPlaylistId: linkedCloudId,
+        onProgress: (completed, total) => {
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+          setUploadProgressById((prev) => ({ ...prev, [localId]: pct }));
+        },
+      });
+      const row = result.cloudPlaylist;
+      if (result.success && (result.failedTracks ?? 0) === 0 && row) {
+        // The signature captured at the start: an edit made during the upload
+        // still differs from it, so the next pass pushes that edit too.
+        updateLinks((prev) => ({
+          ...prev,
+          [localId]: { cloudId: row.id, cloudUpdatedAt: row.updated_at, localSignature: signature, name: local.name },
+        }));
+        setPendingFor(localId, null);
+        return true;
+      }
+      if (result.failures && result.failures.length > 0) {
+        setPendingFor(localId, {
+          direction: 'upload',
+          cloudId: row?.id ?? linkedCloudId ?? '',
+          failures: result.failures,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return false;
+    } catch (error) {
+      console.error('[v0] Automatic playlist upload failed:', error);
+      return false;
+    } finally {
+      setUploadProgressById((prev) => {
+        const next = { ...prev };
+        delete next[localId];
+        return next;
       });
     }
   };
+
+  // Both sides changed since the last sync: combine them (removals on either
+  // side win, additions from both are kept), save locally, then push.
+  const autoMergePlaylist = async (localId: string, cloud: CloudPlaylist, baselineKeys: string[]): Promise<boolean> => {
+    const local = savedPlaylistsRef.current.find((p) => p.id === localId);
+    if (!local) return true;
+    const startSignature = playlistSignature(local);
+    const localKeyOf = (t: { title: string; fileName: string }) => localTrackKey(t.title, t.fileName);
+    const cloudKeyOf = (t: CloudPlaylistTrack) => localTrackKey(t.title, t.storage_path || '');
+    const localByKey = new Map(local.tracks.map((t) => [localKeyOf(t), t]));
+    const cloudByKey = new Map(cloud.tracks.map((t) => [cloudKeyOf(t), t]));
+    const cloudKeys = cloud.tracks.map(cloudKeyOf);
+    const mergedKeys = mergeTrackKeys(baselineKeys, local.tracks.map(localKeyOf), cloudKeys);
+
+    const missing = mergedKeys.filter((k) => !localByKey.has(k)).map((k) => cloudByKey.get(k)!).filter(Boolean);
+    const downloadedById = new Map<string, Track>();
+    if (missing.length > 0) {
+      setAutoSyncFor([localId], 'syncing');
+      const { playlist: restored, failures } = await fetchPlaylistWithFilesDetailed(cloud.id, undefined, {
+        onlyTrackIds: missing.map((t) => t.id),
+      });
+      if (!restored || failures.length > 0) return false;
+      for (const t of restored.tracks) {
+        downloadedById.set(t.id, {
+          id: t.id,
+          title: t.title,
+          sub: "Downloaded Track",
+          duration: formatDuration(t.durationSeconds),
+          fileName: t.fileName,
+          url: URL.createObjectURL(t.file),
+          durationSeconds: t.durationSeconds,
+          uploadedAt: t.uploadedAt,
+          file: t.file,
+        } as Track);
+      }
+    }
+
+    const latest = savedPlaylistsRef.current.find((p) => p.id === localId);
+    if (!latest || playlistSignature(latest) !== startSignature) return false;
+    const mergedTracks = mergedKeys
+      .map((k) => localByKey.get(k) ?? downloadedById.get(cloudByKey.get(k)?.id ?? ''))
+      .filter((t): t is Track => !!t);
+    if (mergedTracks.length !== mergedKeys.length) return false;
+
+    const merged = {
+      ...latest,
+      name: mergeName(latest.name, cloud.name, cloudLinksRef.current[localId]?.name),
+      tracks: mergedTracks,
+    };
+    savedPlaylistsRef.current = savedPlaylistsRef.current.map((p) => (p.id === localId ? merged : p));
+    setSavedPlaylists((prev) => prev.map((p) => (p.id === localId ? merged : p)));
+    // The cloud version becomes the baseline, so the merged result reads as this
+    // device's change and is pushed next.
+    updateLinks((prev) => ({
+      ...prev,
+      [localId]: { cloudId: cloud.id, cloudUpdatedAt: cloud.updated_at, localSignature: signatureFromKeys(cloudKeys), name: cloud.name },
+    }));
+    return autoPushPlaylist(localId);
+  };
+
+  const runLibrarySync = async () => {
+    if (!autoSyncEnabled || !libraryLoadedRef.current || !cloudLinksReadyRef.current) return;
+    if (!navigator.onLine) return;
+    if (autoSyncRunningRef.current) {
+      autoSyncAgainRef.current = true;
+      return;
+    }
+    autoSyncRunningRef.current = true;
+    try {
+      do {
+        autoSyncAgainRef.current = false;
+        const clouds = await fetchCloudPlaylistsStrict();
+        if (!clouds) break;
+        setCloudPlaylists(clouds);
+        const cloudById = new Map(clouds.map((c) => [c.id, c]));
+        const actions = planLibrarySync({
+          locals: savedPlaylistsRef.current.map((p) => ({
+            id: p.id,
+            name: p.name,
+            trackKeys: p.tracks.map((t) => localTrackKey(t.title, t.fileName)),
+          })),
+          clouds: clouds.map((c) => ({
+            id: c.id,
+            name: c.name,
+            updated_at: c.updated_at,
+            trackKeys: c.tracks.map((t) => localTrackKey(t.title, t.storage_path || '')),
+          })),
+          links: cloudLinksRef.current,
+          canPush: !isMobileBuild,
+        });
+
+        for (const action of actions) {
+          if (!navigator.onLine) break;
+          switch (action.type) {
+            case 'push': {
+              const ok = await autoPushPlaylist(action.localId);
+              setAutoSyncFor([action.localId], ok ? null : 'waiting');
+              break;
+            }
+            case 'merge': {
+              const cloud = cloudById.get(action.cloudId);
+              if (!cloud) break;
+              const ok = await autoMergePlaylist(action.localId, cloud, action.baselineKeys);
+              setAutoSyncFor([action.localId], ok ? null : 'waiting');
+              break;
+            }
+            case 'pull-replace':
+            case 'pull-new': {
+              const cloud = cloudById.get(action.cloudId);
+              if (!cloud) break;
+              const backoff = autoPullBackoffRef.current[cloud.id];
+              if (backoff && backoff.version === cloud.updated_at && Date.now() - backoff.at < 5 * 60_000) break;
+              const local = action.type === 'pull-replace'
+                ? savedPlaylistsRef.current.find((p) => p.id === action.localId)
+                : undefined;
+              if (local) setAutoSyncFor([local.id], 'syncing');
+              const ok = await downloadCloudPlaylistToDevice(cloud.id, action.type === 'pull-replace' ? 'replace' : 'new', {
+                cloud,
+                silent: true,
+                expectedSignature: local ? playlistSignature(local) : undefined,
+              });
+              if (local) setAutoSyncFor([local.id], ok ? null : 'waiting');
+              if (ok) delete autoPullBackoffRef.current[cloud.id];
+              else autoPullBackoffRef.current[cloud.id] = { version: cloud.updated_at, at: Date.now() };
+              break;
+            }
+            case 'remove-local': {
+              savedPlaylistsRef.current = savedPlaylistsRef.current.filter((p) => p.id !== action.localId);
+              setSavedPlaylists((prev) => prev.filter((p) => p.id !== action.localId));
+              updateLinks((prev) => {
+                const next = { ...prev };
+                delete next[action.localId];
+                return next;
+              });
+              setPendingFor(action.localId, null);
+              setAutoSyncFor([action.localId], null);
+              break;
+            }
+            case 'delete-cloud': {
+              const result = await deleteCloudPlaylist(action.cloudId);
+              if (result.success) {
+                updateLinks((prev) => {
+                  const next = { ...prev };
+                  delete next[action.localId];
+                  return next;
+                });
+                setCloudPlaylists((prev) => prev.filter((c) => c.id !== action.cloudId));
+              }
+              break;
+            }
+            case 'drop-link': {
+              updateLinks((prev) => {
+                const next = { ...prev };
+                delete next[action.localId];
+                return next;
+              });
+              break;
+            }
+          }
+        }
+      } while (autoSyncAgainRef.current);
+    } catch (error) {
+      console.error('[v0] Automatic library sync failed:', error);
+    } finally {
+      autoSyncRunningRef.current = false;
+    }
+  };
+
+  const runLibrarySyncRef = useRef(runLibrarySync);
+  runLibrarySyncRef.current = runLibrarySync;
+  const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleLibrarySync = (delayMs: number) => {
+    if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
+    autoSyncTimerRef.current = setTimeout(() => {
+      autoSyncTimerRef.current = null;
+      void runLibrarySyncRef.current();
+    }, delayMs);
+  };
+
+  // Every local edit (create, rename, add, remove, reorder, delete) changes
+  // savedPlaylists; a short debounce batches bursts such as a drag reorder.
+  useEffect(() => {
+    if (!autoSyncEnabled || !libraryLoaded || !cloudLinksReady) return;
+    scheduleLibrarySync(1500);
+  }, [autoSyncEnabled, libraryLoaded, cloudLinksReady, savedPlaylists]);
+
+  // Pick up other devices' changes: on return to the app, on reconnect, via
+  // Supabase Realtime when it is enabled, and a periodic poll as the fallback.
+  useEffect(() => {
+    if (!autoSyncEnabled || !user) return;
+    const kick = () => scheduleLibrarySync(300);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+    window.addEventListener('online', kick);
+    window.addEventListener('focus', kick);
+    document.addEventListener('visibilitychange', onVisible);
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === 'visible') kick();
+    }, 30_000);
+    const client = createClient();
+    const channel = client
+      ?.channel(`library-sync-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'playlists', filter: `user_id=eq.${user.id}` }, kick)
+      .subscribe();
+    return () => {
+      window.removeEventListener('online', kick);
+      window.removeEventListener('focus', kick);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(poll);
+      if (client && channel) void client.removeChannel(channel);
+    };
+  }, [autoSyncEnabled, user?.id]);
 
   // Re-downloads only the tracks that failed last time and slots them back
   // into their original positions; tracks already on the device are untouched.
@@ -3654,7 +3999,12 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
   const localPanelRows: LocalPlaylistRow[] = savedPlaylists.map((pl) => {
     const push = pushStatus[pl.id];
     const status = deriveLocalCloudStatus({
-      uploadState: push === 'pushing' || syncingPlaylistId === pl.id ? 'uploading' : push === 'failed' ? 'failed' : undefined,
+      uploadState:
+        push === 'pushing' || syncingPlaylistId === pl.id || autoSyncState[pl.id] === 'syncing'
+          ? 'uploading'
+          : push === 'failed'
+            ? 'failed'
+            : undefined,
       cloudMatched: !!findCloudPlaylistFor(pl),
       link: cloudLinks[pl.id],
       localSignature: playlistSignature(pl),
@@ -5372,6 +5722,22 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
       });
       return next;
     });
+  };
+
+  const hiddenCanMoveToBottom = canMoveHiddenToBottom(playlist, hiddenTrackIds);
+
+  // Session queue only: the saved library playlist and its cloud order are untouched.
+  // Per-track state (plays, targets, finished) is keyed by id, so only the
+  // current pointer needs re-aiming at the same queue entry.
+  const moveHiddenTracksToBottom = () => {
+    const anchorId = currentTrack?.id ?? playlist[currentIndex]?.id;
+    const next = moveHiddenToBottom(playlist, hiddenTrackIds);
+    if (next === playlist) return;
+    setPlaylist(next);
+    if (anchorId) {
+      const newIndex = next.findIndex((t) => t.id === anchorId);
+      if (newIndex >= 0) setCurrentIndex(newIndex);
+    }
   };
 
   // Hide track from current session only (does not affect saved playlist or cloud)
@@ -9319,9 +9685,9 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
             {/* MIDDLE: UP NEXT (IN ORDER) */}
             <main className="relative col-start-3 h-full min-w-0 overflow-hidden flex flex-col gap-2">
               <Card className="relative flex-1 overflow-hidden bg-[#090f1c] p-3 md:p-4 flex flex-col">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-[10px] md:text-xs font-bold tracking-widest text-[#ff8a00]">UP NEXT (IN ORDER)</h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {playlist.length > 0 && (
                       <button
                         onClick={resetPlaylist}
@@ -9353,6 +9719,16 @@ export function EqhoPlayer({ demoMode = false, presentation = "standalone" }: Eq
                       className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white bg-[#ff8a00]/20 border border-[#ff8a00]/50 rounded-md hover:bg-[#ff8a00]/30 hover:border-[#ff8a00]/70 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       Clear Playlist
+                    </button>
+                    <button
+                      type="button"
+                      onClick={moveHiddenTracksToBottom}
+                      disabled={!hiddenCanMoveToBottom}
+                      title={hiddenTrackIds.size === 0 ? "No hidden tracks to move" : hiddenCanMoveToBottom ? "Group hidden tracks under the included ones" : "Hidden tracks are already at the bottom"}
+                      className="px-2 md:px-3 py-1 md:py-1.5 text-[9px] md:text-[10px] font-bold text-white/70 border border-white/15 rounded-md hover:bg-white/10 hover:text-white transition flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >
+                      <ArrowDownToLine size={12} aria-hidden="true" />
+                      Move hidden to bottom
                     </button>
                     {hiddenTrackIds.size > 0 && (
                       <button
